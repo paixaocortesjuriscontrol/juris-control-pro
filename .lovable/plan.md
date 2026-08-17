@@ -1,140 +1,112 @@
-# Renovar certificados e restaurar VPS do pool DJEN
+# Finalizar reparo das VPS do pool DJEN
 
-## O que causou o erro na vm02
+## Onde estamos agora (testado de fora, agora)
 
-O comando foi rodado na vm02 usando o domínio da vm01. Cada VM tem o seu próprio domínio, confirmado agora no DNS:
+| VPS | Domínio | Certificado | `/health` |
+|---|---|---|---|
+| Google VPS 1 (vm01) | djen-google.juriscontrol.adv.br | Renovado, válido até 15/11/2026 | **200 OK** — resolvido |
+| Google VPS 2.1 (vm02) | djen-google2.juriscontrol.adv.br:8443 | Arquivo renovado até 15/11/2026, mas a porta 8443 **ainda entrega o certificado antigo** (venceu 24/07/2026) | Recusado por certificado expirado |
+| Google VPS 9 (vm09) | djen-google9.juriscontrol.adv.br | Não testável | **Nada escutando** em 443, 8443, 80 nem 8080 |
 
-| VM | Domínio correto | IP |
-|---|---|---|
-| vm01 | djen-google.juriscontrol.adv.br | 35.247.201.135 |
-| vm02 | djen-google2.juriscontrol.adv.br | 34.39.217.255 |
-| vm09 | djen-google9.juriscontrol.adv.br | 34.39.248.189 |
+Duas observações importantes da vm02:
 
-Como `djen-google` aponta para 35.247.201.135, a Let's Encrypt foi validar na vm01 enquanto o servidor temporário do certbot estava de pé na vm02 — daí o 404. **Regra: nunca usar o domínio de uma VM em outra.**
+1. O proxy da vm02 atende em **8443**, não em 443 (a 443 é o Nginx, que devolve 404 em `/health`).
+2. O processo da 8443 carregou o certificado antigo na memória e ainda não foi reiniciado. O `pm2 list` apareceu vazio para o usuário `contato`, então esse serviço roda por outro caminho (systemd ou outro usuário) — é isso que precisa ser identificado.
 
-Na vm02 o Nginx é quem ocupa as portas 80 e 443, e o PM2 está vazio. Então nela o caminho mais seguro é usar o **plugin nginx** do certbot, que valida sem derrubar o serviço.
-
-## Etapa 1 — vm02: confirmar o domínio e quem serve o proxy
+## Etapa 1 — vm02: descobrir quem escuta na 8443 e reiniciar
 
 ```bash
-sudo certbot certificates
-hostname -f
-sudo grep -rn "server_name\|proxy_pass" /etc/nginx/sites-enabled/
-sudo systemctl list-units --type=service --state=running | grep -i djen
+sudo ss -tlnp | grep 8443
 ```
 
-Isso confirma o nome exato do certificado e qual serviço responde em `/health`.
-
-## Etapa 2 — vm02: renovar com o plugin nginx
+A saída mostra o processo. Conforme o caso:
 
 ```bash
-sudo certbot --nginx \
-  --cert-name djen-google2.juriscontrol.adv.br \
-  -d djen-google2.juriscontrol.adv.br \
-  --force-renewal --non-interactive --agree-tos --redirect
+# se for um serviço systemd (ex.: djen-proxy.service):
+sudo systemctl restart NOME_DO_SERVICO
+sudo systemctl status NOME_DO_SERVICO --no-pager
+
+# se for PM2 rodando como root:
+sudo pm2 list
+sudo pm2 restart all
+
+# se for PM2 de outro usuário (ex.: root ou djen):
+sudo -u USUARIO pm2 list
+sudo -u USUARIO pm2 restart all
 ```
 
-Se o plugin nginx não estiver instalado:
+## Etapa 2 — vm02: validar
 
 ```bash
-sudo apt update && sudo apt install -y python3-certbot-nginx
-```
+curl -s https://djen-google2.juriscontrol.adv.br:8443/health
 
-Alternativa, caso o plugin falhe (usa servidor temporário, para o Nginx por poucos segundos):
-
-```bash
-sudo certbot certonly --standalone \
-  --cert-name djen-google2.juriscontrol.adv.br \
-  -d djen-google2.juriscontrol.adv.br \
-  --pre-hook "systemctl stop nginx" \
-  --post-hook "systemctl start nginx" \
-  --force-renewal --non-interactive --agree-tos
-```
-
-## Etapa 3 — vm02: recarregar e validar
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-
-curl -s https://djen-google2.juriscontrol.adv.br/health
-# esperado: {"ok":true,...}
-
-echo | openssl s_client -connect djen-google2.juriscontrol.adv.br:443 2>/dev/null \
+echo | openssl s_client -connect djen-google2.juriscontrol.adv.br:8443 \
+  -servername djen-google2.juriscontrol.adv.br 2>/dev/null \
   | openssl x509 -noout -dates
 ```
 
-`notAfter` deve ficar ~90 dias à frente.
+Precisa retornar `{"ok":true,...}` e `notAfter=Nov 15 ... 2026`. Se ainda vier a data de julho, o processo não foi reiniciado de fato.
 
-## Etapa 4 — vm01: mesma sequência com o domínio dela
-
-Na vm01, primeiro descobrir quem ocupa a porta 80:
+## Etapa 3 — vm09: religar o serviço
 
 ```bash
-sudo ss -tlnp | grep -E ':80 |:443 '
-systemctl is-active nginx && echo "nginx ativo" || echo "nginx inativo"
+sudo ss -tlnp | grep -E ':443 |:8443 |:80 '
+sudo systemctl list-units --type=service | grep -i djen
 pm2 list
+sudo pm2 list
 ```
 
-Se for Nginx, usar o plugin nginx:
+Se houver serviço parado, subir e habilitar no boot:
 
 ```bash
+sudo systemctl enable --now NOME_DO_SERVICO
+# ou, se for PM2:
+pm2 resurrect && pm2 save
+```
+
+Se nada existir, instalar do zero:
+
+```bash
+ls -la ~/djen-proxy/
+cd ~/djen-proxy && bash setup.sh
+```
+
+Conferir o certificado da vm09 e renovar se preciso (é o mesmo padrão da vm02, sempre com o domínio próprio):
+
+```bash
+sudo certbot certificates
 sudo certbot --nginx \
-  --cert-name djen-google.juriscontrol.adv.br \
-  -d djen-google.juriscontrol.adv.br \
-  --force-renewal --non-interactive --agree-tos --redirect
-```
-
-Se for o proxy Node sob PM2 na porta 80:
-
-```bash
-sudo certbot certonly --standalone \
-  --cert-name djen-google.juriscontrol.adv.br \
-  -d djen-google.juriscontrol.adv.br \
-  --pre-hook "su - contato -c 'pm2 stop all'" \
-  --post-hook "su - contato -c 'pm2 start all'" \
+  --cert-name djen-google9.juriscontrol.adv.br \
+  -d djen-google9.juriscontrol.adv.br \
   --force-renewal --non-interactive --agree-tos
 ```
 
-Depois recarregar o serviço (`systemctl reload nginx` ou `pm2 restart all`) e validar com `curl` **sem** `-k`, igual à Etapa 3.
+Verificar também a regra de firewall da VPC liberando a porta usada pelo proxy.
 
-## Etapa 5 — Religar a renovação automática (vm01 e vm02)
+## Etapa 4 — Religar a renovação automática (vm01, vm02 e vm09)
 
-O que faltava era o reload do serviço depois de cada renovação — foi por isso que travou em julho.
+O certbot já reagendou a renovação sozinho, mas falta o passo que quebrou em julho: **reiniciar o serviço do proxy após cada renovação**. Sem isso, o arquivo é renovado e o processo continua servindo o certificado velho — exatamente o que aconteceu na vm02.
 
-Criar um script de hook de deploy do Let's Encrypt (em `renewal-hooks/deploy/`) que recarrega o Nginx quando ativo e reinicia o PM2 quando existir, marcar como executável, e confirmar:
+Em cada VM, criar um script de hook de deploy do Let's Encrypt (pasta `renewal-hooks/deploy/`) que recarrega o Nginx quando ativo e reinicia o serviço/PM2 do proxy, marcá-lo como executável e validar:
 
 ```bash
 sudo systemctl list-timers | grep -i certbot
 sudo certbot renew --dry-run
 ```
 
-O `--dry-run` precisa passar em ambas as VMs. Entrego o conteúdo exato do script no momento da execução.
+O `--dry-run` precisa passar em todas. Entrego o conteúdo exato do script assim que a Etapa 1 revelar como o proxy roda em cada VM.
 
-## Etapa 6 — vm09: religar o serviço
+## Etapa 5 — Validar o pool dentro do app
 
-```bash
-pm2 list
-pm2 resurrect
-ls -la ~/djen-proxy/
-sudo ss -tlnp | grep -E ':80 |:443 |:8089 |:8443 '
-curl -s http://127.0.0.1:8089/health
-```
+1. Em **Configurações → Pool de Proxies DJEN**, reative o slot "Google VPS 9" depois que ele responder de fora.
+2. Clique em **Testar agora** nos três slots.
+3. Os selos devem ficar verdes, com latência e `cert_expira_em` em 15/11/2026.
 
-Se não houver processo, subir do zero:
+O monitor diário `verificar-saude-pool-djen` (8h BRT) grava `saude_status`, `saude_motivo`, `latencia_ms` e `cert_expira_em`, e avisa por e-mail a 30, 15, 7 e 1 dia do vencimento.
 
-```bash
-cd ~/djen-proxy && bash setup.sh
-```
+## Regra a manter
 
-Conferir também a regra de firewall da VPC liberando a porta usada e, se o certificado de `djen-google9.juriscontrol.adv.br` estiver vencido, aplicar as Etapas 2, 3 e 5 nela.
-
-## Etapa 7 — Validar o pool no app
-
-1. Quando a vm09 responder `/health` de fora, vá em **Configurações → Pool de Proxies DJEN** e reative o slot "Google VPS 9".
-2. Clique em **Testar agora** nos três slots reparados.
-3. Os selos devem ficar verdes, com latência e `cert_expira_em` ~90 dias à frente.
-
-O monitor diário (`verificar-saude-pool-djen`, 8h BRT) grava `saude_status`, `saude_motivo`, `latencia_ms` e `cert_expira_em`, e avisa por e-mail a 30, 15, 7 e 1 dia do vencimento — então esse cenário não volta a acontecer sem aviso.
+Nunca usar o domínio de uma VM em outra: `djen-google` → vm01 (35.247.201.135), `djen-google2` → vm02 (34.39.217.255), `djen-google9` → vm09 (34.39.248.189). Foi essa troca que gerou o 404 do primeiro erro.
 
 ## Fora de escopo
 
