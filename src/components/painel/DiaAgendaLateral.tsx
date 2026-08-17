@@ -9,6 +9,8 @@ import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const TIPO_TEXTO: Record<string, string> = {
@@ -156,6 +158,7 @@ export function AgendaItemRow({
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
           {hora ? `: ${hora}` : ""}
           {temAtividade && <AtividadeBadge />}
+          {veioDeWorkflow && <WorkflowBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
@@ -219,6 +222,8 @@ export function DiaAgendaLateral({
     return set;
   }, [atividades]);
 
+  const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-shrink-0">
@@ -248,6 +253,7 @@ export function DiaAgendaLateral({
               userId={userId}
               onSelect={onSelectItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
+              veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
             />
           ))}
           {atividades.map((a: any) => {
