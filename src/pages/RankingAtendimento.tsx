@@ -210,94 +210,57 @@ export default function RankingAtendimento() {
   )}`;
 
   const exportarPdf = () => {
-    if (aba === "produtividade") {
-      gerarRankingPdf({
-        titulo: "Ranking de Atendimento — Produtividade",
-        subtitulo: "Volume entregue por profissional (itens e atividades concluídas)",
-        periodo: periodoLabel,
-        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-        colunas: [
-          { header: "#", width: 12, key: "pos" },
-          { header: "Profissional", width: 70, key: "nome" },
-          { header: "Abertos", width: 26, key: "abertos_total", align: "right" as const },
-          { header: "Concluídos", width: 30, key: "concluidos", align: "right" as const },
-          { header: "Atividades concl.", width: 36, key: "atividades_concluidas", align: "right" as const },
-          { header: "Entregas totais", width: 34, key: "entregas", align: "right" as const },
-        ],
-        linhas: produtividade.map((l, idx) => ({
-          pos: String(idx + 1),
-          nome: l.nome,
-          abertos_total: l.abertos_total,
-          concluidos: l.concluidos,
-          atividades_concluidas: l.atividades_concluidas ?? 0,
-          entregas: l.entregas,
-        })),
-        resumo: [
-          { label: "Itens concluídos", valor: totaisGeral.concluidos },
-          { label: "Atividades concluídas", valor: totaisGeral.atividadesConcl },
-          { label: "Entregas totais", valor: totaisGeral.concluidos + totaisGeral.atividadesConcl },
-          { label: "Itens abertos", valor: totaisGeral.abertos },
-        ],
-        nomeArquivo: "ranking_produtividade",
-      });
-    } else if (aba === "pontualidade") {
-      gerarRankingPdf({
-        titulo: "Ranking de Atendimento — Pontualidade",
-        subtitulo: "Cumprimento de prazos por profissional",
-        periodo: periodoLabel,
-        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-        colunas: [
-          { header: "#", width: 12, key: "pos" },
-          { header: "Profissional", width: 70, key: "nome" },
-          { header: "Concluídos", width: 28, key: "concluidos", align: "right" as const },
-          { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" as const },
-          { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" as const },
-          { header: "% no prazo", width: 28, key: "taxa", align: "right" as const },
-          { header: "Prazos perdidos", width: 34, key: "prazos_perdidos", align: "right" as const },
-        ],
-        linhas: pontualidade.map((l, idx) => ({
-          pos: String(idx + 1),
-          nome: l.nome,
-          concluidos: l.concluidos,
-          concluidos_no_prazo: l.concluidos_no_prazo,
-          concluidos_atraso: l.concluidos_atraso,
-          taxa: `${l.taxa}%`,
-          prazos_perdidos: l.prazos_perdidos,
-        })),
-        resumo: [
-          { label: "Concluídos", valor: totaisGeral.concluidos },
-          { label: "No prazo", valor: totaisGeral.noPrazo },
-          { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
-          { label: "Prazos perdidos", valor: totaisGeral.perdidos },
-        ],
-        nomeArquivo: "ranking_pontualidade",
-      });
-    } else if (aba === "geral") {
-      gerarRankingPdf({
-        titulo: "Ranking de Atendimento — Geral",
-        subtitulo: "Produtividade e cumprimento de prazos por profissional",
-        periodo: periodoLabel,
-        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-        colunas: [
-          { header: "#", width: 10 },
-          { header: "Profissional", width: 60, key: "nome" },
-          { header: "Abertos", width: 22, key: "abertos_total", align: "right" },
-          { header: "Prazos", width: 20, key: "abertos_prazos", align: "right" },
-          { header: "Audiências", width: 24, key: "abertos_audiencias", align: "right" },
-          { header: "Eventos", width: 20, key: "abertos_eventos", align: "right" },
-          { header: "Parcelam.", width: 22, key: "abertos_parcelamentos", align: "right" },
-          { header: "Concluídos", width: 24, key: "concluidos", align: "right" },
-          { header: "No prazo", width: 22, key: "concluidos_no_prazo", align: "right" },
-          { header: "Atraso", width: 20, key: "concluidos_atraso", align: "right" },
-          { header: "Ativid.", width: 20, key: "atividades_total", align: "right" },
-          { header: "Ativid. concl.", width: 26, key: "atividades_concluidas", align: "right" },
-          { header: "% no prazo", width: 24, key: "taxa", align: "right" },
-          { header: "Prazos perdidos", width: 28, key: "prazos_perdidos", align: "right" },
-        ].map((c: any, i) => ({ ...c, key: c.key || `pos${i}` })),
-        linhas: [...geral]
-          .sort((a, b) => pct(Number(b.concluidos_no_prazo), Number(b.concluidos)) - pct(Number(a.concluidos_no_prazo), Number(a.concluidos)))
-          .map((l, idx) => ({
-            pos0: String(idx + 1),
+    const topo = (arr: any[], n = 12) => arr.slice(0, n);
+    const nomesCurtos = (arr: any[]) => topo(arr).map((l) => l.nome.split(" ").slice(0, 2).join(" "));
+
+    gerarRankingPdfCompleto({
+      titulo: "Ranking de Atendimento",
+      periodo: periodoLabel,
+      filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+      nomeArquivo: "ranking_atendimento_completo",
+      secoes: [
+        {
+          titulo: "Visão Geral",
+          subtitulo: "Produtividade e cumprimento de prazos por profissional",
+          notas: [
+            "Criados no período: itens (prazos, tarefas, audiências, eventos, parcelamentos) cadastrados no período em que o profissional é autor ou responsável. Cargas/importações não entram.",
+            "Atividades: subatividades vinculadas a um item; contadas quando o profissional é responsável, envolvido ou concluiu a atividade.",
+          ],
+          resumo: [
+            { label: "Criados no período", valor: totaisGeral.abertos },
+            { label: "Concluídos", valor: totaisGeral.concluidos },
+            { label: "No prazo", valor: totaisGeral.noPrazo },
+            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+            { label: "Atividades concl.", valor: `${totaisGeral.atividadesConcl}/${totaisGeral.atividades}` },
+            { label: "Prazos perdidos", valor: totaisGeral.perdidos },
+          ],
+          grafico: {
+            titulo: "Top 12 — criados, no prazo e com atraso",
+            categorias: nomesCurtos(geralOrdenado),
+            series: [
+              { nome: "Criados", valores: topo(geralOrdenado).map((l) => Number(l.abertos_total)), cor: [59, 154, 225] },
+              { nome: "No prazo", valores: topo(geralOrdenado).map((l) => Number(l.concluidos_no_prazo)), cor: [31, 169, 113] },
+              { nome: "Com atraso", valores: topo(geralOrdenado).map((l) => Number(l.concluidos_atraso)), cor: [242, 84, 91] },
+            ],
+          },
+          colunas: [
+            { header: "#", width: 10, key: "pos" },
+            { header: "Profissional", width: 58, key: "nome" },
+            { header: "Criados", width: 22, key: "abertos_total", align: "right" },
+            { header: "Prazos", width: 20, key: "abertos_prazos", align: "right" },
+            { header: "Audiências", width: 24, key: "abertos_audiencias", align: "right" },
+            { header: "Eventos", width: 20, key: "abertos_eventos", align: "right" },
+            { header: "Parcelam.", width: 22, key: "abertos_parcelamentos", align: "right" },
+            { header: "Concluídos", width: 24, key: "concluidos", align: "right" },
+            { header: "No prazo", width: 22, key: "concluidos_no_prazo", align: "right" },
+            { header: "Atraso", width: 20, key: "concluidos_atraso", align: "right" },
+            { header: "Ativid.", width: 20, key: "atividades_total", align: "right" },
+            { header: "Ativid. concl.", width: 26, key: "atividades_concluidas", align: "right" },
+            { header: "% no prazo", width: 24, key: "taxa", align: "right" },
+            { header: "Prazos perdidos", width: 28, key: "prazos_perdidos", align: "right" },
+          ] as any,
+          linhas: geralOrdenado.map((l, idx) => ({
+            pos: String(idx + 1),
             nome: l.nome,
             abertos_total: l.abertos_total,
             abertos_prazos: l.abertos_prazos,
@@ -312,35 +275,118 @@ export default function RankingAtendimento() {
             taxa: `${pct(Number(l.concluidos_no_prazo), Number(l.concluidos))}%`,
             prazos_perdidos: l.prazos_perdidos,
           })),
-        resumo: [
-          { label: "Itens abertos", valor: totaisGeral.abertos },
-          { label: "Concluídos", valor: totaisGeral.concluidos },
-          { label: "Concluídos no prazo", valor: totaisGeral.noPrazo },
-          { label: "Atividades concluídas", valor: `${totaisGeral.atividadesConcl}/${totaisGeral.atividades}` },
-          { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
-          { label: "Prazos perdidos", valor: totaisGeral.perdidos },
-        ],
-        nomeArquivo: "ranking_atendimento_geral",
-      });
-    } else {
-      gerarRankingPdf({
-        titulo: "Ranking de Atendimento — TST (Distribuição)",
-        subtitulo: "Qualidade do preenchimento dos dados da Distribuição TST",
-        periodo: periodoLabel,
-        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-        colunas: [
-          { header: "#", width: 10, key: "pos" },
-          { header: "Profissional", width: 70, key: "nome" },
-          { header: "Processos", width: 28, key: "total", align: "right" },
-          { header: "Sem pendência", width: 32, key: "sem_pendencia", align: "right" },
-          { header: "Com pendência", width: 32, key: "com_pendencia", align: "right" },
-          { header: "% completos", width: 28, key: "taxa", align: "right" },
-          { header: "Campos pendentes", width: 34, key: "pendencias_total", align: "right" },
-          { header: "Judit preenchido", width: 32, key: "judit_preenchidos", align: "right" },
-        ],
-        linhas: [...tst]
-          .sort((a, b) => pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)))
-          .map((l, idx) => ({
+        },
+        {
+          titulo: "Produtividade",
+          subtitulo: "Volume entregue por profissional (itens concluídos + atividades concluídas)",
+          resumo: [
+            { label: "Itens concluídos", valor: totaisGeral.concluidos },
+            { label: "Atividades concluídas", valor: totaisGeral.atividadesConcl },
+            { label: "Entregas totais", valor: totaisGeral.concluidos + totaisGeral.atividadesConcl },
+            { label: "Criados no período", valor: totaisGeral.abertos },
+          ],
+          grafico: {
+            titulo: "Top 12 — volume entregue",
+            categorias: nomesCurtos(produtividade),
+            series: [
+              { nome: "Itens concluídos", valores: topo(produtividade).map((l) => Number(l.concluidos)), cor: [24, 37, 68] },
+              {
+                nome: "Atividades concluídas",
+                valores: topo(produtividade).map((l) => Number(l.atividades_concluidas || 0)),
+                cor: [59, 154, 225],
+              },
+            ],
+          },
+          colunas: [
+            { header: "#", width: 12, key: "pos" },
+            { header: "Profissional", width: 70, key: "nome" },
+            { header: "Criados no período", width: 38, key: "abertos_total", align: "right" },
+            { header: "Itens concluídos", width: 34, key: "concluidos", align: "right" },
+            { header: "Atividades concl.", width: 36, key: "atividades_concluidas", align: "right" },
+            { header: "Entregas totais", width: 34, key: "entregas", align: "right" },
+          ] as any,
+          linhas: produtividade.map((l, idx) => ({
+            pos: String(idx + 1),
+            nome: l.nome,
+            abertos_total: l.abertos_total,
+            concluidos: l.concluidos,
+            atividades_concluidas: l.atividades_concluidas ?? 0,
+            entregas: l.entregas,
+          })),
+        },
+        {
+          titulo: "Pontualidade",
+          subtitulo: "Cumprimento de prazos por profissional (mínimo de 5 conclusões para ranquear)",
+          resumo: [
+            { label: "Concluídos", valor: totaisGeral.concluidos },
+            { label: "No prazo", valor: totaisGeral.noPrazo },
+            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+            { label: "Prazos perdidos", valor: totaisGeral.perdidos },
+          ],
+          grafico: {
+            titulo: "Top 12 — % no prazo x prazos perdidos",
+            categorias: nomesCurtos(pontualidade.filter((l) => l.relevante)),
+            series: [
+              {
+                nome: "% no prazo",
+                valores: topo(pontualidade.filter((l) => l.relevante)).map((l) => l.taxa),
+                cor: [31, 169, 113],
+              },
+              {
+                nome: "Prazos perdidos",
+                valores: topo(pontualidade.filter((l) => l.relevante)).map((l) => Number(l.prazos_perdidos)),
+                cor: [242, 84, 91],
+              },
+            ],
+          },
+          colunas: [
+            { header: "#", width: 12, key: "pos" },
+            { header: "Profissional", width: 70, key: "nome" },
+            { header: "Concluídos", width: 28, key: "concluidos", align: "right" },
+            { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" },
+            { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" },
+            { header: "% no prazo", width: 28, key: "taxa", align: "right" },
+            { header: "Prazos perdidos", width: 34, key: "prazos_perdidos", align: "right" },
+          ] as any,
+          linhas: pontualidade.map((l, idx) => ({
+            pos: String(idx + 1),
+            nome: l.relevante ? l.nome : `${l.nome} (amostra baixa)`,
+            concluidos: l.concluidos,
+            concluidos_no_prazo: l.concluidos_no_prazo,
+            concluidos_atraso: l.concluidos_atraso,
+            taxa: `${l.taxa}%`,
+            prazos_perdidos: l.prazos_perdidos,
+          })),
+        },
+        {
+          titulo: "TST — Distribuição",
+          subtitulo: "Qualidade do preenchimento dos dados da Distribuição TST",
+          resumo: [
+            { label: "Processos", valor: totaisTst.total },
+            { label: "Sem pendência", valor: totaisTst.sem },
+            { label: "Com pendência", valor: totaisTst.com },
+            { label: "% completos", valor: `${pct(totaisTst.sem, totaisTst.total)}%` },
+            { label: "Campos pendentes", valor: totaisTst.pend },
+          ],
+          grafico: {
+            titulo: "Top 12 — preenchimento da Distribuição TST",
+            categorias: nomesCurtos(tstOrdenado),
+            series: [
+              { nome: "Sem pendência", valores: topo(tstOrdenado).map((l) => Number(l.sem_pendencia)), cor: [31, 169, 113] },
+              { nome: "Com pendência", valores: topo(tstOrdenado).map((l) => Number(l.com_pendencia)), cor: [242, 84, 91] },
+            ],
+          },
+          colunas: [
+            { header: "#", width: 12, key: "pos" },
+            { header: "Profissional", width: 70, key: "nome" },
+            { header: "Processos", width: 28, key: "total", align: "right" },
+            { header: "Sem pendência", width: 32, key: "sem_pendencia", align: "right" },
+            { header: "Com pendência", width: 32, key: "com_pendencia", align: "right" },
+            { header: "% completos", width: 28, key: "taxa", align: "right" },
+            { header: "Campos pendentes", width: 34, key: "pendencias_total", align: "right" },
+            { header: "Judit preenchido", width: 32, key: "judit_preenchidos", align: "right" },
+          ] as any,
+          linhas: tstOrdenado.map((l, idx) => ({
             pos: String(idx + 1),
             nome: l.nome,
             total: l.total,
@@ -350,16 +396,9 @@ export default function RankingAtendimento() {
             pendencias_total: l.pendencias_total,
             judit_preenchidos: l.judit_preenchidos,
           })),
-        resumo: [
-          { label: "Processos", valor: totaisTst.total },
-          { label: "Sem pendência", valor: totaisTst.sem },
-          { label: "Com pendência", valor: totaisTst.com },
-          { label: "% completos", valor: `${pct(totaisTst.sem, totaisTst.total)}%` },
-          { label: "Campos pendentes", valor: totaisTst.pend },
-        ],
-        nomeArquivo: "ranking_atendimento_tst",
-      });
-    }
+        },
+      ],
+    });
   };
 
   const medalha = (idx: number) =>
