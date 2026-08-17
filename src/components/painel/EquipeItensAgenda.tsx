@@ -308,6 +308,7 @@ export function EquipeItensAgenda({
     [listaItens, paginaAtual]
   );
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensPagina);
+  const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensPagina);
 
   // Volta para a primeira página apenas quando o membro/busca realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
