@@ -207,3 +207,6 @@ verify_jwt = true
 
 [functions.enviar-agenda-do-dia]
 verify_jwt = false
+
+[functions.verificar-saude-pool-djen]
+verify_jwt = false
