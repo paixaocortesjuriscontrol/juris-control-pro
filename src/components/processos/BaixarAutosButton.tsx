@@ -1,6 +1,8 @@
 import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { persistirMovimentacoes } from "@/lib/persistirMovimentacoes";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBaixarAutos } from "@/hooks/useBaixarAutos";
 import { useMniConsultaProcesso, type ResultadoMni } from "@/hooks/useMniConsultaProcesso";
@@ -47,6 +49,7 @@ type ModoBusca = "mni" | "consulta_publica" | "login_certificado";
 
 export function BaixarAutosButton({ processoId, processoNumero, tribunal }: BaixarAutosButtonProps) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [credencialSelecionada, setCredencialSelecionada] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
@@ -100,15 +103,38 @@ export function BaixarAutosButton({ processoId, processoNumero, tribunal }: Baix
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmarBaixar = () => {
+  const handleConfirmarBaixar = async () => {
     setShowConfirmDialog(false);
     if (!credencialSelecionada) return;
 
     if (modo === "mni") {
-      consultarMni({
+      const res = await consultarMni({
         cofre_senha_id: credencialSelecionada,
         processo_numero: processoNumero,
       });
+      // Grava os andamentos retornados pelo MNI na aba "Andamentos".
+      if (res?.sucesso && Array.isArray(res.movimentacoes) && res.movimentacoes.length > 0) {
+        try {
+          const inseridos = await persistirMovimentacoes(
+            processoId,
+            res.movimentacoes.map((m) => ({
+              data: m.data,
+              descricao: m.descricao,
+              codigo: m.codigo,
+              complementos: m.complementos,
+              raw: m,
+            })),
+            "mni",
+          );
+          await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo", processoId] });
+          await queryClient.invalidateQueries({ queryKey: ["movimentacoes-processo"] });
+          await queryClient.invalidateQueries({ queryKey: ["recent-movimentacoes"] });
+          if (inseridos > 0) toast.success(`${inseridos} andamento(s) gravado(s) na aba Andamentos.`);
+          else toast.info("Andamentos já estavam gravados na aba Andamentos.");
+        } catch (e: any) {
+          toast.error("Falha ao gravar andamentos: " + (e?.message || "erro desconhecido"));
+        }
+      }
     } else {
       baixarAutos({
         cofre_senha_id: credencialSelecionada,
