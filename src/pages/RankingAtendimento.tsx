@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { format, startOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
-import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp } from "lucide-react";
 import { gerarRankingPdf } from "@/lib/rankingAtendimentoPdf";
 
 const NAVY = "hsl(222 47% 18%)";
@@ -298,6 +298,59 @@ export default function RankingAtendimento() {
             pct(Number(a.concluidos_no_prazo), Number(a.concluidos)) || Number(b.concluidos) - Number(a.concluidos)
       ),
     [geral]
+  );
+
+  // Produtividade: volume entregue (itens concluídos + atividades concluídas)
+  const produtividade = useMemo(
+    () =>
+      [...geral]
+        .map((l) => ({
+          ...l,
+          entregas: Number(l.concluidos) + Number(l.atividades_concluidas || 0),
+        }))
+        .sort((a, b) => b.entregas - a.entregas || Number(b.concluidos) - Number(a.concluidos)),
+    [geral]
+  );
+
+  // Pontualidade: percentual no prazo (mínimo de 5 conclusões para entrar no ranking)
+  const pontualidade = useMemo(
+    () =>
+      [...geral]
+        .map((l) => ({
+          ...l,
+          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos)),
+          relevante: Number(l.concluidos) >= 5,
+        }))
+        .sort(
+          (a, b) =>
+            Number(b.relevante) - Number(a.relevante) ||
+            b.taxa - a.taxa ||
+            Number(a.prazos_perdidos) - Number(b.prazos_perdidos)
+        ),
+    [geral]
+  );
+
+  const graficoProdutividade = useMemo(
+    () =>
+      produtividade.slice(0, 12).map((l) => ({
+        nome: l.nome.split(" ").slice(0, 2).join(" "),
+        Concluídos: Number(l.concluidos),
+        "Atividades concl.": Number(l.atividades_concluidas || 0),
+      })),
+    [produtividade]
+  );
+
+  const graficoPontualidade = useMemo(
+    () =>
+      pontualidade
+        .filter((l) => l.relevante)
+        .slice(0, 12)
+        .map((l) => ({
+          nome: l.nome.split(" ").slice(0, 2).join(" "),
+          "% no prazo": l.taxa,
+          "Prazos perdidos": Number(l.prazos_perdidos),
+        })),
+    [pontualidade]
   );
 
   const tstOrdenado = useMemo(
