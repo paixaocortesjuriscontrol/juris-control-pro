@@ -569,6 +569,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       // Monta atualização do processo — só sobrescreve quando Judit traz valor
       const next: Record<string, any> = { ...form };
       const filled = new Set<string>(juditSessionFields);
+      setJuditPayloadPendente(data);
       const apply = (field: string, value: any) => {
         if (value !== null && value !== undefined && String(value).trim() !== "") {
           next[field] = value;
