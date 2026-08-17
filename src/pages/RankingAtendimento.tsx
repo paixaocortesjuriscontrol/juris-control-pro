@@ -336,7 +336,7 @@ export default function RankingAtendimento() {
           resumo: [
             { label: "Concluídos", valor: totaisGeral.concluidos },
             { label: "No prazo", valor: totaisGeral.noPrazo },
-            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+            { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%` },
             { label: "Prazos perdidos", valor: totaisGeral.perdidos },
           ],
           grafico: {
@@ -359,6 +359,7 @@ export default function RankingAtendimento() {
             { header: "#", width: 12, key: "pos" },
             { header: "Profissional", width: 70, key: "nome" },
             { header: "Concluídos", width: 28, key: "concluidos", align: "right" },
+            { header: "Com prazo", width: 26, key: "avaliaveis", align: "right" },
             { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" },
             { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" },
             { header: "% no prazo", width: 28, key: "taxa", align: "right" },
@@ -368,6 +369,7 @@ export default function RankingAtendimento() {
             pos: String(idx + 1),
             nome: l.relevante ? l.nome : `${l.nome} (amostra baixa)`,
             concluidos: l.concluidos,
+            avaliaveis: l.avaliaveis,
             concluidos_no_prazo: l.concluidos_no_prazo,
             concluidos_atraso: l.concluidos_atraso,
             taxa: `${l.taxa}%`,
