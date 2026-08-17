@@ -35,6 +35,8 @@ type LinhaGeral = {
   concluidos: number;
   concluidos_no_prazo: number;
   concluidos_atraso: number;
+  /** Conclusões com prazo próprio (data fatal/prevista) — base do % no prazo */
+  concluidos_avaliaveis?: number;
   prazos_perdidos: number;
   atividades_total: number;
   atividades_concluidas: number;
@@ -165,11 +167,12 @@ export default function RankingAtendimento() {
         abertos: acc.abertos + Number(l.abertos_total),
         concluidos: acc.concluidos + Number(l.concluidos),
         noPrazo: acc.noPrazo + Number(l.concluidos_no_prazo),
+        avaliaveis: acc.avaliaveis + Number(l.concluidos_avaliaveis ?? 0),
         perdidos: acc.perdidos + Number(l.prazos_perdidos),
         atividades: acc.atividades + Number(l.atividades_total || 0),
         atividadesConcl: acc.atividadesConcl + Number(l.atividades_concluidas || 0),
       }),
-      { abertos: 0, concluidos: 0, noPrazo: 0, perdidos: 0, atividades: 0, atividadesConcl: 0 }
+      { abertos: 0, concluidos: 0, noPrazo: 0, avaliaveis: 0, perdidos: 0, atividades: 0, atividadesConcl: 0 }
     );
   }, [geral]);
 
@@ -425,8 +428,9 @@ export default function RankingAtendimento() {
     () =>
       [...geral].sort(
         (a, b) =>
-          pct(Number(b.concluidos_no_prazo), Number(b.concluidos)) -
-            pct(Number(a.concluidos_no_prazo), Number(a.concluidos)) || Number(b.concluidos) - Number(a.concluidos)
+          pct(Number(b.concluidos_no_prazo), Number(b.concluidos_avaliaveis ?? 0)) -
+            pct(Number(a.concluidos_no_prazo), Number(a.concluidos_avaliaveis ?? 0)) ||
+          Number(b.concluidos) - Number(a.concluidos)
       ),
     [geral]
   );
@@ -449,8 +453,9 @@ export default function RankingAtendimento() {
       [...geral]
         .map((l) => ({
           ...l,
-          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos)),
-          relevante: Number(l.concluidos) >= 5,
+          avaliaveis: Number(l.concluidos_avaliaveis ?? 0),
+          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0)),
+          relevante: Number(l.concluidos_avaliaveis ?? 0) >= 5,
         }))
         .sort(
           (a, b) =>
