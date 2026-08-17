@@ -14,7 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { format, startOfYear } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
-import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp } from "lucide-react";
 import { gerarRankingPdf } from "@/lib/rankingAtendimentoPdf";
 
 const NAVY = "hsl(222 47% 18%)";
@@ -197,7 +197,69 @@ export default function RankingAtendimento() {
   )}`;
 
   const exportarPdf = () => {
-    if (aba === "geral") {
+    if (aba === "produtividade") {
+      gerarRankingPdf({
+        titulo: "Ranking de Atendimento — Produtividade",
+        subtitulo: "Volume entregue por profissional (itens e atividades concluídas)",
+        periodo: periodoLabel,
+        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+        colunas: [
+          { header: "#", width: 12, key: "pos" },
+          { header: "Profissional", width: 70, key: "nome" },
+          { header: "Abertos", width: 26, key: "abertos_total", align: "right" as const },
+          { header: "Concluídos", width: 30, key: "concluidos", align: "right" as const },
+          { header: "Atividades concl.", width: 36, key: "atividades_concluidas", align: "right" as const },
+          { header: "Entregas totais", width: 34, key: "entregas", align: "right" as const },
+        ],
+        linhas: produtividade.map((l, idx) => ({
+          pos: String(idx + 1),
+          nome: l.nome,
+          abertos_total: l.abertos_total,
+          concluidos: l.concluidos,
+          atividades_concluidas: l.atividades_concluidas ?? 0,
+          entregas: l.entregas,
+        })),
+        resumo: [
+          { label: "Itens concluídos", valor: totaisGeral.concluidos },
+          { label: "Atividades concluídas", valor: totaisGeral.atividadesConcl },
+          { label: "Entregas totais", valor: totaisGeral.concluidos + totaisGeral.atividadesConcl },
+          { label: "Itens abertos", valor: totaisGeral.abertos },
+        ],
+        nomeArquivo: "ranking_produtividade",
+      });
+    } else if (aba === "pontualidade") {
+      gerarRankingPdf({
+        titulo: "Ranking de Atendimento — Pontualidade",
+        subtitulo: "Cumprimento de prazos por profissional",
+        periodo: periodoLabel,
+        filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+        colunas: [
+          { header: "#", width: 12, key: "pos" },
+          { header: "Profissional", width: 70, key: "nome" },
+          { header: "Concluídos", width: 28, key: "concluidos", align: "right" as const },
+          { header: "No prazo", width: 26, key: "concluidos_no_prazo", align: "right" as const },
+          { header: "Com atraso", width: 28, key: "concluidos_atraso", align: "right" as const },
+          { header: "% no prazo", width: 28, key: "taxa", align: "right" as const },
+          { header: "Prazos perdidos", width: 34, key: "prazos_perdidos", align: "right" as const },
+        ],
+        linhas: pontualidade.map((l, idx) => ({
+          pos: String(idx + 1),
+          nome: l.nome,
+          concluidos: l.concluidos,
+          concluidos_no_prazo: l.concluidos_no_prazo,
+          concluidos_atraso: l.concluidos_atraso,
+          taxa: `${l.taxa}%`,
+          prazos_perdidos: l.prazos_perdidos,
+        })),
+        resumo: [
+          { label: "Concluídos", valor: totaisGeral.concluidos },
+          { label: "No prazo", valor: totaisGeral.noPrazo },
+          { label: "% no prazo", valor: `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%` },
+          { label: "Prazos perdidos", valor: totaisGeral.perdidos },
+        ],
+        nomeArquivo: "ranking_pontualidade",
+      });
+    } else if (aba === "geral") {
       gerarRankingPdf({
         titulo: "Ranking de Atendimento — Geral",
         subtitulo: "Produtividade e cumprimento de prazos por profissional",
@@ -300,6 +362,59 @@ export default function RankingAtendimento() {
     [geral]
   );
 
+  // Produtividade: volume entregue (itens concluídos + atividades concluídas)
+  const produtividade = useMemo(
+    () =>
+      [...geral]
+        .map((l) => ({
+          ...l,
+          entregas: Number(l.concluidos) + Number(l.atividades_concluidas || 0),
+        }))
+        .sort((a, b) => b.entregas - a.entregas || Number(b.concluidos) - Number(a.concluidos)),
+    [geral]
+  );
+
+  // Pontualidade: percentual no prazo (mínimo de 5 conclusões para entrar no ranking)
+  const pontualidade = useMemo(
+    () =>
+      [...geral]
+        .map((l) => ({
+          ...l,
+          taxa: pct(Number(l.concluidos_no_prazo), Number(l.concluidos)),
+          relevante: Number(l.concluidos) >= 5,
+        }))
+        .sort(
+          (a, b) =>
+            Number(b.relevante) - Number(a.relevante) ||
+            b.taxa - a.taxa ||
+            Number(a.prazos_perdidos) - Number(b.prazos_perdidos)
+        ),
+    [geral]
+  );
+
+  const graficoProdutividade = useMemo(
+    () =>
+      produtividade.slice(0, 12).map((l) => ({
+        nome: l.nome.split(" ").slice(0, 2).join(" "),
+        Concluídos: Number(l.concluidos),
+        "Atividades concl.": Number(l.atividades_concluidas || 0),
+      })),
+    [produtividade]
+  );
+
+  const graficoPontualidade = useMemo(
+    () =>
+      pontualidade
+        .filter((l) => l.relevante)
+        .slice(0, 12)
+        .map((l) => ({
+          nome: l.nome.split(" ").slice(0, 2).join(" "),
+          "% no prazo": l.taxa,
+          "Prazos perdidos": Number(l.prazos_perdidos),
+        })),
+    [pontualidade]
+  );
+
   const tstOrdenado = useMemo(
     () =>
       [...tst].sort(
@@ -385,6 +500,14 @@ export default function RankingAtendimento() {
             <TabsTrigger value="geral" className="gap-2">
               <Trophy className="w-4 h-4" />
               Geral
+            </TabsTrigger>
+            <TabsTrigger value="produtividade" className="gap-2">
+              <TrendingUp className="w-4 h-4" />
+              Produtividade
+            </TabsTrigger>
+            <TabsTrigger value="pontualidade" className="gap-2">
+              <Gauge className="w-4 h-4" />
+              Pontualidade
             </TabsTrigger>
             <TabsTrigger value="tst" className="gap-2">
               <Target className="w-4 h-4" />
@@ -535,6 +658,253 @@ export default function RankingAtendimento() {
           </TabsContent>
 
           {/* ---------------- TST ---------------- */}
+          {/* ---------------- PRODUTIVIDADE ---------------- */}
+          <TabsContent value="produtividade" className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {(
+                [
+                  ["Itens concluídos", totaisGeral.concluidos, NAVY],
+                  ["Atividades concluídas", totaisGeral.atividadesConcl, AZUL],
+                  ["Entregas totais", totaisGeral.concluidos + totaisGeral.atividadesConcl, VERDE],
+                  ["Itens abertos", totaisGeral.abertos, GOLD],
+                ] as [string, number | string, string][]
+              ).map(([label, valor, cor]) => (
+                <Card key={label}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: cor }} />
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+                    </div>
+                    {geralQuery.isLoading ? (
+                      <Skeleton className="h-7 w-16 mt-2" />
+                    ) : (
+                      <p className="text-2xl font-bold mt-1">{valor}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Top 12 — volume entregue</CardTitle>
+                <CardDescription>Itens concluídos e atividades concluídas no período</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                {geralQuery.isLoading ? (
+                  <Skeleton className="h-full w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={graficoProdutividade} margin={{ top: 16, right: 8, bottom: 40, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="nome" angle={-25} textAnchor="end" interval={0} height={60} tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="Concluídos" fill={NAVY} radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="Concluídos" position="top" style={{ fontSize: 10 }} />
+                      </Bar>
+                      <Bar dataKey="Atividades concl." fill={AZUL} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Ranking de produtividade</CardTitle>
+                <CardDescription>Ordenado pelo total de entregas (itens + atividades concluídas)</CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Profissional</TableHead>
+                      <TableHead className="text-right">Abertos</TableHead>
+                      <TableHead className="text-right">Concluídos</TableHead>
+                      <TableHead className="text-right">Atividades concl.</TableHead>
+                      <TableHead className="text-right">Entregas totais</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {geralQuery.isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6}>
+                          <Skeleton className="h-24 w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ) : produtividade.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-10">
+                          Nenhum dado no período selecionado
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      produtividade.map((l, idx) => (
+                        <TableRow key={l.usuario_id}>
+                          <TableCell>
+                            <span className="flex items-center gap-1 font-semibold">
+                              {idx < 3 && <Medal className={`w-4 h-4 ${medalha(idx)}`} />}
+                              {idx + 1}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">{l.nome}</TableCell>
+                          <TableCell className="text-right">{l.abertos_total}</TableCell>
+                          <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
+                          <TableCell className="text-right font-semibold">{l.entregas}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ---------------- PONTUALIDADE ---------------- */}
+          <TabsContent value="pontualidade" className="space-y-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {(
+                [
+                  ["Concluídos", totaisGeral.concluidos, NAVY],
+                  ["No prazo", totaisGeral.noPrazo, VERDE],
+                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
+                  ["Prazos perdidos", totaisGeral.perdidos, VERMELHO],
+                ] as [string, number | string, string][]
+              ).map(([label, valor, cor]) => (
+                <Card key={label}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: cor }} />
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{label}</p>
+                    </div>
+                    {geralQuery.isLoading ? (
+                      <Skeleton className="h-7 w-16 mt-2" />
+                    ) : (
+                      <p className="text-2xl font-bold mt-1">{valor}</p>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Top 12 — pontualidade</CardTitle>
+                <CardDescription>Percentual no prazo (mínimo de 5 conclusões no período)</CardDescription>
+              </CardHeader>
+              <CardContent className="h-80">
+                {geralQuery.isLoading ? (
+                  <Skeleton className="h-full w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={graficoPontualidade} margin={{ top: 16, right: 8, bottom: 40, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="nome" angle={-25} textAnchor="end" interval={0} height={60} tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Legend />
+                      <Bar dataKey="% no prazo" fill={VERDE} radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="% no prazo" position="top" style={{ fontSize: 10 }} />
+                      </Bar>
+                      <Bar dataKey="Prazos perdidos" fill={VERMELHO} radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">Ranking de pontualidade</CardTitle>
+                <CardDescription>
+                  Ordenado pelo percentual no prazo; quem tem menos de 5 conclusões aparece ao final
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Profissional</TableHead>
+                      <TableHead className="text-right">Concluídos</TableHead>
+                      <TableHead className="text-right">No prazo</TableHead>
+                      <TableHead className="text-right">Atraso</TableHead>
+                      <TableHead className="text-right">% no prazo</TableHead>
+                      <TableHead className="text-right">Prazos perdidos</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {geralQuery.isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={7}>
+                          <Skeleton className="h-24 w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ) : pontualidade.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
+                          Nenhum dado no período selecionado
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      pontualidade.map((l, idx) => (
+                        <TableRow key={l.usuario_id} className={l.relevante ? "" : "opacity-70"}>
+                          <TableCell>
+                            <span className="flex items-center gap-1 font-semibold">
+                              {l.relevante && idx < 3 && <Medal className={`w-4 h-4 ${medalha(idx)}`} />}
+                              {idx + 1}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {l.nome}
+                            {!l.relevante && (
+                              <span className="ml-2 text-xs text-muted-foreground">(amostra baixa)</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
+                          <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
+                          <TableCell className="text-right">
+                            <Badge variant="outline" className="gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              {l.taxa}%
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {Number(l.prazos_perdidos) > 0 ? (
+                              <span className="inline-flex items-center gap-1 text-destructive font-semibold">
+                                <AlertTriangle className="w-3 h-3" />
+                                {l.prazos_perdidos}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="tst" className="space-y-4">
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
               {(
