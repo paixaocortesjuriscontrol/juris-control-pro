@@ -5,6 +5,8 @@ import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
+import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -52,6 +54,7 @@ function classifyItem(item: ItemAgendaUnificado): ColunaKey {
 
 export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum item" }: KanbanItensAgendaProps) {
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
+  const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
 
   const grupos = useMemo(() => {
     const m = new Map<ColunaKey, ItemAgendaUnificado[]>();
@@ -87,6 +90,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
               {items.map((item) => {
                 const d = getRefDate(item);
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
+                const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
                 return (
                   <Card
                     key={item.id}
@@ -96,6 +100,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                     <div className="flex items-start justify-between gap-2">
                       <p className="text-xs font-medium line-clamp-2 flex-1">{item.titulo || "(sem título)"}</p>
                       {temAtividade && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
+                      {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                     </div>
                     {item.processo?.numero && (
                       <p className="text-[10px] font-mono text-muted-foreground mt-1 truncate">

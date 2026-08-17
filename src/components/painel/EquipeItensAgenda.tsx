@@ -13,6 +13,8 @@ import {
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
@@ -306,6 +308,7 @@ export function EquipeItensAgenda({
     [listaItens, paginaAtual]
   );
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensPagina);
+  const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensPagina);
 
   // Volta para a primeira página apenas quando o membro/busca realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
@@ -485,6 +488,7 @@ export function EquipeItensAgenda({
                       <div className="flex items-center gap-1.5">
                         <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
+                        {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                       </div>
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
