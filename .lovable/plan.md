@@ -4,15 +4,15 @@
 
 | VPS | Domínio | Certificado | `/health` |
 |---|---|---|---|
-| Google VPS 1 (vm01) | djen-google.juriscontrol.adv.br | Renovado, válido até 15/11/2026 | **200 OK** — resolvido |
-| Google VPS 2.1 (vm02) | djen-google2.juriscontrol.adv.br:8443 | Arquivo renovado até 15/11/2026, mas a porta 8443 **ainda entrega o certificado antigo** (venceu 24/07/2026) | Recusado por certificado expirado |
-| Google VPS 9 (vm09) | djen-google9.juriscontrol.adv.br | Não testável | **Nada escutando** em 443, 8443, 80 nem 8080 |
+| Google VPS 1 (vm01) | djen-google.juriscontrol.adv.br | Renovado, válido até 15/11/2026 | 200 OK — resolvido |
+| Google VPS 2.1 (vm02) | djen-google2.juriscontrol.adv.br:8443 | Arquivo renovado até 15/11/2026, mas a porta 8443 ainda entrega o certificado antigo (venceu 24/07/2026) | Recusado por certificado expirado |
+| Google VPS 9 (vm09) | djen-google9.juriscontrol.adv.br | Não testável | Nada escutando em 443, 8443, 80 nem 8080 |
 
-Situação da vm02, já identificada:
+## Situação da vm02, já identificada
 
-1. O proxy atende em **8443** (a 443 é o Nginx, que devolve 404 em `/health`).
-2. Quem escuta na 8443 é um `node` solto, sem systemd e sem PM2: pid **12409**, usuário **paixaocortesjuriscontrol**, script `/home/paixaocortesjuriscontrol/djen-proxy/server.js`.
-3. Esse processo carregou o certificado antigo na memória — a 8443 ainda entrega `notAfter=Jul 24 2026` (confirmado agora de fora). Precisa ser derrubado e subido de novo, e desta vez como serviço que sobe no boot.
+1. O proxy atende em 8443 (a 443 é o Nginx, que devolve 404 em `/health`).
+2. Quem escuta na 8443 é um `node` solto, sem systemd e sem PM2: pid 12409, usuário `paixaocortesjuriscontrol`, script `/home/paixaocortesjuriscontrol/djen-proxy/server.js`.
+3. Esse processo carregou o certificado antigo na memória: a 8443 ainda entrega `notAfter=Jul 24 2026`. Precisa ser derrubado e subido de novo, desta vez como serviço que sobe no boot.
 
 ## Etapa 1 — vm02: subir o proxy como serviço systemd
 
@@ -41,7 +41,7 @@ sudo systemctl status djen-proxy --no-pager
 sudo ss -tlnp | grep 8443
 ```
 
-Escrevo o arquivo do serviço com os valores exatos assim que o `grep` acima mostrar como o `server.js` lê porta, token e certificados.
+Escrevo o arquivo do serviço com os valores exatos assim que o grep acima mostrar como o server.js lê porta, token e certificados.
 
 ## Etapa 2 — vm02: validar
 
@@ -79,7 +79,7 @@ ls -la ~/djen-proxy/
 cd ~/djen-proxy && bash setup.sh
 ```
 
-Conferir o certificado da vm09 e renovar se preciso (é o mesmo padrão da vm02, sempre com o domínio próprio):
+Conferir o certificado da vm09 e renovar se preciso (sempre com o domínio próprio):
 
 ```bash
 sudo certbot certificates
@@ -93,9 +93,9 @@ Verificar também a regra de firewall da VPC liberando a porta usada pelo proxy.
 
 ## Etapa 4 — Religar a renovação automática (vm01, vm02 e vm09)
 
-O certbot já reagendou a renovação sozinho, mas falta o passo que quebrou em julho: **reiniciar o serviço do proxy após cada renovação**. Sem isso, o arquivo é renovado e o processo continua servindo o certificado velho — exatamente o que aconteceu na vm02.
+O certbot já reagendou a renovação sozinho, mas falta o passo que quebrou em julho: reiniciar o serviço do proxy após cada renovação. Sem isso, o arquivo é renovado e o processo continua servindo o certificado velho, exatamente o que aconteceu na vm02.
 
-Em cada VM, criar um script de hook de deploy do Let's Encrypt (pasta `renewal-hooks/deploy/`) que recarrega o Nginx quando ativo e reinicia o serviço/PM2 do proxy, marcá-lo como executável e validar:
+Em cada VM, criar um script de hook de deploy do Let's Encrypt (pasta `renewal-hooks/deploy/`) que recarrega o Nginx quando ativo e reinicia o serviço do proxy, marcá-lo como executável e validar:
 
 ```bash
 sudo systemctl list-timers | grep -i certbot
@@ -106,8 +106,8 @@ O `--dry-run` precisa passar em todas. Entrego o conteúdo exato do script assim
 
 ## Etapa 5 — Validar o pool dentro do app
 
-1. Em **Configurações → Pool de Proxies DJEN**, reative o slot "Google VPS 9" depois que ele responder de fora.
-2. Clique em **Testar agora** nos três slots.
+1. Em Configurações → Pool de Proxies DJEN, reative o slot "Google VPS 9" depois que ele responder de fora.
+2. Clique em "Testar agora" nos três slots.
 3. Os selos devem ficar verdes, com latência e `cert_expira_em` em 15/11/2026.
 
 O monitor diário `verificar-saude-pool-djen` (8h BRT) grava `saude_status`, `saude_motivo`, `latencia_ms` e `cert_expira_em`, e avisa por e-mail a 30, 15, 7 e 1 dia do vencimento.
