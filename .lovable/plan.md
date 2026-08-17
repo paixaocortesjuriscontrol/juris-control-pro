@@ -8,32 +8,38 @@
 | Google VPS 2.1 (vm02) | djen-google2.juriscontrol.adv.br:8443 | Arquivo renovado até 15/11/2026, mas a porta 8443 **ainda entrega o certificado antigo** (venceu 24/07/2026) | Recusado por certificado expirado |
 | Google VPS 9 (vm09) | djen-google9.juriscontrol.adv.br | Não testável | **Nada escutando** em 443, 8443, 80 nem 8080 |
 
-Duas observações importantes da vm02:
+Situação da vm02 (certificado no disco já renovado até 15/11/2026):
 
-1. O proxy da vm02 atende em **8443**, não em 443 (a 443 é o Nginx, que devolve 404 em `/health`).
-2. O processo da 8443 carregou o certificado antigo na memória e ainda não foi reiniciado. O `pm2 list` apareceu vazio para o usuário `contato`, então esse serviço roda por outro caminho (systemd ou outro usuário) — é isso que precisa ser identificado.
+1. O proxy atende em **8443** (a 443 é o Nginx, que devolve 404 em `/health`).
+2. O `ss` mostrou o dono da 8443: `node /home/paix...` (**pid 12409**). Não é PM2 do usuário `contato` — daí o `pm2 list` vazio. Esse processo carregou o certificado antigo na memória: a 8443 ainda entrega `notAfter=Jul 24 2026`. Basta reiniciá-lo.
 
-## Etapa 1 — vm02: descobrir quem escuta na 8443 e reiniciar
+## Etapa 1 — vm02: reiniciar o processo da porta 8443
+
+Identificar dono, caminho e gerenciador do pid:
 
 ```bash
-sudo ss -tlnp | grep 8443
+ps -o pid,user,args -p 12409
+sudo ls -l /proc/12409/cwd
+sudo systemctl list-units --type=service --all | grep -iE 'djen|proxy|node'
 ```
 
-A saída mostra o processo. Conforme o caso:
+Depois reiniciar pelo caminho correto:
 
 ```bash
-# se for um serviço systemd (ex.: djen-proxy.service):
+# A) se aparecer um serviço systemd (caminho preferido):
 sudo systemctl restart NOME_DO_SERVICO
 sudo systemctl status NOME_DO_SERVICO --no-pager
 
-# se for PM2 rodando como root:
-sudo pm2 list
-sudo pm2 restart all
+# B) se for PM2 do usuário dono (ex.: paixaocortes) ou do root:
+sudo -u USUARIO_DONO pm2 list
+sudo -u USUARIO_DONO pm2 restart all
+sudo pm2 list && sudo pm2 restart all
 
-# se for PM2 de outro usuário (ex.: root ou djen):
-sudo -u USUARIO pm2 list
-sudo -u USUARIO pm2 restart all
+# C) último recurso, sem systemd nem PM2 (o processo precisa ser subido de novo depois):
+sudo kill 12409
 ```
+
+Se cair no caso C, o serviço não sobe sozinho no boot — nesse caso, transformar o proxy em serviço systemd (ou PM2 com `pm2 save`) faz parte da Etapa 4.
 
 ## Etapa 2 — vm02: validar
 
