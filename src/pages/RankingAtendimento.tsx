@@ -652,7 +652,7 @@ export default function RankingAtendimento() {
                   ["Criados no período", totaisGeral.abertos, AZUL],
                   ["Concluídos", totaisGeral.concluidos, NAVY],
                   ["Concluídos no prazo", totaisGeral.noPrazo, VERDE],
-                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
+                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%`, GOLD],
                   ["Prazos perdidos", totaisGeral.perdidos, VERMELHO],
                 ] as [string, number | string, string][]
               ).map(([label, valor, cor]) => (
@@ -764,7 +764,7 @@ export default function RankingAtendimento() {
                           <TableCell className="text-right">
                             <Badge variant="outline" className="gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              {pct(Number(l.concluidos_no_prazo), Number(l.concluidos))}%
+                              {pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0))}%
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -906,7 +906,7 @@ export default function RankingAtendimento() {
                 [
                   ["Concluídos", totaisGeral.concluidos, NAVY],
                   ["No prazo", totaisGeral.noPrazo, VERDE],
-                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.concluidos)}%`, GOLD],
+                  ["% no prazo", `${pct(totaisGeral.noPrazo, totaisGeral.avaliaveis)}%`, GOLD],
                   ["Prazos perdidos", totaisGeral.perdidos, VERMELHO],
                 ] as [string, number | string, string][]
               ).map(([label, valor, cor]) => (
@@ -929,7 +929,9 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Top 12 — pontualidade</CardTitle>
-                <CardDescription>Percentual no prazo (mínimo de 5 conclusões no período)</CardDescription>
+                <CardDescription>
+                  Percentual no prazo (mínimo de 5 conclusões com prazo próprio no período)
+                </CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {geralQuery.isLoading ? (
@@ -962,7 +964,9 @@ export default function RankingAtendimento() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking de pontualidade</CardTitle>
                 <CardDescription>
-                  Ordenado pelo percentual no prazo; quem tem menos de 5 conclusões aparece ao final
+                  O percentual considera apenas conclusões com prazo próprio (data fatal/prevista). Tarefas vindas de
+                  importações sem prazo próprio — em que a data do compromisso é a própria data de conclusão — ficam de
+                  fora do cálculo. Quem tem menos de 5 conclusões avaliáveis aparece ao final.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
@@ -972,6 +976,7 @@ export default function RankingAtendimento() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Profissional</TableHead>
                       <TableHead className="text-right">Concluídos</TableHead>
+                      <TableHead className="text-right">Com prazo</TableHead>
                       <TableHead className="text-right">No prazo</TableHead>
                       <TableHead className="text-right">Atraso</TableHead>
                       <TableHead className="text-right">% no prazo</TableHead>
