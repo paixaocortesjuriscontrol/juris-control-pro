@@ -960,7 +960,15 @@ export async function fetchAgendaPage(
           ];
 
           const orParts: string[] = [];
-          if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
+          // Importante: audiências vindas de cargas em massa (planilhas/pauta) têm o
+          // usuário que fez o upload como "criado_por". No modo pessoal isso fazia o
+          // admin ver milhares de audiências que não são dele. Só contam como pessoais
+          // as audiências criadas manualmente (ou por vínculo real de advogado/envolvido).
+          if (targetUserIds.length > 0) {
+            orParts.push(
+              `and(criado_por.in.(${targetUserIds.join(",")}),origem.not.in.(importacao,pauta_excel))`
+            );
+          }
           if (audIds.length > 0) orParts.push(`id.in.(${audIds.join(",")})`);
 
           if (orParts.length > 0) {
