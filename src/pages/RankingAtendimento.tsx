@@ -48,6 +48,7 @@ type LinhaTst = {
   com_pendencia: number;
   pendencias_total: number;
   judit_preenchidos: number;
+  prontos: number;
 };
 
 function pct(parte: number, total: number) {
@@ -179,8 +180,9 @@ export default function RankingAtendimento() {
         sem: acc.sem + Number(l.sem_pendencia),
         com: acc.com + Number(l.com_pendencia),
         pend: acc.pend + Number(l.pendencias_total),
+        prontos: acc.prontos + Number(l.prontos || 0),
       }),
-      { total: 0, sem: 0, com: 0, pend: 0 }
+      { total: 0, sem: 0, com: 0, pend: 0, prontos: 0 }
     );
   }, [tst]);
 
@@ -201,10 +203,11 @@ export default function RankingAtendimento() {
   const graficoTst = useMemo(
     () =>
       [...tst]
-        .sort((a, b) => Number(b.sem_pendencia) - Number(a.sem_pendencia))
+        .sort((a, b) => Number(b.prontos || 0) - Number(a.prontos || 0) || Number(b.sem_pendencia) - Number(a.sem_pendencia))
         .slice(0, 12)
         .map((l) => ({
           nome: l.nome.split(" ").slice(0, 2).join(" "),
+          Prontos: Number(l.prontos || 0),
           "Sem pendência": Number(l.sem_pendencia),
           "Com pendência": Number(l.com_pendencia),
         })),
@@ -373,15 +376,17 @@ export default function RankingAtendimento() {
           subtitulo: "Qualidade do preenchimento dos dados da Distribuição TST",
           resumo: [
             { label: "Processos", valor: totaisTst.total },
+            { label: "Marcados Pronto", valor: totaisTst.prontos },
             { label: "Sem pendência", valor: totaisTst.sem },
             { label: "Com pendência", valor: totaisTst.com },
             { label: "% completos", valor: `${pct(totaisTst.sem, totaisTst.total)}%` },
             { label: "Campos pendentes", valor: totaisTst.pend },
           ],
           grafico: {
-            titulo: "Top 12 — preenchimento da Distribuição TST",
+            titulo: "Top 12 — processos marcados Pronto e preenchimento",
             categorias: nomesCurtos(tstOrdenado),
             series: [
+              { nome: "Prontos", valores: topo(tstOrdenado).map((l) => Number(l.prontos || 0)), cor: [30, 58, 138] },
               { nome: "Sem pendência", valores: topo(tstOrdenado).map((l) => Number(l.sem_pendencia)), cor: [31, 169, 113] },
               { nome: "Com pendência", valores: topo(tstOrdenado).map((l) => Number(l.com_pendencia)), cor: [242, 84, 91] },
             ],
@@ -390,6 +395,7 @@ export default function RankingAtendimento() {
             { header: "#", width: 12, key: "pos" },
             { header: "Profissional", width: 70, key: "nome" },
             { header: "Processos", width: 28, key: "total", align: "right" },
+            { header: "Prontos", width: 24, key: "prontos", align: "right" },
             { header: "Sem pendência", width: 32, key: "sem_pendencia", align: "right" },
             { header: "Com pendência", width: 32, key: "com_pendencia", align: "right" },
             { header: "% completos", width: 28, key: "taxa", align: "right" },
@@ -400,6 +406,7 @@ export default function RankingAtendimento() {
             pos: String(idx + 1),
             nome: l.nome,
             total: l.total,
+            prontos: l.prontos || 0,
             sem_pendencia: l.sem_pendencia,
             com_pendencia: l.com_pendencia,
             taxa: `${pct(Number(l.sem_pendencia), Number(l.total))}%`,
@@ -481,6 +488,7 @@ export default function RankingAtendimento() {
     () =>
       [...tst].sort(
         (a, b) =>
+          Number(b.prontos || 0) - Number(a.prontos || 0) ||
           pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)) ||
           Number(b.total) - Number(a.total)
       ),
@@ -1022,10 +1030,11 @@ export default function RankingAtendimento() {
           </TabsContent>
 
           <TabsContent value="tst" className="space-y-4">
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
               {(
                 [
                   ["Processos", totaisTst.total, NAVY],
+                  ["Marcados Pronto", totaisTst.prontos, NAVY],
                   ["Sem pendência", totaisTst.sem, VERDE],
                   ["Com pendência", totaisTst.com, VERMELHO],
                   ["% completos", `${pct(totaisTst.sem, totaisTst.total)}%`, GOLD],
@@ -1050,8 +1059,10 @@ export default function RankingAtendimento() {
 
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-base">Top 12 — preenchimento da Distribuição TST</CardTitle>
-                <CardDescription>Baseado nos dados Benner e nas regras de pendência da tela</CardDescription>
+                <CardTitle className="text-base">Top 12 — processos marcados Pronto e preenchimento</CardTitle>
+                <CardDescription>
+                  "Prontos" = processos marcados como Pronto para enviar dentro do período selecionado
+                </CardDescription>
               </CardHeader>
               <CardContent className="h-80">
                 {tstQuery.isLoading ? (
@@ -1070,6 +1081,9 @@ export default function RankingAtendimento() {
                         }}
                       />
                       <Legend />
+                      <Bar dataKey="Prontos" fill={NAVY} radius={[4, 4, 0, 0]}>
+                        <LabelList dataKey="Prontos" position="top" style={{ fontSize: 10 }} />
+                      </Bar>
                       <Bar dataKey="Sem pendência" fill={VERDE} radius={[4, 4, 0, 0]}>
                         <LabelList dataKey="Sem pendência" position="top" style={{ fontSize: 10 }} />
                       </Bar>
@@ -1083,7 +1097,7 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking detalhado — TST</CardTitle>
-                <CardDescription>Ordenado pelo percentual de processos sem pendência</CardDescription>
+                <CardDescription>Ordenado pela quantidade de processos marcados como Pronto no período</CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table>
@@ -1092,6 +1106,7 @@ export default function RankingAtendimento() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Profissional</TableHead>
                       <TableHead className="text-right">Processos</TableHead>
+                      <TableHead className="text-right">Prontos</TableHead>
                       <TableHead className="text-right">Sem pendência</TableHead>
                       <TableHead className="text-right">Com pendência</TableHead>
                       <TableHead className="text-right">% completos</TableHead>
@@ -1102,13 +1117,13 @@ export default function RankingAtendimento() {
                   <TableBody>
                     {tstQuery.isLoading ? (
                       <TableRow>
-                        <TableCell colSpan={8}>
+                        <TableCell colSpan={9}>
                           <Skeleton className="h-24 w-full" />
                         </TableCell>
                       </TableRow>
                     ) : tstOrdenado.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-10">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-10">
                           Nenhum dado no período selecionado
                         </TableCell>
                       </TableRow>
@@ -1123,6 +1138,9 @@ export default function RankingAtendimento() {
                           </TableCell>
                           <TableCell className="font-medium">{l.nome}</TableCell>
                           <TableCell className="text-right font-semibold">{l.total}</TableCell>
+                          <TableCell className="text-right font-semibold" style={{ color: NAVY }}>
+                            {l.prontos || 0}
+                          </TableCell>
                           <TableCell className="text-right text-green-600">{l.sem_pendencia}</TableCell>
                           <TableCell className="text-right text-destructive">{l.com_pendencia}</TableCell>
                           <TableCell className="text-right">
