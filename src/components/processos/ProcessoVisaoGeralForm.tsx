@@ -1101,6 +1101,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       setForm(next);
       setJuditSessionFields(filled);
+      // No modo de criação ainda não há processo_id. Preserve a consulta já
+      // recuperada para gravar partes e andamentos assim que o processo for salvo.
+      setJuditPayloadPendente(data);
       if (isNovo) onNumeroChange?.(String(next.numero || numeroLimpo));
 
       if (isNovo) {
