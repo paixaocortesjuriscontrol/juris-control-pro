@@ -376,6 +376,15 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         if (error) throw error;
       }
 
+      // Andamentos/partes recuperados da Judit antes do processo existir no
+      // formulário só podem ser gravados agora que temos um processo_id.
+      if (juditPayloadPendente) {
+        const { data: userData } = await supabase.auth.getUser();
+        await persistirMovimentacoesJudit(processoExistente.id, juditPayloadPendente);
+        await persistirPartesJudit(processoExistente.id, juditPayloadPendente, userData?.user?.id || null);
+        setJuditPayloadPendente(null);
+      }
+
       try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ }
       await queryClient.invalidateQueries({ queryKey: ["processos"] });
       await queryClient.invalidateQueries({ queryKey: ["processo"] });
@@ -452,6 +461,15 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           .select("id")
           .single();
         if (errInsert) throw errInsert;
+
+        // Grava na aba "Andamentos" (e em partes) o que a Judit já devolveu
+        // durante o preenchimento — no modo criação ainda não havia processo_id.
+        if (novo?.id && juditPayloadPendente) {
+          const { data: userData } = await supabase.auth.getUser();
+          await persistirMovimentacoesJudit(novo.id, juditPayloadPendente);
+          await persistirPartesJudit(novo.id, juditPayloadPendente, userData?.user?.id || null);
+          setJuditPayloadPendente(null);
+        }
 
         if (responsaveis.length > 0 && novo?.id) {
           const inserts = responsaveis.map((r: any) => ({
