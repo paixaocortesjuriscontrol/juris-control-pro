@@ -6,7 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw } from "lucide-react";
+import { Server, Trash2, RefreshCw, FlaskConical, CheckCircle2, XCircle, BarChart3, RotateCcw, ShieldAlert, ShieldCheck, Loader2 } from "lucide-react";
+import {
+  useSaudePoolDjen,
+  useChecarSaudePoolDjen,
+  nivelSaude,
+  type SaudeSlot,
+} from "@/hooks/useSaudePoolDjen";
 import {
   loadDjenProxyPool,
   saveDjenProxyPool,
@@ -33,6 +39,44 @@ interface SlotState extends ProxySlotConfig {
   uptime?: number;
 }
 
+const fmtData = (iso: string | null) =>
+  iso ? new Date(iso).toLocaleDateString("pt-BR") : "—";
+
+function SeloSaude({ saude }: { saude?: SaudeSlot }) {
+  const nivel = nivelSaude(saude);
+  if (nivel === "desconhecido") {
+    return (
+      <Badge variant="outline" className="gap-1">
+        sem checagem
+      </Badge>
+    );
+  }
+  if (nivel === "critico") {
+    return (
+      <Badge variant="destructive" className="gap-1">
+        <ShieldAlert className="h-3 w-3" />
+        {saude?.saude_status === "cert_expirado" || saude?.saude_status === "cert_invalido"
+          ? "certificado"
+          : "offline"}
+      </Badge>
+    );
+  }
+  if (nivel === "atencao") {
+    return (
+      <Badge variant="outline" className="gap-1 border-amber-500 text-amber-600">
+        <ShieldAlert className="h-3 w-3" />
+        cert. vence em {saude?.cert_dias_restantes}d
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="outline" className="gap-1 border-green-600 text-green-700">
+      <ShieldCheck className="h-3 w-3" />
+      ok{saude?.latencia_ms ? ` • ${saude.latencia_ms}ms` : ""}
+    </Badge>
+  );
+}
+
 export default function PoolProxyDjenCard() {
   const { toast } = useToast();
   const [enabled, setEnabled] = useState<boolean>(false);
@@ -41,6 +85,16 @@ export default function PoolProxyDjenCard() {
   const [testing, setTesting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<PoolSessionStats>(() => getDjenProxyPoolStats());
+  const { data: saude = [] } = useSaudePoolDjen();
+  const checar = useChecarSaudePoolDjen();
+  const saudePorUrl = new Map(
+    saude.map((s) => [String(s.base_url).replace(/\/$/, ""), s]),
+  );
+  const ultimaChecagem = saude
+    .map((s) => s.ultima_checagem_em)
+    .filter(Boolean)
+    .sort()
+    .pop();
 
   function refreshFromStorage() {
     const runtime = getDjenProxySlotsRuntime();
@@ -278,14 +332,50 @@ export default function PoolProxyDjenCard() {
 
         {/* Lista de slots */}
         <div className="space-y-2">
-          <h4 className="text-sm font-semibold">VPS cadastradas</h4>
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold">VPS cadastradas</h4>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Última checagem: {ultimaChecagem ? new Date(ultimaChecagem).toLocaleString("pt-BR") : "—"}
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={checar.isPending}
+                onClick={() =>
+                  checar.mutate(undefined, {
+                    onSuccess: () =>
+                      toast({
+                        title: "Checagem concluída",
+                        description: "Status e validade dos certificados atualizados.",
+                      }),
+                    onError: (e: any) =>
+                      toast({
+                        title: "Erro na checagem",
+                        description: e?.message || String(e),
+                        variant: "destructive",
+                      }),
+                  })
+                }
+              >
+                {checar.isPending ? (
+                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                )}
+                Testar todas agora
+              </Button>
+            </div>
+          </div>
           {slots.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">
               Nenhuma VPS cadastrada. Adicione abaixo para começar a testar.
             </p>
           ) : (
             <div className="space-y-2">
-              {slots.map((slot) => (
+              {slots.map((slot) => {
+                const s = saudePorUrl.get(slot.baseUrl.replace(/\/$/, ""));
+                return (
                 <div
                   key={slot.id}
                   className="flex items-center gap-3 rounded-lg border p-3"
@@ -301,10 +391,21 @@ export default function PoolProxyDjenCard() {
                       <Badge variant={slot.enabled ? "default" : "outline"}>
                         {slot.enabled ? "ativo" : "pausado"}
                       </Badge>
+                      <SeloSaude saude={s} />
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
                       {slot.baseUrl}
                     </p>
+                    {s?.cert_expira_em && (
+                      <p className="text-xs text-muted-foreground">
+                        Certificado válido até {fmtData(s.cert_expira_em)}
+                        {s.cert_dias_restantes !== null &&
+                          ` (${s.cert_dias_restantes < 0 ? `vencido há ${Math.abs(s.cert_dias_restantes)}` : s.cert_dias_restantes} dia${Math.abs(s.cert_dias_restantes) === 1 ? "" : "s"}${s.cert_dias_restantes < 0 ? "" : " restantes"})`}
+                      </p>
+                    )}
+                    {s?.saude_motivo && (
+                      <p className="text-xs text-destructive">{s.saude_motivo}</p>
+                    )}
                     {slot.lastError && !slot.online && (
                       <p className="text-xs text-destructive truncate">
                         Último erro: {slot.lastError}
@@ -330,7 +431,8 @@ export default function PoolProxyDjenCard() {
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -392,6 +494,11 @@ export default function PoolProxyDjenCard() {
           sua VPS Hostinger e exponha em <code>/djen-proxy/</code> via Nginx (instruções
           em <code>djen-proxy/README.md</code>). Se a VPS sair do ar, o motor cai
           automaticamente para chamada direta sem interromper a execução.
+        </p>
+        <p className="text-xs text-muted-foreground">
+          A checagem automática roda todos os dias às 8h (BRT) e envia e-mail aos
+          administradores quando um certificado está a 30, 15, 7 ou 1 dia do vencimento,
+          quando já venceu ou quando a VPS está fora do ar.
         </p>
       </CardContent>
     </Card>
