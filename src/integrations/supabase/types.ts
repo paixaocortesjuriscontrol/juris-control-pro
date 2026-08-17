@@ -10849,6 +10849,7 @@ export type Database = {
       }
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
+      merge_processos_duplicados: { Args: never; Returns: Json }
       pode_gerenciar_etiquetas: {
         Args: { _coordenacao_id: string }
         Returns: boolean
