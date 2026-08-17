@@ -367,7 +367,7 @@ serve(async (req) => {
 
         const enviados = await enviarEmail(
           emails,
-          `DJEN Termos — novas publicações na execução das ${horaAtual} — ${linha.nome} — ${dataBr(ymd)}`,
+          "Publicações DJEN - Alerta - Diferença entre execuções",
           emailBase(
             "DJEN Termos — diferença entre execuções",
             `${linha.nome} · ${dataBr(ymd)} · execução das ${horaAtual} (BRT)`,
