@@ -54,10 +54,13 @@ import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 
+// Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
+// Judit preencheu enquanto o usuário navega entre as abas da tela.
+const DRAFT_KEY = "processo-novo-form-draft";
+
 interface Props {
   processo: any;
   audiencias?: any[];
-
   intimacoes?: any[];
   tarefas?: any[];
   movimentacoes?: any[];
