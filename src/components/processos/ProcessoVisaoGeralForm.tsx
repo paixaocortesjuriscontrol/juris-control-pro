@@ -1968,6 +1968,31 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
         }}
       />
+      <AlertDialog open={!!processoExistente} onOpenChange={(o) => { if (!o) setProcessoExistente(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Número de processo já cadastrado</AlertDialogTitle>
+            <AlertDialogDescription>
+              O processo <span className="font-medium">{processoExistente?.numero}</span> já existe no sistema
+              {processoExistente?.created_at
+                ? ` (cadastrado em ${new Date(processoExistente.created_at).toLocaleDateString("pt-BR")})`
+                : ""}
+              . Você pode abrir o processo existente e completar apenas os campos que estão vazios lá — nada que
+              já está preenchido será sobrescrito. Se o número estiver errado, cancele e corrija.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={adotandoExistente}>Cancelar e corrigir o número</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={adotandoExistente}
+              onClick={(e) => { e.preventDefault(); adotarProcessoExistente(); }}
+            >
+              {adotandoExistente && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Abrir e completar o processo existente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 });
