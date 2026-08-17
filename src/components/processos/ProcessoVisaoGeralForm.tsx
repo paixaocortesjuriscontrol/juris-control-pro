@@ -178,6 +178,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [syncingInterno, setSyncingInterno] = useState(false);
   const [comAnexosJudit, setComAnexosJudit] = useState(false);
   const [juditNovoCardVisible, setJuditNovoCardVisible] = useState(false);
+  // Diálogo "número já cadastrado" (modo criação)
+  const [processoExistente, setProcessoExistente] = useState<any>(null);
+  const [adotandoExistente, setAdotandoExistente] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
