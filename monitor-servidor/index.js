@@ -85,7 +85,12 @@ async function runSlot(slot) {
       }
       try {
         const resultado = await engine.run({ sb, payload: job.payload || {}, log, job });
-        const statusFinal = resultado && resultado.cancelado ? "cancelado" : "concluido";
+        const statusFinal =
+          resultado && resultado.cancelado
+            ? "cancelado"
+            : resultado && resultado.parcial
+              ? "concluido_parcial"
+              : "concluido";
         await sb
           .from("execucoes_servidor")
           .update({
