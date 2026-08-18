@@ -2085,18 +2085,47 @@ async function run({ sb, payload, log, job }) {
       signal.addEventListener("abort", onAbort);
       let timer = null;
       const budgetMs = budgetParaTribunal(tribunal);
+      const iniciadoEm = Date.now();
+      const ctx = { slept: 0, lastProgressAt: iniciadoEm, paginas: 0 };
       try {
         return await Promise.race([
-          buscarTermo(slotUsado, mon, dia, tribunal, ac.signal),
+          budgetALS.run(ctx, () => buscarTermo(slotUsado, mon, dia, tribunal, ac.signal)),
           new Promise((_, reject) => {
-            timer = setTimeout(() => {
+            // Watchdog reavaliado periodicamente:
+            //  * deadline = início + orçamento + tempo dormido em backoff/429;
+            //  * se houve página válida nos últimos UNIT_PROGRESS_GRACE_MS, o
+            //    prazo é estendido até o teto UNIT_BUDGET_MAX_MS.
+            const tick = () => {
+              const agora = Date.now();
+              const decorrido = agora - iniciadoEm;
+              const trabalho = decorrido - ctx.slept;
+              const progressoRecente = agora - ctx.lastProgressAt < UNIT_PROGRESS_GRACE_MS;
+              const limite = progressoRecente
+                ? Math.min(UNIT_BUDGET_MAX_MS, Math.max(budgetMs, trabalho + UNIT_PROGRESS_GRACE_MS))
+                : budgetMs;
+              if (limite > budgetMs) METRICS.msExtensaoConcedida += 0; // contabilizado no estouro
+              if (trabalho < limite && decorrido < UNIT_BUDGET_MAX_MS + ctx.slept) {
+                timer = setTimeout(tick, 2000);
+                return;
+              }
               ac.abort();
-              reject(new Error(`Orçamento de ${Math.round(budgetMs / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
-            }, budgetMs);
+              METRICS.timeoutsPorTribunal[tribunal] = (METRICS.timeoutsPorTribunal[tribunal] || 0) + 1;
+              const motivo = ctx.slept > 5000
+                ? `rate limit/backoff ${Math.round(ctx.slept / 1000)}s`
+                : ctx.paginas > 0
+                  ? `tribunal lento (${ctx.paginas} páginas)`
+                  : "sem resposta do tribunal";
+              reject(new Error(
+                `Tempo limite da unidade excedido (${Math.round(trabalho / 1000)}s de trabalho) — refilado [${motivo}]`,
+              ));
+            };
+            timer = setTimeout(tick, Math.min(2000, budgetMs));
           }),
         ]);
       } finally {
         if (timer) clearTimeout(timer);
+        METRICS.msPorTribunal[tribunal] =
+          (METRICS.msPorTribunal[tribunal] || 0) + (Date.now() - iniciadoEm);
         signal.removeEventListener("abort", onAbort);
       }
     };
