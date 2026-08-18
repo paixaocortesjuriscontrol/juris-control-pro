@@ -2001,14 +2001,15 @@ async function run({ sb, payload, log, job }) {
       const onAbort = () => ac.abort();
       signal.addEventListener("abort", onAbort);
       let timer = null;
+      const budgetMs = budgetParaTribunal(tribunal);
       try {
         return await Promise.race([
           buscarTermo(slotUsado, mon, dia, tribunal, ac.signal),
           new Promise((_, reject) => {
             timer = setTimeout(() => {
               ac.abort();
-              reject(new Error(`Orçamento de ${Math.round(UNIT_BUDGET_MS / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
-            }, UNIT_BUDGET_MS);
+              reject(new Error(`Orçamento de ${Math.round(budgetMs / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
+            }, budgetMs);
           }),
         ]);
       } finally {
