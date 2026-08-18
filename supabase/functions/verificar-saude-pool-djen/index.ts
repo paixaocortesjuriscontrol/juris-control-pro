@@ -33,7 +33,7 @@ type Resultado = {
   id: string;
   label: string;
   base_url: string;
-  status: "ok" | "cert_expirado" | "cert_invalido" | "offline" | "erro" | "auth_invalido";
+  status: "ok" | "cert_expirado" | "cert_invalido" | "offline" | "erro";
   motivo: string | null;
   latencia_ms: number | null;
   cert_expira_em: string | null;
@@ -78,56 +78,6 @@ async function checarHealth(baseUrl: string) {
 
 function ehErroDeCertificado(motivo: string | null) {
   return !!motivo && /certificate|cert_|tls|ssl|self.signed|expired|unknown issuer/i.test(motivo);
-}
-
-/**
- * Testa o TOKEN da VPS (x-proxy-token) fazendo uma consulta mínima ao DJEN
- * através do proxy — /health não valida token, então uma VPS "ok" pode estar
- * devolvendo HTTP 401 para o daemon (foi o caso da Google VPS 5).
- * Tenta os dois dialetos (v3 /proxy?url= e v1 /djen?) antes de acusar 401.
- */
-async function checarAuth(
-  baseUrl: string,
-  token: string | null,
-): Promise<{ ok: boolean; status: number | null; motivo: string | null }> {
-  if (!token) return { ok: false, status: null, motivo: "Token ausente no cadastro do pool" };
-  const base = baseUrl.replace(/\/$/, "");
-  const params = new URLSearchParams({
-    pagina: "1",
-    itensPorPagina: "1",
-    dataDisponibilizacaoInicio: new Date().toISOString().slice(0, 10),
-    dataDisponibilizacaoFim: new Date().toISOString().slice(0, 10),
-    siglaTribunal: "TST",
-  }).toString();
-  const upstream = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?${params}`;
-  const urls = [
-    `${base}/proxy?url=${encodeURIComponent(upstream)}`,
-    `${base}/djen?${params}`,
-  ];
-  let ultimo: { status: number | null; motivo: string | null } = { status: null, motivo: null };
-  for (const url of urls) {
-    try {
-      const res = await fetch(url, {
-        method: "GET",
-        headers: { "x-proxy-token": token },
-        signal: AbortSignal.timeout(25_000),
-      });
-      if (res.status === 401 || res.status === 403) {
-        const snippet = (await res.text().catch(() => "")).slice(0, 160);
-        ultimo = { status: res.status, motivo: `HTTP ${res.status} do proxy: ${snippet || "unauthorized"}` };
-        continue; // pode ser o dialeto errado; tenta o outro
-      }
-      if (res.status === 404) {
-        ultimo = { status: 404, motivo: "rota não encontrada (dialeto)" };
-        continue;
-      }
-      await res.text().catch(() => "");
-      return { ok: true, status: res.status, motivo: null };
-    } catch (e) {
-      ultimo = { status: null, motivo: e instanceof Error ? e.message : String(e) };
-    }
-  }
-  return { ok: false, status: ultimo.status, motivo: ultimo.motivo };
 }
 
 function diasAte(iso: string | null): number | null {
@@ -192,10 +142,6 @@ Deno.serve(async (req) => {
       }
 
       const health = await checarHealth(s.base_url);
-      // Só vale testar token se a VPS respondeu /health.
-      const auth = health.ok
-        ? await checarAuth(s.base_url, s.token)
-        : { ok: true, status: null, motivo: null };
 
       // Handshake TLS separado (aceita certificado inválido) só para ler notAfter.
       let certExpiraEm: string | null = null;
@@ -213,17 +159,7 @@ Deno.serve(async (req) => {
       let motivo: string | null = null;
 
       if (health.ok) {
-        if (auth.ok) {
-          status = "ok";
-        } else if (auth.status === 401 || auth.status === 403 || !s.token) {
-          status = "auth_invalido";
-          motivo =
-            `Proxy no ar, mas rejeitou o token (${auth.motivo || "unauthorized"}). ` +
-            `Confira PROXY_TOKEN no serviço djen-proxy da VM e o token cadastrado no pool.`;
-        } else {
-          status = "ok";
-          motivo = auth.motivo ? `Aviso na consulta de teste: ${auth.motivo}` : null;
-        }
+        status = "ok";
       } else if (dias !== null && dias < 0) {
         status = "cert_expirado";
         motivo = `Certificado TLS expirou em ${fmtData(certExpiraEm)} — o proxy pode estar de pé, mas o daemon rejeita a conexão.`;
@@ -283,7 +219,7 @@ Deno.serve(async (req) => {
         const ultimo = (s.ultimo_alerta_cert_em || "").slice(0, 10);
         if (ultimo !== hoje) alertasCert.push(r);
       }
-      if (r.status === "offline" || r.status === "cert_invalido" || r.status === "auth_invalido") {
+      if (r.status === "offline" || r.status === "cert_invalido") {
         const ultimo = (s.ultimo_alerta_offline_em || "").slice(0, 10);
         if (ultimo !== hoje) alertasOffline.push(r);
       }
@@ -332,7 +268,7 @@ Deno.serve(async (req) => {
           <h2 style="margin:0 0 4px">Pool de Proxies DJEN — atenção necessária</h2>
           <p style="color:#6b7280;margin:0 0 8px">Checagem automática de ${fmtData(new Date().toISOString())}.</p>
           ${secao("Certificados vencidos ou próximos do vencimento", alertasCert)}
-          ${secao("VPS fora do ar ou com token inválido (HTTP 401)", alertasOffline)}
+          ${secao("VPS fora do ar", alertasOffline)}
           <p style="color:#6b7280;font-size:12px;margin-top:18px">
             Renove o certificado com <code>certbot renew</code> na VM e reinicie o proxy.
             Cada VPS fora do pool reduz o paralelismo do motor DJEN Termos.

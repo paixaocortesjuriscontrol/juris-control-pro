@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "4.5.6";
+export const APP_VERSION = "4.5.5";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -41,5 +41,4 @@ export const VERSION_HISTORY = [
   { version: "4.5.3", date: "2026-08-14", notes: "Ajustes de versão e menu" },
   { version: "4.5.4", date: "2026-08-16", notes: "Análise DJEN: exportações 'sem repetição' passam a unificar a mesma comunicação (processo + data + ID do documento + teor), ignorando ordem de advogados e bloco 'Intimado(s) / Citado(s)'" },
   { version: "4.5.5", date: "2026-08-18", notes: "Pool DJEN Servidor: VPS 4 e 5 reativadas via systemd (13 pistas ativas) e base para controle de retries por rodada" },
-  { version: "4.5.6", date: "2026-08-18", notes: "DJEN Servidor: VPS com 401/403 sai do pool na rodada (sem queimar tentativas) e botão 'Recoletar faltantes' para rodar só as unidades sem coleta do dia" },
 ];

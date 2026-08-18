@@ -286,46 +286,6 @@ export function useCancelarExecucaoServidor() {
 }
 
 /**
- * Recoleta faltantes: enfileira uma rodada curta que processa APENAS as
- * unidades (tribunal × monitoramento) do dia que ficaram sem coleta
- * (pendentes/abandonadas), em vez de repetir a varredura completa.
- */
-export function useRecoletarFaltantes() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (args?: { diarioYmd?: string | null }) => {
-      const { data: emAndamento, error: erroBusca } = await supabase
-        .from("execucoes_servidor")
-        .select("id, status")
-        .eq("tipo", "djen_paralela_servidor")
-        .in("status", ["executando", "pendente", "agendado"])
-        .limit(1);
-      if (erroBusca) throw erroBusca;
-      if (emAndamento && emAndamento.length > 0) {
-        throw new Error("Já existe uma execução do DJEN Servidor em andamento. Aguarde o término.");
-      }
-      const { data, error } = await supabase.rpc("enfileirar_execucao_servidor", {
-        p_tipo: "djen_paralela_servidor",
-        p_agendado_para: new Date().toISOString(),
-        p_payload: {
-          manual: true,
-          somenteFalhas: true,
-          ...(args?.diarioYmd ? { diarioYmd: args.diarioYmd } : {}),
-        },
-      });
-      if (error) throw error;
-      return data as string | null;
-    },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["djen-servidor"] });
-      await qc.invalidateQueries({ queryKey: ["execucoes-do-dia-servidor"] });
-      toast.success("Recoleta das unidades faltantes enfileirada");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-}
-
-/**
  * Última execução ativa (ou mais recente) de um tipo, com Realtime.
  * Usado para mostrar a barra de progresso ao vivo nos cards do DJEN Servidor.
  */

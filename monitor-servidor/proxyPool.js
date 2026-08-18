@@ -4,13 +4,6 @@ const ws = require("ws");
 
 const OFFLINE_MS = 60_000;
 const COOLDOWN_429_MS = 30_000;
-// 401/403 é token/ACL errado na VPS: não melhora em 60s. Tira o nó do sorteio
-// por um período longo (rodada inteira, na prática) em vez de sortear a mesma
-// VPS quebrada dezenas de vezes e queimar as tentativas das unidades.
-const AUTH_OFFLINE_MS = Math.max(
-  60_000,
-  Number(process.env.DJEN_PROXY_AUTH_OFFLINE_MS || 3_600_000),
-);
 // Timeout por requisição alinhado ao Browser (src/utils/pjeComunicaClient.ts):
 // 90s, suficiente para tribunais lentos (TJES/TJMT/TJPI/TJMA) que ocasionalmente
 // devolvem páginas tarde demais. Antes era 60s e o Servidor podia abortar antes
@@ -144,7 +137,7 @@ async function djenFetchSlot(slot, queryParams, signal) {
     const out = await parseProxyResponse(slot, res);
     if (out.status === 401 || out.status === 403) {
       // surfa o motivo real para o log do daemon — quase sempre token errado
-      markFail(slot.url, "auth");
+      markFail(slot.url, "err");
       const reason = out.errorSnippet || (typeof out.body === "string" ? out.body.slice(0, 200) : JSON.stringify(out.body).slice(0, 200));
       throw new Error(`HTTP ${out.status} (${slot.label || slot.url}): ${reason}`);
     }
@@ -178,10 +171,6 @@ function markFail(url, kind) {
   const st = slotState.get(url) || {};
   if (kind === "429") {
     st.cooldownUntil = Date.now() + COOLDOWN_429_MS;
-  } else if (kind === "auth") {
-    st.offlineUntil = Date.now() + AUTH_OFFLINE_MS;
-    st.failCount = 0;
-    st.authBlocked = true;
   } else {
     st.failCount = (st.failCount || 0) + 1;
     if (st.failCount >= 3) {

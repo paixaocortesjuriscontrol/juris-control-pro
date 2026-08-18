@@ -53,13 +53,11 @@ function SeloSaude({ saude }: { saude?: SaudeSlot }) {
   }
   if (nivel === "critico") {
     return (
-      <Badge variant="destructive" className="gap-1" title={saude?.saude_motivo || undefined}>
+      <Badge variant="destructive" className="gap-1">
         <ShieldAlert className="h-3 w-3" />
         {saude?.saude_status === "cert_expirado" || saude?.saude_status === "cert_invalido"
           ? "certificado"
-          : saude?.saude_status === "auth_invalido"
-            ? "token 401"
-            : "offline"}
+          : "offline"}
       </Badge>
     );
   }
