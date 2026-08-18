@@ -2169,7 +2169,7 @@ async function run({ sb, payload, log, job }) {
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
               const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento/i.test(msg);
+              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento|Tempo limite da unidade/i.test(msg);
               // Failover só quando o erro sugere problema da VPS (5xx).
               // "fetch failed" repetido significa que o tribunal está
               // derrubando a conexão — trocar de VPS não resolve e custa
@@ -2231,7 +2231,7 @@ async function run({ sb, payload, log, job }) {
             const errMsg = String(e?.message || e || "");
             tempoEmFalhasMs += Date.now() - tParInicio;
             falhasPorTribunal[item.tribunal] = (falhasPorTribunal[item.tribunal] || 0) + 1;
-            if (/Orçamento/i.test(errMsg)) unidadesEstouradas += 1;
+            if (/Orçamento|Tempo limite da unidade/i.test(errMsg)) unidadesEstouradas += 1;
             const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
