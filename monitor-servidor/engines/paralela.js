@@ -1039,25 +1039,31 @@ async function buscarPaginado(slot, params, signal) {
       };
       let out;
       let lastErr;
-      // 3 tentativas com espera curta (antes: 4 tentativas com 3s/6s/9s/12s,
-      // ou seja até 30s por sub-página só em espera). Sem dormir depois da
-      // última tentativa.
-      for (let attempt = 0; attempt < 3; attempt++) {
+      // Fase 3: 429 (rate limit do DJEN) ganha mais tentativas e backoff
+      // dedicado — degradar para size=10 só multiplica requisições e piora
+      // o rate limit. 5xx/rede seguem com backoff curto.
+      const MAX_ATTEMPTS = 4;
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         out = await djenFetchSlot(slot, query, signal).catch((e) => {
           lastErr = e;
           return null;
         });
         if (out && out.status !== 429 && out.status < 500) break;
-        if (attempt === 2) break;
-        await delay(out?.status === 429 ? 6000 * (attempt + 1) : 1500 * (attempt + 1), signal);
+        if (attempt === MAX_ATTEMPTS - 1) break;
+        const is429 = out?.status === 429;
+        const base = is429 ? RATE_LIMIT_BACKOFF_MS : 1500;
+        const jitter = Math.floor(Math.random() * 500);
+        await delay(base * (attempt + 1) + jitter, signal);
       }
       if (!out || out.status < 200 || out.status >= 300) {
         if (out && out.status === 404) {
           return { ok: true, items: collected, aborted: true };
         }
+        const status = out?.status;
         return {
           ok: false,
           items: collected,
+          kind: status === 429 ? "429" : status === 401 || status === 403 ? "auth" : status ? "http" : "rede",
           err: out ? new Error(`HTTP ${out.status}`) : (lastErr || new Error("Falha ao consultar VPS DJEN")),
         };
       }
@@ -1080,18 +1086,31 @@ async function buscarPaginado(slot, params, signal) {
     let result = await fetchWindow(windowIdx, 50);
     if (!result.ok) {
       const msg1 = String(result.err?.message || "?");
-      console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
-      const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
-      // Respiro curto antes de degradar (antes 2s fixos).
-      if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
-      result = await fetchWindow(windowIdx, 10);
-      // Degradação final para size=5 só faz sentido quando o problema é
-      // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
-      // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
-      // 10 sub-requisições só queima tempo de uma das vias.
-      if (!result.ok && !isRede) {
-        await delay(DEGRADE_DELAY_MS * 2, signal);
-        result = await fetchWindow(windowIdx, 5);
+      const kind = result.kind || "http";
+      if (kind === "429") {
+        // Rate limit: NÃO degradar (size=10 gera 5x mais requisições e piora
+        // o 429). Espera o cooldown e repete a MESMA janela com size=50.
+        console.log(`[paralela.buscarPaginado] janela ${windowIdx} em rate limit (429) — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
+        await delay(RATE_LIMIT_PAUSE_MS, signal);
+        result = await fetchWindow(windowIdx, 50);
+      } else if (kind === "auth") {
+        // 401/403 é problema de token da VPS: degradar não resolve, apenas
+        // multiplica chamadas inúteis. Falha a janela direto.
+        console.log(`[paralela.buscarPaginado] janela ${windowIdx} sem autorização na VPS (${msg1}) — sem degradação`);
+      } else {
+        console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
+        const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
+        // Respiro curto antes de degradar (antes 2s fixos).
+        if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
+        result = await fetchWindow(windowIdx, 10);
+        // Degradação final para size=5 só faz sentido quando o problema é
+        // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
+        // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
+        // 10 sub-requisições só queima tempo de uma das vias.
+        if (!result.ok && !isRede) {
+          await delay(DEGRADE_DELAY_MS * 2, signal);
+          result = await fetchWindow(windowIdx, 5);
+        }
       }
     }
     if (!result.ok) {
