@@ -721,7 +721,7 @@ export function useComparadorAnalise() {
         .eq("tipo", "djen_paralela_servidor")
         .gte("agendado_para", `${addDaysYmd(opts.dataInicio, -1)}T00:00:00Z`)
         .lte("agendado_para", `${addDaysYmd(opts.dataFim, 2)}T23:59:59Z`)
-        .in("status", ["concluido", "executando", "erro", "cancelado"])
+        .in("status", ["concluido", "concluido_parcial", "executando", "erro", "cancelado"])
         .limit(2000);
       const execRes = await execQ;
       const execucoesPeriodoRes = await supabase
@@ -747,7 +747,7 @@ export function useComparadorAnalise() {
         const keyExec = `${cid || "*"}|${dia}`;
         const prev = execPorCoordDia.get(keyExec);
         const status = e.status || null;
-        const concluida = status === "concluido";
+        const concluida = status === "concluido" || status === "concluido_parcial";
         const executando = status === "executando";
         const shouldReplace = !prev
           || (concluida && !prev.concluida)
