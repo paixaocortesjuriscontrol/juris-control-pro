@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase, BookOpen } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { gerarManualProcessosPdf } from "@/lib/manualProcessosPdf";
 
 type AreaType = "civil" | "trabalhista" | "empresarial" | "caso";
 type StatusType = "pending" | "active" | "closed" | "urgent";
