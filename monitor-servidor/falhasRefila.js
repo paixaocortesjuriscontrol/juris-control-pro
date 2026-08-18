@@ -22,11 +22,17 @@ function ehRateLimit(erro) {
   return /HTTP\s*429|rate\s*limit|too many requests/i.test(String(erro || ""));
 }
 
+// 401/403 é problema de token/ACL da VPS, não da unidade: também não deve
+// consumir tentativa (senão uma VPS com token errado abandona unidades boas).
+function ehAuthProxy(erro) {
+  return /HTTP\s*40[13]\b|unauthorized|forbidden/i.test(String(erro || ""));
+}
+
 async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
   if (!tipo || !itemKey) return;
   const dia = diaBrtHoje();
   const ultimoErro = String(erro || "").slice(0, 1000);
-  const semConsumirTentativa = ehRateLimit(erro);
+  const semConsumirTentativa = ehRateLimit(erro) || ehAuthProxy(erro);
   // Lê tentativas atuais e regrava (Postgrest não suporta increment + upsert simples).
   const { data: existente } = await sb
     .from("execucoes_servidor_falhas")
@@ -116,12 +122,52 @@ async function contarFalhasNaoColetadas(sb, tipo) {
   return count || 0;
 }
 
+/** Unidades do dia sem coleta (pendente + abandonado), para recoleta manual. */
+async function lerFalhasNaoColetadas(sb, tipo, opts = {}) {
+  const dia = opts.dia || diaBrtHoje();
+  const limite = Number(opts.limite) > 0 ? Number(opts.limite) : null;
+  let query = sb
+    .from("execucoes_servidor_falhas")
+    .select("id, item_key, payload, tentativas, status")
+    .eq("tipo", tipo)
+    .eq("dia_brt", dia)
+    .in("status", ["pendente", "abandonado"])
+    .order("id", { ascending: true });
+  if (limite) query = query.limit(limite);
+  const { data, error } = await query;
+  if (error) {
+    console.warn(`[falhasRefila] lerFalhasNaoColetadas(${tipo}):`, error.message);
+    return [];
+  }
+  return data || [];
+}
+
+/** Reabre unidades abandonadas do dia: status=pendente e tentativas=0. */
+async function reabrirFalhasAbandonadas(sb, tipo, opts = {}) {
+  const dia = opts.dia || diaBrtHoje();
+  const { data, error } = await sb
+    .from("execucoes_servidor_falhas")
+    .update({ status: "pendente", tentativas: 0 })
+    .eq("tipo", tipo)
+    .eq("dia_brt", dia)
+    .eq("status", "abandonado")
+    .select("id");
+  if (error) {
+    console.warn(`[falhasRefila] reabrirFalhasAbandonadas(${tipo}):`, error.message);
+    return 0;
+  }
+  return (data || []).length;
+}
+
 module.exports = {
   recordFalha,
   marcarFalhaResolvida,
   lerFalhasPendentes,
   contarFalhasNaoColetadas,
+  lerFalhasNaoColetadas,
+  reabrirFalhasAbandonadas,
   diaBrtHoje,
   MAX_TENTATIVAS,
   ehRateLimit,
+  ehAuthProxy,
 };

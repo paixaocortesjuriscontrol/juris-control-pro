@@ -7,6 +7,8 @@ const {
   marcarFalhaResolvida,
   lerFalhasPendentes,
   contarFalhasNaoColetadas,
+  lerFalhasNaoColetadas,
+  reabrirFalhasAbandonadas,
   MAX_TENTATIVAS,
 } = require("../falhasRefila");
 
@@ -1679,7 +1681,11 @@ async function run({ sb, payload, log, job }) {
       || (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo));
   });
   const itens = [];
-  for (const g of gruposOrdenados) {
+  // Modo recoleta: a rodada NÃO varre tribunal × monitoramento de novo; a fila
+  // é montada apenas com as unidades do dia que ficaram sem coleta (bloco de
+  // refila abaixo). Evita repetir ~1h de varredura para buscar 30 unidades.
+  const somenteFalhas = !!payload?.somenteFalhas;
+  for (const g of somenteFalhas ? [] : gruposOrdenados) {
     const cardKey = g.id; // "tipo|tribunal"
     const totalMons = g.monitoramentos.length;
     // Shardeia sempre que o grupo tem mais que SHARD_MIN termos, mesmo que
@@ -2037,10 +2043,16 @@ async function run({ sb, payload, log, job }) {
   // do pool consumam retries e novas units em paralelo.
   try {
     const horaBrt = horaBrtAgora();
-    const retriesLiberados = horaBrt >= RETRY_HORA_MIN_BRT;
-    const pendentes = retriesLiberados
-      ? await lerFalhasPendentes(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA })
-      : [];
+    const retriesLiberados = somenteFalhas || horaBrt >= RETRY_HORA_MIN_BRT;
+    if (somenteFalhas) {
+      const reabertas = await reabrirFalhasAbandonadas(sb, TIPO_ENGINE).catch(() => 0);
+      log("paralela.recoleta_reabertas", { unidades: reabertas });
+    }
+    const pendentes = !retriesLiberados
+      ? []
+      : somenteFalhas
+        ? await lerFalhasNaoColetadas(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA })
+        : await lerFalhasPendentes(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA });
     if (!retriesLiberados) {
       log("paralela.retry_adiado", { horaBrt, hora_min_brt: RETRY_HORA_MIN_BRT });
     }
@@ -2104,7 +2116,9 @@ async function run({ sb, payload, log, job }) {
       const onAbort = () => ac.abort();
       signal.addEventListener("abort", onAbort);
       let timer = null;
-      const budgetMs = budgetParaTribunal(tribunal);
+      // Na recoleta as unidades são justamente as que estouraram tempo: dá
+      // orçamento maior (2x) para elas concluírem de primeira.
+      const budgetMs = budgetParaTribunal(tribunal) * (somenteFalhas ? 2 : 1);
       const iniciadoEm = Date.now();
       const ctx = { slept: 0, lastProgressAt: iniciadoEm, paginas: 0 };
       try {
@@ -2340,7 +2354,14 @@ async function run({ sb, payload, log, job }) {
     log("paralela.worker_done", { via: slot.label || slot.url });
   };
 
-  await Promise.all(slots.map((slot) => worker(slot)));
+  // Recoleta: metade das pistas (mín. 2). Reduzir a pressão simultânea evita
+  // recriar o congestionamento/429 que deixou essas unidades sem coleta.
+  const slotsAtivos = somenteFalhas
+    ? slots.slice(0, Math.max(2, Math.ceil(slots.length / 2)))
+    : slots;
+  if (somenteFalhas) log("paralela.recoleta_pistas", { vias: slotsAtivos.length, pool: slots.length });
+
+  await Promise.all(slotsAtivos.map((slot) => worker(slot)));
 
   // === DRENAGEM FINAL ===
   // Antes de encerrar, faz UMA última passada nas unidades que ficaram
@@ -2385,7 +2406,7 @@ async function run({ sb, payload, log, job }) {
       if (injetadas > 0) {
         log("paralela.drenagem_final", { unidades: injetadas });
         await flushProgresso(true);
-        await Promise.all(slots.map((slot) => worker(slot)));
+        await Promise.all(slotsAtivos.map((slot) => worker(slot)));
       }
     } catch (e) {
       log("paralela.drenagem_final_error", { e: String(e?.message || e).slice(0, 300) });
