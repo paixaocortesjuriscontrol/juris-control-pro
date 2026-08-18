@@ -227,20 +227,12 @@ Deno.serve(async (req) => {
 
     let emailsEnviados = 0;
     if (alertasCert.length > 0 || alertasOffline.length > 0) {
-      const { data: adminRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "admin");
-      const adminIds = (adminRoles || []).map((r: { user_id: string }) => r.user_id).filter(Boolean);
-      let destinatarios: string[] = [];
-      if (adminIds.length > 0) {
-        const { data: perfis } = await supabase
-          .from("profiles")
-          .select("id, email")
-          .in("id", adminIds);
-        destinatarios = Array.from(
-          new Set((perfis || []).map((p: { email: string | null }) => p.email).filter(Boolean) as string[]),
-        );
+      const destinatarios: string[] = ["suporte@paixaocortes.adv.br"];
+      if (destinatarios.length === 0 || !destinatarios[0].includes("@")) {
+        log("e-mail não enviado: destinatário padrão inválido");
+        return new Response(JSON.stringify({ ok: true, resultados, emailsEnviados: 0 }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       const linha = (r: Resultado) => `
