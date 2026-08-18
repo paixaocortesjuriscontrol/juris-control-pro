@@ -2041,10 +2041,16 @@ async function run({ sb, payload, log, job }) {
   // do pool consumam retries e novas units em paralelo.
   try {
     const horaBrt = horaBrtAgora();
-    const retriesLiberados = horaBrt >= RETRY_HORA_MIN_BRT;
-    const pendentes = retriesLiberados
-      ? await lerFalhasPendentes(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA })
-      : [];
+    const retriesLiberados = somenteFalhas || horaBrt >= RETRY_HORA_MIN_BRT;
+    if (somenteFalhas) {
+      const reabertas = await reabrirFalhasAbandonadas(sb, TIPO_ENGINE).catch(() => 0);
+      log("paralela.recoleta_reabertas", { unidades: reabertas });
+    }
+    const pendentes = !retriesLiberados
+      ? []
+      : somenteFalhas
+        ? await lerFalhasNaoColetadas(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA })
+        : await lerFalhasPendentes(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA });
     if (!retriesLiberados) {
       log("paralela.retry_adiado", { horaBrt, hora_min_brt: RETRY_HORA_MIN_BRT });
     }
