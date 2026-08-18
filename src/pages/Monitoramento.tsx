@@ -173,7 +173,6 @@ export default function Monitoramento() {
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["monitoramento-coordenacoes"],
-    enabled: isAdminOrCoordinator,
     staleTime: 300_000,
     queryFn: async () => {
       const { data, error } = await supabase
