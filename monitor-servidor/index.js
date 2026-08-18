@@ -1,5 +1,8 @@
 require("dotenv").config({ path: __dirname + "/.env" });
 const os = require("os");
+// Encadeamos vários AbortSignal por rodada (orçamento por tribunal + cancelamento
+// global), o que estoura o limite default de 10 listeners e polui o log.
+try { require("events").setMaxListeners(100); } catch { /* noop */ }
 const { makeSupabase } = require("./proxyPool");
 
 const ENGINES = {
