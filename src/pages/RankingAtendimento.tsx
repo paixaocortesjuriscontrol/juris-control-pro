@@ -10,6 +10,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useNavigate } from "react-router-dom";
+import { buildRankingDrilldownUrl, type RankingMetrica } from "@/utils/rankingDrilldown";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
@@ -75,6 +77,7 @@ export default function RankingAtendimento() {
   const { user } = useAuth();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
 
+  const navigate = useNavigate();
   const [inicio, setInicio] = useState(format(startOfYear(new Date()), "yyyy-MM-dd"));
   const [fim, setFim] = useState(format(new Date(), "yyyy-MM-dd"));
   const [coordenacaoId, setCoordenacaoId] = useState("todas");
@@ -220,6 +223,46 @@ export default function RankingAtendimento() {
   const nomeCoordenacao =
     coordenacaoId === "todas" ? "Todas as coordenações" : coordenacoes.find((c) => c.id === coordenacaoId)?.nome || "-";
   const nomeUsuario = usuarioId === "todos" ? "Todos os usuários" : usuarios?.find((u) => u.id === usuarioId)?.nome || "-";
+  const abrirNoPainel = (
+    metrica: RankingMetrica,
+    usuarioId: string,
+    nome: string,
+    classificacoes?: string[],
+  ) => {
+    const url = buildRankingDrilldownUrl({
+      metrica,
+      usuarioId,
+      inicio,
+      fim,
+      classificacoes,
+      coordenacaoId: coordenacaoId === "todas" ? null : coordenacaoId,
+    });
+    navigate(`${url}&respNome=${encodeURIComponent(nome)}`);
+  };
+
+  const NumeroDrill = ({
+    valor,
+    metrica,
+    linha,
+    classificacoes,
+    className,
+  }: {
+    valor: number;
+    metrica: RankingMetrica;
+    linha: { usuario_id: string; nome: string };
+    classificacoes?: string[];
+    className?: string;
+  }) => (
+    <button
+      type="button"
+      onClick={() => abrirNoPainel(metrica, linha.usuario_id, linha.nome, classificacoes)}
+      className={`hover:underline underline-offset-2 focus:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded ${className ?? ""}`}
+      title="Ver estes itens na lista do Painel de Controle"
+    >
+      {valor}
+    </button>
+  );
+
   const periodoLabel = `${format(new Date(inicio + "T12:00:00"), "dd/MM/yyyy")} a ${format(
     new Date(fim + "T12:00:00"),
     "dd/MM/yyyy"
@@ -753,14 +796,14 @@ export default function RankingAtendimento() {
                             </span>
                           </TableCell>
                           <TableCell className="font-medium">{l.nome}</TableCell>
-                          <TableCell className="text-right">{l.abertos_total}</TableCell>
-                          <TableCell className="text-right">{l.abertos_prazos}</TableCell>
-                          <TableCell className="text-right">{l.abertos_audiencias}</TableCell>
-                          <TableCell className="text-right">{l.abertos_eventos}</TableCell>
-                          <TableCell className="text-right">{l.abertos_parcelamentos}</TableCell>
-                          <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
-                          <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
-                          <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_total)} metrica="criados" linha={l} /></TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_prazos)} metrica="criados" linha={l} classificacoes={["prazo"]} /></TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_audiencias)} metrica="criados" linha={l} classificacoes={["audiencia"]} /></TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_eventos)} metrica="criados" linha={l} classificacoes={["evento"]} /></TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_parcelamentos)} metrica="criados" linha={l} classificacoes={["parcelamento"]} /></TableCell>
+                          <TableCell className="text-right font-semibold"><NumeroDrill valor={Number(l.concluidos)} metrica="concluidos" linha={l} /></TableCell>
+                          <TableCell className="text-right text-green-600"><NumeroDrill valor={Number(l.concluidos_no_prazo)} metrica="no_prazo" linha={l} /></TableCell>
+                          <TableCell className="text-right text-amber-600"><NumeroDrill valor={Number(l.concluidos_atraso)} metrica="atraso" linha={l} /></TableCell>
                           <TableCell className="text-right">{l.atividades_total ?? 0}</TableCell>
                           <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
                           <TableCell className="text-right">
@@ -773,7 +816,7 @@ export default function RankingAtendimento() {
                             {Number(l.prazos_perdidos) > 0 ? (
                               <span className="inline-flex items-center gap-1 text-destructive font-semibold">
                                 <AlertTriangle className="w-3 h-3" />
-                                {l.prazos_perdidos}
+                                <NumeroDrill valor={Number(l.prazos_perdidos)} metrica="perdidos" linha={l} />
                               </span>
                             ) : (
                               <span className="text-muted-foreground">0</span>
@@ -888,8 +931,8 @@ export default function RankingAtendimento() {
                             </span>
                           </TableCell>
                           <TableCell className="font-medium">{l.nome}</TableCell>
-                          <TableCell className="text-right">{l.abertos_total}</TableCell>
-                          <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right"><NumeroDrill valor={Number(l.abertos_total)} metrica="criados" linha={l} /></TableCell>
+                          <TableCell className="text-right font-semibold"><NumeroDrill valor={Number(l.concluidos)} metrica="concluidos" linha={l} /></TableCell>
                           <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
                           <TableCell className="text-right font-semibold">{l.entregas}</TableCell>
                         </TableRow>
@@ -1013,10 +1056,10 @@ export default function RankingAtendimento() {
                               <span className="ml-2 text-xs text-muted-foreground">(amostra baixa)</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                          <TableCell className="text-right font-semibold"><NumeroDrill valor={Number(l.concluidos)} metrica="concluidos" linha={l} /></TableCell>
                           <TableCell className="text-right">{l.avaliaveis}</TableCell>
-                          <TableCell className="text-right text-green-600">{l.concluidos_no_prazo}</TableCell>
-                          <TableCell className="text-right text-amber-600">{l.concluidos_atraso}</TableCell>
+                          <TableCell className="text-right text-green-600"><NumeroDrill valor={Number(l.concluidos_no_prazo)} metrica="no_prazo" linha={l} /></TableCell>
+                          <TableCell className="text-right text-amber-600"><NumeroDrill valor={Number(l.concluidos_atraso)} metrica="atraso" linha={l} /></TableCell>
                           <TableCell className="text-right">
                             <Badge variant="outline" className="gap-1">
                               <CheckCircle2 className="w-3 h-3" />
@@ -1027,7 +1070,7 @@ export default function RankingAtendimento() {
                             {Number(l.prazos_perdidos) > 0 ? (
                               <span className="inline-flex items-center gap-1 text-destructive font-semibold">
                                 <AlertTriangle className="w-3 h-3" />
-                                {l.prazos_perdidos}
+                                <NumeroDrill valor={Number(l.prazos_perdidos)} metrica="perdidos" linha={l} />
                               </span>
                             ) : (
                               <span className="text-muted-foreground">0</span>
