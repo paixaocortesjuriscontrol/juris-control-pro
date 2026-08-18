@@ -70,6 +70,59 @@ const WINDOW_BACKOFF_MAX_MS = Math.max(500, Number(process.env.PARALELA_WINDOW_B
 // antes de repetir a janela com o MESMO pageSize (nunca degradar em 429).
 const RATE_LIMIT_BACKOFF_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_BACKOFF_MS || 5000));
 const RATE_LIMIT_PAUSE_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_PAUSE_MS || 8000));
+// Fase 4 — orçamento justo:
+//  * o tempo dormido em backoff/rate limit NÃO conta contra o orçamento da
+//    unidade (é espera imposta pelo DJEN, não trabalho nosso);
+//  * enquanto a paginação estiver produzindo páginas, o prazo é estendido até
+//    um teto absoluto, em vez de cortar uma busca produtiva pela metade.
+const UNIT_BUDGET_MAX_MS = Math.max(
+  SLOW_TRIBUNAL_BUDGET_MS,
+  Number(process.env.PARALELA_UNIT_BUDGET_MAX_MS || 240000),
+);
+const UNIT_PROGRESS_GRACE_MS = Math.max(
+  5000,
+  Number(process.env.PARALELA_UNIT_PROGRESS_GRACE_MS || 30000),
+);
+const { AsyncLocalStorage } = require("node:async_hooks");
+// Contexto por unidade (tribunal, monitoramento, dia) usado para descontar
+// esperas do orçamento e registrar progresso de paginação.
+const budgetALS = new AsyncLocalStorage();
+// Métricas da rodada: provam onde o tempo é gasto (tribunal x rate limit x rede).
+const METRICS = {
+  reset() {
+    this.msDormidoRateLimit = 0;
+    this.msDormidoOutros = 0;
+    this.c429 = 0;
+    this.c5xx = 0;
+    this.c504 = 0;
+    this.cAuth = 0;
+    this.cRede = 0;
+    this.paginasOk = 0;
+    this.msPorTribunal = {};
+    this.timeoutsPorTribunal = {};
+    this.msExtensaoConcedida = 0;
+  },
+};
+METRICS.reset();
+
+// delay que informa o contexto da unidade — o tempo dormido é devolvido ao
+// orçamento (não conta como trabalho) e some das métricas de tribunal.
+async function sleepFora(ms, signal, motivo = "backoff") {
+  const ctx = budgetALS.getStore();
+  if (ctx) ctx.slept += ms;
+  if (motivo === "rate_limit") METRICS.msDormidoRateLimit += ms;
+  else METRICS.msDormidoOutros += ms;
+  await delay(ms, signal);
+}
+
+function marcarProgresso(paginas = 1) {
+  const ctx = budgetALS.getStore();
+  if (ctx) {
+    ctx.lastProgressAt = Date.now();
+    ctx.paginas += paginas;
+  }
+  METRICS.paginasOk += paginas;
+}
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
 // Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
