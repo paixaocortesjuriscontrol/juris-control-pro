@@ -2103,7 +2103,6 @@ async function run({ sb, payload, log, job }) {
               const limite = progressoRecente
                 ? Math.min(UNIT_BUDGET_MAX_MS, Math.max(budgetMs, trabalho + UNIT_PROGRESS_GRACE_MS))
                 : budgetMs;
-              if (limite > budgetMs) METRICS.msExtensaoConcedida += 0; // contabilizado no estouro
               if (trabalho < limite && decorrido < UNIT_BUDGET_MAX_MS + ctx.slept) {
                 timer = setTimeout(tick, 2000);
                 return;
