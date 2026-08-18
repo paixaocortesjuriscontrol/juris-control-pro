@@ -1616,6 +1616,7 @@ async function enriquecerPublicacoesFaltantesDaExecucao(sb, execucaoId, slots, s
 }
 
 async function run({ sb, payload, log, job }) {
+  METRICS.reset();
   const dataInicio = payload?.dataInicio || payload?.diarioYmd || ymdToday();
   const dataFim = payload?.dataFim || payload?.diarioYmd || dataInicio;
   const coordenacaoId = payload?.coordenacaoId || null;
@@ -2333,7 +2334,10 @@ async function run({ sb, payload, log, job }) {
     log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
   }
   await flushProgresso(true);
+  const diagnostico = diagnosticoRodada();
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
+  // Diagnóstico: prova onde o tempo foi gasto (tribunal x rate limit x rede).
+  log("paralela.diagnostico", diagnostico);
 
   // Pós-execução: enriquece linhas gravadas com processo_numero NULL
   // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
@@ -2360,6 +2364,30 @@ async function run({ sb, payload, log, job }) {
     falhas_por_tribunal: falhasPorTribunal,
     tempo_gasto_em_retries_ms: tempoEmFalhasMs,
     unidades_estouradas: unidadesEstouradas,
+    diagnostico,
+  };
+}
+
+// Resumo das métricas da rodada, com os 10 tribunais que mais consumiram tempo.
+function diagnosticoRodada() {
+  const topTribunais = Object.entries(METRICS.msPorTribunal)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([tribunal, ms]) => ({
+      tribunal,
+      segundos: Math.round(ms / 1000),
+      timeouts: METRICS.timeoutsPorTribunal[tribunal] || 0,
+    }));
+  return {
+    paginas_ok: METRICS.paginasOk,
+    rate_limit_429: METRICS.c429,
+    erros_5xx: METRICS.c5xx,
+    erros_504: METRICS.c504,
+    erros_auth: METRICS.cAuth,
+    erros_rede: METRICS.cRede,
+    segundos_dormidos_rate_limit: Math.round(METRICS.msDormidoRateLimit / 1000),
+    segundos_dormidos_outros_backoff: Math.round(METRICS.msDormidoOutros / 1000),
+    top_tribunais_por_tempo: topTribunais,
   };
 }
 
