@@ -2107,6 +2107,7 @@ export default function ProcessoDetalhes() {
         <ProcessoDetalhesCompletos
           processo={processo}
           onNumeroChange={isNovo ? setNumeroNovo : undefined}
+          modoCaso={isNovo && searchParams.get("caso") === "1"}
           responsaveis={responsaveisParaCards}
           movimentacoes={movimentacoes}
           documentos={documentosProcesso}
