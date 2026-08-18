@@ -1679,7 +1679,11 @@ async function run({ sb, payload, log, job }) {
       || (tipoPriorityRank(a.tipo) - tipoPriorityRank(b.tipo));
   });
   const itens = [];
-  for (const g of gruposOrdenados) {
+  // Modo recoleta: a rodada NÃO varre tribunal × monitoramento de novo; a fila
+  // é montada apenas com as unidades do dia que ficaram sem coleta (bloco de
+  // refila abaixo). Evita repetir ~1h de varredura para buscar 30 unidades.
+  const somenteFalhas = !!payload?.somenteFalhas;
+  for (const g of somenteFalhas ? [] : gruposOrdenados) {
     const cardKey = g.id; // "tipo|tribunal"
     const totalMons = g.monitoramentos.length;
     // Shardeia sempre que o grupo tem mais que SHARD_MIN termos, mesmo que
