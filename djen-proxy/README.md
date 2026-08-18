@@ -153,6 +153,57 @@ Para atualizar: copie o novo `server.js` por cima e rode `pm2 restart djen-proxy
 
 ---
 
+## Auto-renovação do certificado TLS (obrigatório nas VMs do pool)
+
+Nas VMs que servem HTTPS direto (Google vm01, vm02, vm09), o certificado do
+Let's Encrypt vence a cada 90 dias. O certbot renova sozinho, mas o proxy **não
+recarrega** o certificado novo sem um restart — foi exatamente isso que derrubou
+o pool em julho/2026.
+
+Rode **uma vez em cada VM**, como root:
+
+```bash
+curl -fsSL https://juriscontrol.adv.br/scripts/instalar-auto-renovacao-cert.sh -o /tmp/renov.sh
+sudo bash /tmp/renov.sh
+```
+
+Se precisar forçar os valores (o script detecta sozinho):
+
+```bash
+sudo DOMINIO=djen-google2.juriscontrol.adv.br PORTA=8443 SERVICO=djen-proxy \
+  bash /tmp/renov.sh
+```
+
+O que ele faz:
+
+1. Ativa o timer do certbot (`certbot.timer`); se não existir, cria um cron de segurança.
+2. Ajusta grupo `letsencrypt` + permissões em `live/` e `archive/`, para o proxy
+   não-root conseguir ler a chave nova.
+3. Instala o hook `/etc/letsencrypt/renewal-hooks/deploy/99-reload-djen-proxy.sh`,
+   que após cada renovação reaplica permissões, recarrega o Nginx (se ativo) e
+   reinicia `djen-proxy.service`.
+4. Roda `certbot renew --dry-run` e **falha ruidosamente** se a simulação não passar.
+5. Mostra `notBefore`/`notAfter` servidos na porta do proxy e o status do serviço.
+
+É idempotente — pode rodar de novo sem duplicar nada.
+
+Conferências depois:
+
+```bash
+sudo systemctl list-timers | grep -i certbot   # renovação agendada
+sudo tail -20 /var/log/djen-cert-renew.log     # histórico de reloads
+echo | openssl s_client -connect djen-google2.juriscontrol.adv.br:8443 \
+  -servername djen-google2.juriscontrol.adv.br 2>/dev/null \
+  | openssl x509 -noout -dates                 # validade servida de fora
+```
+
+Rede de segurança no app: o monitor `verificar-saude-pool-djen` roda todo dia às
+8h BRT, grava `saude_status` / `cert_expira_em` em `djen_proxy_pool` e avisa por
+e-mail a 30, 15, 7 e 1 dia do vencimento — se alguma renovação falhar, você
+descobre antes de o pool cair.
+
+---
+
 ## Por que essa POC
 
 - **1 arquivo**, sem `npm install`
