@@ -16,10 +16,17 @@ function diaBrtHoje() {
 // volta a aparecer como RETRY no quadro de execuções do dia.
 const MAX_TENTATIVAS = 3;
 
+// 429 (rate limit) não é falha do item: é o DJEN pedindo espera. Não consome
+// tentativa do teto, para a unidade não virar "abandonado" por congestionamento.
+function ehRateLimit(erro) {
+  return /HTTP\s*429|rate\s*limit|too many requests/i.test(String(erro || ""));
+}
+
 async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
   if (!tipo || !itemKey) return;
   const dia = diaBrtHoje();
   const ultimoErro = String(erro || "").slice(0, 1000);
+  const semConsumirTentativa = ehRateLimit(erro);
   // Lê tentativas atuais e regrava (Postgrest não suporta increment + upsert simples).
   const { data: existente } = await sb
     .from("execucoes_servidor_falhas")
@@ -29,8 +36,11 @@ async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
     .eq("item_key", itemKey)
     .maybeSingle();
   if (existente?.id) {
-    const tentativas = (existente.tentativas || 0) + 1;
-    const status = tentativas >= MAX_TENTATIVAS ? "abandonado" : "pendente";
+    const tentativas = semConsumirTentativa
+      ? existente.tentativas || 0
+      : (existente.tentativas || 0) + 1;
+    const status =
+      !semConsumirTentativa && tentativas >= MAX_TENTATIVAS ? "abandonado" : "pendente";
     await sb
       .from("execucoes_servidor_falhas")
       .update({
@@ -48,7 +58,7 @@ async function recordFalha(sb, { tipo, execucaoId, itemKey, payload, erro }) {
       item_key: itemKey,
       payload: payload || {},
       ultimo_erro: ultimoErro,
-      tentativas: 1,
+      tentativas: semConsumirTentativa ? 0 : 1,
       status: "pendente",
       dia_brt: dia,
     });
@@ -90,4 +100,28 @@ async function lerFalhasPendentes(sb, tipo, opts = {}) {
   return data || [];
 }
 
-module.exports = { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, diaBrtHoje, MAX_TENTATIVAS };
+/** Quantas unidades do dia ainda estão sem coleta (pendente/abandonado). */
+async function contarFalhasNaoColetadas(sb, tipo) {
+  const dia = diaBrtHoje();
+  const { count, error } = await sb
+    .from("execucoes_servidor_falhas")
+    .select("id", { count: "exact", head: true })
+    .eq("tipo", tipo)
+    .eq("dia_brt", dia)
+    .in("status", ["pendente", "abandonado"]);
+  if (error) {
+    console.warn(`[falhasRefila] contarFalhasNaoColetadas(${tipo}):`, error.message);
+    return 0;
+  }
+  return count || 0;
+}
+
+module.exports = {
+  recordFalha,
+  marcarFalhaResolvida,
+  lerFalhasPendentes,
+  contarFalhasNaoColetadas,
+  diaBrtHoje,
+  MAX_TENTATIVAS,
+  ehRateLimit,
+};

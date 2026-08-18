@@ -471,7 +471,12 @@ function ExecucoesPanel() {
   const filtrados = useMemo(() => {
     return execs.filter((e) => {
       if (tipoFiltro !== "todos" && e.tipo !== tipoFiltro) return false;
-      if (statusFiltro === "sucesso" && e.status !== "concluido") return false;
+      if (
+        statusFiltro === "sucesso" &&
+        e.status !== "concluido" &&
+        e.status !== "concluido_parcial"
+      )
+        return false;
       if (statusFiltro === "cancelado" && e.status !== "cancelado") return false;
       if (statusFiltro === "falhou" && e.status !== "falhou") return false;
       if (statusFiltro === "erro" && e.status !== "erro") return false;

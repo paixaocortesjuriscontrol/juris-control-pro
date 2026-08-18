@@ -161,6 +161,18 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                         >
                           {rotuloEngine(e.tipoEngine)}
                         </Badge>
+                        {e.parcial && (
+                          <div
+                            className="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-300"
+                            title={`Rodada parcial: ${e.unidadesNaoColetadas || 0} unidade(s) tribunal × monitoramento ficaram sem coleta (rate limit do DJEN). Os números abaixo estão incompletos.`}
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            parcial
+                            {e.unidadesNaoColetadas
+                              ? ` (${e.unidadesNaoColetadas})`
+                              : ""}
+                          </div>
+                        )}
                       </TableHead>
                     ))}
                     <TableHead className="text-center">Total</TableHead>

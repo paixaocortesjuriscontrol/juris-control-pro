@@ -2,7 +2,13 @@
 // Não chama a edge monitorar-djen; cada worker usa uma VPS do djen_proxy_pool.
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
-const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, MAX_TENTATIVAS } = require("../falhasRefila");
+const {
+  recordFalha,
+  marcarFalhaResolvida,
+  lerFalhasPendentes,
+  contarFalhasNaoColetadas,
+  MAX_TENTATIVAS,
+} = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
 const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
@@ -2335,6 +2341,57 @@ async function run({ sb, payload, log, job }) {
   };
 
   await Promise.all(slots.map((slot) => worker(slot)));
+
+  // === DRENAGEM FINAL ===
+  // Antes de encerrar, faz UMA última passada nas unidades que ficaram
+  // pendentes (tipicamente 429 do PJE Comunica). Sem isso a rodada fecha
+  // com tribunais inteiros sem coleta e a tela mostra "publicação sumiu".
+  if (!cancelled) {
+    try {
+      const pendentesFinal = await lerFalhasPendentes(sb, TIPO_ENGINE, {
+        limite: RETRY_MAX_POR_RODADA,
+      });
+      let injetadas = 0;
+      for (const f of pendentesFinal) {
+        const p = f.payload || {};
+        const tribunal = p.tribunal;
+        const monId = p.monitoramentoId;
+        const dia = p.dia;
+        const tipoMon = p.tipo;
+        const mon = monId ? monsPorId.get(monId) : null;
+        if (!tribunal || !mon || !dia || !tipoMon) continue;
+        if (String(tribunal).toUpperCase() === "STF") continue;
+        const syntheticItem = {
+          id: `drain|${tribunal}|${monId}|${dia}`,
+          label: `DRENAGEM — ${mon.descricao || mon.termo_busca || tribunal} (${tribunal})`,
+          tribunal,
+          tipo: tipoMon,
+          monitoramentoIds: [monId],
+          status: "pendente",
+          current: 0,
+          total: 1,
+          mensagem: "Aguardando VPS (drenagem final)...",
+          novas: 0, descartadas: 0, duplicatas: 0,
+          erro: null, via: null,
+          __retry: true,
+          __retryItemKey: f.item_key,
+          __overrideDias: [dia],
+        };
+        itens.push(syntheticItem);
+        const unit = { item: syntheticItem, monIds: [monId], band: 1 };
+        band1.push(unit);
+        injetadas++;
+      }
+      if (injetadas > 0) {
+        log("paralela.drenagem_final", { unidades: injetadas });
+        await flushProgresso(true);
+        await Promise.all(slots.map((slot) => worker(slot)));
+      }
+    } catch (e) {
+      log("paralela.drenagem_final_error", { e: String(e?.message || e).slice(0, 300) });
+    }
+  }
+
   clearInterval(cancelPoll);
   clearInterval(heartbeatTick);
   if (cancelled) {
@@ -2348,6 +2405,14 @@ async function run({ sb, payload, log, job }) {
   }
   await flushProgresso(true);
   const diagnostico = diagnosticoRodada();
+  // Unidades (tribunal × monitoramento) que seguem sem coleta no dia BRT.
+  let unidadesNaoColetadas = 0;
+  if (!cancelled) {
+    unidadesNaoColetadas = await contarFalhasNaoColetadas(sb, TIPO_ENGINE).catch(() => 0);
+  }
+  diagnostico.unidades_nao_coletadas = unidadesNaoColetadas;
+  const parcial = !cancelled && unidadesNaoColetadas > 0;
+  if (parcial) log("paralela.parcial", { unidades_nao_coletadas: unidadesNaoColetadas });
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
   // Diagnóstico: prova onde o tempo foi gasto (tribunal x rate limit x rede).
   log("paralela.diagnostico", diagnostico);
@@ -2374,6 +2439,8 @@ async function run({ sb, payload, log, job }) {
     dataFim,
     vps: slots.length,
     cancelado: cancelled,
+    parcial,
+    unidades_nao_coletadas: unidadesNaoColetadas,
     falhas_por_tribunal: falhasPorTribunal,
     tempo_gasto_em_retries_ms: tempoEmFalhasMs,
     unidades_estouradas: unidadesEstouradas,
