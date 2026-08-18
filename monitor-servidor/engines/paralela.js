@@ -1904,6 +1904,19 @@ async function run({ sb, payload, log, job }) {
         },
         pool_enabled: true,
         vias: executando.map((i) => i.via).filter(Boolean),
+        // Etapa 2 do diagnóstico: resumo agregado da rodada gravado no banco.
+        // Antes só existia no log do PM2 (que rotaciona), o que impedia
+        // comparar dias. Agora fica junto da própria execução.
+        diagnostico: {
+          ...diagnosticoRodada(),
+          shards_total: itens.length,
+          shards_concluidos: itens.filter((i) => i.status === "concluido").length,
+          shards_erro: itens.filter((i) => i.status === "erro").length,
+          unidades_estouradas: unidadesEstouradas,
+          segundos_em_retries: Math.round(tempoEmFalhasMs / 1000),
+          falhas_por_tribunal: falhasPorTribunal,
+          vps: poolSize,
+        },
       },
       progresso_atualizado_em: new Date().toISOString(),
       heartbeat_at: new Date().toISOString(),
