@@ -12,7 +12,20 @@ O tempo é consumido *dentro* da busca paginada, não em uma única chamada:
 - Somando a pausa de rate limit com as retentativas por janela e o backoff entre janelas, um único par (tribunal, dia) com 2-3 rate limits ultrapassa 90s antes de terminar a paginação.
 - Ou seja: o pico de 429 (Fase 3) transformou o watchdog de 90s em disparo frequente, principalmente em tribunais com muitas páginas.
 
+## A lentidão é dos tribunais?
+
+Em parte, e não está medido ainda. Os sinais dos logs apontam para dois fatores, ambos externos ao nosso código, mas amplificados por ele:
+
+- **DJEN/PJE Comunica devolvendo 429 (rate limit)** — é o servidor deles limitando nosso volume. Isso é "do lado deles", mas o gatilho é a nossa concorrência.
+- **Tribunais lentos/instáveis por paginação longa** (TST, TRT2, TRT15, TJSP, TJRJ, TJMG e alguns TRTs pequenos com 504/fetch failed).
+
+O que **não** é causa: as VPS do pool (13/13 ok) e certificados. A mensagem de 90s é o nosso watchdog, não falha de VPS.
+
+Antes de mexer nos parâmetros, a primeira etapa é medir: log por rodada com tempo gasto por tribunal, quantos 429 e quanto tempo foi só espera de rate limit. Assim fica provado se o custo é do tribunal, do rate limit ou do nosso orçamento cortando buscas produtivas.
+
 ## Correções propostas
+
+0. **Medir primeiro** (etapa 1): instrumentar a rodada com tempo por tribunal, contagem de 429/504/timeout e tempo total dormido em backoff.
 
 1. **Não gastar orçamento com espera de rate limit**: descontar do relógio o tempo dormido em pausas 429/backoff, para o orçamento medir trabalho real e não espera imposta pelo DJEN.
 2. **Orçamento proporcional ao volume**: estender o prazo quando a busca já trouxe páginas com sucesso (progresso recente), em vez de cortar no meio de uma paginação produtiva. Teto absoluto para não travar a rodada.
