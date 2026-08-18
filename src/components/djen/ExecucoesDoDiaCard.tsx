@@ -1,7 +1,15 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Clock, Sparkles, ListFilter, X, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Clock,
+  Sparkles,
+  ListFilter,
+  X,
+  ChevronDown,
+  ChevronRight,
+  AlertTriangle,
+} from "lucide-react";
 import { useState } from "react";
 import { useExecucoesDoDiaServidor, type ExecucaoDoDia } from "@/hooks/useExecucoesDoDiaServidor";
 
@@ -99,6 +107,16 @@ export function ExecucoesDoDiaCard({
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                       {rotuloEngine(e.tipoEngine)}
                     </Badge>
+                    {e.parcial && (
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 border-amber-500/50 text-amber-700 dark:text-amber-300"
+                        title={`Rodada parcial: ${e.unidadesNaoColetadas || 0} unidade(s) ficaram sem coleta (rate limit do DJEN). O total abaixo está incompleto.`}
+                      >
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        parcial
+                      </Badge>
+                    )}
                   </div>
                   <div className="text-xs text-muted-foreground">
                     {e.totalVistas} {e.totalVistas === 1 ? "publicação" : "publicações"}
