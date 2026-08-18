@@ -1,55 +1,66 @@
-# DJEN Termos Servidor: diagnóstico da lentidão (12 min → 95 min) e plano de correção
+# DJEN Servidor: (1) subir VPS 4 e 5, (2) de onde vem o aumento de unidades
 
-## O que os dados mostram
+## Parte 1 — Subir VPS 4 e VPS 5
 
-Duração média por execução (tabela `execucoes_servidor`, tipo `djen_paralela_servidor`):
+Estado confirmado agora no `djen_proxy_pool`: apenas duas VPS fora — **Google VPS 4** (`djen-google4.juriscontrol.adv.br/djen-proxy`) e **Google VPS 5** (`djen-google5.juriscontrol.adv.br/djen-proxy`), ambas com `HTTP 502 em /health`. Certificados válidos (expiram em 01/10/2026), ou seja o Nginx está no ar e o Node por trás está morto — exatamente o quadro da vm03 antes da conversão para systemd.
+
+Procedimento por VM (via botão SSH do Google Cloud, primeiro na vm04, depois na vm05):
 
 ```text
-03/08  12,2 min   |  10/08  44,8 min
-04/08  12,7 min   |  11/08  53,6 min
-05/08  14,2 min   |  13/08  53,5 min
-06/08  23,8 min   |  14/08  68,6 min
-07/08  21,8 min   |  17/08  65,8 min (máx 106 min)
-                  |  18/08  94,7 min
+1. Conferir a porta do Node em server.js e o proxy_pass do Nginx (na vm03 era 8089).
+2. Criar o arquivo de variáveis de ambiente do proxy com PROXY_TOKEN (valor de
+   djen_proxy_pool.token da própria VM) e PORT, com permissão 600.
+3. Criar /etc/systemd/system/djen-proxy.service com:
+   User=paixaocortesjuriscontrol
+   WorkingDirectory=/home/paixaocortesjuriscontrol/djen-proxy
+   EnvironmentFile apontando para o arquivo do passo 2
+   ExecStart=/usr/bin/node server.js
+   Restart=always / RestartSec=3 / SupplementaryGroups=letsencrypt
+4. sudo systemctl daemon-reload && sudo systemctl enable --now djen-proxy
+5. sudo systemctl status djen-proxy --no-pager
+6. curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8089/health  (esperado 200)
 ```
 
-Causas confirmadas por consulta:
+Validação final: rodar a Edge Function `verificar-saude-pool-djen` e confirmar as 13 VPS em `ok`. Os comandos completos e o token exato de cada VM eu passo no chat quando você estiver com o SSH aberto (token não vai para arquivo do projeto).
 
-1. **Volume de unidades de busca quase triplicou.** Unidades processadas por dia saíram de 738 (03/08) para 1.907 (17/08). O maior salto é em monitoramentos de `parte`: 240 → 898 unidades/dia.
-2. **Crescimento da base de monitoramentos.** Hoje há 385 monitoramentos ativos (211 parte, 101 processo, 44 advogado, 28 palavra-chave, 1 geral), com entradas novas em 22/07 (+15), 12–13/08 (+3) e 17/08 (+24) — exatamente as datas em que a curva de duração sobe.
-3. **Fan-out por UF.** 41 dos 44 monitoramentos de advogado e 28 dos 211 de parte estão com UF `TODAS`/múltipla, gerando até 59 tribunais por termo. Cada tribunal/dia é uma unidade com requisições e delays próprios.
-4. **Pool perdeu capacidade.** O motor usa **1 worker por VPS** (`Promise.all(slots.map(worker))`), ou seja concorrência = número de VPS saudáveis. Das 13 habilitadas, **VPS 4 e VPS 5 estão offline (HTTP 502 em /health)** → 11 pistas em vez de 13, e cada falha ainda consome tentativas de failover em outros slots.
-5. **Custo fixo por requisição.** Latência das VPS é de 1,0–1,5 s por chamada, somada a delays fixos (400 ms entre páginas, 1.000 ms entre termos, 800 ms entre termos OR) e backoff de 1,5–6 s em 429. Com 2,6x mais unidades e menos pistas, o tempo cresce de forma linear/superlinear.
-6. **Gravação dobrada e telemetria pesada.** Além dos inserts em `publicacoes_djen` (37 mil chamadas, média 28 ms), o motor ainda grava tudo em `publicacoes_djen_servidor` (58 mil chamadas, média 40 ms — a tabela legada) e atualiza progresso/heartbeat 100 mil vezes.
+## Parte 2 — Onde está o aumento de unidades (diagnóstico confirmado)
 
-Importante: o volume **de resultado** não cresceu — publicações capturadas seguem estáveis (2.100–2.700/dia). O que cresceu foi o número de buscas necessárias para chegar ao mesmo resultado.
+O aumento **não vem de monitoramentos novos de parte**. Consultas feitas agora:
 
-## Plano de correção
+- `monitoramentos_djen` criados desde 25/07: 24 em 17/08 (todos tipo **processo**), 2 em 13/08, 1 advogado em 12/08. **Zero novos monitoramentos de parte.**
+- Nenhuma edição alterou o fan-out por tribunal dos monitoramentos de parte (as 23 edições de 17/08 são dos monitoramentos de processo criados no mesmo dia).
 
-### Fase 1 — Recuperar capacidade (impacto imediato)
-- Subir VPS 4 e VPS 5 (mesmo procedimento systemd `djen-proxy.service` já aplicado nas outras): volta de 11 para 13 pistas.
-- Passar a concorrência de 1 para N workers por VPS (padrão 2, configurável por `PARALELA_LANES_POR_VPS`), com governador de taxa por VPS para não estourar o rate limit por IP do PJe Comunica.
-- Ignorar automaticamente no pool as VPS com `saude_status <> 'ok'` na montagem dos slots, evitando gastar tentativas de failover em host morto.
+O que realmente triplicou são as **unidades de retry re-injetadas** a partir de `execucoes_servidor_falhas` (o motor injeta cada falha pendente do dia como unidade extra nas rodadas seguintes):
 
-### Fase 2 — Reduzir o fan-out (a causa raiz)
-- Revisar os monitoramentos com UF `TODAS`: restringir aos tribunais onde o termo realmente aparece.
-- Tabela de aprendizado por (monitoramento, tribunal): se um par não retorna nada há N dias úteis, ele passa a ser consultado em rodada reduzida (1x/dia na rodada da manhã) em vez de em todas as rodadas.
-- Agrupar termos da mesma coordenação/tribunal em consultas OR quando a API permitir, reduzindo requisições por unidade.
+```text
+dia     falhas/dia   fetch failed   timeout 90s
+03/08       171           146            24
+07/08       350           309            41
+10/08       840           741            99
+13/08     1.013           606           407
+14/08     1.239           642           597
+17/08     1.498           820           678
+18/08       477 (parcial)   0           477
+```
 
-### Fase 3 — Reduzir custo por unidade
-- Parar de gravar em `publicacoes_djen_servidor` (legado, apenas leitura histórica) — elimina ~58 mil escritas por ciclo.
-- Reduzir a frequência de flush de progresso (a cada N unidades ou 5 s, o que vier depois) mantendo heartbeat de 30 s.
-- Delays adaptativos: reduzir `PAGE_DELAY`/`TERM_DELAY` enquanto não houver 429 na VPS e voltar ao valor conservador ao primeiro 429.
+Cada tupla que falha volta como unidade nova nas rodadas do mesmo dia; se falhar de novo, gera outro retry e ainda queima tentativas de failover em VPS morta. A execução de 18/08 07:30 mostra o efeito: 56 unidades concluídas contra dezenas de unidades `retry|...` no checkpoint.
 
-### Fase 4 — Observabilidade para não repetir
-- Telemetria por unidade no `resultado` da execução: duração, requisições, páginas, retries, 429 e VPS usada.
-- Aba de diagnóstico na tela DJEN Servidor: duração por rodada, unidades/minuto, top monitoramentos por tempo consumido e pistas ativas na rodada.
-- Alerta por e-mail para `suporte@paixaocortes.adv.br` quando uma rodada passar de um limite configurável (ex.: 40 min) ou quando o pool tiver menos de 12 VPS saudáveis.
+Causa raiz das falhas: capacidade do pool insuficiente para a carga (11 pistas em vez de 13), `fetch failed` nas VPS instáveis e estouro do orçamento de 90s por tupla. É um ciclo de realimentação: menos pistas → mais timeout → mais retries → mais unidades → rodada mais longa.
+
+### Correções propostas (após subir as VPS)
+
+1. **Medir o efeito das VPS 4 e 5 primeiro**: com 13 pistas, comparar falhas/dia e duração média da rodada.
+2. **Teto de retry por rodada**: limitar as unidades de retry injetadas (ex.: `SERVIDOR_RETRY_MAX_POR_RODADA`, padrão 150), priorizando tuplas com menos tentativas, para que retry nunca desloque a busca primária.
+3. **Retry só na última rodada do dia**: acumular as falhas e reprocessar na rodada final, em vez de re-injetar em todas as rodadas.
+4. **Não refilar tupla cuja VPS estava offline**: falha `fetch failed`/502 em VPS com `saude_status <> 'ok'` volta para a fila sem contar tentativa e só quando o pool estiver saudável.
+5. **Orçamento por tupla adaptativo**: 120s em tribunais grandes (TST/TRT2) e 90s nos demais — timeouts respondem hoje por ~45% das falhas.
+6. **Painel de diagnóstico** na tela DJEN Servidor: falhas por dia, taxa de retry e pistas ativas por rodada, para detectar a realimentação antes de a rodada passar de 40 min.
 
 ## Detalhes técnicos
-- Arquivos: `monitor-servidor/engines/paralela.js` (slots, bandas, delays, gravação), `monitor-servidor/index.js` (dispatch), `src/pages/DjenServidor.tsx` + `src/hooks/useDjenServidor.ts` (diagnóstico), Edge Function `verificar-saude-pool-djen` (alertas).
-- Nova tabela sugerida: `djen_monitoramento_tribunal_stats` (monitoramento_id, tribunal, ultima_ocorrencia_em, dias_sem_resultado) com GRANTs para `service_role` e leitura para `authenticated`, alimentada pelo próprio motor.
-- Nenhuma mudança nas regras de validação parte/advogado nem na deduplicação existente.
+- Pool/health: tabela `djen_proxy_pool`, Edge Function `verificar-saude-pool-djen`.
+- Motor: `monitor-servidor/engines/paralela.js` (injeção de retry ~1897-1950, orçamento de 90s e failover ~2008-2110, sharding `SERVIDOR_SHARD_SIZE` ~1551-1600).
+- Refila: `monitor-servidor/falhasRefila.js` + tabela `execucoes_servidor_falhas`.
+- Nenhuma mudança em regras de validação parte/advogado nem na deduplicação.
 
-## Ordem de execução sugerida
-Fase 1 (rápida, devolve ~20–30% do tempo) → Fase 3 (barata) → Fase 2 (maior ganho, exige revisão de monitoramentos) → Fase 4.
+## Ordem sugerida
+Subir VPS 4 e 5 → observar um dia de rodadas com 13 pistas → aplicar itens 2, 3 e 4 (controle de retry) → itens 5 e 6.
