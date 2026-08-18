@@ -716,6 +716,19 @@ export default function Monitoramento() {
                                 ? ` · última em ${format(new Date(g.ultima), "dd/MM/yyyy", { locale: ptBR })}`
                                 : ""}
                             </p>
+                            {coordsDoProcesso(g.processoId, g.coordenacaoId).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {coordsDoProcesso(g.processoId, g.coordenacaoId).map((nome) => (
+                                  <Badge
+                                    key={nome}
+                                    variant="secondary"
+                                    className="h-5 px-1.5 text-[10px] font-normal"
+                                  >
+                                    {nome}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           {g.naoLidos > 0 && (
                             <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
@@ -980,6 +993,19 @@ export default function Monitoramento() {
                                 ? ` · última em ${format(new Date(g.ultima), "dd/MM/yyyy", { locale: ptBR })}`
                                 : ""}
                             </p>
+                            {coordsDoProcesso(g.processoId, g.coordenacaoId).length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {coordsDoProcesso(g.processoId, g.coordenacaoId).map((nome) => (
+                                  <Badge
+                                    key={nome}
+                                    variant="secondary"
+                                    className="h-5 px-1.5 text-[10px] font-normal"
+                                  >
+                                    {nome}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
                           </div>
                           {g.pendentes > 0 && (
                             <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
