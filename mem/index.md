@@ -1,0 +1,1 @@
+- [DJEN Servidor Refila Loop](mem://logic/djen/servidor-refila-timeout-loop) — Lentidão vem do refila de timeouts; medir cards por rodada em execucoes_servidor
