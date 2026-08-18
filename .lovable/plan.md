@@ -27,10 +27,12 @@ Nada foi perdido de forma definitiva — são publicações não buscadas, não 
 
 ## Correção proposta
 
-1. **Reprocessar agora as 24 unidades pendentes** do dia 18/08 (refila dirigido em `execucoes_servidor_falhas`), para fechar o buraco da rodada das 17h.
+O reprocessamento da rodada das 17h fica com você; o que muda no código:
+
+1. **Tratar 429 como espera, não como falha**: unidade que só recebeu 429 volta para a fila com backoff mais longo e sem consumir tentativa do teto de 5, evitando o `abandonado` observado no TST.
 2. **Não fechar rodada com unidades pendentes**: se ao final existirem falhas `pendente`/`abandonado`, a execução termina como `concluido_parcial` em vez de `concluido`, com o número de unidades faltantes gravado no `progresso.diagnostico`.
-3. **Sinalizar na tela Análise DJEN** as colunas de execução parcial (marcador ao lado do horário + tooltip com quantas unidades ficaram sem coleta), para a diferença entre execuções deixar de parecer "publicação desapareceu".
-4. **Tratar 429 como espera, não como falha**: unidade que só recebeu 429 volta para a fila com backoff mais longo e sem consumir tentativa do teto de 5, evitando o `abandonado` observado no TST.
+3. **Drenar a fila antes de encerrar**: o motor faz uma última passada no refila das unidades 429 antes de marcar a execução como finalizada.
+4. **Sinalizar na tela Análise DJEN** as colunas de execução parcial (marcador ao lado do horário + tooltip com quantas unidades ficaram sem coleta), para a diferença entre execuções deixar de parecer "publicação desapareceu".
 
 ## Detalhes técnicos
 
