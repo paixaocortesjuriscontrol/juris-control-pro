@@ -1915,7 +1915,7 @@ async function run({ sb, payload, log, job }) {
           unidades_estouradas: unidadesEstouradas,
           segundos_em_retries: Math.round(tempoEmFalhasMs / 1000),
           falhas_por_tribunal: falhasPorTribunal,
-          vps: poolSize,
+          vps: slots.length,
         },
       },
       progresso_atualizado_em: new Date().toISOString(),
