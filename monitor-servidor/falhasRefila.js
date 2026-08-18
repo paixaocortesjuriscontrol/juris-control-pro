@@ -67,15 +67,22 @@ async function marcarFalhaResolvida(sb, tipo, itemKey) {
     .eq("status", "pendente");
 }
 
-async function lerFalhasPendentes(sb, tipo) {
+async function lerFalhasPendentes(sb, tipo, opts = {}) {
   const dia = diaBrtHoje();
-  const { data, error } = await sb
+  const limite = Number(opts.limite) > 0 ? Number(opts.limite) : null;
+  let query = sb
     .from("execucoes_servidor_falhas")
     .select("id, item_key, payload, tentativas")
     .eq("tipo", tipo)
     .eq("dia_brt", dia)
     .eq("status", "pendente")
-    .lt("tentativas", MAX_TENTATIVAS);
+    .lt("tentativas", MAX_TENTATIVAS)
+    // Itens com menos tentativas primeiro: prioriza quem ainda tem chance real
+    // de sucesso em vez de reciclar sempre os mesmos tribunais problemáticos.
+    .order("tentativas", { ascending: true })
+    .order("id", { ascending: true });
+  if (limite) query = query.limit(limite);
+  const { data, error } = await query;
   if (error) {
     console.warn(`[falhasRefila] lerFalhasPendentes(${tipo}):`, error.message);
     return [];
