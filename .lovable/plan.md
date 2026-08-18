@@ -1,5 +1,9 @@
 # VPS 5 (401) + botão "Recoletar faltantes"
 
+## 0. Versão v4.5.6
+
+Primeiro passo da execução: subir a versão para **v4.5.6** (`src/constants/version.ts` e `public/version.json`).
+
 ## 1. Resolver a VPS 5
 
 Hoje uma das unidades abandonadas morreu com `HTTP 401 (Google VPS 5): {"error":"unauthorized"}` — o `PROXY_TOKEN` da vm05 não confere com o token guardado em `djen_proxy_pool`. Enquanto isso persiste, toda unidade sorteada para essa VPS falha.
