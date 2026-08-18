@@ -66,6 +66,10 @@ function horaBrtAgora() {
 const DEGRADE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_DEGRADE_DELAY_MS || 500));
 // Teto do backoff exponencial entre janelas que falharam (antes 15s).
 const WINDOW_BACKOFF_MAX_MS = Math.max(500, Number(process.env.PARALELA_WINDOW_BACKOFF_MAX_MS || 4000));
+// Fase 3 — rate limit (429) do DJEN: backoff dedicado por tentativa e pausa
+// antes de repetir a janela com o MESMO pageSize (nunca degradar em 429).
+const RATE_LIMIT_BACKOFF_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_BACKOFF_MS || 5000));
+const RATE_LIMIT_PAUSE_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_PAUSE_MS || 8000));
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
 // Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
