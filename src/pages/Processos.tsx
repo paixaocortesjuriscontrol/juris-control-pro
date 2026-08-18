@@ -910,6 +910,15 @@ const Processos = () => {
                   <Plus className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Novo Processo</span>
                 </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  title="Criar um caso sem número de processo (pode ser incluído depois)"
+                  onClick={() => navigate("/processos/novo?caso=1")}
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Novo Caso</span>
+                </Button>
               </>
             ) : (
               <>

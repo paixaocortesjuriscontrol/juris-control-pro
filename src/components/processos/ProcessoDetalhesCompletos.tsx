@@ -184,6 +184,8 @@ interface ProcessoDetalhesCompletosProps {
   onVoltarTarefa?: () => void;
   onCriarTarefaPublicacao?: (publicacao: any) => void;
   onNumeroChange?: (numero: string) => void;
+  /** Criação de "Caso": número do processo é opcional. */
+  modoCaso?: boolean;
 }
 
 export function ProcessoDetalhesCompletos({
@@ -213,6 +215,7 @@ export function ProcessoDetalhesCompletos({
   onVoltarTarefa,
   onCriarTarefaPublicacao,
   onNumeroChange,
+  modoCaso = false,
 }: ProcessoDetalhesCompletosProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -1112,6 +1115,7 @@ export function ProcessoDetalhesCompletos({
                   onNavigate={handleSectionChange}
                   onAddItem={abrirNovoItem}
                   onNumeroChange={onNumeroChange}
+                  modoCaso={modoCaso}
                   onJuditNovoPreenchido={() => setJuditNovoDestaque(true)}
                   hideJuditButtons
                 />

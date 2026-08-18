@@ -82,6 +82,12 @@ interface Props {
    * habilitando a aba "Análise Judit" que depende desse campo).
    */
   onNumeroChange?: (numero: string) => void;
+  /**
+   * Modo "Novo Caso": o número do processo é opcional e pode ser incluído
+   * depois. Ao salvar sem número, gravamos um identificador provisório
+   * (`CASO-<timestamp>`) para satisfazer a coluna obrigatória `numero`.
+   */
+  modoCaso?: boolean;
   onJuditNovoPreenchido?: () => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
@@ -176,6 +182,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   actionsOnly = false,
   hideJuditButtons = false,
   onNumeroChange,
+  modoCaso = false,
   onJuditNovoPreenchido,
 }, ref) {
   const queryClient = useQueryClient();
@@ -412,8 +419,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     // Validação mínima para criação
     if (isNovo) {
       const numeroRaw = String(form.numero || "").trim();
-      if (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5) {
+      if (!modoCaso && (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5)) {
         if (!silent) toast.error("Informe o número do processo antes de salvar.");
+        return;
+      }
+      if (modoCaso && numeroRaw && numeroRaw.replace(/\D/g, "").length < 5) {
+        if (!silent) toast.error("O número informado é inválido. Deixe em branco para incluir depois.");
         return;
       }
       if (!String(form.area || "").trim()) {
@@ -437,7 +448,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
 
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
-        payload.numero = String(form.numero || "").trim();
+        const numeroInformado = String(form.numero || "").trim();
+        // Modo "Novo Caso" sem número: gera identificador provisório, já que
+        // `numero` é obrigatório no banco. O advogado troca depois pelo CNJ.
+        payload.numero = numeroInformado || `CASO-${Date.now()}`;
+        if (!numeroInformado && modoCaso) {
+          const { data: novoCaso, error: errCaso } = await supabase
+            .from("processos")
+            .insert(
+              Object.fromEntries(
+                Object.entries(payload).filter(([, v]) => v !== null && v !== undefined)
+              ) as any
+            )
+            .select("id")
+            .single();
+          if (errCaso) throw errCaso;
+          if (!silent) toast.success("Caso criado. Você pode incluir o número do processo depois.");
+          await queryClient.invalidateQueries({ queryKey: ["processos"] });
+          await queryClient.invalidateQueries({ queryKey: ["processos-paginados"] });
+          navigate(`/processos/${novoCaso!.id}`, { replace: true });
+          return;
+        }
         // Antes de inserir, verifica se o número já existe no sistema — o
         // índice único global (`processos_numero_uidx`) recusaria o INSERT com
         // uma mensagem técnica de "duplicate key".
@@ -1470,10 +1501,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {isNovo && (
-                    <FormField label="Número do Processo *" className="md:col-span-2">
+                    <FormField
+                      label={modoCaso ? "Número do Processo (opcional — pode incluir depois)" : "Número do Processo *"}
+                      className="md:col-span-2"
+                    >
                       <Input
                         className={inputCls}
-                        placeholder={(form.tipo_processo || "judicial") === "administrativo" ? "14152.127256/2023-39" : "0000000-00.0000.0.00.0000"}
+                        placeholder={
+                          modoCaso
+                            ? "Deixe em branco se o processo ainda não foi distribuído"
+                            : (form.tipo_processo || "judicial") === "administrativo"
+                              ? "14152.127256/2023-39"
+                              : "0000000-00.0000.0.00.0000"
+                        }
                         value={form.numero || ""}
                         maxLength={30}
                         onChange={(e) => {
