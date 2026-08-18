@@ -70,6 +70,59 @@ const WINDOW_BACKOFF_MAX_MS = Math.max(500, Number(process.env.PARALELA_WINDOW_B
 // antes de repetir a janela com o MESMO pageSize (nunca degradar em 429).
 const RATE_LIMIT_BACKOFF_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_BACKOFF_MS || 5000));
 const RATE_LIMIT_PAUSE_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMIT_PAUSE_MS || 8000));
+// Fase 4 — orçamento justo:
+//  * o tempo dormido em backoff/rate limit NÃO conta contra o orçamento da
+//    unidade (é espera imposta pelo DJEN, não trabalho nosso);
+//  * enquanto a paginação estiver produzindo páginas, o prazo é estendido até
+//    um teto absoluto, em vez de cortar uma busca produtiva pela metade.
+const UNIT_BUDGET_MAX_MS = Math.max(
+  SLOW_TRIBUNAL_BUDGET_MS,
+  Number(process.env.PARALELA_UNIT_BUDGET_MAX_MS || 240000),
+);
+const UNIT_PROGRESS_GRACE_MS = Math.max(
+  5000,
+  Number(process.env.PARALELA_UNIT_PROGRESS_GRACE_MS || 30000),
+);
+const { AsyncLocalStorage } = require("node:async_hooks");
+// Contexto por unidade (tribunal, monitoramento, dia) usado para descontar
+// esperas do orçamento e registrar progresso de paginação.
+const budgetALS = new AsyncLocalStorage();
+// Métricas da rodada: provam onde o tempo é gasto (tribunal x rate limit x rede).
+const METRICS = {
+  reset() {
+    this.msDormidoRateLimit = 0;
+    this.msDormidoOutros = 0;
+    this.c429 = 0;
+    this.c5xx = 0;
+    this.c504 = 0;
+    this.cAuth = 0;
+    this.cRede = 0;
+    this.paginasOk = 0;
+    this.msPorTribunal = {};
+    this.timeoutsPorTribunal = {};
+    this.msExtensaoConcedida = 0;
+  },
+};
+METRICS.reset();
+
+// delay que informa o contexto da unidade — o tempo dormido é devolvido ao
+// orçamento (não conta como trabalho) e some das métricas de tribunal.
+async function sleepFora(ms, signal, motivo = "backoff") {
+  const ctx = budgetALS.getStore();
+  if (ctx) ctx.slept += ms;
+  if (motivo === "rate_limit") METRICS.msDormidoRateLimit += ms;
+  else METRICS.msDormidoOutros += ms;
+  await delay(ms, signal);
+}
+
+function marcarProgresso(paginas = 1) {
+  const ctx = budgetALS.getStore();
+  if (ctx) {
+    ctx.lastProgressAt = Date.now();
+    ctx.paginas += paginas;
+  }
+  METRICS.paginasOk += paginas;
+}
 // Sharding: cards com muitos termos são fatiados em sub-units para que o
 // mesmo (tipo, tribunal) rode em várias VPS simultaneamente.
 // Sharding agressivo: com 10 VPS, dividir cards em fatias pequenas garante
@@ -1055,15 +1108,20 @@ async function buscarPaginado(slot, params, signal) {
         if (out && out.status !== 429 && out.status < 500) break;
         if (attempt === MAX_ATTEMPTS - 1) break;
         const is429 = out?.status === 429;
+        if (is429) METRICS.c429 += 1;
+        else if (out?.status >= 500) { METRICS.c5xx += 1; if (out.status === 504) METRICS.c504 += 1; }
+        else if (!out) METRICS.cRede += 1;
         const base = is429 ? RATE_LIMIT_BACKOFF_MS : 1500;
         const jitter = Math.floor(Math.random() * 500);
-        await delay(base * (attempt + 1) + jitter, signal);
+        await sleepFora(base * (attempt + 1) + jitter, signal, is429 ? "rate_limit" : "backoff");
       }
       if (!out || out.status < 200 || out.status >= 300) {
         if (out && out.status === 404) {
           return { ok: true, items: collected, aborted: true };
         }
         const status = out?.status;
+        if (status === 401 || status === 403) METRICS.cAuth += 1;
+        else if (!status) METRICS.cRede += 1;
         return {
           ok: false,
           items: collected,
@@ -1074,6 +1132,8 @@ async function buscarPaginado(slot, params, signal) {
       const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
       const items = extractItems(data);
       for (const it of items) collected.push(it);
+      // Página trouxe resposta válida: renova a folga de progresso da unidade.
+      marcarProgresso(1);
       if (subPages > 1 && sub < subPages - 1 && PAGE_DELAY_MS > 0) {
         await delay(PAGE_DELAY_MS, signal);
       }
@@ -1095,7 +1155,7 @@ async function buscarPaginado(slot, params, signal) {
         // Rate limit: NÃO degradar (size=10 gera 5x mais requisições e piora
         // o 429). Espera o cooldown e repete a MESMA janela com size=50.
         console.log(`[paralela.buscarPaginado] janela ${windowIdx} em rate limit (429) — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
-        await delay(RATE_LIMIT_PAUSE_MS, signal);
+        await sleepFora(RATE_LIMIT_PAUSE_MS, signal, "rate_limit");
         result = await fetchWindow(windowIdx, 50);
       } else if (kind === "auth") {
         // 401/403 é problema de token da VPS: degradar não resolve, apenas
@@ -1105,14 +1165,14 @@ async function buscarPaginado(slot, params, signal) {
         console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
         const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
         // Respiro curto antes de degradar (antes 2s fixos).
-        if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
+        if (isRede && DEGRADE_DELAY_MS > 0) await sleepFora(DEGRADE_DELAY_MS, signal);
         result = await fetchWindow(windowIdx, 10);
         // Degradação final para size=5 só faz sentido quando o problema é
         // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
         // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
         // 10 sub-requisições só queima tempo de uma das vias.
         if (!result.ok && !isRede) {
-          await delay(DEGRADE_DELAY_MS * 2, signal);
+          await sleepFora(DEGRADE_DELAY_MS * 2, signal);
           result = await fetchWindow(windowIdx, 5);
         }
       }
@@ -1123,7 +1183,7 @@ async function buscarPaginado(slot, params, signal) {
         throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
       // Backoff exponencial entre janelas que falharam, com teto curto.
-      await delay(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
+      await sleepFora(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
       continue;
     }
     failedStreak = 0;
@@ -1556,6 +1616,7 @@ async function enriquecerPublicacoesFaltantesDaExecucao(sb, execucaoId, slots, s
 }
 
 async function run({ sb, payload, log, job }) {
+  METRICS.reset();
   const dataInicio = payload?.dataInicio || payload?.diarioYmd || ymdToday();
   const dataFim = payload?.dataFim || payload?.diarioYmd || dataInicio;
   const coordenacaoId = payload?.coordenacaoId || null;
@@ -2025,18 +2086,46 @@ async function run({ sb, payload, log, job }) {
       signal.addEventListener("abort", onAbort);
       let timer = null;
       const budgetMs = budgetParaTribunal(tribunal);
+      const iniciadoEm = Date.now();
+      const ctx = { slept: 0, lastProgressAt: iniciadoEm, paginas: 0 };
       try {
         return await Promise.race([
-          buscarTermo(slotUsado, mon, dia, tribunal, ac.signal),
+          budgetALS.run(ctx, () => buscarTermo(slotUsado, mon, dia, tribunal, ac.signal)),
           new Promise((_, reject) => {
-            timer = setTimeout(() => {
+            // Watchdog reavaliado periodicamente:
+            //  * deadline = início + orçamento + tempo dormido em backoff/429;
+            //  * se houve página válida nos últimos UNIT_PROGRESS_GRACE_MS, o
+            //    prazo é estendido até o teto UNIT_BUDGET_MAX_MS.
+            const tick = () => {
+              const agora = Date.now();
+              const decorrido = agora - iniciadoEm;
+              const trabalho = decorrido - ctx.slept;
+              const progressoRecente = agora - ctx.lastProgressAt < UNIT_PROGRESS_GRACE_MS;
+              const limite = progressoRecente
+                ? Math.min(UNIT_BUDGET_MAX_MS, Math.max(budgetMs, trabalho + UNIT_PROGRESS_GRACE_MS))
+                : budgetMs;
+              if (trabalho < limite && decorrido < UNIT_BUDGET_MAX_MS + ctx.slept) {
+                timer = setTimeout(tick, 2000);
+                return;
+              }
               ac.abort();
-              reject(new Error(`Orçamento de ${Math.round(budgetMs / 1000)}s excedido (Falha ao consultar VPS DJEN)`));
-            }, budgetMs);
+              METRICS.timeoutsPorTribunal[tribunal] = (METRICS.timeoutsPorTribunal[tribunal] || 0) + 1;
+              const motivo = ctx.slept > 5000
+                ? `rate limit/backoff ${Math.round(ctx.slept / 1000)}s`
+                : ctx.paginas > 0
+                  ? `tribunal lento (${ctx.paginas} páginas)`
+                  : "sem resposta do tribunal";
+              reject(new Error(
+                `Tempo limite da unidade excedido (${Math.round(trabalho / 1000)}s de trabalho) — refilado [${motivo}]`,
+              ));
+            };
+            timer = setTimeout(tick, Math.min(2000, budgetMs));
           }),
         ]);
       } finally {
         if (timer) clearTimeout(timer);
+        METRICS.msPorTribunal[tribunal] =
+          (METRICS.msPorTribunal[tribunal] || 0) + (Date.now() - iniciadoEm);
         signal.removeEventListener("abort", onAbort);
       }
     };
@@ -2081,7 +2170,7 @@ async function run({ sb, payload, log, job }) {
             } catch (firstErr) {
               const msg = String(firstErr?.message || firstErr || "");
               const is5xx = /HTTP\s*5\d\d/.test(msg) || /Falha ao consultar VPS/.test(msg);
-              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento/i.test(msg);
+              const isRede = /fetch failed|socket|ECONN|network|timeout|Orçamento|Tempo limite da unidade/i.test(msg);
               // Failover só quando o erro sugere problema da VPS (5xx).
               // "fetch failed" repetido significa que o tribunal está
               // derrubando a conexão — trocar de VPS não resolve e custa
@@ -2143,7 +2232,7 @@ async function run({ sb, payload, log, job }) {
             const errMsg = String(e?.message || e || "");
             tempoEmFalhasMs += Date.now() - tParInicio;
             falhasPorTribunal[item.tribunal] = (falhasPorTribunal[item.tribunal] || 0) + 1;
-            if (/Orçamento/i.test(errMsg)) unidadesEstouradas += 1;
+            if (/Orçamento|Tempo limite da unidade/i.test(errMsg)) unidadesEstouradas += 1;
             const is5xx = /HTTP\s*5\d\d/.test(errMsg) || /Falha ao consultar VPS/.test(errMsg);
             const isStf = String(item.tribunal || "").toUpperCase() === "STF";
             if (isStf && is5xx) {
@@ -2245,7 +2334,10 @@ async function run({ sb, payload, log, job }) {
     log("paralela.cancelled", { remaining: itens.filter((i) => i.status === "pendente").length });
   }
   await flushProgresso(true);
+  const diagnostico = diagnosticoRodada();
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
+  // Diagnóstico: prova onde o tempo foi gasto (tribunal x rate limit x rede).
+  log("paralela.diagnostico", diagnostico);
 
   // Pós-execução: enriquece linhas gravadas com processo_numero NULL
   // refazendo UMA consulta por (monitoramento, tribunal, dia) direto na API
@@ -2272,6 +2364,30 @@ async function run({ sb, payload, log, job }) {
     falhas_por_tribunal: falhasPorTribunal,
     tempo_gasto_em_retries_ms: tempoEmFalhasMs,
     unidades_estouradas: unidadesEstouradas,
+    diagnostico,
+  };
+}
+
+// Resumo das métricas da rodada, com os 10 tribunais que mais consumiram tempo.
+function diagnosticoRodada() {
+  const topTribunais = Object.entries(METRICS.msPorTribunal)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([tribunal, ms]) => ({
+      tribunal,
+      segundos: Math.round(ms / 1000),
+      timeouts: METRICS.timeoutsPorTribunal[tribunal] || 0,
+    }));
+  return {
+    paginas_ok: METRICS.paginasOk,
+    rate_limit_429: METRICS.c429,
+    erros_5xx: METRICS.c5xx,
+    erros_504: METRICS.c504,
+    erros_auth: METRICS.cAuth,
+    erros_rede: METRICS.cRede,
+    segundos_dormidos_rate_limit: Math.round(METRICS.msDormidoRateLimit / 1000),
+    segundos_dormidos_outros_backoff: Math.round(METRICS.msDormidoOutros / 1000),
+    top_tribunais_por_tempo: topTribunais,
   };
 }
 
