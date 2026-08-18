@@ -157,7 +157,7 @@ const CONTEUDO: Bloco[] = [
   },
 ];
 
-export function gerarManualProcessosPdf() {
+export function construirManualProcessosPdf(): jsPDF {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const largura = doc.internal.pageSize.getWidth();
   const altura = doc.internal.pageSize.getHeight();
@@ -284,5 +284,10 @@ export function gerarManualProcessosPdf() {
   }
 
   rodape();
+  return doc;
+}
+
+export function gerarManualProcessosPdf() {
+  const doc = construirManualProcessosPdf();
   doc.save(`Manual_Processos_e_Casos_${new Date().toISOString().slice(0, 10)}.pdf`);
 }
