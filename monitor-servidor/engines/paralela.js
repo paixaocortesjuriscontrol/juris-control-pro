@@ -2406,7 +2406,7 @@ async function run({ sb, payload, log, job }) {
       if (injetadas > 0) {
         log("paralela.drenagem_final", { unidades: injetadas });
         await flushProgresso(true);
-        await Promise.all(slots.map((slot) => worker(slot)));
+        await Promise.all(slotsAtivos.map((slot) => worker(slot)));
       }
     } catch (e) {
       log("paralela.drenagem_final_error", { e: String(e?.message || e).slice(0, 300) });
