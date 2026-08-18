@@ -242,6 +242,18 @@ serve(async (req) => {
       (jaEnviados || []).map((r: any) => `${r.execucao_id}|${r.coordenacao_id ?? "__admin__"}`),
     );
 
+    // 3b) Configuração de destinatários por coordenação (padrão: todos os membros)
+    const { data: configsDest } = await supabase
+      .from("config_alerta_diferenca_djen")
+      .select("coordenacao_id, todos, usuarios");
+    const configDestPorCoord = new Map<string, { todos: boolean; usuarios: string[] }>();
+    for (const c of configsDest || []) {
+      configDestPorCoord.set((c as any).coordenacao_id as string, {
+        todos: (c as any).todos !== false,
+        usuarios: (((c as any).usuarios as string[] | null) || []).filter(Boolean),
+      });
+    }
+
     // 4) Admins (destinatários fixos)
     const { data: adminRoles } = await supabase
       .from("user_roles")
@@ -333,6 +345,19 @@ serve(async (req) => {
           .eq("coordenacao_id", linha.coordenacaoId);
         for (const m of membros || []) {
           if ((m as any).usuario_id) destinoIds.add((m as any).usuario_id as string);
+        }
+
+        // Filtro configurado na tela Coordenações: quando "todos" está desligado,
+        // envia apenas para os usuários selecionados (que pertençam à coordenação).
+        const cfgDest = configDestPorCoord.get(linha.coordenacaoId);
+        if (cfgDest && !cfgDest.todos) {
+          const permitidos = new Set(cfgDest.usuarios);
+          for (const id of Array.from(destinoIds)) {
+            if (!permitidos.has(id)) destinoIds.delete(id);
+          }
+          if (destinoIds.size === 0) {
+            log(`coordenação ${linha.nome}: sem destinatários selecionados — e-mail não enviado`);
+          }
         }
 
         let emails: string[] = [];
