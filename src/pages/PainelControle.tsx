@@ -516,6 +516,43 @@ export default function PainelControle() {
     }
   }, [agendaQuery.hasNextPage, agendaQuery.isFetchingNextPage, agendaQuery.fetchNextPage]);
 
+  // ===== Drill-down do Ranking: busca dedicada =====
+  // A lista do painel só carrega a janela do calendário (paginada), o que fazia
+  // o drill-down do ranking exibir menos itens do que o número clicado.
+  // Aqui buscamos direto no banco todo o período do drill para o responsável,
+  // com folga de 60 dias nas pontas (itens com data fatal fora da janela).
+  const drillQuery = useQuery({
+    queryKey: ["painel-drill-ranking", drill?.metrica, drill?.resp, drill?.de, drill?.ate],
+    enabled: !!drill,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!drill) return [] as any[];
+      const de = drill.de ? new Date(`${drill.de}T00:00:00`) : new Date(2015, 0, 1);
+      const ate = drill.ate ? new Date(`${drill.ate}T23:59:59`) : new Date(2100, 0, 1);
+      const inicio = subMonths(de, 2);
+      const fim = drill.metrica === "criados" ? addMonths(ate, 18) : addDays(ate, 60);
+      const drillFilters = {
+        responsavelIds: [drill.resp],
+        fetchAll: false,
+        dataInicio: inicio,
+        dataFim: fim,
+      } as any;
+      const coletados: any[] = [];
+      for (let page = 0; page < 20; page++) {
+        const pageItens = await fetchAgendaPage(drillFilters, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length < 1000) break;
+      }
+      const vistos = new Set<string>();
+      return coletados.filter((it) => {
+        const k = `${it.origem}:${it.id}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+    },
+  });
+
   // Busca direta ao banco para totalizadores
   const hoje_str = format(nowBrt, "yyyy-MM-dd");
 
