@@ -163,6 +163,20 @@ export default function PainelControle() {
   const [diaLateralKey, setDiaLateralKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
 
+  // ===== Drill-down vindo do Ranking de Atendimento =====
+  const [drill, setDrill] = useState<{
+    metrica: RankingMetrica;
+    resp: string;
+    de: string;
+    ate: string;
+  } | null>(() => {
+    const m = searchParams.get("metrica");
+    const resp = searchParams.get("resp");
+    if (!isRankingMetrica(m) || !resp) return null;
+    return { metrica: m, resp, de: searchParams.get("de") ?? "", ate: searchParams.get("ate") ?? "" };
+  });
+  const drillNomeResp = searchParams.get("respNome") ?? "";
+
   const lastViewParamRef = useRef<string | null>(searchParams.get("view"));
   useEffect(() => {
     const viewParam = searchParams.get("view");
