@@ -543,6 +543,35 @@ export default function PainelControle() {
         coletados.push(...pageItens);
         if (pageItens.length < 1000) break;
       }
+      // A RPC do ranking usa, para cargas importadas, a data de cumprimento
+      // original registrada na auditoria de criação. Enriquecer os mesmos itens
+      // com essa data mantém o drill-down idêntico ao total agregado.
+      const origensImportadas = new Set(["astrea", "projuris", "importacao", "import", "planilha", "migracao", "carga", "benner"]);
+      const idsImportados = coletados
+        .filter((it) => it.origem === "tarefa" && origensImportadas.has(String(it.origem_importacao ?? "").toLowerCase()))
+        .map((it) => String(it.id).split("::")[0]);
+      const conclusaoOriginal = new Map<string, string>();
+      for (let i = 0; i < idsImportados.length; i += 500) {
+        const { data: auditorias, error } = await supabase
+          .from("auditoria_tarefas")
+          .select("tarefa_id, dados_saida, created_at")
+          .in("tarefa_id", idsImportados.slice(i, i + 500))
+          .eq("acao", "criar")
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        for (const auditoria of auditorias ?? []) {
+          if (conclusaoOriginal.has(auditoria.tarefa_id)) continue;
+          const dados = auditoria.dados_saida as Record<string, unknown> | null;
+          const valor = dados?.data_cumprimento;
+          if (typeof valor === "string" && /^\d{4}-\d{2}-\d{2}/.test(valor)) {
+            conclusaoOriginal.set(auditoria.tarefa_id, valor);
+          }
+        }
+      }
+      for (const item of coletados) {
+        const rawId = String(item.id).split("::")[0];
+        item.ranking_data_conclusao = conclusaoOriginal.get(rawId) ?? null;
+      }
       const vistos = new Set<string>();
       return coletados.filter((it) => {
         const k = `${it.origem}:${it.id}`;

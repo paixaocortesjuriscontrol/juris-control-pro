@@ -71,7 +71,7 @@ export function itemConcluido(item: any): boolean {
 }
 
 export function dataConclusaoItem(item: any): string {
-  return dia(item?.data_cumprimento) || dia(item?.concluido_em) || "";
+  return dia(item?.ranking_data_conclusao) || dia(item?.data_cumprimento) || dia(item?.concluido_em) || "";
 }
 
 /**
