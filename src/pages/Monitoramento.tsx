@@ -275,8 +275,56 @@ export default function Monitoramento() {
   });
 
 
+  // Coordenações responsáveis por processo (multi-coordenação), exibidas
+  // abaixo de cada processo nas listas.
+  const idsProcessosVisiveis = useMemo(() => {
+    const set = new Set<string>();
+    for (const ev of eventos ?? []) set.add(ev.processo_id);
+    for (const d of divergencias ?? []) set.add(d.processo_id);
+    return Array.from(set);
+  }, [eventos, divergencias]);
+
+  const { data: coordsResponsaveis } = useQuery({
+    queryKey: ["monitoramento-coords-responsaveis", idsProcessosVisiveis.join(",")],
+    enabled: idsProcessosVisiveis.length > 0,
+    staleTime: 120_000,
+    queryFn: async () => {
+      const mapa: Record<string, string[]> = {};
+      for (let i = 0; i < idsProcessosVisiveis.length; i += 200) {
+        const lote = idsProcessosVisiveis.slice(i, i + 200);
+        const { data, error } = await supabase
+          .from("processos_coordenacoes_responsaveis")
+          .select("processo_id, coordenacao:coordenacoes(nome)")
+          .in("processo_id", lote);
+        if (error) throw error;
+        for (const row of (data ?? []) as any[]) {
+          const nome = row.coordenacao?.nome;
+          if (!nome) continue;
+          const atual = mapa[row.processo_id] ?? [];
+          if (!atual.includes(nome)) atual.push(nome);
+          mapa[row.processo_id] = atual;
+        }
+      }
+      for (const k of Object.keys(mapa)) mapa[k].sort((a, b) => a.localeCompare(b));
+      return mapa;
+    },
+  });
+
+  const nomesCoordenacao = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of (coordenacoes ?? []) as any[]) m[c.id] = c.nome;
+    return m;
+  }, [coordenacoes]);
+
+  // Fallback: se o processo não tem responsáveis cadastrados, usa a coordenação de origem.
+  const coordsDoProcesso = (processoId: string, coordenacaoId: string | null) => {
+    const lista = coordsResponsaveis?.[processoId];
+    if (lista && lista.length > 0) return lista;
+    const nome = coordenacaoId ? nomesCoordenacao[coordenacaoId] : null;
+    return nome ? [nome] : [];
+  };
+
   const grupos = useMemo<Grupo[]>(() => {
-    void 0;
     const map = new Map<string, Grupo>();
     for (const ev of eventos ?? []) {
       const g = map.get(ev.processo_id) ?? {
