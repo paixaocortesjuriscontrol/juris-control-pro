@@ -14,6 +14,10 @@ export interface ExecucaoDoDia {
   novasCount: number;
   /** Indica se é a primeira execução do dia (não há comparação) */
   primeiraDoDia: boolean;
+  /** Rodada encerrada com unidades (tribunal × monitoramento) sem coleta */
+  parcial: boolean;
+  /** Quantas unidades ficaram sem coleta nessa rodada */
+  unidadesNaoColetadas: number;
 }
 
 /**
@@ -41,7 +45,7 @@ export function useExecucoesDoDiaServidor(
         .select("id, tipo, iniciado_em, resultado, status")
         .gte("iniciado_em", `${ymd}T00:00:00`)
         .lte("iniciado_em", `${ymd}T23:59:59`)
-        .eq("status", "concluido")
+        .in("status", ["concluido", "concluido_parcial"])
         .order("iniciado_em", { ascending: true });
 
       if (execErr) {
@@ -99,6 +103,11 @@ export function useExecucoesDoDiaServidor(
         const tipoRaw = String(e.tipo || "").toLowerCase();
         const tipoEngine: "paralela" | "pautas" = tipoRaw.includes("pauta") ? "pautas" : "paralela";
         const novasIds = novasByExec.get(e.id) || [];
+        const naoColetadas = Number(
+          e?.resultado?.unidades_nao_coletadas ??
+            e?.resultado?.diagnostico?.unidades_nao_coletadas ??
+            0,
+        );
         return {
           id: e.id,
           started_at: e.iniciado_em,
@@ -108,6 +117,8 @@ export function useExecucoesDoDiaServidor(
           novasIds,
           novasCount: novasIds.length,
           primeiraDoDia: idx === 0,
+          parcial: e.status === "concluido_parcial" || naoColetadas > 0,
+          unidadesNaoColetadas: naoColetadas,
         };
       });
     },
