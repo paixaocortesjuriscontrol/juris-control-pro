@@ -2,7 +2,13 @@
 // Não chama a edge monitorar-djen; cada worker usa uma VPS do djen_proxy_pool.
 
 const { djenFetchSlot, loadPool } = require("../proxyPool");
-const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes, MAX_TENTATIVAS } = require("../falhasRefila");
+const {
+  recordFalha,
+  marcarFalhaResolvida,
+  lerFalhasPendentes,
+  contarFalhasNaoColetadas,
+  MAX_TENTATIVAS,
+} = require("../falhasRefila");
 
 const TIPO_ENGINE = "djen_paralela_servidor";
 const ENGINE_VERSION = "2026-07-01-prioridade-original-wave";
