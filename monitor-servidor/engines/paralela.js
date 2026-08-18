@@ -2116,7 +2116,9 @@ async function run({ sb, payload, log, job }) {
       const onAbort = () => ac.abort();
       signal.addEventListener("abort", onAbort);
       let timer = null;
-      const budgetMs = budgetParaTribunal(tribunal);
+      // Na recoleta as unidades são justamente as que estouraram tempo: dá
+      // orçamento maior (2x) para elas concluírem de primeira.
+      const budgetMs = budgetParaTribunal(tribunal) * (somenteFalhas ? 2 : 1);
       const iniciadoEm = Date.now();
       const ctx = { slept: 0, lastProgressAt: iniciadoEm, paginas: 0 };
       try {
