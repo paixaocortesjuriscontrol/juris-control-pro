@@ -903,6 +903,15 @@ const Processos = () => {
                   <Download className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Exportar</span>
                 </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 sm:flex-none"
+                  title="Gerar manual em PDF da tela Processos e Casos"
+                  onClick={() => gerarManualProcessosPdf()}
+                >
+                  <BookOpen className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Manual PDF</span>
+                </Button>
                 <Button 
                   className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
                   onClick={() => navigate("/processos/novo")}
