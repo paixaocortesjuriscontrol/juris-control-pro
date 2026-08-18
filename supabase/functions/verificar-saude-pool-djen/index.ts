@@ -283,7 +283,7 @@ Deno.serve(async (req) => {
         const ultimo = (s.ultimo_alerta_cert_em || "").slice(0, 10);
         if (ultimo !== hoje) alertasCert.push(r);
       }
-      if (r.status === "offline" || r.status === "cert_invalido") {
+      if (r.status === "offline" || r.status === "cert_invalido" || r.status === "auth_invalido") {
         const ultimo = (s.ultimo_alerta_offline_em || "").slice(0, 10);
         if (ultimo !== hoje) alertasOffline.push(r);
       }
@@ -332,7 +332,7 @@ Deno.serve(async (req) => {
           <h2 style="margin:0 0 4px">Pool de Proxies DJEN — atenção necessária</h2>
           <p style="color:#6b7280;margin:0 0 8px">Checagem automática de ${fmtData(new Date().toISOString())}.</p>
           ${secao("Certificados vencidos ou próximos do vencimento", alertasCert)}
-          ${secao("VPS fora do ar", alertasOffline)}
+          ${secao("VPS fora do ar ou com token inválido (HTTP 401)", alertasOffline)}
           <p style="color:#6b7280;font-size:12px;margin-top:18px">
             Renove o certificado com <code>certbot renew</code> na VM e reinicie o proxy.
             Cada VPS fora do pool reduz o paralelismo do motor DJEN Termos.
