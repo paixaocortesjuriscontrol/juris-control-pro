@@ -1887,6 +1887,38 @@ export type Database = {
           },
         ]
       }
+      config_alerta_diferenca_djen: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          todos: boolean
+          updated_at: string
+          usuarios: string[]
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          todos?: boolean
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          todos?: boolean
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_alerta_diferenca_djen_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config_alertas_audiencias: {
         Row: {
           created_at: string
