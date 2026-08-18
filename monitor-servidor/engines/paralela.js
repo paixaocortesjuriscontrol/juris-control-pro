@@ -7,6 +7,8 @@ const {
   marcarFalhaResolvida,
   lerFalhasPendentes,
   contarFalhasNaoColetadas,
+  lerFalhasNaoColetadas,
+  reabrirFalhasAbandonadas,
   MAX_TENTATIVAS,
 } = require("../falhasRefila");
 
