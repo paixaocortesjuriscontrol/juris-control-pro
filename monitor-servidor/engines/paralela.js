@@ -1108,15 +1108,20 @@ async function buscarPaginado(slot, params, signal) {
         if (out && out.status !== 429 && out.status < 500) break;
         if (attempt === MAX_ATTEMPTS - 1) break;
         const is429 = out?.status === 429;
+        if (is429) METRICS.c429 += 1;
+        else if (out?.status >= 500) { METRICS.c5xx += 1; if (out.status === 504) METRICS.c504 += 1; }
+        else if (!out) METRICS.cRede += 1;
         const base = is429 ? RATE_LIMIT_BACKOFF_MS : 1500;
         const jitter = Math.floor(Math.random() * 500);
-        await delay(base * (attempt + 1) + jitter, signal);
+        await sleepFora(base * (attempt + 1) + jitter, signal, is429 ? "rate_limit" : "backoff");
       }
       if (!out || out.status < 200 || out.status >= 300) {
         if (out && out.status === 404) {
           return { ok: true, items: collected, aborted: true };
         }
         const status = out?.status;
+        if (status === 401 || status === 403) METRICS.cAuth += 1;
+        else if (!status) METRICS.cRede += 1;
         return {
           ok: false,
           items: collected,
@@ -1127,6 +1132,8 @@ async function buscarPaginado(slot, params, signal) {
       const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
       const items = extractItems(data);
       for (const it of items) collected.push(it);
+      // Página trouxe resposta válida: renova a folga de progresso da unidade.
+      marcarProgresso(1);
       if (subPages > 1 && sub < subPages - 1 && PAGE_DELAY_MS > 0) {
         await delay(PAGE_DELAY_MS, signal);
       }
@@ -1148,7 +1155,7 @@ async function buscarPaginado(slot, params, signal) {
         // Rate limit: NÃO degradar (size=10 gera 5x mais requisições e piora
         // o 429). Espera o cooldown e repete a MESMA janela com size=50.
         console.log(`[paralela.buscarPaginado] janela ${windowIdx} em rate limit (429) — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
-        await delay(RATE_LIMIT_PAUSE_MS, signal);
+        await sleepFora(RATE_LIMIT_PAUSE_MS, signal, "rate_limit");
         result = await fetchWindow(windowIdx, 50);
       } else if (kind === "auth") {
         // 401/403 é problema de token da VPS: degradar não resolve, apenas
@@ -1158,14 +1165,14 @@ async function buscarPaginado(slot, params, signal) {
         console.log(`[paralela.buscarPaginado] janela ${windowIdx} degradada para size=10 após falha (${msg1})`);
         const isRede = /fetch failed|socket|ECONN|network|timeout/i.test(msg1);
         // Respiro curto antes de degradar (antes 2s fixos).
-        if (isRede && DEGRADE_DELAY_MS > 0) await delay(DEGRADE_DELAY_MS, signal);
+        if (isRede && DEGRADE_DELAY_MS > 0) await sleepFora(DEGRADE_DELAY_MS, signal);
         result = await fetchWindow(windowIdx, 10);
         // Degradação final para size=5 só faz sentido quando o problema é
         // payload grande (5xx / resposta truncada). Em "fetch failed" genérico
         // a VPS/tribunal está simplesmente derrubando a conexão e insistir com
         // 10 sub-requisições só queima tempo de uma das vias.
         if (!result.ok && !isRede) {
-          await delay(DEGRADE_DELAY_MS * 2, signal);
+          await sleepFora(DEGRADE_DELAY_MS * 2, signal);
           result = await fetchWindow(windowIdx, 5);
         }
       }
@@ -1176,7 +1183,7 @@ async function buscarPaginado(slot, params, signal) {
         throw result.err || new Error("Falha ao consultar VPS DJEN");
       }
       // Backoff exponencial entre janelas que falharam, com teto curto.
-      await delay(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
+      await sleepFora(Math.min(1000 * Math.pow(2, failedStreak - 1), WINDOW_BACKOFF_MAX_MS), signal);
       continue;
     }
     failedStreak = 0;
