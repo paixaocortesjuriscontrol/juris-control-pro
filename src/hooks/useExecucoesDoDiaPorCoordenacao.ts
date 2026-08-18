@@ -14,6 +14,9 @@ export interface ExecucaoResumo {
   iniciado_em: string;
   tipo: string;
   tipoEngine: TipoEngineLocal;
+  /** Rodada servidor encerrada com unidades sem coleta */
+  parcial?: boolean;
+  unidadesNaoColetadas?: number;
 }
 
 export interface Celula {
@@ -109,7 +112,7 @@ export function useExecucoesDoDiaPorCoordenacao(
             .select("id, tipo, iniciado_em, resultado, status")
             .gte("iniciado_em", startUtc)
             .lt("iniciado_em", endUtc)
-            .eq("status", "concluido")
+            .in("status", ["concluido", "concluido_parcial"])
             .order("iniciado_em", { ascending: true }),
         ]);
 
@@ -126,6 +129,8 @@ export function useExecucoesDoDiaPorCoordenacao(
         tipo: string;
         tipoEngine: TipoEngineLocal;
         fonte: "local" | "servidor";
+        parcial?: boolean;
+        unidadesNaoColetadas?: number;
       };
 
       const locais: ExecInterna[] = (execsLocal || []).map((e: any) => ({
@@ -148,6 +153,18 @@ export function useExecucoesDoDiaPorCoordenacao(
           tipo: e.tipo as string,
           tipoEngine: mapEngineServidor(e.tipo),
           fonte: "servidor",
+          unidadesNaoColetadas: Number(
+            e?.resultado?.unidades_nao_coletadas ??
+              e?.resultado?.diagnostico?.unidades_nao_coletadas ??
+              0,
+          ),
+          parcial:
+            e.status === "concluido_parcial" ||
+            Number(
+              e?.resultado?.unidades_nao_coletadas ??
+                e?.resultado?.diagnostico?.unidades_nao_coletadas ??
+                0,
+            ) > 0,
         }));
 
       // Ordenação: grupo (Termos → Pautas → STF) e, dentro do grupo, cronológica.
@@ -291,6 +308,8 @@ export function useExecucoesDoDiaPorCoordenacao(
           iniciado_em: e.iniciado_em,
           tipo: e.tipo,
           tipoEngine: e.tipoEngine,
+          parcial: e.parcial,
+          unidadesNaoColetadas: e.unidadesNaoColetadas,
         })),
         linhas,
       };
