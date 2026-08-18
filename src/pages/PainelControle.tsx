@@ -1070,6 +1070,15 @@ export default function PainelControle() {
   // mesclados às visões Lista e Equipe.
   const itensListaEquipe = useMemo(() => {
     let base = itensPainelFiltrados;
+    if (drill) {
+      const doDrill = (drillQuery.data ?? []).filter((item: any) => passaFiltrosPainel(item, true));
+      const vistos = new Set(doDrill.map((i: any) => `${i.origem}:${i.id}`));
+      base = [
+        ...doDrill,
+        ...base.filter((i: any) => !vistos.has(`${i.origem}:${i.id}`)),
+      ];
+      return base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
+    }
     if (vencidosAtivo) {
       const anteriores = (vencidosQuery.data ?? []).filter(
         (item) => (drill ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
@@ -1079,11 +1088,8 @@ export default function PainelControle() {
         base = [...anteriores.filter((i) => !vistos.has(`${i.origem}:${i.id}`)), ...base];
       }
     }
-    if (drill) {
-      base = base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
-    }
     return base;
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, hoje_str]);
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
