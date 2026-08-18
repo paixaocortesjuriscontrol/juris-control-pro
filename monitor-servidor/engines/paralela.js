@@ -28,6 +28,40 @@ const CANCEL_CHECK_MS = Math.max(1000, Number(process.env.PARALELA_CANCEL_CHECK_
 // tupla é liberada e vai para execucoes_servidor_falhas (refila) em vez de
 // travar uma das VPS por vários minutos em cima de um tribunal instável.
 const UNIT_BUDGET_MS = Math.max(15000, Number(process.env.PARALELA_UNIT_BUDGET_MS || 90000));
+// Orçamento maior para tribunais historicamente lentos: em vez de estourar 90s
+// e gerar uma falha (que volta como retry na rodada seguinte), damos mais tempo
+// para a unit concluir de primeira. Reduz o ciclo de realimentação de retries.
+const SLOW_TRIBUNAL_BUDGET_MS = Math.max(
+  UNIT_BUDGET_MS,
+  Number(process.env.PARALELA_SLOW_UNIT_BUDGET_MS || 120000),
+);
+const SLOW_TRIBUNAIS = String(
+  process.env.PARALELA_SLOW_TRIBUNAIS || "TST,TRT2,TRT15,TJSP,TJRJ,TJMG",
+)
+  .split(",")
+  .map((t) => t.trim().toUpperCase())
+  .filter(Boolean);
+function budgetParaTribunal(tribunal) {
+  return SLOW_TRIBUNAIS.includes(String(tribunal || "").toUpperCase())
+    ? SLOW_TRIBUNAL_BUDGET_MS
+    : UNIT_BUDGET_MS;
+}
+// Teto de retries injetados por rodada. Sem teto, um dia ruim triplica a carga
+// (falhas viram units extras, que estouram e viram novas falhas).
+const RETRY_MAX_POR_RODADA = Math.max(0, Number(process.env.PARALELA_RETRY_MAX_POR_RODADA || 250));
+// Hora BRT a partir da qual os retries são injetados. Nas rodadas do começo do
+// dia o motor foca em units novas; as falhas ficam pendentes e são recuperadas
+// nas últimas rodadas do dia, quando há folga.
+const RETRY_HORA_MIN_BRT = Math.min(23, Math.max(0, Number(process.env.PARALELA_RETRY_HORA_MIN_BRT || 16)));
+function horaBrtAgora() {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date()),
+  );
+}
 // Esperas de degradação (antes fixas em 2s/4s).
 const DEGRADE_DELAY_MS = Math.max(0, Number(process.env.PARALELA_DEGRADE_DELAY_MS || 500));
 // Teto do backoff exponencial entre janelas que falharam (antes 15s).
