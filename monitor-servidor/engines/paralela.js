@@ -2354,7 +2354,14 @@ async function run({ sb, payload, log, job }) {
     log("paralela.worker_done", { via: slot.label || slot.url });
   };
 
-  await Promise.all(slots.map((slot) => worker(slot)));
+  // Recoleta: metade das pistas (mín. 2). Reduzir a pressão simultânea evita
+  // recriar o congestionamento/429 que deixou essas unidades sem coleta.
+  const slotsAtivos = somenteFalhas
+    ? slots.slice(0, Math.max(2, Math.ceil(slots.length / 2)))
+    : slots;
+  if (somenteFalhas) log("paralela.recoleta_pistas", { vias: slotsAtivos.length, pool: slots.length });
+
+  await Promise.all(slotsAtivos.map((slot) => worker(slot)));
 
   // === DRENAGEM FINAL ===
   // Antes de encerrar, faz UMA última passada nas unidades que ficaram
