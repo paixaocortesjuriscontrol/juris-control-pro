@@ -60,6 +60,12 @@ import {
   ItemAgendaUnificado,
   AGENDA_INFINITE_QUERY_KEY,
 } from "@/hooks/useAgendaUnificada";
+import {
+  RANKING_METRICA_LABELS,
+  isRankingMetrica,
+  passaMetricaRanking,
+  type RankingMetrica,
+} from "@/utils/rankingDrilldown";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
@@ -251,6 +257,39 @@ export default function PainelControle() {
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  // Aplica os filtros do drill-down do ranking na primeira renderização
+  const drillAplicadoRef = useRef(false);
+  useEffect(() => {
+    if (!drill || drillAplicadoRef.current) return;
+    drillAplicadoRef.current = true;
+    const coord = searchParams.get("coord");
+    const classes = (searchParams.get("class") ?? "").split(",").filter(Boolean);
+    setTabMode("escritorio");
+    setViewMode("lista");
+    if (coord) setAdminCoordFilter(coord);
+    setPainelFiltros((prev) => ({
+      ...prev,
+      responsavelIds: [drill.resp],
+      classificacoes: classes,
+      statusGroup: "todas",
+      situacoes: [],
+      souResponsavel: false,
+      estouEnvolvido: false,
+      periodoInicio: "",
+      periodoFim: "",
+    }));
+    setSituacaoFilter("todos");
+    setSomenteHoje(false);
+  }, [drill, searchParams]);
+
+  const limparDrill = useCallback(() => {
+    setDrill(null);
+    setPainelFiltros(PAINEL_FILTROS_DEFAULT);
+    const next = new URLSearchParams(searchParams);
+    ["metrica", "resp", "respNome", "de", "ate", "class", "coord"].forEach((k) => next.delete(k));
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const limparFiltrosPainel = useCallback(() => {
     setPainelFiltros(PAINEL_FILTROS_DEFAULT);
     setSituacaoFilter("todos");
@@ -2141,7 +2180,23 @@ export default function PainelControle() {
 
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {drill && (
+              <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                <span className="font-semibold text-foreground">Ranking:</span>
+                <Badge variant="secondary">{RANKING_METRICA_LABELS[drill.metrica]}</Badge>
+                {drillNomeResp && <span className="text-muted-foreground">{drillNomeResp}</span>}
+                {(drill.de || drill.ate) && (
+                  <span className="text-muted-foreground">
+                    {drill.de} — {drill.ate}
+                  </span>
+                )}
+                <span className="text-muted-foreground">({itensListaEquipe.length} itens)</span>
+                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={limparDrill}>
+                  <X className="w-3 h-3 mr-1" /> Limpar
+                </Button>
+              </div>
+            )}
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
