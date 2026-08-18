@@ -99,6 +99,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
 }) {
   const enfileirar = useEnfileirarManual();
   const cancelar = useCancelarExecucaoServidor();
+  const recoletar = useRecoletarFaltantes();
   const live = useExecucaoServidorAoVivo(cfg.tipo);
 
   const today = useMemo(() => { const d = new Date(); d.setHours(12, 0, 0, 0); return d; }, []);
@@ -321,6 +322,25 @@ function EngineCard({ cfg, onToggle, onConfig }: {
           {(ativaAgora || enfileirar.isPending) ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <PlayCircle className="h-4 w-4 mr-2" />}
           {ativaAgora ? "Executando..." : "Executar agora"}
         </Button>
+
+        {isParalela && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              if (!window.confirm("Enfileirar recoleta apenas das unidades que ficaram sem coleta hoje?")) return;
+              recoletar.mutate({ diarioYmd: ymd(dataInicio) });
+            }}
+            disabled={ativaAgora || recoletar.isPending}
+            title="Roda somente as unidades (tribunal × monitoramento) pendentes/abandonadas do dia, sem repetir a varredura completa"
+          >
+            {recoletar.isPending
+              ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              : <RefreshCw className="h-4 w-4 mr-2" />}
+            Recoletar faltantes
+          </Button>
+        )}
 
         {ativaAgora && exec?.id && (
           <Button
