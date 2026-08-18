@@ -42,7 +42,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
-import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks } from "lucide-react";
+import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { BarChart3 } from "lucide-react";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
@@ -60,6 +60,12 @@ import {
   ItemAgendaUnificado,
   AGENDA_INFINITE_QUERY_KEY,
 } from "@/hooks/useAgendaUnificada";
+import {
+  RANKING_METRICA_LABELS,
+  isRankingMetrica,
+  passaMetricaRanking,
+  type RankingMetrica,
+} from "@/utils/rankingDrilldown";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
@@ -163,6 +169,20 @@ export default function PainelControle() {
   const [diaLateralKey, setDiaLateralKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
 
+  // ===== Drill-down vindo do Ranking de Atendimento =====
+  const [drill, setDrill] = useState<{
+    metrica: RankingMetrica;
+    resp: string;
+    de: string;
+    ate: string;
+  } | null>(() => {
+    const m = searchParams.get("metrica");
+    const resp = searchParams.get("resp");
+    if (!isRankingMetrica(m) || !resp) return null;
+    return { metrica: m, resp, de: searchParams.get("de") ?? "", ate: searchParams.get("ate") ?? "" };
+  });
+  const drillNomeResp = searchParams.get("respNome") ?? "";
+
   const lastViewParamRef = useRef<string | null>(searchParams.get("view"));
   useEffect(() => {
     const viewParam = searchParams.get("view");
@@ -237,6 +257,39 @@ export default function PainelControle() {
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  // Aplica os filtros do drill-down do ranking na primeira renderização
+  const drillAplicadoRef = useRef(false);
+  useEffect(() => {
+    if (!drill || drillAplicadoRef.current) return;
+    drillAplicadoRef.current = true;
+    const coord = searchParams.get("coord");
+    const classes = (searchParams.get("class") ?? "").split(",").filter(Boolean);
+    setTabMode("escritorio");
+    setViewMode("lista");
+    if (coord) setAdminCoordFilter(coord);
+    setPainelFiltros((prev) => ({
+      ...prev,
+      responsavelIds: [drill.resp],
+      classificacoes: classes,
+      statusGroup: "todas",
+      situacoes: [],
+      souResponsavel: false,
+      estouEnvolvido: false,
+      periodoInicio: "",
+      periodoFim: "",
+    }));
+    setSituacaoFilter("todos");
+    setSomenteHoje(false);
+  }, [drill, searchParams]);
+
+  const limparDrill = useCallback(() => {
+    setDrill(null);
+    setPainelFiltros(PAINEL_FILTROS_DEFAULT);
+    const next = new URLSearchParams(searchParams);
+    ["metrica", "resp", "respNome", "de", "ate", "class", "coord"].forEach((k) => next.delete(k));
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
   const limparFiltrosPainel = useCallback(() => {
     setPainelFiltros(PAINEL_FILTROS_DEFAULT);
     setSituacaoFilter("todos");
@@ -352,11 +405,17 @@ export default function PainelControle() {
 
   // Intervalo do mês exibido no calendário
   const dataInicio = useMemo(() => {
+    if (drill?.de) return new Date(`${drill.de}T00:00:00`);
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1, 0, 0, 0);
-  }, [mesAtual]);
+  }, [mesAtual, drill?.de]);
   const dataFim = useMemo(() => {
+    if (drill?.ate) {
+      const base = new Date(`${drill.ate}T23:59:59`);
+      // "Criados no período" pode ter vencimento futuro: amplia a janela de busca.
+      return drill.metrica === "criados" ? addMonths(base, 18) : base;
+    }
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
-  }, [mesAtual]);
+  }, [mesAtual, drill?.ate, drill?.metrica]);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
@@ -973,15 +1032,21 @@ export default function PainelControle() {
   // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
   // mesclados às visões Lista e Equipe.
   const itensListaEquipe = useMemo(() => {
-    if (!vencidosAtivo) return itensPainelFiltrados;
-    const vencidosPendentes = (vencidosQuery.data ?? []).filter(
-      (item) => !isItemEncerrado(item) && passaFiltrosPainel(item),
-    );
-    if (vencidosPendentes.length === 0) return itensPainelFiltrados;
-    const vistos = new Set(itensPainelFiltrados.map((i) => `${i.origem}:${i.id}`));
-    const extras = vencidosPendentes.filter((i) => !vistos.has(`${i.origem}:${i.id}`));
-    return [...extras, ...itensPainelFiltrados];
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel]);
+    let base = itensPainelFiltrados;
+    if (vencidosAtivo) {
+      const anteriores = (vencidosQuery.data ?? []).filter(
+        (item) => (drill ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
+      );
+      if (anteriores.length > 0) {
+        const vistos = new Set(base.map((i) => `${i.origem}:${i.id}`));
+        base = [...anteriores.filter((i) => !vistos.has(`${i.origem}:${i.id}`)), ...base];
+      }
+    }
+    if (drill) {
+      base = base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
+    }
+    return base;
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, hoje_str]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
@@ -2115,7 +2180,24 @@ export default function PainelControle() {
 
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
-          <div className="flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {drill && (
+              <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
+                <span className="font-semibold text-foreground">Ranking:</span>
+                <Badge variant="secondary">{RANKING_METRICA_LABELS[drill.metrica]}</Badge>
+                {drillNomeResp && <span className="text-muted-foreground">{drillNomeResp}</span>}
+                {(drill.de || drill.ate) && (
+                  <span className="text-muted-foreground">
+                    {drill.de} — {drill.ate}
+                  </span>
+                )}
+                <span className="text-muted-foreground">({itensListaEquipe.length} itens)</span>
+                <Button variant="ghost" size="sm" className="h-6 px-2 ml-auto" onClick={limparDrill}>
+                  <X className="w-3 h-3 mr-1" /> Limpar
+                </Button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
@@ -2130,6 +2212,7 @@ export default function PainelControle() {
               }
               forcedResponsavelId={tabMode === "pessoal" ? (user?.id ?? undefined) : undefined}
             />
+            </div>
           </div>
         ) : viewMode === "prazos" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
