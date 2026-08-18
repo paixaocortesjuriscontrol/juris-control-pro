@@ -366,11 +366,17 @@ export default function PainelControle() {
 
   // Intervalo do mês exibido no calendário
   const dataInicio = useMemo(() => {
+    if (drill?.de) return new Date(`${drill.de}T00:00:00`);
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth(), 1, 0, 0, 0);
-  }, [mesAtual]);
+  }, [mesAtual, drill?.de]);
   const dataFim = useMemo(() => {
+    if (drill?.ate) {
+      const base = new Date(`${drill.ate}T23:59:59`);
+      // "Criados no período" pode ter vencimento futuro: amplia a janela de busca.
+      return drill.metrica === "criados" ? addMonths(base, 18) : base;
+    }
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
-  }, [mesAtual]);
+  }, [mesAtual, drill?.ate, drill?.metrica]);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
