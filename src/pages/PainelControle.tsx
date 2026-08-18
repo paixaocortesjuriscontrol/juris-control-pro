@@ -993,15 +993,21 @@ export default function PainelControle() {
   // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
   // mesclados às visões Lista e Equipe.
   const itensListaEquipe = useMemo(() => {
-    if (!vencidosAtivo) return itensPainelFiltrados;
-    const vencidosPendentes = (vencidosQuery.data ?? []).filter(
-      (item) => !isItemEncerrado(item) && passaFiltrosPainel(item),
-    );
-    if (vencidosPendentes.length === 0) return itensPainelFiltrados;
-    const vistos = new Set(itensPainelFiltrados.map((i) => `${i.origem}:${i.id}`));
-    const extras = vencidosPendentes.filter((i) => !vistos.has(`${i.origem}:${i.id}`));
-    return [...extras, ...itensPainelFiltrados];
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel]);
+    let base = itensPainelFiltrados;
+    if (vencidosAtivo) {
+      const anteriores = (vencidosQuery.data ?? []).filter(
+        (item) => (drill ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
+      );
+      if (anteriores.length > 0) {
+        const vistos = new Set(base.map((i) => `${i.origem}:${i.id}`));
+        base = [...anteriores.filter((i) => !vistos.has(`${i.origem}:${i.id}`)), ...base];
+      }
+    }
+    if (drill) {
+      base = base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
+    }
+    return base;
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, hoje_str]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
