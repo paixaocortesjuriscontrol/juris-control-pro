@@ -35,6 +35,7 @@ import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/Responsav
 import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
+import { DestinatariosAlertaDjenDialog } from "@/components/coordenacoes/DestinatariosAlertaDjenDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -81,6 +82,7 @@ const Coordenacoes = () => {
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
+  const [destinatariosDjenDialog, setDestinatariosDjenDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
@@ -457,6 +459,14 @@ const Coordenacoes = () => {
                           <ShieldCheck className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Acompanhamento Especial</span>
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDestinatariosDjenDialog(true)}
+                        >
+                          <Mail className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Alerta DJEN (e-mail)</span>
+                        </Button>
                         <Button size="sm" variant="outline" asChild>
                           <Link to="/modelos-titulo">
                             <FileType className="w-4 h-4 mr-1" />
@@ -722,6 +732,13 @@ const Coordenacoes = () => {
           <ConfigAcompanhamentoEspecialDialog
             open={configAcompDialog}
             onOpenChange={setConfigAcompDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <DestinatariosAlertaDjenDialog
+            open={destinatariosDjenDialog}
+            onOpenChange={setDestinatariosDjenDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
