@@ -82,6 +82,12 @@ interface Props {
    * habilitando a aba "Análise Judit" que depende desse campo).
    */
   onNumeroChange?: (numero: string) => void;
+  /**
+   * Modo "Novo Caso": o número do processo é opcional e pode ser incluído
+   * depois. Ao salvar sem número, gravamos um identificador provisório
+   * (`CASO-<timestamp>`) para satisfazer a coluna obrigatória `numero`.
+   */
+  modoCaso?: boolean;
   onJuditNovoPreenchido?: () => void;
   /**
    * Quando true, renderiza apenas o cabeçalho com a barra de ações Judit
@@ -176,6 +182,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   actionsOnly = false,
   hideJuditButtons = false,
   onNumeroChange,
+  modoCaso = false,
   onJuditNovoPreenchido,
 }, ref) {
   const queryClient = useQueryClient();
