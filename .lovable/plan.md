@@ -1,36 +1,30 @@
-# Recoletar as unidades que ficaram sem coleta
+# VPS 5 (401) + botão "Recoletar faltantes"
 
-## Situação de hoje (18/08, verificada no banco)
+## 1. Resolver a VPS 5
 
-Em `execucoes_servidor_falhas` (dia 18/08) existem **30 unidades abandonadas** — são elas que aparecem como "parcial (30)" no card das 18:40:
+Hoje uma das unidades abandonadas morreu com `HTTP 401 (Google VPS 5): {"error":"unauthorized"}` — o `PROXY_TOKEN` da vm05 não confere com o token guardado em `djen_proxy_pool`. Enquanto isso persiste, toda unidade sorteada para essa VPS falha.
 
-```text
-24  Orçamento de 90s excedido      STJ, TRT1, TRT3..TRT24 (15 tribunais)
- 4  Orçamento de 120s excedido     TST, TRT2, TRT15
- 1  HTTP 401 (Google VPS 5) unauthorized   TRT18
- 1  HTTP 500                       TST
-```
+Duas frentes:
 
-Outras 626 unidades falharam e foram **resolvidas** pelo refila (inclui os 429). O problema é só o grupo `abandonado`: com 3 tentativas atingidas, o refila as ignora (`tentativas < 3`), então nenhuma rodada seguinte do dia volta a buscá-las. Hoje só há duas saídas manuais: rodar tudo de novo (1h) ou nada.
+- **Correção na VM**: roteiro SSH para conferir o `PROXY_TOKEN` no `djen-proxy.service` da vm05, alinhar com o token do pool e reiniciar o serviço (`daemon-reload` + `restart`).
+- **Proteção no motor**: `401`/`403` de uma VPS passa a marcar aquele nó como indisponível pelo resto da rodada (curto-circuito no pool, igual ao tratamento de nó offline) e a unidade é refilada em outra VPS **sem consumir tentativa** — hoje ela queima as 3 tentativas contra a mesma VPS quebrada. Também vira alerta na tela de saúde do pool.
 
-## O que fazer
+## 2. Botão "Recoletar faltantes"
 
-### 1. Botão "Recoletar faltantes" na tela DJEN Servidor
-Ao lado do marcador "parcial (N)": dispara uma execução dedicada que processa **apenas** as unidades `pendente` + `abandonado` do dia, sem varrer a base inteira. Rodada curta (minutos, não uma hora), e o resultado marca as unidades como `resolvido`.
+Ao lado do marcador "parcial (N)" nos cards de execução, um botão que dispara uma rodada curta processando **apenas** as unidades sem coleta do dia — em vez de repetir a varredura inteira (~1h).
 
-### 2. Modo `somenteFalhas` no motor
-Nova execução com payload `{ somenteFalhas: true }`: o motor monta a fila lendo `execucoes_servidor_falhas` do dia (pendente + abandonado, tentativas zeradas), ignora o mapeamento normal de tribunal × monitoramento, e usa orçamento por unidade mais generoso (as abandonadas são justamente as lentas) com concorrência menor, para não recriar o congestionamento que causou os timeouts.
-
-### 3. Reaproveitar automaticamente na próxima rodada agendada
-Na primeira rodada de cada dia após uma execução parcial, as unidades `abandonado` do mesmo dia entram na fila uma vez a mais (com tentativas reiniciadas e prioridade alta), em vez de ficarem paradas até o dia seguinte.
-
-### 4. Fechar o 401 da VPS 5
-A unidade TRT18 morreu com `HTTP 401 unauthorized` na Google VPS 5 — token do proxy divergente naquela VM. Enquanto não normalizar, ela some do pool a cada rodada. Roteiro: conferir `PROXY_TOKEN` no `djen-proxy.service` da vm05 e reiniciar o serviço.
+Comportamento:
+- Reabre as falhas do dia com status `pendente` + `abandonado` (tentativas zeradas).
+- Enfileira uma execução com payload `{ somenteFalhas: true }`; o motor monta a fila a partir dessas falhas, ignorando o mapeamento normal tribunal × monitoramento.
+- Nesse modo usa concorrência menor e orçamento por unidade maior — as abandonadas são justamente as que estouraram tempo, e reduzir a pressão evita recriar o congestionamento.
+- Ao terminar, unidades coletadas viram `resolvido`; se ainda sobrar alguma, a execução fecha como `concluido_parcial` normalmente.
+- Botão desabilitado enquanto houver execução em andamento, com confirmação antes de disparar.
 
 ## Detalhes técnicos
 
-- `monitor-servidor/falhasRefila.js`: função nova `lerFalhasNaoColetadas` (pendente + abandonado) e `reabrirFalhasAbandonadas` (status→pendente, tentativas→0).
-- `monitor-servidor/engines/paralela.js`: em `run`, quando `payload.somenteFalhas` for verdadeiro, construir a fila a partir das falhas do dia; orçamento por unidade elevado e concorrência reduzida nesse modo.
-- `src/hooks/useDjenServidor.ts`: mutation `recoletarFaltantes` inserindo em `execucoes_servidor` com `tipo` da engine paralela e payload `{ somenteFalhas: true, diarioYmd }`.
-- UI: `src/components/djen/ExecucoesDoDiaAdminCard.tsx` e `src/pages/DjenServidor.tsx` — botão junto ao marcador parcial, com confirmação e feedback de rodada em andamento.
-- Deploy Hostinger: `git pull` + `pm2 restart jc-monitor-servidor` antes de usar o botão.
+- `monitor-servidor/proxyPool.js`: marcar nó como indisponível na rodada ao receber 401/403 e não devolvê-lo em novos sorteios.
+- `monitor-servidor/falhasRefila.js`: `ehRateLimit` ganha companhia de `ehAuthProxy` (401/403 → não consome tentativa); novas funções `lerFalhasNaoColetadas` (pendente + abandonado) e `reabrirFalhasAbandonadas` (status→`pendente`, tentativas→0).
+- `monitor-servidor/engines/paralela.js`: em `run`, quando `payload.somenteFalhas` for verdadeiro, construir a fila a partir das falhas do dia, com concorrência reduzida e orçamento por unidade ampliado.
+- `src/hooks/useDjenServidor.ts`: mutation `recoletarFaltantes` — chama a reabertura das falhas e insere a execução com `{ somenteFalhas: true, diarioYmd }`.
+- UI: botão junto ao marcador parcial em `src/components/djen/ExecucoesDoDiaAdminCard.tsx` e na tela `src/pages/DjenServidor.tsx`.
+- Deploy Hostinger depois do merge: `git pull` + `pm2 restart jc-monitor-servidor` (o botão depende do modo novo no motor).
