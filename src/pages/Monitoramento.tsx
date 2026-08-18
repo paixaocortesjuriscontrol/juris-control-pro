@@ -276,6 +276,7 @@ export default function Monitoramento() {
 
 
   const grupos = useMemo<Grupo[]>(() => {
+    void 0;
     const map = new Map<string, Grupo>();
     for (const ev of eventos ?? []) {
       const g = map.get(ev.processo_id) ?? {
