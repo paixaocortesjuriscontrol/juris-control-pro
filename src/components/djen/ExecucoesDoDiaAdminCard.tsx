@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   ChevronDown,
   ChevronRight,
@@ -8,6 +9,7 @@ import {
   Shield,
   Clock,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import {
   Table,
@@ -23,6 +25,7 @@ import {
   type TipoEngineLocal,
 } from "@/hooks/useExecucoesDoDiaPorCoordenacao";
 import { useFalhasDoDiaPorTribunal } from "@/hooks/useFalhasDoDiaPorTribunal";
+import { useRecoletarFaltantes } from "@/hooks/useDjenServidor";
 
 interface Props {
   dataYmd: string | null | undefined;
@@ -53,6 +56,7 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading } = useExecucoesDoDiaPorCoordenacao(dataYmd);
   const { data: falhas } = useFalhasDoDiaPorTribunal(dataYmd);
+  const recoletar = useRecoletarFaltantes();
 
   if (!dataYmd) return null;
   if (isLoading) return null;
@@ -162,6 +166,7 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                           {rotuloEngine(e.tipoEngine)}
                         </Badge>
                         {e.parcial && (
+                          <div className="mt-1 flex flex-col items-center gap-1">
                           <div
                             className="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-300"
                             title={`Rodada parcial: ${e.unidadesNaoColetadas || 0} unidade(s) tribunal × monitoramento ficaram sem coleta (rate limit do DJEN). Os números abaixo estão incompletos.`}
@@ -171,6 +176,31 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                             {e.unidadesNaoColetadas
                               ? ` (${e.unidadesNaoColetadas})`
                               : ""}
+                          </div>
+                          {e.tipoEngine === "servidor-termos" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 px-2 text-[10px]"
+                              disabled={recoletar.isPending}
+                              title="Roda apenas as unidades que ficaram sem coleta neste dia (não repete a varredura completa)"
+                              onClick={(ev) => {
+                                ev.stopPropagation();
+                                if (
+                                  !window.confirm(
+                                    "Enfileirar recoleta apenas das unidades sem coleta do dia?"
+                                  )
+                                )
+                                  return;
+                                recoletar.mutate({ diarioYmd: dataYmd });
+                              }}
+                            >
+                              <RefreshCw
+                                className={`h-3 w-3 mr-1 ${recoletar.isPending ? "animate-spin" : ""}`}
+                              />
+                              Recoletar faltantes
+                            </Button>
+                          )}
                           </div>
                         )}
                       </TableHead>
