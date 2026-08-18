@@ -2197,6 +2197,7 @@ export default function PainelControle() {
                 </Button>
               </div>
             )}
+            <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
@@ -2211,6 +2212,7 @@ export default function PainelControle() {
               }
               forcedResponsavelId={tabMode === "pessoal" ? (user?.id ?? undefined) : undefined}
             />
+            </div>
           </div>
         ) : viewMode === "prazos" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
