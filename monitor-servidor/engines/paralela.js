@@ -1933,9 +1933,16 @@ async function run({ sb, payload, log, job }) {
   // como uma unit sintética na banda correspondente, para que TODAS as VPS
   // do pool consumam retries e novas units em paralelo.
   try {
-    const pendentes = await lerFalhasPendentes(sb, TIPO_ENGINE);
+    const horaBrt = horaBrtAgora();
+    const retriesLiberados = horaBrt >= RETRY_HORA_MIN_BRT;
+    const pendentes = retriesLiberados
+      ? await lerFalhasPendentes(sb, TIPO_ENGINE, { limite: RETRY_MAX_POR_RODADA })
+      : [];
+    if (!retriesLiberados) {
+      log("paralela.retry_adiado", { horaBrt, hora_min_brt: RETRY_HORA_MIN_BRT });
+    }
     if (pendentes.length > 0) {
-      log("paralela.retry_pendentes_injetadas", { qtd: pendentes.length });
+      log("paralela.retry_pendentes_injetadas", { qtd: pendentes.length, teto: RETRY_MAX_POR_RODADA });
       for (const f of pendentes) {
         const p = f.payload || {};
         const tribunal = p.tribunal;
