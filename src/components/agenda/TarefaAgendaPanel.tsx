@@ -251,6 +251,18 @@ export function TarefaAgendaPanel({
     itemCoordenacaoId || null,
     tarefa.origem === "tarefa" ? (editForm.tipo_tarefa || tarefa.tipo_tarefa || "TAREFA EQUIPE") : "OUTROS",
   );
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
+    itemCoordenacaoId || null,
+    tarefa.origem === "tarefa" ? (editForm.tipo_tarefa || tarefa.tipo_tarefa || "TAREFA EQUIPE") : "OUTROS",
+  );
+  useEffect(() => {
+    if (!isEditing || envolvidosFixosIds.length === 0) return;
+    setEditMostrarEnvolvidos(true);
+    setEditEnvolvidosIds((prev) => {
+      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
+      return faltando.length > 0 ? [...prev, ...faltando] : prev;
+    });
+  }, [isEditing, JSON.stringify(envolvidosFixosIds)]);
   useEffect(() => {
     if (!isEditing || coordenadoresIds.length === 0) return;
     setEditResponsaveisIds((prev) => {
@@ -1176,6 +1188,7 @@ export function TarefaAgendaPanel({
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
                         <Label className="text-xs text-muted-foreground">Envolvidos (acompanham)</Label>
+                        {envolvidosFixosIds.length === 0 && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1186,14 +1199,21 @@ export function TarefaAgendaPanel({
                         >
                           Ocultar
                         </button>
+                        )}
                       </div>
                       <PeoplePicker
                         selectedIds={editEnvolvidosIds}
-                        onChange={setEditEnvolvidosIds}
+                        onChange={(ids) => setEditEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
                         placeholder="Adicionar envolvido"
                         emptyLabel="Apenas para acompanhamento"
                         icon="users"
+                        lockedIds={envolvidosFixosIds}
                       />
+                      {envolvidosFixosIds.length > 0 && (
+                        <p className="text-[11px] text-muted-foreground">
+                          Envolvidos fixos da coordenação não podem ser removidos.
+                        </p>
+                      )}
                     </div>
                   )}
                 </>
