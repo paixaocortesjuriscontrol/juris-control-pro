@@ -1850,6 +1850,12 @@ async function run({ sb, payload, log, job }) {
           mensagem: "",
           novas: 0, descartadas: 0, duplicatas: 0,
           erro: null,
+          erroRecuperado: false,
+          parcial: false,
+          paresComFalha: 0,
+          paresRecuperados: 0,
+          errosPorCodigo: {},
+          erroDetalhes: [],
           via: null,
           _shards: 0,
           _statuses: [],
@@ -1867,12 +1873,24 @@ async function run({ sb, payload, log, job }) {
       if (Array.isArray(i.monitoramentoIds)) card.monitoramentoIds.push(...i.monitoramentoIds);
       if (i.status === "executando" && i.via) card._viasAtivas.push(i.via);
       if (i.erro) card.erro = i.erro;
+      card.paresComFalha += Number(i.paresComFalha) || 0;
+      card.paresRecuperados += Number(i.paresRecuperados) || 0;
+      if (i.parcial) card.parcial = true;
+      if (i.errosPorCodigo) {
+        for (const [cod, qtd] of Object.entries(i.errosPorCodigo)) {
+          card.errosPorCodigo[cod] = (card.errosPorCodigo[cod] || 0) + Number(qtd || 0);
+        }
+      }
+      if (Array.isArray(i.erroDetalhes) && card.erroDetalhes.length < 20) {
+        card.erroDetalhes.push(...i.erroDetalhes.slice(0, 20 - card.erroDetalhes.length));
+      }
       if (i.status === "executando" && !card.mensagem) card.mensagem = i.mensagem;
     }
     const cardItens = [];
     for (const card of byCard.values()) {
       const stats = card._statuses;
       const total = card._shards;
+      card.erroRecuperado = !card.parcial && !!card.erro;
       if (stats.every((s) => s === "concluido")) card.status = "concluido";
       else if (stats.some((s) => s === "executando")) card.status = "executando";
       else if (stats.every((s) => s === "erro")) card.status = "erro";
@@ -2252,6 +2270,13 @@ async function run({ sb, payload, log, job }) {
             item.novas += stats.novas;
             item.descartadas += stats.descartadas;
             item.duplicatas += stats.duplicatas;
+            // Recuperação: se este par já havia falhado nesta execução (ou é
+            // uma refila), registra que o erro anterior NÃO significou perda.
+            if (item.__paresFalhados && item.__paresFalhados.has(itemKeyFalha)) {
+              item.__paresFalhados.delete(itemKeyFalha);
+              item.paresRecuperados = (item.paresRecuperados || 0) + 1;
+              item.paresComFalha = Math.max(0, (item.paresComFalha || 0) - 1);
+            }
             // se havia falha pendente p/ este par, marca como resolvido
             await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
             if (item.__retry && item.__retryItemKey) {
@@ -2260,6 +2285,21 @@ async function run({ sb, payload, log, job }) {
           } catch (e) {
             if (cancelled || signal.aborted || String(e?.message || e).includes("cancel")) throw e;
             const errMsg = String(e?.message || e || "");
+            // Identificação detalhada: guarda termo, dia e código do erro para
+            // que a tela mostre EM QUE termo o 5xx aconteceu (sem alterar a busca).
+            const termoLabel = String(mon?.termo_busca || mon?.descricao || monId).slice(0, 80);
+            const codigo = (errMsg.match(/HTTP\s*(\d{3})/) || [])[1]
+              || (/Orçamento|Tempo limite da unidade/i.test(errMsg) ? "orcamento" : null)
+              || (/Falha ao consultar VPS/i.test(errMsg) ? "vps" : "outro");
+            item.__paresFalhados = item.__paresFalhados || new Set();
+            item.__paresFalhados.add(itemKeyFalha);
+            item.paresComFalha = (item.paresComFalha || 0) + 1;
+            item.errosPorCodigo = item.errosPorCodigo || {};
+            item.errosPorCodigo[codigo] = (item.errosPorCodigo[codigo] || 0) + 1;
+            item.erroDetalhes = Array.isArray(item.erroDetalhes) ? item.erroDetalhes : [];
+            if (item.erroDetalhes.length < 15) {
+              item.erroDetalhes.push({ termo: termoLabel, dia, codigo, tipo: item.tipo, erro: errMsg.slice(0, 200) });
+            }
             tempoEmFalhasMs += Date.now() - tParInicio;
             falhasPorTribunal[item.tribunal] = (falhasPorTribunal[item.tribunal] || 0) + 1;
             if (/Orçamento|Tempo limite da unidade/i.test(errMsg)) unidadesEstouradas += 1;
@@ -2273,8 +2313,8 @@ async function run({ sb, payload, log, job }) {
                 stfCircuitOpen = true;
                 log("paralela.stf_circuit_open", { erros_5xx: stfErros5xx, limite: STF_5XX_LIMIT });
               }
-              item.erro = errMsg.slice(0, 500);
-              log("paralela.par_error", { tribunal: item.tribunal, monId, dia, e: item.erro, skipRefila: true });
+              item.erro = `${errMsg.slice(0, 300)} · termo "${termoLabel}" · ${dia}`;
+              log("paralela.par_error", { tribunal: item.tribunal, monId, termo: termoLabel, dia, codigo, e: errMsg.slice(0, 300), skipRefila: true });
               item.current += 1;
               await flushProgresso();
               continue;
@@ -2286,8 +2326,8 @@ async function run({ sb, payload, log, job }) {
               payload: { tribunal: item.tribunal, monitoramentoId: monId, dia, tipo: item.tipo },
               erro: e?.message || e,
             }).catch((ee) => log("paralela.recordFalha_error", { e: String(ee?.message || ee) }));
-            item.erro = String(e?.message || e).slice(0, 500);
-            log("paralela.par_error", { tribunal: item.tribunal, monId, dia, e: item.erro });
+            item.erro = `${errMsg.slice(0, 300)} · termo "${termoLabel}" · ${dia}`;
+            log("paralela.par_error", { tribunal: item.tribunal, monId, termo: termoLabel, dia, codigo, e: errMsg.slice(0, 300) });
             // Não rethrow: segue para próximos (monId, dia). O par foi
             // marcado para refila na próxima rodada do dia.
           }
@@ -2295,16 +2335,23 @@ async function run({ sb, payload, log, job }) {
           await flushProgresso();
         }
       }
-      const teveFalhaParcial = !!item.erro;
+      const teveFalhaParcial = (item.paresComFalha || 0) > 0;
+      // Erro que se recuperou depois: mantém o texto, mas sinaliza que não
+      // houve perda de dados neste par.
+      if (!teveFalhaParcial && item.erro && (item.paresRecuperados || 0) > 0) {
+        item.erroRecuperado = true;
+      }
       if (item.current >= item.total && !teveFalhaParcial) {
         item.status = "concluido";
-        item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`;
+        item.mensagem = `Concluído: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas`
+          + ((item.paresRecuperados || 0) > 0 ? ` · ${item.paresRecuperados} recuperado(s) no retry` : "");
         totalNovas += item.novas;
         totalDescartadas += item.descartadas;
         totalDuplicatas += item.duplicatas;
       } else if (item.current >= item.total && teveFalhaParcial) {
         item.status = "concluido";
-        item.mensagem = `Parcial: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas · pares com falha serão reexecutados`;
+        item.parcial = true;
+        item.mensagem = `Parcial: ${item.novas} novas, ${item.duplicatas} duplicadas, ${item.descartadas} descartadas · ${item.paresComFalha} termo(s)/dia sem coleta (reexecutados na próxima rodada)`;
         totalNovas += item.novas;
         totalDescartadas += item.descartadas;
         totalDuplicatas += item.duplicatas;

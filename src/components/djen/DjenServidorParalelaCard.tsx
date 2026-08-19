@@ -43,6 +43,23 @@ import {
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+/** Monta o texto do tooltip de falhas de um tribunal (termo, dia e código). */
+function detalheFalhas(track: ProgressoItem): string {
+  const linhas: string[] = [];
+  const codigos = Object.entries(track.errosPorCodigo || {});
+  if (codigos.length > 0) {
+    linhas.push(codigos.map(([cod, qtd]) => `${/^\d{3}$/.test(cod) ? `HTTP ${cod}` : cod}: ${qtd}`).join(" · "));
+  }
+  if ((track.paresRecuperados || 0) > 0) linhas.push(`${track.paresRecuperados} recuperado(s) no retry`);
+  if ((track.paresComFalha || 0) > 0) linhas.push(`${track.paresComFalha} termo(s)/dia sem coleta`);
+  for (const d of (track.erroDetalhes || []).slice(0, 10)) {
+    linhas.push(`• ${d.termo || "termo ?"}${d.dia ? ` (${d.dia})` : ""} — ${d.codigo && /^\d{3}$/.test(d.codigo) ? `HTTP ${d.codigo}` : d.codigo || "erro"}`);
+  }
+  if (linhas.length === 0) linhas.push(track.erro || "");
+  return linhas.join("\n");
+}
 
 type MonitoramentoOption = {
   id: string;
@@ -597,7 +614,9 @@ export function DjenServidorParalelaCard() {
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-mono font-bold text-sm">{track.tribunal || track.label}</span>
                         {track.tipo && <Badge variant="outline" className="text-xs capitalize">{track.tipo}</Badge>}
-                        <Badge variant="outline" className="text-xs capitalize">{track.status}</Badge>
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {track.parcial && track.status === "concluido" ? "concluído parcial" : track.status}
+                        </Badge>
                         {track.tribunal && <span className="text-[11px] truncate max-w-[40ch] opacity-80" title={track.label}>{track.label}</span>}
                         {track.status === "executando" && <Loader2 className="h-3 w-3 animate-spin" />}
                         {track.status === "executando" && track.via?.multiplas && Array.isArray(track.via?.labels) && track.via.labels.length > 0 ? (
@@ -621,7 +640,28 @@ export function DjenServidorParalelaCard() {
                       <span className="truncate flex-1 opacity-80">{track.mensagem || track.data || "Aguardando slot..."}</span>
                       <span className="whitespace-nowrap tabular-nums opacity-80">✅{track.novas || 0} ♻️{track.duplicatas || 0} ❌{track.descartadas || 0}</span>
                     </div>
-                    {track.erro && <p className="text-xs text-destructive italic">⚠ {track.erro}</p>}
+                    {track.erro && (
+                      <TooltipProvider delayDuration={150}>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <p
+                              className={cn(
+                                "text-xs italic cursor-help underline decoration-dotted underline-offset-2",
+                                track.parcial ? "text-destructive" : "text-amber-700",
+                              )}
+                            >
+                              ⚠ {track.erro}
+                              {track.parcial
+                                ? ` · ${track.paresComFalha || 0} termo(s)/dia sem coleta`
+                                : " (recuperado no retry)"}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-[420px] whitespace-pre-line text-xs">
+                            {detalheFalhas(track)}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                   </div>
                 );
               })}
