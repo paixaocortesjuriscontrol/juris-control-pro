@@ -310,7 +310,18 @@ Deno.serve(async (req) => {
     }
 
     let emailsEnviados = 0;
-    if (alertasCert.length > 0 || alertasOffline.length > 0) {
+    // Gargalo estrutural do motor de Termos: mesmo tribunal parcial em todas as
+    // rodadas do dia. Vai SOMENTE para o suporte, nunca para advogados.
+    const parcialRecorrente = await detectarParcialRecorrente(supabase).catch(() => ({
+      rodadas: 0,
+      itens: [] as ParcialRecorrente[],
+    }));
+    // Sem alerta de VPS, só avisa uma vez por dia (janela das 8h BRT).
+    const avisarParcial =
+      parcialRecorrente.itens.length > 0 &&
+      (alertasCert.length > 0 || alertasOffline.length > 0 || horaBrt() === 8);
+
+    if (alertasCert.length > 0 || alertasOffline.length > 0 || avisarParcial) {
       const destinatarios: string[] = ["suporte@paixaocortes.adv.br"];
       if (destinatarios.length === 0 || !destinatarios[0].includes("@")) {
         log("e-mail não enviado: destinatário padrão inválido");
@@ -347,12 +358,38 @@ Deno.serve(async (req) => {
                <tbody>${itens.map(linha).join("")}</tbody>
              </table>`;
 
+      const secaoParcial =
+        !avisarParcial
+          ? ""
+          : `<h3 style="font-family:Arial,sans-serif;color:#1f2937;margin:18px 0 6px">
+               Tribunal parcial em todas as rodadas de Termos de hoje (${parcialRecorrente.rodadas} rodada(s))
+             </h3>
+             <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;width:100%">
+               <thead><tr style="background:#f3f4f6;text-align:left">
+                 <th style="padding:6px 10px">Tribunal</th>
+                 <th style="padding:6px 10px">Rodadas parciais</th>
+                 <th style="padding:6px 10px">Unidades sem coleta</th>
+                 <th style="padding:6px 10px">Último erro</th>
+               </tr></thead>
+               <tbody>${parcialRecorrente.itens
+                 .map(
+                   (i) => `<tr>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.tribunal}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.rodadas}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.unidades}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.ultimoErro || "—"}</td>
+                   </tr>`,
+                 )
+                 .join("")}</tbody>
+             </table>`;
+
       const html = `
         <div style="font-family:Arial,sans-serif;color:#111827">
           <h2 style="margin:0 0 4px">Pool de Proxies DJEN — atenção necessária</h2>
           <p style="color:#6b7280;margin:0 0 8px">Checagem automática de ${fmtData(new Date().toISOString())}.</p>
           ${secao("Certificados vencidos ou próximos do vencimento", alertasCert)}
           ${secao("VPS fora do ar", alertasOffline)}
+          ${secaoParcial}
           <p style="color:#6b7280;font-size:12px;margin-top:18px">
             Renove o certificado com <code>certbot renew</code> na VM e reinicie o proxy.
             Cada VPS fora do pool reduz o paralelismo do motor DJEN Termos.
@@ -362,7 +399,9 @@ Deno.serve(async (req) => {
       const assunto =
         alertasCert.some((r) => (r.cert_dias_restantes ?? 99) < 0) || alertasOffline.length > 0
           ? "🚨 Pool DJEN: VPS fora do ar / certificado vencido"
-          : "⚠️ Pool DJEN: certificado próximo do vencimento";
+          : alertasCert.length > 0
+            ? "⚠️ Pool DJEN: certificado próximo do vencimento"
+            : "⚠️ Pool DJEN: tribunal parcial em todas as rodadas de Termos";
 
       if (dryRun || !RESEND_API_KEY || destinatarios.length === 0) {
         log(`e-mail não enviado (dryRun=${dryRun} key=${!!RESEND_API_KEY} destinatarios=${destinatarios.length})`);
@@ -393,6 +432,8 @@ Deno.serve(async (req) => {
         checadas: resultados.length,
         alertas_certificado: alertasCert.length,
         alertas_offline: alertasOffline.length,
+        parcial_recorrente: parcialRecorrente.itens,
+        avisou_parcial: avisarParcial,
         emails_enviados: emailsEnviados,
         resultados,
       }),
