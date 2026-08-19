@@ -1890,7 +1890,6 @@ async function run({ sb, payload, log, job }) {
     for (const card of byCard.values()) {
       const stats = card._statuses;
       const total = card._shards;
-      card.erroRecuberado = undefined;
       card.erroRecuperado = !card.parcial && !!card.erro;
       if (stats.every((s) => s === "concluido")) card.status = "concluido";
       else if (stats.some((s) => s === "executando")) card.status = "executando";
