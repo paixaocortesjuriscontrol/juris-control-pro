@@ -149,6 +149,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    setMostrarEnvolvidos(true);
     setEnvolvidosIds((prev) => {
       const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
       return faltando.length > 0 ? [...prev, ...faltando] : prev;
