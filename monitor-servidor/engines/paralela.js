@@ -47,8 +47,17 @@ const SLOW_TRIBUNAIS = String(
   .split(",")
   .map((t) => t.trim().toUpperCase())
   .filter(Boolean);
+// Orçamento dedicado ao TST: é o tribunal que consome 580–670s por rodada e
+// devolve muitos 5xx. Com o orçamento de "lento" (120s) a unidade era sempre
+// abandonada e a rodada fechava parcial todo dia.
+const TST_UNIT_BUDGET_MS = Math.max(
+  SLOW_TRIBUNAL_BUDGET_MS,
+  Number(process.env.PARALELA_TST_UNIT_BUDGET_MS || 300000),
+);
 function budgetParaTribunal(tribunal) {
-  return SLOW_TRIBUNAIS.includes(String(tribunal || "").toUpperCase())
+  const t = String(tribunal || "").toUpperCase();
+  if (t === "TST") return TST_UNIT_BUDGET_MS;
+  return SLOW_TRIBUNAIS.includes(t)
     ? SLOW_TRIBUNAL_BUDGET_MS
     : UNIT_BUDGET_MS;
 }
