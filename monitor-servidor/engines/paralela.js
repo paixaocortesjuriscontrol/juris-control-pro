@@ -2295,7 +2295,6 @@ async function run({ sb, payload, log, job }) {
                 stfCircuitOpen = true;
                 log("paralela.stf_circuit_open", { erros_5xx: stfErros5xx, limite: STF_5XX_LIMIT });
               }
-              item.erro = errMsg.slice(0, 500);
               item.erro = `${errMsg.slice(0, 300)} · termo "${termoLabel}" · ${dia}`;
               log("paralela.par_error", { tribunal: item.tribunal, monId, termo: termoLabel, dia, codigo, e: errMsg.slice(0, 300), skipRefila: true });
               item.current += 1;
