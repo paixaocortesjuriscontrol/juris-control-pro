@@ -4,7 +4,7 @@ import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
