@@ -164,6 +164,7 @@ export function AudienciaFormSimplificado({
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    setMostrarEnvolvidos(true);
     setEnvolvidosIds((prev) => {
       const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
       return faltando.length > 0 ? [...prev, ...faltando] : prev;
