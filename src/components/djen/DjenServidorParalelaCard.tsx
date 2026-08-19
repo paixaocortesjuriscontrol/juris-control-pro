@@ -43,6 +43,23 @@ import {
 import { formatMonitoramentoLabel } from "@/utils/monitoramentoLabel";
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
 import { DiasSemanaPicker, DIAS_SEMANA_DEFAULT } from "@/components/djen/DiasSemanaPicker";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+/** Monta o texto do tooltip de falhas de um tribunal (termo, dia e código). */
+function detalheFalhas(track: ProgressoItem): string {
+  const linhas: string[] = [];
+  const codigos = Object.entries(track.errosPorCodigo || {});
+  if (codigos.length > 0) {
+    linhas.push(codigos.map(([cod, qtd]) => `${/^\d{3}$/.test(cod) ? `HTTP ${cod}` : cod}: ${qtd}`).join(" · "));
+  }
+  if ((track.paresRecuperados || 0) > 0) linhas.push(`${track.paresRecuperados} recuperado(s) no retry`);
+  if ((track.paresComFalha || 0) > 0) linhas.push(`${track.paresComFalha} termo(s)/dia sem coleta`);
+  for (const d of (track.erroDetalhes || []).slice(0, 10)) {
+    linhas.push(`• ${d.termo || "termo ?"}${d.dia ? ` (${d.dia})` : ""} — ${d.codigo && /^\d{3}$/.test(d.codigo) ? `HTTP ${d.codigo}` : d.codigo || "erro"}`);
+  }
+  if (linhas.length === 0) linhas.push(track.erro || "");
+  return linhas.join("\n");
+}
 
 type MonitoramentoOption = {
   id: string;
