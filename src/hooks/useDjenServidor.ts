@@ -51,6 +51,16 @@ export interface ProgressoItem {
   tipo?: string | null;
   mensagem?: string | null;
   erro?: string | null;
+  /** Erro registrado, mas o par (termo × dia) foi recoletado com sucesso. */
+  erroRecuperado?: boolean;
+  /** Houve termo(s)/dia sem coleta neste tribunal. */
+  parcial?: boolean;
+  paresComFalha?: number;
+  paresRecuperados?: number;
+  /** Contagem de falhas por código (500, 429, 504, orcamento, vps...). */
+  errosPorCodigo?: Record<string, number> | null;
+  /** Detalhe das falhas: em qual termo/dia e com qual código. */
+  erroDetalhes?: Array<{ termo?: string; dia?: string; codigo?: string; tipo?: string; erro?: string }> | null;
   current?: number;
   total?: number;
   data?: string;
