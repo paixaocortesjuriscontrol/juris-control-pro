@@ -72,6 +72,33 @@ function mapEngineServidor(tipo: string): TipoEngineLocal {
   return t.includes("pauta") ? "servidor-pautas" : "servidor-termos";
 }
 
+/**
+ * Normaliza os tribunais que ficaram sem coleta. Aceita o detalhe novo do
+ * worker (`diagnostico.unidades_nao_coletadas_detalhe`, lista) e o formato
+ * antigo (`falhas_por_tribunal`, mapa tribunal → nº de falhas).
+ */
+function extrairFalhasPorTribunal(resultado: any): FalhaTribunalResumo[] {
+  const detalhe = resultado?.unidades_nao_coletadas_detalhe
+    ?? resultado?.diagnostico?.unidades_nao_coletadas_detalhe;
+  if (Array.isArray(detalhe) && detalhe.length > 0) {
+    return detalhe.map((d: any) => ({
+      tribunal: String(d?.tribunal || "?"),
+      unidades: Number(d?.unidades || 0),
+      pendentes: Number(d?.pendentes || 0),
+      abandonadas: Number(d?.abandonadas || 0),
+      ultimo_erro: d?.ultimo_erro ? String(d.ultimo_erro) : null,
+    }));
+  }
+  const mapa = resultado?.falhas_por_tribunal;
+  if (mapa && typeof mapa === "object" && !Array.isArray(mapa)) {
+    return Object.entries(mapa)
+      .map(([tribunal, qtd]) => ({ tribunal, unidades: Number(qtd) || 0 }))
+      .filter((f) => f.unidades > 0)
+      .sort((a, b) => b.unidades - a.unidades);
+  }
+  return [];
+}
+
 // Ordem visual desejada: Termos (paralela local + servidor-termos), depois Pautas, depois STF.
 // Kurier/Processos ficam ao final se aparecerem (não devem, pois Kurier é filtrado e processos
 // é raro nesse dashboard, mas mantemos por segurança).
