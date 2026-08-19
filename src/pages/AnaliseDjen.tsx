@@ -1956,6 +1956,26 @@ const AnaliseDjen = () => {
 
     if (paragrafos.length === 0) return "";
 
+    // 3.b) Remove o texto padrão do PJe (chave de validação / Resolução 455/2018 do CNJ),
+    // que não é conteúdo jurídico e roubava o espaço do dispositivo no resumo.
+    const ehBoilerplatePje = (p: string) =>
+      /disponibilizado\s+na\s+[íi]ntegra\s+na\s+Consulta\s+Processual/i.test(p)
+      || /valida[çc][ãa]o\s+confirmada\s+com\s+a\s+chave/i.test(p)
+      || /Resolu[çc][ãa]o\s*n?[º°]?\s*455\s*\/\s*2018/i.test(p)
+      || /pje\.[a-z.]+jus\.br\/(consultaprocessual|pjekz)/i.test(p);
+    {
+      const limpos: string[] = [];
+      let apagouBoiler = false;
+      for (const p of paragrafos) {
+        if (ehBoilerplatePje(p)) { apagouBoiler = true; continue; }
+        // Nome em CAIXA-ALTA do servidor que assinou, imediatamente após o boilerplate
+        if (apagouBoiler && p.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(p)) continue;
+        apagouBoiler = false;
+        limpos.push(p);
+      }
+      if (limpos.length > 0) paragrafos = limpos;
+    }
+
     const ehAssinaturaForte = (p: string) => !!p && p.length <= 240
       && /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente|Secret[áa]ri[ao])\b/i.test(p);
     // "Fraco": linhas típicas do bloco de assinatura — só contam quando já vimos uma assinatura forte logo depois.
@@ -2019,6 +2039,19 @@ const AnaliseDjen = () => {
     if (/\bACORDAM\b/i.test(ultimos.join("\n")) && ultimos.length < principais.length) {
       n = Math.min(n + 1, principais.length);
       ultimos = principais.slice(-n);
+    }
+
+    // Regra DISPOSITIVO: ancora o resumo no ÚLTIMO marcador de parte decisória,
+    // garantindo que o dispositivo apareça na íntegra.
+    const reDispositivoInicio = /^\s*(?:[IVX]+\s*[-–.)]\s*)?(ISTO\s+POSTO|ISSO\s+POSTO|POSTO\s+ISSO|ANTE\s+O\s+EXPOSTO|DIANTE\s+DO\s+EXPOSTO|PELO\s+EXPOSTO|PELAS\s+RAZ[ÕO]ES\s+EXPOSTAS|POR\s+TAIS\s+RAZ[ÕO]ES|EM\s+FACE\s+DO\s+EXPOSTO|ACORDAM|CONCLUS[ÃA]O|DISPOSITIVO)\b/i;
+    const contemDispositivo = (p: string) => /(\bISTO\s+POSTO\b|\bISSO\s+POSTO\b|\bACORDAM\s+os\s+(?:Ministros|Desembargadores|Ju[íi]zes)\b|\bAnte\s+o\s+exposto\b|\bDiante\s+do\s+exposto\b|\bPelas\s+raz[õo]es\s+expostas\b|\bnego\s+seguimento\b|\bAguarde-se\s+em\s+Secretaria\b)/i.test(p);
+    let idxDisp = -1;
+    for (let k = principais.length - 1; k >= 0; k--) {
+      if (reDispositivoInicio.test(principais[k]) || contemDispositivo(principais[k])) { idxDisp = k; break; }
+    }
+    const inicioUltimos = principais.length - ultimos.length;
+    if (idxDisp >= 0 && idxDisp < inicioUltimos) {
+      ultimos = principais.slice(idxDisp);
     }
 
     // Regra EDITAL: em publicações que começam com um EDITAL (ex.: "EDITAL DE
