@@ -21,6 +21,7 @@ import {
 import {
   useExecucoesDoDiaPorCoordenacao,
   type TipoEngineLocal,
+  type ExecucaoResumo,
 } from "@/hooks/useExecucoesDoDiaPorCoordenacao";
 import { useFalhasDoDiaPorTribunal } from "@/hooks/useFalhasDoDiaPorTribunal";
 
@@ -47,6 +48,43 @@ function rotuloEngine(t: TipoEngineLocal): string {
   if (t === "servidor-pautas") return "Servidor · Pautas";
   if (t === "stf") return "Servidor · STF";
   return "Termos";
+}
+
+/** Texto do tooltip do badge "parcial": diz qual tribunal ficou de fora e por quê. */
+function detalheParcial(e: ExecucaoResumo): string {
+  const partes: string[] = [
+    `Rodada parcial: ${e.unidadesNaoColetadas || 0} unidade(s) (tribunal × monitoramento) ficaram sem coleta.`,
+  ];
+  const falhas = e.falhasPorTribunal || [];
+  if (falhas.length > 0) {
+    partes.push(
+      "Tribunais pendentes: " +
+        falhas
+          .map((f) => {
+            const det: string[] = [];
+            if (f.unidades) det.push(`${f.unidades} unid.`);
+            if (f.abandonadas) det.push(`${f.abandonadas} abandonada(s)`);
+            if (f.ultimo_erro) det.push(f.ultimo_erro.slice(0, 80));
+            return `${f.tribunal}${det.length ? ` (${det.join(", ")})` : ""}`;
+          })
+          .join(" · "),
+    );
+  }
+  const d = e.diagnostico;
+  if (d) {
+    const tec: string[] = [];
+    if (d.erros_5xx) tec.push(`${d.erros_5xx} erro(s) 5xx`);
+    if (d.rate_limit_429) tec.push(`${d.rate_limit_429} rate limit (429)`);
+    if (tec.length) partes.push(tec.join(" · "));
+    if (d.topTribunais && d.topTribunais.length > 0) {
+      partes.push(
+        "Tempo por tribunal: " +
+          d.topTribunais.map((t) => `${t.tribunal} ${t.segundos}s`).join(" · "),
+      );
+    }
+  }
+  partes.push("Os números desta coluna podem estar incompletos.");
+  return partes.join("\n");
 }
 
 export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
@@ -164,13 +202,18 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                         {e.parcial && (
                           <div
                             className="mt-1 flex items-center justify-center gap-1 text-[10px] font-medium text-amber-700 dark:text-amber-300"
-                            title={`Rodada parcial: ${e.unidadesNaoColetadas || 0} unidade(s) tribunal × monitoramento ficaram sem coleta (rate limit do DJEN). Os números abaixo estão incompletos.`}
+                            title={detalheParcial(e)}
                           >
                             <AlertTriangle className="h-3 w-3" />
                             parcial
                             {e.unidadesNaoColetadas
                               ? ` (${e.unidadesNaoColetadas})`
                               : ""}
+                            {e.falhasPorTribunal && e.falhasPorTribunal.length > 0 && (
+                              <span className="font-semibold">
+                                · {e.falhasPorTribunal.map((f) => f.tribunal).slice(0, 2).join(", ")}
+                              </span>
+                            )}
                           </div>
                         )}
                       </TableHead>
