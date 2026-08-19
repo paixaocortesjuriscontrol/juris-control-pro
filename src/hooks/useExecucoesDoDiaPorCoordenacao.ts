@@ -9,6 +9,16 @@ export type TipoEngineLocal =
   | "servidor-pautas"
   | "stf";
 
+export interface FalhaTribunalResumo {
+  tribunal: string;
+  unidades?: number;
+  pendentes?: number;
+  abandonadas?: number;
+  ultimo_erro?: string | null;
+  segundos?: number;
+  timeouts?: number;
+}
+
 export interface ExecucaoResumo {
   id: string;
   iniciado_em: string;
@@ -17,6 +27,14 @@ export interface ExecucaoResumo {
   /** Rodada servidor encerrada com unidades sem coleta */
   parcial?: boolean;
   unidadesNaoColetadas?: number;
+  /** Tribunais que ficaram sem coleta (quando a rodada é parcial) */
+  falhasPorTribunal?: FalhaTribunalResumo[];
+  /** Resumo do diagnóstico da rodada (erros 5xx, 429, tempo por tribunal) */
+  diagnostico?: {
+    erros_5xx?: number;
+    rate_limit_429?: number;
+    topTribunais?: { tribunal: string; segundos: number; timeouts: number }[];
+  };
 }
 
 export interface Celula {
@@ -52,6 +70,33 @@ function mapEngineServidor(tipo: string): TipoEngineLocal {
   const t = String(tipo || "").toLowerCase();
   if (t.includes("stf")) return "stf";
   return t.includes("pauta") ? "servidor-pautas" : "servidor-termos";
+}
+
+/**
+ * Normaliza os tribunais que ficaram sem coleta. Aceita o detalhe novo do
+ * worker (`diagnostico.unidades_nao_coletadas_detalhe`, lista) e o formato
+ * antigo (`falhas_por_tribunal`, mapa tribunal → nº de falhas).
+ */
+function extrairFalhasPorTribunal(resultado: any): FalhaTribunalResumo[] {
+  const detalhe = resultado?.unidades_nao_coletadas_detalhe
+    ?? resultado?.diagnostico?.unidades_nao_coletadas_detalhe;
+  if (Array.isArray(detalhe) && detalhe.length > 0) {
+    return detalhe.map((d: any) => ({
+      tribunal: String(d?.tribunal || "?"),
+      unidades: Number(d?.unidades || 0),
+      pendentes: Number(d?.pendentes || 0),
+      abandonadas: Number(d?.abandonadas || 0),
+      ultimo_erro: d?.ultimo_erro ? String(d.ultimo_erro) : null,
+    }));
+  }
+  const mapa = resultado?.falhas_por_tribunal;
+  if (mapa && typeof mapa === "object" && !Array.isArray(mapa)) {
+    return Object.entries(mapa)
+      .map(([tribunal, qtd]) => ({ tribunal, unidades: Number(qtd) || 0 }))
+      .filter((f) => f.unidades > 0)
+      .sort((a, b) => b.unidades - a.unidades);
+  }
+  return [];
 }
 
 // Ordem visual desejada: Termos (paralela local + servidor-termos), depois Pautas, depois STF.
@@ -131,6 +176,8 @@ export function useExecucoesDoDiaPorCoordenacao(
         fonte: "local" | "servidor";
         parcial?: boolean;
         unidadesNaoColetadas?: number;
+        falhasPorTribunal?: FalhaTribunalResumo[];
+        diagnostico?: ExecucaoResumo["diagnostico"];
       };
 
       const locais: ExecInterna[] = (execsLocal || []).map((e: any) => ({
@@ -158,6 +205,18 @@ export function useExecucoesDoDiaPorCoordenacao(
               e?.resultado?.diagnostico?.unidades_nao_coletadas ??
               0,
           ),
+          falhasPorTribunal: extrairFalhasPorTribunal(e?.resultado),
+          diagnostico: {
+            erros_5xx: Number(e?.resultado?.diagnostico?.erros_5xx ?? 0),
+            rate_limit_429: Number(e?.resultado?.diagnostico?.rate_limit_429 ?? 0),
+            topTribunais: Array.isArray(e?.resultado?.diagnostico?.top_tribunais_por_tempo)
+              ? e.resultado.diagnostico.top_tribunais_por_tempo.slice(0, 3).map((t: any) => ({
+                  tribunal: String(t?.tribunal || "?"),
+                  segundos: Number(t?.segundos || 0),
+                  timeouts: Number(t?.timeouts || 0),
+                }))
+              : [],
+          },
           parcial:
             e.status === "concluido_parcial" ||
             Number(
@@ -310,6 +369,8 @@ export function useExecucoesDoDiaPorCoordenacao(
           tipoEngine: e.tipoEngine,
           parcial: e.parcial,
           unidadesNaoColetadas: e.unidadesNaoColetadas,
+          falhasPorTribunal: e.falhasPorTribunal,
+          diagnostico: e.diagnostico,
         })),
         linhas,
       };

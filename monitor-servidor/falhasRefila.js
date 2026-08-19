@@ -116,11 +116,54 @@ async function contarFalhasNaoColetadas(sb, tipo) {
   return count || 0;
 }
 
+/**
+ * Detalhe das unidades do dia que seguem sem coleta, agrupado por tribunal.
+ * Usado para o diagnóstico da rodada parcial dizer QUAL tribunal ficou de fora
+ * e por qual motivo (em vez de apenas "parcial (1)").
+ */
+async function listarFalhasNaoColetadas(sb, tipo, limite = 200) {
+  const dia = diaBrtHoje();
+  const { data, error } = await sb
+    .from("execucoes_servidor_falhas")
+    .select("item_key, payload, tentativas, status, ultimo_erro")
+    .eq("tipo", tipo)
+    .eq("dia_brt", dia)
+    .in("status", ["pendente", "abandonado"])
+    .limit(limite);
+  if (error) {
+    console.warn(`[falhasRefila] listarFalhasNaoColetadas(${tipo}):`, error.message);
+    return [];
+  }
+  const porTribunal = new Map();
+  for (const f of data || []) {
+    const p = f.payload || {};
+    const tribunal = String(p.tribunal || "?").toUpperCase();
+    if (!porTribunal.has(tribunal)) {
+      porTribunal.set(tribunal, {
+        tribunal,
+        unidades: 0,
+        abandonadas: 0,
+        pendentes: 0,
+        tentativas_max: 0,
+        ultimo_erro: null,
+      });
+    }
+    const g = porTribunal.get(tribunal);
+    g.unidades++;
+    if (f.status === "abandonado") g.abandonadas++;
+    else g.pendentes++;
+    g.tentativas_max = Math.max(g.tentativas_max, Number(f.tentativas) || 0);
+    if (f.ultimo_erro && !g.ultimo_erro) g.ultimo_erro = String(f.ultimo_erro).slice(0, 200);
+  }
+  return Array.from(porTribunal.values()).sort((a, b) => b.unidades - a.unidades);
+}
+
 module.exports = {
   recordFalha,
   marcarFalhaResolvida,
   lerFalhasPendentes,
   contarFalhasNaoColetadas,
+  listarFalhasNaoColetadas,
   diaBrtHoje,
   MAX_TENTATIVAS,
   ehRateLimit,

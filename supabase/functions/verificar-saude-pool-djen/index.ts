@@ -101,6 +101,90 @@ function fmtData(iso: string | null) {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+type ParcialRecorrente = {
+  tribunal: string;
+  rodadas: number;
+  unidades: number;
+  ultimoErro: string | null;
+};
+
+function horaBrt(): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date()),
+  );
+}
+
+/**
+ * Tribunais que ficaram parciais em TODAS as rodadas de Termos do dia.
+ * Só interessa ao suporte: indica gargalo estrutural (ex.: TST), não um
+ * problema de contagem da tela.
+ */
+async function detectarParcialRecorrente(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ rodadas: number; itens: ParcialRecorrente[] }> {
+  const agora = new Date();
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  }).format(agora); // yyyy-mm-dd BRT
+  const startUtc = `${ymd}T03:00:00`;
+  const fim = new Date(`${ymd}T00:00:00Z`);
+  fim.setUTCDate(fim.getUTCDate() + 1);
+  const endUtc = `${fim.toISOString().slice(0, 10)}T03:00:00`;
+
+  const { data, error } = await supabase
+    .from("execucoes_servidor")
+    .select("id, tipo, status, resultado, iniciado_em")
+    .gte("iniciado_em", startUtc)
+    .lt("iniciado_em", endUtc)
+    .in("status", ["concluido", "concluido_parcial"]);
+  if (error) {
+    log("detectarParcialRecorrente erro", error.message);
+    return { rodadas: 0, itens: [] };
+  }
+
+  const rodadas = (data || []).filter((e: any) => {
+    const t = String(e.tipo || "").toLowerCase();
+    return !t.includes("pauta") && !t.includes("stf");
+  });
+  if (rodadas.length < 2) return { rodadas: rodadas.length, itens: [] };
+
+  const acumulado = new Map<string, ParcialRecorrente>();
+  for (const r of rodadas as any[]) {
+    const res = r.resultado || {};
+    const detalhe: any[] = Array.isArray(res.unidades_nao_coletadas_detalhe)
+      ? res.unidades_nao_coletadas_detalhe
+      : Array.isArray(res?.diagnostico?.unidades_nao_coletadas_detalhe)
+        ? res.diagnostico.unidades_nao_coletadas_detalhe
+        : Object.entries(res.falhas_por_tribunal || {}).map(([tribunal, qtd]) => ({
+            tribunal,
+            unidades: Number(qtd) || 0,
+          }));
+    for (const d of detalhe) {
+      const tribunal = String(d?.tribunal || "").toUpperCase();
+      if (!tribunal || !(Number(d?.unidades) > 0)) continue;
+      const atual = acumulado.get(tribunal) || {
+        tribunal,
+        rodadas: 0,
+        unidades: 0,
+        ultimoErro: null,
+      };
+      atual.rodadas++;
+      atual.unidades += Number(d?.unidades) || 0;
+      if (d?.ultimo_erro && !atual.ultimoErro) atual.ultimoErro = String(d.ultimo_erro).slice(0, 200);
+      acumulado.set(tribunal, atual);
+    }
+  }
+
+  const itens = Array.from(acumulado.values())
+    .filter((i) => i.rodadas >= rodadas.length)
+    .sort((a, b) => b.unidades - a.unidades);
+  return { rodadas: rodadas.length, itens };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -226,7 +310,18 @@ Deno.serve(async (req) => {
     }
 
     let emailsEnviados = 0;
-    if (alertasCert.length > 0 || alertasOffline.length > 0) {
+    // Gargalo estrutural do motor de Termos: mesmo tribunal parcial em todas as
+    // rodadas do dia. Vai SOMENTE para o suporte, nunca para advogados.
+    const parcialRecorrente = await detectarParcialRecorrente(supabase).catch(() => ({
+      rodadas: 0,
+      itens: [] as ParcialRecorrente[],
+    }));
+    // Sem alerta de VPS, só avisa uma vez por dia (janela das 8h BRT).
+    const avisarParcial =
+      parcialRecorrente.itens.length > 0 &&
+      (alertasCert.length > 0 || alertasOffline.length > 0 || horaBrt() === 8);
+
+    if (alertasCert.length > 0 || alertasOffline.length > 0 || avisarParcial) {
       const destinatarios: string[] = ["suporte@paixaocortes.adv.br"];
       if (destinatarios.length === 0 || !destinatarios[0].includes("@")) {
         log("e-mail não enviado: destinatário padrão inválido");
@@ -263,12 +358,38 @@ Deno.serve(async (req) => {
                <tbody>${itens.map(linha).join("")}</tbody>
              </table>`;
 
+      const secaoParcial =
+        !avisarParcial
+          ? ""
+          : `<h3 style="font-family:Arial,sans-serif;color:#1f2937;margin:18px 0 6px">
+               Tribunal parcial em todas as rodadas de Termos de hoje (${parcialRecorrente.rodadas} rodada(s))
+             </h3>
+             <table style="border-collapse:collapse;font-family:Arial,sans-serif;font-size:13px;width:100%">
+               <thead><tr style="background:#f3f4f6;text-align:left">
+                 <th style="padding:6px 10px">Tribunal</th>
+                 <th style="padding:6px 10px">Rodadas parciais</th>
+                 <th style="padding:6px 10px">Unidades sem coleta</th>
+                 <th style="padding:6px 10px">Último erro</th>
+               </tr></thead>
+               <tbody>${parcialRecorrente.itens
+                 .map(
+                   (i) => `<tr>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.tribunal}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.rodadas}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.unidades}</td>
+                     <td style="padding:6px 10px;border-bottom:1px solid #eee">${i.ultimoErro || "—"}</td>
+                   </tr>`,
+                 )
+                 .join("")}</tbody>
+             </table>`;
+
       const html = `
         <div style="font-family:Arial,sans-serif;color:#111827">
           <h2 style="margin:0 0 4px">Pool de Proxies DJEN — atenção necessária</h2>
           <p style="color:#6b7280;margin:0 0 8px">Checagem automática de ${fmtData(new Date().toISOString())}.</p>
           ${secao("Certificados vencidos ou próximos do vencimento", alertasCert)}
           ${secao("VPS fora do ar", alertasOffline)}
+          ${secaoParcial}
           <p style="color:#6b7280;font-size:12px;margin-top:18px">
             Renove o certificado com <code>certbot renew</code> na VM e reinicie o proxy.
             Cada VPS fora do pool reduz o paralelismo do motor DJEN Termos.
@@ -278,7 +399,9 @@ Deno.serve(async (req) => {
       const assunto =
         alertasCert.some((r) => (r.cert_dias_restantes ?? 99) < 0) || alertasOffline.length > 0
           ? "🚨 Pool DJEN: VPS fora do ar / certificado vencido"
-          : "⚠️ Pool DJEN: certificado próximo do vencimento";
+          : alertasCert.length > 0
+            ? "⚠️ Pool DJEN: certificado próximo do vencimento"
+            : "⚠️ Pool DJEN: tribunal parcial em todas as rodadas de Termos";
 
       if (dryRun || !RESEND_API_KEY || destinatarios.length === 0) {
         log(`e-mail não enviado (dryRun=${dryRun} key=${!!RESEND_API_KEY} destinatarios=${destinatarios.length})`);
@@ -309,6 +432,8 @@ Deno.serve(async (req) => {
         checadas: resultados.length,
         alertas_certificado: alertasCert.length,
         alertas_offline: alertasOffline.length,
+        parcial_recorrente: parcialRecorrente.itens,
+        avisou_parcial: avisarParcial,
         emails_enviados: emailsEnviados,
         resultados,
       }),
