@@ -1,62 +1,44 @@
-# Ajustes no alerta e na tabela de execuções do DJEN Termos Servidor
+# TST por parte com "HTTP 500": tornar o risco visível e reduzir a incidência
 
-## Contexto
-As execuções de Termos do servidor terminam como `concluido_parcial` sempre com a mesma unidade do TST não coletada. Hoje a tabela de execuções mostra totais idênticos (ex.: 2.025 em todas as rodadas), o que parece estranho, mas explica-se: o diário do dia sai completo na primeira rodada e as rodadas seguintes reencontram as mesmas publicações. Já o "parcial (1)" não diz qual tribunal falhou, e os alertas técnicos precisam ser encaminhados somente ao suporte.
+## O que a execução de agora mostra
 
-## O que será feito
+O card do TST/Parte terminou como **Concluído** (115/115, 100%), com `0 novas, 271 duplicadas, 195 descartadas`, e ainda assim exibe `⚠ HTTP 500`.
 
-### 1. Tabela de execuções mais clara (Análise DJEN)
-- Mostrar, em cada célula, **publicações vistas** e **publicações novas**.
-- Exemplo: `720 · +0 novas` para deixar explícito que a rodada não trouxe novidade.
-- Isso evita que totais iguais pareçam erro de contagem.
+Esse aviso vem do último erro de página registrado pelo cliente paginado (`lastError`). Hoje o motor Browser guarda **somente** esse texto: os campos que dizem se alguma página ficou sem coleta (`failedPages`, `truncated`, `partial`) são devolvidos pelo cliente e **descartados** pelo motor. Por isso não é possível afirmar, olhando a tela, se o 500 foi apenas uma página que se recuperou no retry ou se o TST parou de responder e a coleta daquele termo ficou incompleta — o card mostra "Concluído" nos dois casos.
 
-### 2. Badge "parcial" com explicação
-- Ao passar o mouse sobre o badge, exibir:
-  - tribunal que ficou pendente (ex.: TST);
-  - quantidade de falhas;
-  - erros 5xx;
-  - tempo consumido por aquele tribunal.
-- Dados virão do campo `falhas_por_tribunal` / `diagnostico` já gravado na execução.
+O plano abaixo primeiro remove essa ambiguidade e depois reduz a chance de o TST por parte devolver 500.
 
-### 3. Alerta de diferença entre execuções continua como está
-- Mantém o filtro atual: só considera rodadas com status `concluido`.
-- Não envia rodadas `concluido_parcial` para advogados/coordenadores.
-- Destinatários e assunto permanecem os mesmos.
+## 1. Distinguir "500 recuperado" de "página não coletada"
 
-### 4. Problemas de execução só para suporte
-- Todos os avisos técnicos (rodadas parciais, tribunal falhando em todas as rodadas do dia, erros 5xx/timeouts) são enviados exclusivamente para `suporte@paixaocortes.adv.br`.
-- A função `verificar-saude-pool-djen` ganha uma checagem extra: se o mesmo tribunal ficar parcial em todas as rodadas de Termos do dia, incluir essa informação no corpo do e-mail de saúde.
+No motor paralelo (Browser), passar a ler `failedPages`, `truncated` e `partial` de cada busca e acumular por termo/tribunal:
 
-### 5. Mitigação do TST no worker (fora deste projeto)
+- Nenhuma página perdida: o card continua **Concluído** e o aviso aparece como informativo — `⚠ HTTP 500 (recuperado no retry)`.
+- Alguma página perdida ou coleta interrompida: o card fica **Concluído parcial**, com o texto dizendo qual termo e quantas páginas ficaram de fora.
 
-O motor que consulta o DJEN não roda no Supabase; ele roda em Node nas VPS/Hostinger (pasta `monitor-servidor/`, serviço `djen-proxy` gerido por PM2/systemd). É esse código que:
-- divide os termos em unidades por tribunal;
-- define quanto tempo cada unidade pode rodar (orçamento);
-- decide se refila ou desiste quando dá erro.
+Assim o mesmo padrão já usado no DJEN Servidor (rodada parcial) passa a valer no motor Browser.
 
-Por que o TST dá "parcial (1)" todo dia:
-- O TST está recebendo o mesmo orçamento dos outros tribunais (~90s por unidade), mas leva de 583 a 672 segundos e devolve muitos erros 5xx.
-- Quando o orçamento acaba, a unidade é abandonada. A rodada fecha com `unidades_nao_coletadas = 1`, e o badge mostra "parcial (1)" sem dizer qual tribunal foi.
-- Não é um bug na contagem da tela; é o worker que não consegue terminar a coleta do TST dentro do tempo.
+## 2. Registrar o termo, não só o código do erro
 
-O que será alterado no worker:
-- **Orçamento dedicado ao TST**: dar mais tempo e uma fila própria ao TST, em vez de usar o mesmo limite de todos os tribunais.
-- **Drenagem final**: antes de encerrar a rodada, tentar mais uma vez somente as unidades que ficaram pendentes, com uma concorrência reduzida (1 requisição por vez), para não provocar novos 5xx.
-- **Diagnóstico detalhado**: registrar qual unidade/unidades ficaram de fora e o motivo, para o alerta de suporte citar exatamente o tribunal e o problema.
+Hoje `ultimoErro` guarda apenas `HTTP 500`. Passar a guardar `HTTP 500 · termo "<nome da parte>" · pág. N` e, quando houver mais de um, o total de ocorrências. Isso permite identificar se o 500 do TST se concentra em um nome de parte específico (nomes longos e com muitos resultados são os candidatos naturais).
 
-Como essa mudança entra em produção:
-- O código do worker fica em `monitor-servidor/`. Eu edito esses arquivos no repositório.
-- Nas VPS/Hostinger é preciso executar `git pull` + `pm2 restart` (ou `systemctl restart djen-proxy`) para o código novo passar a valer.
-- Sem esse passo manual nas VPS, o parcial do TST continuará aparecendo todo dia.
-- Entrego junto o roteiro de comandos para cada VPS.
+## 3. Reduzir a incidência no TST por parte
 
-## Arquivos que serão alterados
-- `src/hooks/useExecucoesDoDiaPorCoordenacao.ts` — expor `falhasPorTribunal` e diagnóstico da execução.
-- `src/pages/AnaliseDjen.tsx` — renderizar "vistas · +novas" e tooltip no badge parcial.
-- `supabase/functions/verificar-saude-pool-djen/index.ts` — detectar tribunal parcial em todas as rodadas do dia e enviar apenas para `suporte@paixaocortes.adv.br`.
-- `monitor-servidor/engines/...` — orçamento dedicado ao TST, drenagem final e diagnóstico detalhado.
+O TST por parte é a combinação com maior volume de retorno por página (por isso o 500 aparece nele e não nos outros). Ajustes no cliente/motor:
 
-## O que não muda
-- O alerta de diferença entre execuções (`alertar-diferenca-djen-termos`) não será alterado.
-- Não haverá mudança de schema no banco.
-- Advogados e coordenadores não receberão avisos técnicos de rodadas parciais.
+- Página menor já na primeira tentativa para TST + parte (50 → 20 itens), em vez de esperar o erro para degradar.
+- Backoff dedicado ao 500 nessa combinação (respiro maior antes do retry, sem consumir tentativa extra).
+- Ao esgotar os retries de uma página, tentar a mesma página em outra VPS do pool antes de considerar a página perdida.
+
+## 4. Fechar o ciclo
+
+- O aviso do card ganha tooltip com o detalhe completo (termo, página, quantas ocorrências, se recuperou).
+- Rodada com página realmente não coletada entra no e-mail de suporte já existente (`suporte@paixaocortes.adv.br`), sem envolver os advogados.
+
+## Detalhes técnicos
+
+- `src/hooks/useDjenTermosParalelaEngine.ts`: propagar `failedPages`/`truncated`/`partial` de `executarBusca` para o track; novo status/flag de parcial; mensagem de conclusão com contagem de páginas perdidas; texto de erro com termo e página.
+- `src/utils/pjeComunicaClient.ts`: `pageSize` inicial reduzido quando `siglaTribunal=TST` e `nomeParte` presente; backoff específico de 500; retry de página em outra via do pool.
+- Componente do card de tribunais do motor Browser: exibir "parcial" e tooltip com o detalhe.
+- Edge Function de saúde já existente: incluir páginas não coletadas no aviso ao suporte.
+
+Nada muda no comportamento de busca por parte (segue exclusivamente por `nomeParte`, sem fallback por palavra-chave).
