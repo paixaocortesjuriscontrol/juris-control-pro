@@ -12,9 +12,13 @@ Houve 3 rodadas de Termos no servidor: 04:30, 10:00 e 17:00 (BRT). As três term
 
 1. **Deixar claro o que cada número é** na tabela de execuções da Análise DJEN: cada célula mostra "vistas" e "novas" com legenda, para que rodadas sem novidade fiquem explícitas (ex.: `720 · +0 novas`) em vez de parecerem repetição suspeita.
 2. **Badge "parcial" explicado**: passar a mostrar, ao passar o mouse, o tribunal responsável, quantas falhas, erros 5xx e o tempo gasto — usando os dados que já existem no resultado da execução (`falhas_por_tribunal`, `diagnostico`).
-3. **Alerta de diferença passa a considerar rodadas parciais** (`concluido_parcial`), sinalizando no e-mail que a rodada foi parcial e em qual tribunal. Hoje o alerta simplesmente não roda em dias assim.
-4. **Aviso de parcial recorrente**: quando o mesmo tribunal ficar parcial em todas as rodadas de Termos do dia, incluir essa informação no e-mail de saúde já enviado para suporte@paixaocortes.adv.br, para tratar o gargalo do TST em vez de ele passar em branco.
-5. **Mitigação do TST no worker** (código que roda nas VPS/Hostinger, fora deste projeto): orçamento maior e dedicado ao TST e uma drenagem final apenas da unidade que ficou pendente, antes de fechar a rodada. Vou entregar a alteração e o roteiro de `git pull` + restart; sem isso o parcial do TST tende a se repetir todo dia.
+3. **E-mail de diferença entre execuções fica como está hoje** (só rodadas `concluido`, destinatários atuais). Rodadas parciais **não** vão para advogados/coordenadores.
+4. **Problemas de execução vão só para o suporte**: todo aviso técnico (rodada parcial, tribunal falhando em todas as rodadas do dia, erros 5xx/timeouts) é enviado exclusivamente para `suporte@paixaocortes.adv.br`, no e-mail de saúde já existente.
+5. **Mitigação do TST no worker** — o que é e por que é fora deste projeto:
+   - O motor que efetivamente consulta o DJEN não roda aqui no Supabase: roda em Node nas VPS/Hostinger (pasta `monitor-servidor/`, serviço `djen-proxy`/PM2). É esse código que divide os termos em "unidades" por tribunal, controla o orçamento de tempo de cada unidade e decide se refila ou desiste.
+   - Hoje o TST recebe o mesmo orçamento dos demais tribunais (~90s por unidade), mas consome de 583 a 672 segundos e devolve muitos 5xx. Quando o orçamento estoura, a unidade é abandonada e a rodada fecha com `unidades_nao_coletadas = 1` — é exatamente o "parcial (1)" que aparece na tela todos os dias, sempre no TST.
+   - A alteração: (a) orçamento próprio e maior para o TST, em vez do valor único global; (b) *drenagem final*: antes de encerrar a rodada, tentar mais uma vez somente as unidades que ficaram pendentes, com concorrência reduzida (1 requisição por vez) para não levar novo 5xx; (c) registrar no diagnóstico qual unidade ficou de fora, para o alerta de suporte citar o motivo.
+   - Como entra em produção: eu edito os arquivos em `monitor-servidor/` aqui no repositório; nas VPS é preciso `git pull` + `pm2 restart` (ou `systemctl restart djen-proxy`) para o código novo passar a valer. Entrego o roteiro de comandos junto. Sem esse passo manual nas VPS, a correção não tem efeito e o parcial do TST continua todo dia.
 
 ## Detalhes técnicos
 
