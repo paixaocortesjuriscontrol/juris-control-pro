@@ -101,6 +101,90 @@ function fmtData(iso: string | null) {
   return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
 }
 
+type ParcialRecorrente = {
+  tribunal: string;
+  rodadas: number;
+  unidades: number;
+  ultimoErro: string | null;
+};
+
+function horaBrt(): number {
+  return Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      hour12: false,
+    }).format(new Date()),
+  );
+}
+
+/**
+ * Tribunais que ficaram parciais em TODAS as rodadas de Termos do dia.
+ * Só interessa ao suporte: indica gargalo estrutural (ex.: TST), não um
+ * problema de contagem da tela.
+ */
+async function detectarParcialRecorrente(
+  supabase: ReturnType<typeof createClient>,
+): Promise<{ rodadas: number; itens: ParcialRecorrente[] }> {
+  const agora = new Date();
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  }).format(agora); // yyyy-mm-dd BRT
+  const startUtc = `${ymd}T03:00:00`;
+  const fim = new Date(`${ymd}T00:00:00Z`);
+  fim.setUTCDate(fim.getUTCDate() + 1);
+  const endUtc = `${fim.toISOString().slice(0, 10)}T03:00:00`;
+
+  const { data, error } = await supabase
+    .from("execucoes_servidor")
+    .select("id, tipo, status, resultado, iniciado_em")
+    .gte("iniciado_em", startUtc)
+    .lt("iniciado_em", endUtc)
+    .in("status", ["concluido", "concluido_parcial"]);
+  if (error) {
+    log("detectarParcialRecorrente erro", error.message);
+    return { rodadas: 0, itens: [] };
+  }
+
+  const rodadas = (data || []).filter((e: any) => {
+    const t = String(e.tipo || "").toLowerCase();
+    return !t.includes("pauta") && !t.includes("stf");
+  });
+  if (rodadas.length < 2) return { rodadas: rodadas.length, itens: [] };
+
+  const acumulado = new Map<string, ParcialRecorrente>();
+  for (const r of rodadas as any[]) {
+    const res = r.resultado || {};
+    const detalhe: any[] = Array.isArray(res.unidades_nao_coletadas_detalhe)
+      ? res.unidades_nao_coletadas_detalhe
+      : Array.isArray(res?.diagnostico?.unidades_nao_coletadas_detalhe)
+        ? res.diagnostico.unidades_nao_coletadas_detalhe
+        : Object.entries(res.falhas_por_tribunal || {}).map(([tribunal, qtd]) => ({
+            tribunal,
+            unidades: Number(qtd) || 0,
+          }));
+    for (const d of detalhe) {
+      const tribunal = String(d?.tribunal || "").toUpperCase();
+      if (!tribunal || !(Number(d?.unidades) > 0)) continue;
+      const atual = acumulado.get(tribunal) || {
+        tribunal,
+        rodadas: 0,
+        unidades: 0,
+        ultimoErro: null,
+      };
+      atual.rodadas++;
+      atual.unidades += Number(d?.unidades) || 0;
+      if (d?.ultimo_erro && !atual.ultimoErro) atual.ultimoErro = String(d.ultimo_erro).slice(0, 200);
+      acumulado.set(tribunal, atual);
+    }
+  }
+
+  const itens = Array.from(acumulado.values())
+    .filter((i) => i.rodadas >= rodadas.length)
+    .sort((a, b) => b.unidades - a.unidades);
+  return { rodadas: rodadas.length, itens };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
