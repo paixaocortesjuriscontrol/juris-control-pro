@@ -1850,6 +1850,12 @@ async function run({ sb, payload, log, job }) {
           mensagem: "",
           novas: 0, descartadas: 0, duplicatas: 0,
           erro: null,
+          erroRecuperado: false,
+          parcial: false,
+          paresComFalha: 0,
+          paresRecuperados: 0,
+          errosPorCodigo: {},
+          erroDetalhes: [],
           via: null,
           _shards: 0,
           _statuses: [],
@@ -1867,12 +1873,25 @@ async function run({ sb, payload, log, job }) {
       if (Array.isArray(i.monitoramentoIds)) card.monitoramentoIds.push(...i.monitoramentoIds);
       if (i.status === "executando" && i.via) card._viasAtivas.push(i.via);
       if (i.erro) card.erro = i.erro;
+      card.paresComFalha += Number(i.paresComFalha) || 0;
+      card.paresRecuperados += Number(i.paresRecuperados) || 0;
+      if (i.parcial) card.parcial = true;
+      if (i.errosPorCodigo) {
+        for (const [cod, qtd] of Object.entries(i.errosPorCodigo)) {
+          card.errosPorCodigo[cod] = (card.errosPorCodigo[cod] || 0) + Number(qtd || 0);
+        }
+      }
+      if (Array.isArray(i.erroDetalhes) && card.erroDetalhes.length < 20) {
+        card.erroDetalhes.push(...i.erroDetalhes.slice(0, 20 - card.erroDetalhes.length));
+      }
       if (i.status === "executando" && !card.mensagem) card.mensagem = i.mensagem;
     }
     const cardItens = [];
     for (const card of byCard.values()) {
       const stats = card._statuses;
       const total = card._shards;
+      card.erroRecuberado = undefined;
+      card.erroRecuperado = !card.parcial && !!card.erro;
       if (stats.every((s) => s === "concluido")) card.status = "concluido";
       else if (stats.some((s) => s === "executando")) card.status = "executando";
       else if (stats.every((s) => s === "erro")) card.status = "erro";
