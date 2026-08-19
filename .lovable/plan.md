@@ -24,7 +24,8 @@ Houve 3 rodadas de Termos no servidor: 04:30, 10:00 e 17:00 (BRT). As três term
 
 - `src/hooks/useExecucoesDoDiaPorCoordenacao.ts`: já calcula `total` e `novas` por célula; expor também `falhasPorTribunal` e um resumo do diagnóstico por execução.
 - `src/pages/AnaliseDjen.tsx` (tabela de execuções do dia): renderizar "vistas · +novas", legenda e tooltip do badge parcial.
-- `supabase/functions/alertar-diferenca-djen-termos/index.ts`: trocar `.eq("status","concluido")` por `.in("status", ["concluido","concluido_parcial"])` e marcar no corpo do e-mail as rodadas parciais e o tribunal afetado.
-- `supabase/functions/verificar-saude-pool-djen`: acrescentar a checagem de "mesmo tribunal parcial em todas as rodadas do dia".
+- `supabase/functions/alertar-diferenca-djen-termos/index.ts`: **sem alteração** — segue só com `status = 'concluido'` e os destinatários atuais.
+- `supabase/functions/verificar-saude-pool-djen`: acrescentar a checagem de "mesmo tribunal parcial em todas as rodadas do dia" e enviar apenas para `suporte@paixaocortes.adv.br` (destinatário já fixo nessa função).
+- `monitor-servidor/` (worker das VPS): orçamento dedicado ao TST, drenagem final das unidades pendentes com concorrência 1 e registro da unidade faltante no diagnóstico.
 - Observação de dado: hoje `publicacoes_djen_servidor` tem 2.029 registros do dia e `publicacoes_djen` tem 1.913 — a tela de execuções conta a primeira e o alerta conta a segunda. Vou alinhar a fonte de contagem das duas para evitar divergência de números entre tela e e-mail.
 - Sem alterações de schema.
