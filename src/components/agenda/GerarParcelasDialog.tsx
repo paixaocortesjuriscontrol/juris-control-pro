@@ -4,7 +4,7 @@ import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Dialog,
@@ -76,7 +76,17 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
+  const { data: responsaveisFixosIds = [] } = useCoordenadoresDaCoordenacao(
+    coordenacaoId || null,
+    "PARCELAMENTO",
+  );
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
+    coordenacaoId || null,
+    "PARCELAMENTO",
+  );
+  const coordenadoresIds = Array.from(
+    new Set([...responsaveisFixosIds, ...envolvidosFixosIds]),
+  );
   const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "PARCELAMENTO");
 
   const [formData, setFormData] = useState({

@@ -240,6 +240,7 @@ export function NovaTarefaDialog({
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    setMostrarEnvolvidos(true);
     setEnvolvidosIds((prev) => {
       const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
       return faltando.length > 0 ? [...prev, ...faltando] : prev;
@@ -1145,6 +1146,7 @@ export function NovaTarefaDialog({
                   <>
                     <div className="flex items-center justify-between">
                       <Label className="text-sm">Envolvidos (acompanham)</Label>
+                      {envolvidosFixosIds.length === 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1155,14 +1157,25 @@ export function NovaTarefaDialog({
                       >
                         Ocultar
                       </button>
+                      )}
                     </div>
                     <PeoplePicker
                       selectedIds={envolvidosIds}
-                      onChange={setEnvolvidosIds}
+                      onChange={(ids) =>
+                        setEnvolvidosIds(
+                          Array.from(new Set([...envolvidosFixosIds, ...ids])),
+                        )
+                      }
                       placeholder="Adicionar colaborador"
                       emptyLabel="Apenas para acompanhamento"
                       icon="users"
+                      lockedIds={envolvidosFixosIds}
                     />
+                    {envolvidosFixosIds.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Envolvidos fixos configurados para este tipo não podem ser removidos.
+                      </p>
+                    )}
                   </>
                 )}
               </div>

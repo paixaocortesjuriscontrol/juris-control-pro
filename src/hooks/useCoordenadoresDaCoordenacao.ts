@@ -4,6 +4,25 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 
 /**
+ * Normaliza o tipo do item para as chaves usadas na tela
+ * "Pessoas fixas por tipo de tarefa": PRAZO, TAREFA, AUDIÊNCIA,
+ * PARCELAMENTO e EVENTO.
+ */
+export function normalizarTipoFixos(tipo?: string | null): string | null {
+  if (!tipo) return null;
+  const t = tipo
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (t.includes("AUDIENCIA")) return "AUDIÊNCIA";
+  if (t.includes("PARCELA")) return "PARCELAMENTO";
+  if (t.includes("PRAZO")) return "PRAZO";
+  if (t.includes("EVENTO") || t === "OUTROS") return "EVENTO";
+  return "TAREFA";
+}
+
+/**
  * Retorna os fixos configurados (responsáveis e envolvidos) para a coordenação
  * e o tipo do item.
  */
@@ -13,10 +32,11 @@ export function useFixosDoTipoCoordenacao(
 ) {
   const { user } = useAuth();
   const { isAdmin, loading: roleLoading } = useUserRole();
+  const tipoNormalizado = normalizarTipoFixos(tipoTarefa);
 
   return useQuery({
-    queryKey: ["fixos-tipo-coordenacao", coordenacaoId, tipoTarefa, user?.id, isAdmin],
-    enabled: !!coordenacaoId && !!tipoTarefa && !!user?.id && !roleLoading,
+    queryKey: ["fixos-tipo-coordenacao", coordenacaoId, tipoNormalizado, user?.id, isAdmin],
+    enabled: !!coordenacaoId && !!tipoNormalizado && !!user?.id && !roleLoading,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<{ responsaveis: string[]; envolvidos: string[] }> => {
       const vazio = { responsaveis: [] as string[], envolvidos: [] as string[] };
@@ -43,7 +63,7 @@ export function useFixosDoTipoCoordenacao(
         .from("responsaveis_fixos_tipo_tarefa")
         .select("responsaveis, envolvidos")
         .eq("coordenacao_id", coordenacaoId!)
-        .eq("tipo_tarefa", tipoTarefa!.trim().toUpperCase())
+        .eq("tipo_tarefa", tipoNormalizado!)
         .maybeSingle();
       if (error) throw error;
       return {

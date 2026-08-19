@@ -164,6 +164,7 @@ export function AudienciaFormSimplificado({
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    setMostrarEnvolvidos(true);
     setEnvolvidosIds((prev) => {
       const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
       return faltando.length > 0 ? [...prev, ...faltando] : prev;
@@ -802,6 +803,7 @@ export function AudienciaFormSimplificado({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label className="text-sm">Envolvidos (acompanham)</Label>
+            {envolvidosFixosIds.length === 0 && (
             <button
               type="button"
               onClick={() => {
@@ -812,14 +814,21 @@ export function AudienciaFormSimplificado({
             >
               Ocultar
             </button>
+            )}
           </div>
           <PeoplePicker
             selectedIds={envolvidosIds}
-            onChange={setEnvolvidosIds}
+            onChange={(ids) => setEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
             placeholder="Adicionar envolvido"
             emptyLabel="Apenas para acompanhamento"
             icon="users"
+            lockedIds={envolvidosFixosIds}
           />
+          {envolvidosFixosIds.length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Envolvidos fixos configurados para Audiência não podem ser removidos.
+            </p>
+          )}
         </div>
       )}
 
