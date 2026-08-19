@@ -92,6 +92,7 @@ const RATE_LIMIT_PAUSE_MS = Math.max(1000, Number(process.env.PARALELA_RATE_LIMI
 //    um teto absoluto, em vez de cortar uma busca produtiva pela metade.
 const UNIT_BUDGET_MAX_MS = Math.max(
   SLOW_TRIBUNAL_BUDGET_MS,
+  TST_UNIT_BUDGET_MS,
   Number(process.env.PARALELA_UNIT_BUDGET_MAX_MS || 240000),
 );
 const UNIT_PROGRESS_GRACE_MS = Math.max(
