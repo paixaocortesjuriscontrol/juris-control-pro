@@ -76,7 +76,17 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { podeCancelar } = usePodeCancelarItens();
   const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario, isAdmin } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
-  const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "OUTROS");
+  const { data: responsaveisFixosIds = [] } = useCoordenadoresDaCoordenacao(
+    coordenacaoId || null,
+    "PARCELAMENTO",
+  );
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
+    coordenacaoId || null,
+    "PARCELAMENTO",
+  );
+  const coordenadoresIds = Array.from(
+    new Set([...responsaveisFixosIds, ...envolvidosFixosIds]),
+  );
   const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "PARCELAMENTO");
 
   const [formData, setFormData] = useState({
