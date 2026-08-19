@@ -9,6 +9,16 @@ export type TipoEngineLocal =
   | "servidor-pautas"
   | "stf";
 
+export interface FalhaTribunalResumo {
+  tribunal: string;
+  unidades?: number;
+  pendentes?: number;
+  abandonadas?: number;
+  ultimo_erro?: string | null;
+  segundos?: number;
+  timeouts?: number;
+}
+
 export interface ExecucaoResumo {
   id: string;
   iniciado_em: string;
@@ -17,6 +27,14 @@ export interface ExecucaoResumo {
   /** Rodada servidor encerrada com unidades sem coleta */
   parcial?: boolean;
   unidadesNaoColetadas?: number;
+  /** Tribunais que ficaram sem coleta (quando a rodada é parcial) */
+  falhasPorTribunal?: FalhaTribunalResumo[];
+  /** Resumo do diagnóstico da rodada (erros 5xx, 429, tempo por tribunal) */
+  diagnostico?: {
+    erros_5xx?: number;
+    rate_limit_429?: number;
+    topTribunais?: { tribunal: string; segundos: number; timeouts: number }[];
+  };
 }
 
 export interface Celula {
