@@ -235,11 +235,20 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                             key={c.execId}
                             className="text-center whitespace-nowrap text-sm"
                           >
-                            <div className="flex items-center justify-center gap-1.5">
+                            <div
+                              className="flex items-center justify-center gap-1.5"
+                              title={`${c.total} publicação(ões) vista(s) nesta execução · ${c.novas} nova(s) em relação às execuções anteriores do dia`}
+                            >
                               <span className="text-foreground">{c.total}</span>
-                              {!isFirstNonZero && c.novas > 0 && (
-                                <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
-                                  +{c.novas}
+                              {!isFirstNonZero && (
+                                <span
+                                  className={
+                                    c.novas > 0
+                                      ? "text-[11px] font-semibold text-emerald-700 dark:text-emerald-400"
+                                      : "text-[11px] text-muted-foreground"
+                                  }
+                                >
+                                  +{c.novas} novas
                                 </span>
                               )}
                             </div>
@@ -266,9 +275,15 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                         className="text-center text-sm font-semibold"
                       >
                         {t.total}
-                        {idx > 0 && t.novas > 0 && (
-                          <span className="ml-1 text-[11px] text-emerald-700 dark:text-emerald-400">
-                            +{t.novas}
+                        {idx > 0 && (
+                          <span
+                            className={
+                              t.novas > 0
+                                ? "ml-1 text-[11px] text-emerald-700 dark:text-emerald-400"
+                                : "ml-1 text-[11px] text-muted-foreground"
+                            }
+                          >
+                            +{t.novas} novas
                           </span>
                         )}
                       </TableCell>
@@ -280,9 +295,13 @@ export function ExecucoesDoDiaAdminCard({ dataYmd }: Props) {
                 </TableFooter>
               </Table>
               <p className="text-[11px] text-muted-foreground mt-2">
-                <strong className="text-emerald-700 dark:text-emerald-400">+N</strong>{" "}
-                = publicações vistas pela 1ª vez naquela execução, dentro da
-                coordenação (comparado às execuções anteriores do mesmo dia).
+                O número maior é o total de publicações <strong>vistas</strong> na
+                execução;{" "}
+                <strong className="text-emerald-700 dark:text-emerald-400">+N novas</strong>{" "}
+                são as vistas pela 1ª vez naquela execução, dentro da coordenação
+                (comparado às execuções anteriores do mesmo dia). Rodadas com{" "}
+                <strong>+0 novas</strong> repetem o mesmo conjunto do diário — é o
+                comportamento esperado, não erro de contagem.
               </p>
             </div>
           )}
