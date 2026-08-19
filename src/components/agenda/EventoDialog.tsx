@@ -810,6 +810,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-sm">Envolvidos (acompanham)</Label>
+                  {envolvidosFixosIds.length === 0 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -820,15 +821,22 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   >
                     Remover
                   </button>
+                  )}
                 </div>
                 <div className="mt-1.5">
                   <PeoplePicker
                     selectedIds={envolvidosIds}
-                    onChange={setEnvolvidosIds}
+                    onChange={(ids) => setEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
                     placeholder="Adicionar envolvido"
                     emptyLabel="Nenhum envolvido selecionado"
                     icon="users"
+                    lockedIds={envolvidosFixosIds}
                   />
+                  {envolvidosFixosIds.length > 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      Envolvidos fixos configurados para Evento não podem ser removidos.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
