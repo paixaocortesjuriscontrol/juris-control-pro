@@ -2395,7 +2395,10 @@ async function run({ sb, payload, log, job }) {
       if (injetadas > 0) {
         log("paralela.drenagem_final", { unidades: injetadas });
         await flushProgresso(true);
-        await Promise.all(slots.map((slot) => worker(slot)));
+        // Concorrência reduzida (1 VPS por vez) para não provocar nova onda de
+        // 429/5xx exatamente nas unidades que já vinham falhando.
+        const slotsDrenagem = slots.slice(0, 1);
+        await Promise.all(slotsDrenagem.map((slot) => worker(slot)));
       }
     } catch (e) {
       log("paralela.drenagem_final_error", { e: String(e?.message || e).slice(0, 300) });
@@ -2417,12 +2420,22 @@ async function run({ sb, payload, log, job }) {
   const diagnostico = diagnosticoRodada();
   // Unidades (tribunal × monitoramento) que seguem sem coleta no dia BRT.
   let unidadesNaoColetadas = 0;
+  let detalheNaoColetadas = [];
   if (!cancelled) {
     unidadesNaoColetadas = await contarFalhasNaoColetadas(sb, TIPO_ENGINE).catch(() => 0);
+    if (unidadesNaoColetadas > 0) {
+      detalheNaoColetadas = await listarFalhasNaoColetadas(sb, TIPO_ENGINE).catch(() => []);
+    }
   }
   diagnostico.unidades_nao_coletadas = unidadesNaoColetadas;
+  diagnostico.unidades_nao_coletadas_detalhe = detalheNaoColetadas;
   const parcial = !cancelled && unidadesNaoColetadas > 0;
-  if (parcial) log("paralela.parcial", { unidades_nao_coletadas: unidadesNaoColetadas });
+  if (parcial) {
+    log("paralela.parcial", {
+      unidades_nao_coletadas: unidadesNaoColetadas,
+      detalhe: detalheNaoColetadas,
+    });
+  }
   log("paralela.done", { monitoramentos: itens.length, novas: totalNovas, descartadas: totalDescartadas, duplicatas: totalDuplicatas, erros: totalErros, falhas_por_tribunal: falhasPorTribunal, tempo_gasto_em_retries_ms: tempoEmFalhasMs, unidades_estouradas: unidadesEstouradas });
   // Diagnóstico: prova onde o tempo foi gasto (tribunal x rate limit x rede).
   log("paralela.diagnostico", diagnostico);
@@ -2451,6 +2464,7 @@ async function run({ sb, payload, log, job }) {
     cancelado: cancelled,
     parcial,
     unidades_nao_coletadas: unidadesNaoColetadas,
+    unidades_nao_coletadas_detalhe: detalheNaoColetadas,
     falhas_por_tribunal: falhasPorTribunal,
     tempo_gasto_em_retries_ms: tempoEmFalhasMs,
     unidades_estouradas: unidadesEstouradas,
