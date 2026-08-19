@@ -85,7 +85,7 @@ import {
 import { cn } from "@/lib/utils";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { useCoordenadoresDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
