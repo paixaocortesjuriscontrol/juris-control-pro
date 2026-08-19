@@ -149,6 +149,8 @@ export function useExecucoesDoDiaPorCoordenacao(
         fonte: "local" | "servidor";
         parcial?: boolean;
         unidadesNaoColetadas?: number;
+        falhasPorTribunal?: FalhaTribunalResumo[];
+        diagnostico?: ExecucaoResumo["diagnostico"];
       };
 
       const locais: ExecInterna[] = (execsLocal || []).map((e: any) => ({
@@ -176,6 +178,18 @@ export function useExecucoesDoDiaPorCoordenacao(
               e?.resultado?.diagnostico?.unidades_nao_coletadas ??
               0,
           ),
+          falhasPorTribunal: extrairFalhasPorTribunal(e?.resultado),
+          diagnostico: {
+            erros_5xx: Number(e?.resultado?.diagnostico?.erros_5xx ?? 0),
+            rate_limit_429: Number(e?.resultado?.diagnostico?.rate_limit_429 ?? 0),
+            topTribunais: Array.isArray(e?.resultado?.diagnostico?.top_tribunais_por_tempo)
+              ? e.resultado.diagnostico.top_tribunais_por_tempo.slice(0, 3).map((t: any) => ({
+                  tribunal: String(t?.tribunal || "?"),
+                  segundos: Number(t?.segundos || 0),
+                  timeouts: Number(t?.timeouts || 0),
+                }))
+              : [],
+          },
           parcial:
             e.status === "concluido_parcial" ||
             Number(
@@ -328,6 +342,8 @@ export function useExecucoesDoDiaPorCoordenacao(
           tipoEngine: e.tipoEngine,
           parcial: e.parcial,
           unidadesNaoColetadas: e.unidadesNaoColetadas,
+          falhasPorTribunal: e.falhasPorTribunal,
+          diagnostico: e.diagnostico,
         })),
         linhas,
       };
