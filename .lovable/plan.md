@@ -1,31 +1,62 @@
-# DJEN Termos Servidor: totais iguais e "parcial (1)" sempre no mesmo tribunal
+# Ajustes no alerta e na tabela de execuções do DJEN Termos Servidor
 
-## O que os dados mostram (verificado hoje, 19/08/2026)
+## Contexto
+As execuções de Termos do servidor terminam como `concluido_parcial` sempre com a mesma unidade do TST não coletada. Hoje a tabela de execuções mostra totais idênticos (ex.: 2.025 em todas as rodadas), o que parece estranho, mas explica-se: o diário do dia sai completo na primeira rodada e as rodadas seguintes reencontram as mesmas publicações. Já o "parcial (1)" não diz qual tribunal falhou, e os alertas técnicos precisam ser encaminhados somente ao suporte.
 
-Houve 3 rodadas de Termos no servidor: 04:30, 10:00 e 17:00 (BRT). As três terminaram com status `concluido_parcial` e `unidades_nao_coletadas = 1`.
+## O que será feito
 
-- **Totais iguais são reais, não erro de contagem.** As 2.025 publicações vinculadas a cada rodada são exatamente as mesmas (todas as 2.025 estão ligadas às 3 rodadas) e todas foram criadas na rodada das 04:30. O resultado da rodada das 17:00 registra `novas: 0` e `duplicatas: 2039`. Ou seja: o diário do dia já sai completo de manhã e as rodadas seguintes reencontram o mesmo conjunto. O problema é de **leitura da tela**: a coluna mostra "publicações vistas" e não "publicações novas", então parece que nada foi comparado.
-- **O "parcial (1)" é sempre o TST.** Em todas as rodadas o campo `falhas_por_tribunal` aponta o TST (2 falhas às 04:30, 1 às 17:00), com 36 a 72 erros 5xx e o TST consumindo 583–672 segundos (o dobro do 2º colocado). Nenhum erro 429 e nenhuma unidade estourada. É sempre a mesma unidade do TST que não fecha a coleta — o badge hoje não diz qual, então parece um número solto.
-- **O e-mail de diferença entre execuções não está sendo disparado.** A função de alerta só considera execuções com status `concluido`; como as 3 rodadas de Termos ficaram `concluido_parcial`, ela registrou "execuções Termos: 0" e não comparou nada.
+### 1. Tabela de execuções mais clara (Análise DJEN)
+- Mostrar, em cada célula, **publicações vistas** e **publicações novas**.
+- Exemplo: `720 · +0 novas` para deixar explícito que a rodada não trouxe novidade.
+- Isso evita que totais iguais pareçam erro de contagem.
 
-## O que muda
+### 2. Badge "parcial" com explicação
+- Ao passar o mouse sobre o badge, exibir:
+  - tribunal que ficou pendente (ex.: TST);
+  - quantidade de falhas;
+  - erros 5xx;
+  - tempo consumido por aquele tribunal.
+- Dados virão do campo `falhas_por_tribunal` / `diagnostico` já gravado na execução.
 
-1. **Deixar claro o que cada número é** na tabela de execuções da Análise DJEN: cada célula mostra "vistas" e "novas" com legenda, para que rodadas sem novidade fiquem explícitas (ex.: `720 · +0 novas`) em vez de parecerem repetição suspeita.
-2. **Badge "parcial" explicado**: passar a mostrar, ao passar o mouse, o tribunal responsável, quantas falhas, erros 5xx e o tempo gasto — usando os dados que já existem no resultado da execução (`falhas_por_tribunal`, `diagnostico`).
-3. **E-mail de diferença entre execuções fica como está hoje** (só rodadas `concluido`, destinatários atuais). Rodadas parciais **não** vão para advogados/coordenadores.
-4. **Problemas de execução vão só para o suporte**: todo aviso técnico (rodada parcial, tribunal falhando em todas as rodadas do dia, erros 5xx/timeouts) é enviado exclusivamente para `suporte@paixaocortes.adv.br`, no e-mail de saúde já existente.
-5. **Mitigação do TST no worker** — o que é e por que é fora deste projeto:
-   - O motor que efetivamente consulta o DJEN não roda aqui no Supabase: roda em Node nas VPS/Hostinger (pasta `monitor-servidor/`, serviço `djen-proxy`/PM2). É esse código que divide os termos em "unidades" por tribunal, controla o orçamento de tempo de cada unidade e decide se refila ou desiste.
-   - Hoje o TST recebe o mesmo orçamento dos demais tribunais (~90s por unidade), mas consome de 583 a 672 segundos e devolve muitos 5xx. Quando o orçamento estoura, a unidade é abandonada e a rodada fecha com `unidades_nao_coletadas = 1` — é exatamente o "parcial (1)" que aparece na tela todos os dias, sempre no TST.
-   - A alteração: (a) orçamento próprio e maior para o TST, em vez do valor único global; (b) *drenagem final*: antes de encerrar a rodada, tentar mais uma vez somente as unidades que ficaram pendentes, com concorrência reduzida (1 requisição por vez) para não levar novo 5xx; (c) registrar no diagnóstico qual unidade ficou de fora, para o alerta de suporte citar o motivo.
-   - Como entra em produção: eu edito os arquivos em `monitor-servidor/` aqui no repositório; nas VPS é preciso `git pull` + `pm2 restart` (ou `systemctl restart djen-proxy`) para o código novo passar a valer. Entrego o roteiro de comandos junto. Sem esse passo manual nas VPS, a correção não tem efeito e o parcial do TST continua todo dia.
+### 3. Alerta de diferença entre execuções continua como está
+- Mantém o filtro atual: só considera rodadas com status `concluido`.
+- Não envia rodadas `concluido_parcial` para advogados/coordenadores.
+- Destinatários e assunto permanecem os mesmos.
 
-## Detalhes técnicos
+### 4. Problemas de execução só para suporte
+- Todos os avisos técnicos (rodadas parciais, tribunal falhando em todas as rodadas do dia, erros 5xx/timeouts) são enviados exclusivamente para `suporte@paixaocortes.adv.br`.
+- A função `verificar-saude-pool-djen` ganha uma checagem extra: se o mesmo tribunal ficar parcial em todas as rodadas de Termos do dia, incluir essa informação no corpo do e-mail de saúde.
 
-- `src/hooks/useExecucoesDoDiaPorCoordenacao.ts`: já calcula `total` e `novas` por célula; expor também `falhasPorTribunal` e um resumo do diagnóstico por execução.
-- `src/pages/AnaliseDjen.tsx` (tabela de execuções do dia): renderizar "vistas · +novas", legenda e tooltip do badge parcial.
-- `supabase/functions/alertar-diferenca-djen-termos/index.ts`: **sem alteração** — segue só com `status = 'concluido'` e os destinatários atuais.
-- `supabase/functions/verificar-saude-pool-djen`: acrescentar a checagem de "mesmo tribunal parcial em todas as rodadas do dia" e enviar apenas para `suporte@paixaocortes.adv.br` (destinatário já fixo nessa função).
-- `monitor-servidor/` (worker das VPS): orçamento dedicado ao TST, drenagem final das unidades pendentes com concorrência 1 e registro da unidade faltante no diagnóstico.
-- Observação de dado: hoje `publicacoes_djen_servidor` tem 2.029 registros do dia e `publicacoes_djen` tem 1.913 — a tela de execuções conta a primeira e o alerta conta a segunda. Vou alinhar a fonte de contagem das duas para evitar divergência de números entre tela e e-mail.
-- Sem alterações de schema.
+### 5. Mitigação do TST no worker (fora deste projeto)
+
+O motor que consulta o DJEN não roda no Supabase; ele roda em Node nas VPS/Hostinger (pasta `monitor-servidor/`, serviço `djen-proxy` gerido por PM2/systemd). É esse código que:
+- divide os termos em unidades por tribunal;
+- define quanto tempo cada unidade pode rodar (orçamento);
+- decide se refila ou desiste quando dá erro.
+
+Por que o TST dá "parcial (1)" todo dia:
+- O TST está recebendo o mesmo orçamento dos outros tribunais (~90s por unidade), mas leva de 583 a 672 segundos e devolve muitos erros 5xx.
+- Quando o orçamento acaba, a unidade é abandonada. A rodada fecha com `unidades_nao_coletadas = 1`, e o badge mostra "parcial (1)" sem dizer qual tribunal foi.
+- Não é um bug na contagem da tela; é o worker que não consegue terminar a coleta do TST dentro do tempo.
+
+O que será alterado no worker:
+- **Orçamento dedicado ao TST**: dar mais tempo e uma fila própria ao TST, em vez de usar o mesmo limite de todos os tribunais.
+- **Drenagem final**: antes de encerrar a rodada, tentar mais uma vez somente as unidades que ficaram pendentes, com uma concorrência reduzida (1 requisição por vez), para não provocar novos 5xx.
+- **Diagnóstico detalhado**: registrar qual unidade/unidades ficaram de fora e o motivo, para o alerta de suporte citar exatamente o tribunal e o problema.
+
+Como essa mudança entra em produção:
+- O código do worker fica em `monitor-servidor/`. Eu edito esses arquivos no repositório.
+- Nas VPS/Hostinger é preciso executar `git pull` + `pm2 restart` (ou `systemctl restart djen-proxy`) para o código novo passar a valer.
+- Sem esse passo manual nas VPS, o parcial do TST continuará aparecendo todo dia.
+- Entrego junto o roteiro de comandos para cada VPS.
+
+## Arquivos que serão alterados
+- `src/hooks/useExecucoesDoDiaPorCoordenacao.ts` — expor `falhasPorTribunal` e diagnóstico da execução.
+- `src/pages/AnaliseDjen.tsx` — renderizar "vistas · +novas" e tooltip no badge parcial.
+- `supabase/functions/verificar-saude-pool-djen/index.ts` — detectar tribunal parcial em todas as rodadas do dia e enviar apenas para `suporte@paixaocortes.adv.br`.
+- `monitor-servidor/engines/...` — orçamento dedicado ao TST, drenagem final e diagnóstico detalhado.
+
+## O que não muda
+- O alerta de diferença entre execuções (`alertar-diferenca-djen-termos`) não será alterado.
+- Não haverá mudança de schema no banco.
+- Advogados e coordenadores não receberão avisos técnicos de rodadas parciais.
