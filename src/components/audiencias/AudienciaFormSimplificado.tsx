@@ -35,6 +35,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
+import { VincularAudienciaAnterior } from "./VincularAudienciaAnterior";
 
 type Props = {
   defaultProcessoNumero?: string;
