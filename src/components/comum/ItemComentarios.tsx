@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTextarea";
 import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Trash2, MessageSquare } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -127,7 +126,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
         <h4 className="text-sm font-semibold">Comentários</h4>
       </div>
 
-      <ScrollArea className="pr-3 mb-3 max-h-56">
+      <div className="pr-3 mb-3 max-h-56 overflow-y-auto overscroll-contain">
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -178,7 +177,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
             })}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       <div className="flex gap-2">
         <MencaoTextarea

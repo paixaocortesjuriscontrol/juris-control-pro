@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTextarea";
 import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -141,7 +140,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
     <div className={cn("flex flex-col", className)}>
       <h4 className="font-medium text-sm mb-3">Comentários e Conversas</h4>
       
-      <ScrollArea className="flex-1 pr-4 mb-4 max-h-64">
+      <div className="flex-1 min-h-0 pr-4 mb-4 max-h-64 overflow-y-auto overscroll-contain">
         {isLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -203,7 +202,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
             })}
           </div>
         )}
-      </ScrollArea>
+      </div>
 
       <form onSubmit={handleSubmit} className="flex gap-2">
         <MencaoTextarea
