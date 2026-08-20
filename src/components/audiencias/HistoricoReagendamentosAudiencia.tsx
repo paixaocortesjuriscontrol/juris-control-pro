@@ -34,7 +34,7 @@ export function HistoricoReagendamentosAudiencia({ audienciaId }: Props) {
   return (
     <div className="border-t pt-4 mt-4">
       <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
-        <History className="h-4 w-4" /> Histórico de reagendamentos ({data.length})
+        <History className="h-4 w-4" /> Histórico de alterações da audiência ({data.length})
       </h3>
       <div className="space-y-2 text-xs">
         {data.map((h: any) => (

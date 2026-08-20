@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.log_reagendamento_audiencia() FROM anon, authenticated;
