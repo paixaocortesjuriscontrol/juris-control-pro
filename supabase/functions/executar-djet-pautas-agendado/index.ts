@@ -547,6 +547,11 @@ async function runJob(
           let ultimoStatus = 0;
           let falhouChunk = false;
           let cadernoNaoAtualizado: { lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
+          // Edição efetivamente servida pelo portal (data de disponibilização
+          // lida dentro do PDF) e se ela já foi processada antes.
+          let edicaoDetectada: string | null = null;
+          let edicaoJaProcessada = false;
+
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
