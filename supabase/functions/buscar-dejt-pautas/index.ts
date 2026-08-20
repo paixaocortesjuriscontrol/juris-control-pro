@@ -624,7 +624,7 @@ Deno.serve(async (req) => {
     }
 
     // 1) Baixa PDF (com fallback de URLs)
-    const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno);
+    const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno, body.aceitarEdicaoVigente === true);
     if (!fetched.ok) {
       return new Response(
         JSON.stringify({
