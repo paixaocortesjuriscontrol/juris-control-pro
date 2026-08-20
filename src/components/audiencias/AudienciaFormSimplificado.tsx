@@ -151,6 +151,9 @@ export function AudienciaFormSimplificado({
   );
   const [processoId, setProcessoId] = useState<string | undefined>(audienciaParaEditar?.processo_id ?? defaultProcessoId);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [originadaDe, setOriginadaDe] = useState<string>(
+    (audienciaParaEditar as any)?.originada_de ?? "",
+  );
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
@@ -391,6 +394,7 @@ export function AudienciaFormSimplificado({
       // tabela só aceita "manual" ou "detectado"); o vínculo com a publicação
       // é registrado em publicacao_id e nas tabelas de junção.
       origem: undefined,
+      originada_de: originadaDe || undefined,
       publicacao_id: publicacaoId && publicacaoTipoOrigem === "termo" ? publicacaoId : undefined,
       conteudo_publicacao: publicacaoConteudo || undefined,
     };
