@@ -694,8 +694,15 @@ async function runJob(
       // Tribunal finalizado: se houve erro em qualquer dia, mantém vermelho no painel.
       if (item.status !== "cancelado") {
         item.status = item.ultimoErro ? "erro" : "concluido";
+        const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
+        const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (edicaoLida && atrasoDias > 2) {
+          // Portal do DEJT está servindo edição antiga neste tribunal.
+          item.mensagem = `Fonte atrasada — última edição ${edicaoLida} · ${item.novas} nova(s)`;
+        } else if (edicaoLida) {
+          item.mensagem = `Edição ${edicaoLida} processada · ${item.novas} nova(s)`;
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
           // Todos os dias da janela vieram sem caderno publicado — não mascarar
           // como "Concluído · 0 nova(s)".
@@ -706,6 +713,7 @@ async function runJob(
           item.mensagem = `Concluído · ${item.novas} nova(s)`;
         }
       }
+
       await flushProgresso(true);
     }
 
