@@ -836,6 +836,14 @@ export function AudienciaFormSimplificado({
         </div>
       )}
 
+      <VincularAudienciaAnterior
+        processoId={processoId}
+        processoNumero={processoNumero}
+        audienciaId={audienciaParaEditar?.id ?? null}
+        value={originadaDe}
+        onChange={setOriginadaDe}
+      />
+
       <div className="space-y-1.5">
         <Label className="text-sm">Observações</Label>
         <Textarea
