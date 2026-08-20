@@ -48,7 +48,12 @@ interface RequestBody {
   // Se omitidos, processa o PDF inteiro (comportamento legado).
   pageStart?: number;        // 1-based, inclusive
   pageEnd?: number;          // 1-based, inclusive
+  // Motor Pautas Servidor: aceita a edição vigente que o DEJT expõe no caminho
+  // fixo mesmo quando a data interna difere da pedida. O consumidor decide se
+  // processa (controle por tribunal + data de disponibilização já processada).
+  aceitarEdicaoVigente?: boolean;
 }
+
 
 interface MatchOut {
   monitoramentoId: string;
