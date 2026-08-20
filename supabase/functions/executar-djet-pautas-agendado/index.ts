@@ -124,6 +124,8 @@ type ProgressoPautaItem = {
   duplicatas: number;
   descartadas: number;
   diasSemPdf: number;
+  /** Data (YMD) da edição do caderno efetivamente lida nesta rodada. */
+  edicao?: string | null;
 };
 
 function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
@@ -141,8 +143,23 @@ function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
     duplicatas: 0,
     descartadas: 0,
     diasSemPdf: 0,
+    edicao: null,
   }));
 }
+
+/** Dias úteis (seg-sex) entre duas datas YMD. */
+function diasUteisEntre(deYmd: string, ateYmd: string): number {
+  const de = new Date(`${deYmd}T12:00:00Z`);
+  const ate = new Date(`${ateYmd}T12:00:00Z`);
+  if (Number.isNaN(de.getTime()) || Number.isNaN(ate.getTime()) || de >= ate) return 0;
+  let n = 0;
+  for (const d = new Date(de); d < ate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) n++;
+  }
+  return n;
+}
+
 
 function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[], ymd: string) {
   const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
