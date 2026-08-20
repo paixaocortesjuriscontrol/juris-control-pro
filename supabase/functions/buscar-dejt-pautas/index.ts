@@ -383,10 +383,12 @@ async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
   caderno: DejtCaderno,
+  aceitarEdicaoVigente = false,
 ): Promise<
   | { ok: true; bytes: Uint8Array; lastModified: string | null; dataDisponibilizacao: string | null; dataPublicacaoLegal: string | null }
   | { ok: false; reason: string; lastModified?: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null }
 > {
+
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
   if (urls.length === 0) {
     return { ok: false, reason: "tribunal-sem-url" };
