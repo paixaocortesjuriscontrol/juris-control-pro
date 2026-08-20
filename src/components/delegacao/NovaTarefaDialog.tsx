@@ -238,24 +238,25 @@ export function NovaTarefaDialog({
   const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
+  // Reaplica os fixos sempre que faltar algum (o reset do formulário pode
+  // ocorrer depois do carregamento dos fixos e limpar a seleção).
   useEffect(() => {
-    if (envolvidosFixosIds.length === 0) return;
+    if (!open || envolvidosFixosIds.length === 0) return;
+    const faltando = envolvidosFixosIds.filter((id) => !envolvidosIds.includes(id));
+    if (faltando.length === 0) return;
     setMostrarEnvolvidos(true);
-    setEnvolvidosIds((prev) => {
-      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(envolvidosFixosIds)]);
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [open, JSON.stringify(envolvidosFixosIds), JSON.stringify(envolvidosIds)]);
   useEffect(() => {
-    if (coordenadoresIds.length === 0) return;
+    if (!open || coordenadoresIds.length === 0) return;
+    const faltando = coordenadoresIds.filter((id) => !responsaveisIds.includes(id));
+    if (faltando.length === 0) return;
     setResponsaveisIds((prev) => {
-      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
-      if (faltando.length === 0) return prev;
-      const novos = [...prev, ...faltando];
+      const novos = Array.from(new Set([...prev, ...coordenadoresIds]));
       if (!form.getValues("responsavel_id")) form.setValue("responsavel_id", novos[0]);
       return novos;
     });
-  }, [JSON.stringify(coordenadoresIds)]);
+  }, [open, JSON.stringify(coordenadoresIds), JSON.stringify(responsaveisIds)]);
   const forcarVinculoPublicacao = !!publicacao;
 
   // Fetch processos based on coordination and search
