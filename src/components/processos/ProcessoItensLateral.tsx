@@ -10,6 +10,7 @@ import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInlin
 import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
+import { dataInicioAudiencia } from "@/utils/date";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const soData = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
