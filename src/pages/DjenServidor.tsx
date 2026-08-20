@@ -175,6 +175,12 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   const novasProgresso = Math.max(sumNovas, Number(progresso?.novas) || 0, Number(exec?.resultado?.novas) || 0);
   const duplicadasProgresso = Math.max(sumDup, Number(progresso?.duplicatas) || 0, Number(exec?.resultado?.duplicatas) || 0);
   const descartadasProgresso = Math.max(sumDesc, Number(progresso?.descartadas) || 0, Number(exec?.resultado?.descartadas) || 0);
+  const encontradasProgresso = cfg.tipo === "djet_pautas_servidor"
+    ? Math.max(
+        novasProgresso + duplicadasProgresso,
+        Number(exec?.resultado?.encontradas) || 0,
+      )
+    : novasProgresso;
 
   const handleRun = () => {
     if (!dataInicio || !dataFim) return;
@@ -347,8 +353,11 @@ function EngineCard({ cfg, onToggle, onConfig }: {
             </div>
             <Progress value={pct} className="h-2" />
             <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+              {cfg.tipo === "djet_pautas_servidor" && (
+                <span>🔎 Encontradas: <strong>{encontradasProgresso}</strong></span>
+              )}
               <span>✅ Novas: <strong className="text-[hsl(var(--status-active))]">{novasProgresso}</strong></span>
-              <span>♻️ Duplicadas: <strong>{duplicadasProgresso}</strong></span>
+              <span>♻️ {cfg.tipo === "djet_pautas_servidor" ? "Já existentes" : "Duplicadas"}: <strong>{duplicadasProgresso}</strong></span>
               <span>❌ Descartadas: <strong>{descartadasProgresso}</strong></span>
             </div>
             {progresso?.atual && (
