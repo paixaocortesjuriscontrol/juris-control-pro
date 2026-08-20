@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 import { format } from "date-fns";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
+import { dataInicioAudiencia } from "@/utils/date";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
