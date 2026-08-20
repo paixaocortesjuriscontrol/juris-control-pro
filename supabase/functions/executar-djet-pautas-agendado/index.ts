@@ -407,6 +407,29 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+
+  // ── Motor Servidor: aceita a edição vigente do DEJT (o portal serve só o
+  // caderno atual num caminho fixo, muitas vezes atrasado alguns dias) e usa
+  // o controle de "edição já processada" por tribunal para não reprocessar.
+  const aceitarEdicaoVigente = persistMode === "servidor";
+  const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
+  const edicoesProcessadas: Record<string, string> = {};
+  let configMetadata: Record<string, unknown> = {};
+  if (aceitarEdicaoVigente) {
+    const { data: cfgRow } = await supabase
+      .from(configTable)
+      .select("metadata")
+      .eq("tipo", configTipo)
+      .maybeSingle();
+    configMetadata = (cfgRow?.metadata as Record<string, unknown> | null) || {};
+    const prev = configMetadata.edicoes_processadas as Record<string, unknown> | undefined;
+    if (prev && typeof prev === "object") {
+      for (const [trib, val] of Object.entries(prev)) {
+        if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) edicoesProcessadas[trib] = val;
+      }
+    }
+  }
+
   const filtroDetalhes = {
     scheduler_slot: options.schedulerSlot || null,
     filtro: {
