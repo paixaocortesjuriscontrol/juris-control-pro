@@ -69,6 +69,8 @@ export interface ProgressoItem {
   descartadas?: number;
   duplicatas?: number;
   diasSemPdf?: number;
+  /** Pautas Servidor: data (YMD) da edição do caderno DEJT efetivamente lida. */
+  edicao?: string | null;
   via?: {
     id?: string;
     label?: string;
