@@ -208,15 +208,23 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
         updates.observacoes = observacoes;
       }
 
-      const { error } = await supabase
+      const { data: atualizadas, error } = await supabase
         .from('audiencias_detectadas')
         .update(updates)
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+      if (!atualizadas || atualizadas.length === 0) {
+        throw new Error('Nenhum registro atualizado — verifique suas permissões nesta audiência.');
+      }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-processo'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-stats'], refetchType: 'all' }),
+      ]);
       toast.success('Audiência atualizada!');
     },
     onError: (error) => {
@@ -396,10 +404,12 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       return audienciaCriada;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-processo'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-stats'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-processo'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-stats'], refetchType: 'all' }),
+      ]);
       toast.success('Audiência cadastrada com sucesso!');
     },
     onError: (error) => {
