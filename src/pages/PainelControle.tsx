@@ -1696,6 +1696,7 @@ export default function PainelControle() {
         data_inicio: dataInicioAudiencia(a.data_audiencia, a) ?? a.data_audiencia,
         data_fim: null,
         dia_inteiro: !a.hora,
+        hora_prevista: a.hora ?? null,
         local: a.local_audiencia || a.forum || null,
         recorrente: false,
         status: a.status === "cumprido" ? "concluido" : a.status || "pendente",

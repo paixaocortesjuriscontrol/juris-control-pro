@@ -1022,6 +1022,7 @@ export async function fetchAgendaPage(
               data_inicio: dataInicioAud,
               data_fim: null,
               dia_inteiro: !aud.hora,
+              hora_prevista: aud.hora ?? null,
               local: aud.local_audiencia || aud.forum || null,
               recorrente: false,
               recorrencia_tipo: null,
