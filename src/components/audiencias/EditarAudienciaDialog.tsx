@@ -622,6 +622,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
       audiencia={audiencia}
       open={reagendarModo !== null}
       onOpenChange={(o) => { if (!o) setReagendarModo(null); }}
+      onSuccess={() => onOpenChange(false)}
       modo={reagendarModo ?? "reagendar"}
       invalidateKey={invalidateKey}
     />
