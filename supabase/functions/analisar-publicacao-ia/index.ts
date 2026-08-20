@@ -223,7 +223,26 @@ Responda APENAS com um JSON válido no seguinte formato (sem markdown, sem expli
     };
 
     (aiBody as any)._ai_usage = { edgeFunction: "analisar-publicacao-ia", authHeader: req.headers.get("authorization"), referer: req.headers.get("referer") };
-    const response = await geminiChatCompletionsFetch(aiBody);
+    let response = await geminiChatCompletionsFetch(aiBody);
+
+    // Fallback único: se o modelo Pro estiver sobrecarregado (429) ou indisponível (5xx),
+    // repete a análise no modelo rápido para o usuário não ficar sem resposta.
+    if (!response.ok && (response.status === 429 || response.status >= 500) && AI_MODEL !== AI_MODEL_FALLBACK) {
+      console.warn(`analisar-publicacao-ia fallback ${AI_MODEL} -> ${AI_MODEL_FALLBACK} (status ${response.status})`);
+      const fallbackBody = { ...aiBody, model: AI_MODEL_FALLBACK };
+      (fallbackBody as any)._ai_usage = {
+        edgeFunction: "analisar-publicacao-ia",
+        authHeader: req.headers.get("authorization"),
+        referer: req.headers.get("referer"),
+        metadata: { fallback_de: AI_MODEL },
+      };
+      const fallbackResponse = await geminiChatCompletionsFetch(fallbackBody);
+      if (fallbackResponse.ok) {
+        response = fallbackResponse;
+      } else {
+        response = response.status === 429 ? response : fallbackResponse;
+      }
+    }
 
     if (!response.ok) {
       if (response.status === 429) {
