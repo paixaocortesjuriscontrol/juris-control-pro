@@ -455,11 +455,10 @@ export function PrazoDialog({
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
-    setResponsaveisIds((prev) => {
-      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(coordenadoresIds)]);
+    const faltando = coordenadoresIds.filter((id) => !responsaveisIds.includes(id));
+    if (faltando.length === 0) return;
+    setResponsaveisIds((prev) => Array.from(new Set([...prev, ...coordenadoresIds])));
+  }, [JSON.stringify(coordenadoresIds), JSON.stringify(responsaveisIds)]);
 
   // Envolvidos fixos definidos na configuração da coordenação para o tipo Prazo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
