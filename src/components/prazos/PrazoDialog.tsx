@@ -469,12 +469,11 @@ export function PrazoDialog({
 
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    const faltando = envolvidosFixosIds.filter((id) => !envolvidosIds.includes(id));
+    if (faltando.length === 0) return;
     setMostrarEnvolvidos(true);
-    setEnvolvidosIds((prev) => {
-      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(envolvidosFixosIds)]);
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [JSON.stringify(envolvidosFixosIds), JSON.stringify(envolvidosIds)]);
 
   useEffect(() => {
     if (prazo) return;
