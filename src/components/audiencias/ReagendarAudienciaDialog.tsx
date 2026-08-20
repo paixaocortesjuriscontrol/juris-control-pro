@@ -256,8 +256,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           </DialogTitle>
           <DialogDescription>
             {isReagendar
-              ? "Altera data/hora/tipo/modalidade do mesmo registro. O histórico fica salvo automaticamente."
-              : "Cria um novo registro copiando os dados da atual, vinculado por 'originada de'."}
+              ? "Use apenas quando a audiência foi CANCELADA/ADIADA: altera a data do próprio registro. O histórico fica salvo automaticamente."
+              : "Use quando a audiência ACONTECEU e o juiz designou outra audiência: cria um registro novo, vinculado ao anterior, com os mesmos responsáveis. A audiência anterior é marcada como concluída."}
           </DialogDescription>
         </DialogHeader>
 

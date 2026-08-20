@@ -65,7 +65,7 @@ export function AudienciaVinculoBadges({ audienciaId, originadaDe, compact = fal
       {anterior && (
         <Badge
           variant="outline"
-          className={`${size} cursor-pointer bg-muted/60`}
+          className={`${size} bg-muted/60 ${onAbrir ? "cursor-pointer" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
             onAbrir?.(anterior.id);
@@ -80,7 +80,7 @@ export function AudienciaVinculoBadges({ audienciaId, originadaDe, compact = fal
         <Badge
           key={p.id}
           variant="outline"
-          className={`${size} cursor-pointer bg-primary/10 text-primary border-primary/30`}
+          className={`${size} bg-primary/10 text-primary border-primary/30 ${onAbrir ? "cursor-pointer" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
             onAbrir?.(p.id);
