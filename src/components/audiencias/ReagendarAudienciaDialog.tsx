@@ -11,6 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -67,7 +68,7 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
       const novaDataISO = `${form.data_audiencia}T12:00:00.000Z`;
 
       if (modo === "reagendar") {
-        const { error: updErr } = await supabase
+        const { data: atualizadas, error: updErr } = await supabase
           .from("audiencias_detectadas")
           .update({
             data_audiencia: novaDataISO,
@@ -77,8 +78,20 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
             modalidade: form.modalidade || null,
             status: "reagendado",
           })
-          .eq("id", audiencia.id);
+          .eq("id", audiencia.id)
+          .select("id, data_audiencia, hora");
         if (updErr) throw updErr;
+        if (!atualizadas || atualizadas.length === 0) {
+          throw new Error(
+            "A nova data NÃO foi salva (nenhum registro atualizado). Verifique se você tem permissão para reagendar esta audiência.",
+          );
+        }
+        const salvo = String(atualizadas[0].data_audiencia || "").slice(0, 10);
+        if (salvo !== form.data_audiencia) {
+          throw new Error(
+            `A data gravada (${salvo || "vazia"}) não corresponde à informada (${form.data_audiencia}). Tente novamente.`,
+          );
+        }
 
         const { error: histErr } = await supabase
           .from("historico_reagendamentos_audiencia")
@@ -97,7 +110,9 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
           });
         if (histErr) console.error("Erro ao gravar histórico:", histErr);
 
-        toast.success("Audiência reagendada");
+        toast.success(
+          `Audiência reagendada para ${form.data_audiencia.split("-").reverse().join("/")}${form.hora ? ` às ${form.hora}` : ""}`,
+        );
       } else {
         // Nova audiência: copia todos os campos e cria novo registro vinculado
         const { id, created_at, updated_at, tratado_por, tratado_em, ...copy } = audiencia as any;
@@ -117,16 +132,25 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
             ? `Nova audiência originada de ${audiencia.id}. Motivo: ${form.motivo}`
             : `Nova audiência originada de ${audiencia.id}`,
         };
-        const { error: insErr } = await supabase
+        const { data: criada, error: insErr } = await supabase
           .from("audiencias_detectadas")
-          .insert(insertPayload);
+          .insert(insertPayload)
+          .select("id")
+          .maybeSingle();
         if (insErr) throw insErr;
+        if (!criada) throw new Error("A nova audiência não foi criada. Verifique suas permissões.");
         toast.success("Nova audiência criada a partir da atual");
       }
 
-      await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-      await queryClient.invalidateQueries({ queryKey: ["audiencias-processo"] });
-      if (invalidateKey) await queryClient.invalidateQueries({ queryKey: invalidateKey });
+      // Atualiza TODAS as listas (lista, agenda, kanban, painel, stats, histórico)
+      // antes de fechar o diálogo — evita a necessidade de recarregar a página.
+      await invalidarItensAgenda(queryClient, [
+        ["audiencias-detectadas"],
+        ["audiencias-processo"],
+        ["audiencias-stats"],
+        ["historico-reagendamentos", audiencia.id],
+        ...(invalidateKey ? [invalidateKey as unknown[]] : []),
+      ]);
       onOpenChange(false);
     } catch (err: any) {
       toast.error(`Erro: ${err.message ?? err}`);
