@@ -1003,6 +1003,7 @@ export async function fetchAgendaPage(
             seenIds.add(audKey);
 
             const dataISO: string = aud.data_audiencia;
+            const dataInicioAud = dataInicioAudiencia(dataISO, aud) ?? dataISO;
             const dataBase = parseISO(dataISO);
             const diasRestantes = differenceInDays(startOfDay(dataBase), today);
             const statusUnificado =
@@ -1017,7 +1018,7 @@ export async function fetchAgendaPage(
               descricao: aud.observacoes ?? null,
               tipo: "audiencia",
               origem: "evento",
-              data_inicio: dataISO,
+              data_inicio: dataInicioAud,
               data_fim: null,
               dia_inteiro: !aud.hora,
               local: aud.local_audiencia || aud.forum || null,
