@@ -1,5 +1,10 @@
 # DJEN Pautas Servidor sem encontrar nada — diagnóstico e correção
 
+**Escopo restrito:** as mudanças ficam exclusivamente no motor DJEN Pautas Servidor
+(`buscar-dejt-pautas`, `executar-djet-pautas-agendado`, `monitor-servidor/engines/pautas.js`
+e o card de progresso das Pautas). Nenhum outro motor (DJEN Termos Servidor, Browser,
+Processos, Kurier) é alterado.
+
 ## O que está acontecendo (verificado agora)
 
 A rotina não está com defeito de busca: ela está **descartando os cadernos** porque a fonte do DEJT está atrasada.
