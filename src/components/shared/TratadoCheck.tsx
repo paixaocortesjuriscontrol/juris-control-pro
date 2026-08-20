@@ -60,3 +60,21 @@ export function isItemTratado(item: {
 
   return [item.status, item.status_tst, item.situacao].some((value) => tratados.has(normalize(value)));
 }
+
+/**
+ * Situações que recebem apenas o RISCO no texto (line-through), sem alterar
+ * cor, ícone verde ou métricas: PROTOCOLADO e BAIXADO.
+ */
+export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolean {
+  if (isItemTratado(item)) return true;
+
+  const normalize = (value?: string | null) =>
+    (value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const riscados = new Set(["protocolado", "protocolada", "baixado", "baixada"]);
+  return [item.status, item.status_tst, item.situacao].some((value) => riscados.has(normalize(value)));
+}

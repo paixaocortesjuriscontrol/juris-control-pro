@@ -5,7 +5,7 @@ import { ListChecks, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
@@ -126,6 +126,7 @@ export function AgendaItemRow({
   veioDeWorkflow?: boolean;
 }) {
   const concluido = isItemTratado(item);
+  const riscado = isItemRiscado(item);
   const cancelado = isCancelado(item);
   const hora = horaDoItem(item);
   const sou =
@@ -154,7 +155,8 @@ export function AgendaItemRow({
         <p
           className={cn(
             "text-sm text-foreground leading-snug flex items-center gap-1.5",
-            (concluido || cancelado) && "line-through text-muted-foreground"
+            riscado && "line-through",
+            (concluido || cancelado) && "text-muted-foreground"
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
