@@ -10,6 +10,13 @@ Quando se usa **Nova audiência (a partir da atual)**, o sistema copia o registr
 
 Quando a nova audiência é criada "do zero" (foi o caminho usado em 18/08), não existe vínculo nenhum com a audiência que já aconteceu.
 
+## Os dois fluxos são diferentes (regra do escritório)
+
+- **Reagendar**: só para audiência **cancelada/adiada** — é o mesmo ato, muda a data no próprio registro.
+- **Nova audiência (a partir da atual)**: a audiência **aconteceu** e o juiz designou **outra** audiência — nasce um registro novo, vinculado ao anterior. É este o caso que hoje não aparece no painel.
+
+O texto das telas e dos selos vai deixar essa diferença explícita, para não misturar os fluxos.
+
 ## O que será feito
 
 1. **Nova audiência sai correta e visível**
@@ -22,8 +29,9 @@ Quando a nova audiência é criada "do zero" (foi o caminho usado em 18/08), nã
    - Na audiência antiga: selo "Reagendada para dd/mm/aaaa", clicável para abrir a nova.
    - O histórico da audiência antiga registra a criação da nova (de/para, motivo, autor, data/hora), somando-se ao registro automático de alterações já ativo.
 
-3. **Audiência antiga não fica poluindo o painel**
-   - Ao criar a nova, a antiga passa a "reagendado" e sai das listas de pendências (mantendo-se pesquisável e com histórico).
+3. **Audiência antiga fica como realizada, não como reagendada**
+   - Ao criar a nova audiência, a anterior é marcada como **realizada** (audiência aconteceu) e sai das pendências do painel, sem nunca receber a marca de "reagendado" — essa marca continua exclusiva do fluxo Reagendar (cancelamento/adiamento).
+   - O histórico da anterior passa a mostrar "Audiência realizada — nova audiência designada para dd/mm/aaaa".
 
 4. **Vincular casos criados "do zero"**
    - No cadastro/edição de audiência, quando o processo já tem audiência anterior, aparece a opção "Vincular à audiência anterior" com sugestão automática da última audiência daquele processo.
@@ -34,7 +42,7 @@ Quando a nova audiência é criada "do zero" (foi o caminho usado em 18/08), nã
 
 ## Detalhes técnicos
 
-- `ReagendarAudienciaDialog.tsx` (modo "nova"): remover herança de `origem`/`criado_por`/`tratado_*`; setar `criado_por = auth.uid()`, `origem = 'reagendamento'`, `status = 'pendente'`; replicar `audiencias_advogados` e `audiencia_envolvidos` do registro origem; inserir linha em `historico_reagendamentos_audiencia` (audiencia_id = original, `data_nova` = nova data, motivo) e atualizar o original para `status = 'reagendado'`.
+- `ReagendarAudienciaDialog.tsx` (modo "nova"): remover herança de `origem`/`criado_por`/`tratado_*`; setar `criado_por = auth.uid()`, `origem = 'nova_audiencia'`, `status = 'pendente'`; replicar `audiencias_advogados` e `audiencia_envolvidos` do registro origem; inserir linha em `historico_reagendamentos_audiencia` (audiencia_id = original, `data_nova` = nova data, motivo = "nova audiência designada") e marcar o original como realizado/tratado — sem usar `status = 'reagendado'`, reservado ao modo "reagendar".
 - Guardar-rail de duplicidade: consulta prévia por `processo_numero + data_audiencia + hora` antes do insert.
 - Selos de vínculo: consulta por `originada_de` (filha) e por `id = originada_de` (pai) em `EditarAudienciaDialog`, `AudienciaKanbanCard` e `HistoricoReagendamentosAudiencia`.
 - Vínculo manual: campo opcional em `CadastroAudienciaForm`/`CriarAudienciaProcessoDialog` gravando `originada_de` + linha de histórico.
