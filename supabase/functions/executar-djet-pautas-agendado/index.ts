@@ -28,6 +28,11 @@ const TRIBUNAIS_DEJT = [
 
 const WINDOW_MIN = 10;
 const DELAY_BETWEEN_TRIBUNAIS_MS = 800;
+/** Alertas técnicos do motor Pautas Servidor vão só para o suporte. */
+const SUPORTE_EMAIL = "suporte@paixaocortes.adv.br";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const FROM_EMAIL = "JurisControl <alertas@juriscontrol.adv.br>";
+
 
 function brtNow(): { ymd: string; hour: number; minute: number; ddmmyyyy: string } {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
