@@ -603,6 +603,20 @@ async function runJob(
               };
               break;
             }
+            // Motor Servidor: identifica a edição servida e evita reprocessar
+            // o mesmo caderno em outra data/rodada.
+            if (aceitarEdicaoVigente && !edicaoDetectada) {
+              const disp = (json?.dataDisponibilizacao as string | null) || null;
+              if (disp) {
+                edicaoDetectada = disp;
+                item.edicao = disp;
+                if (edicoesProcessadas[tribunal] === disp) {
+                  edicaoJaProcessada = true;
+                  break;
+                }
+              }
+            }
+
             const chunkMatches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
               monitoramentoId: m.monitoramentoId as string,
               termoMatch: m.termoMatch as string,
