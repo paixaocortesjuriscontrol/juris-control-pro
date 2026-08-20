@@ -563,7 +563,11 @@ export function NovaTarefaDialog({
       const responsaveisParaSalvar = normalizeUuidList(
         responsaveisIds.length > 0 ? responsaveisIds : [values.responsavel_id],
       );
-      const envolvidosParaSalvar = normalizeUuidList(envolvidosIds);
+      // Garante que os envolvidos fixos da coordenação/tipo sempre sejam salvos,
+      // mesmo se o estado local tiver sido resetado antes do carregamento deles.
+      const envolvidosParaSalvar = normalizeUuidList(
+        Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds])),
+      );
       const responsavelPrincipal = responsaveisParaSalvar[0];
 
       if (!responsavelPrincipal) {
