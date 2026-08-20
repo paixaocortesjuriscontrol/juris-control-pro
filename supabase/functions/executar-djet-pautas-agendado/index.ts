@@ -638,6 +638,13 @@ async function runJob(
             if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
           }
 
+          if (edicaoJaProcessada) {
+            item.current += 1;
+            item.mensagem = `Edição ${ymdToDdmmyyyy(edicaoDetectada!)} já processada`;
+            await flushProgresso(true);
+            continue;
+          }
+
           if (cadernoNaoAtualizado) {
             item.current += 1;
             item.diasSemPdf += 1;
@@ -665,9 +672,14 @@ async function runJob(
           item.current += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
-          item.mensagem = `${dataDDMMYYYY} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
+          if (aceitarEdicaoVigente && edicaoDetectada) {
+            edicoesProcessadas[tribunal] = edicaoDetectada;
+          }
+          const edicaoLabel = edicaoDetectada ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)}` : dataDDMMYYYY;
+          item.mensagem = `${edicaoLabel} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
           await flushProgresso();
-          console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+          console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} (edição ${edicaoDetectada || dataYmd}): ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+
         } catch (e) {
           totalErros++;
           item.current += 1;
