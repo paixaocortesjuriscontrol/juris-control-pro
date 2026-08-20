@@ -165,6 +165,71 @@ function diasUteisEntre(deYmd: string, ateYmd: string): number {
   return n;
 }
 
+/**
+ * Alerta técnico (somente suporte) quando o portal do DEJT está servindo
+ * edição mais antiga que 2 dias úteis em algum tribunal — sinal de queda ou
+ * mudança de endpoint na fonte. Envia no máximo uma vez por dia.
+ */
+async function alertarFonteAtrasada(
+  supabase: ReturnType<typeof createClient>,
+  configTable: string,
+  configTipo: string,
+  itens: ProgressoPautaItem[],
+  ymd: string,
+) {
+  try {
+    const atrasados = itens
+      .filter((i) => !!i.edicao && diasUteisEntre(i.edicao!, ymd) > 2)
+      .map((i) => ({ tribunal: i.tribunal, edicao: i.edicao!, atraso: diasUteisEntre(i.edicao!, ymd) }))
+      .sort((a, b) => b.atraso - a.atraso);
+    if (atrasados.length === 0) return;
+    if (!RESEND_API_KEY) {
+      console.log("[DJET-Pautas-Agendado] fonte atrasada, sem RESEND_API_KEY:", atrasados);
+      return;
+    }
+
+    const { data: cfg } = await supabase
+      .from(configTable)
+      .select("metadata")
+      .eq("tipo", configTipo)
+      .maybeSingle();
+    const md = (cfg?.metadata as Record<string, unknown> | null) || {};
+    if (typeof md.alerta_fonte_atrasada_em === "string" && md.alerta_fonte_atrasada_em.slice(0, 10) === ymd) {
+      return; // já avisado hoje
+    }
+
+    const linhas = atrasados
+      .map((a) => `<li><strong>${a.tribunal}</strong>: última edição ${ymdToDdmmyyyy(a.edicao)} (${a.atraso} dia(s) útil(eis) de atraso)</li>`)
+      .join("");
+    const html = `
+      <p>O portal do DEJT está servindo edições antigas para ${atrasados.length} tribunal(is) no motor <strong>DJEN Pautas Servidor</strong>.</p>
+      <ul>${linhas}</ul>
+      <p>Possíveis causas: edição do dia ainda não publicada, queda do portal ou mudança do endpoint dos cadernos.</p>
+    `;
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [SUPORTE_EMAIL],
+        subject: `DJEN Pautas Servidor - Alerta técnico - Fonte DEJT atrasada (${atrasados.length} tribunal(is))`,
+        html,
+      }),
+    });
+    if (!res.ok) {
+      console.error("[DJET-Pautas-Agendado] falha ao enviar alerta de fonte atrasada:", res.status, await res.text());
+      return;
+    }
+    await supabase
+      .from(configTable)
+      .update({ metadata: { ...md, alerta_fonte_atrasada_em: new Date().toISOString() } })
+      .eq("tipo", configTipo);
+  } catch (e) {
+    console.error("[DJET-Pautas-Agendado] erro no alerta de fonte atrasada:", e);
+  }
+}
+
 
 function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[], ymd: string) {
   const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
