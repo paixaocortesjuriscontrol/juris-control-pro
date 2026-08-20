@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTextarea";
 import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Send, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
