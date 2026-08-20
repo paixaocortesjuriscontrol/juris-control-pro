@@ -85,7 +85,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
           origem: "evento",
           tipo: "audiencia",
           titulo: a.titulo || a.tipo_audiencia || "Audiência",
-          data_inicio: a.data_audiencia,
+          data_inicio: dataInicioAudiencia(a.data_audiencia, a) ?? a.data_audiencia,
           hora_prevista: a.hora ?? null,
           local: a.local_audiencia || a.vara_camara || null,
           processo,
