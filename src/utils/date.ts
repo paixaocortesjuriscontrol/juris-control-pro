@@ -85,3 +85,22 @@ export function horaAudienciaBrt(a: {
 }): string {
   return horaBrt(a.hora_brasilia || a.hora_local || a.hora || a.data_inicio || null);
 }
+
+/**
+ * Compõe o data_inicio de um item de agenda de audiência usando o dia gravado em
+ * data_audiencia e a hora real da audiência (hora / hora_local / hora_brasilia).
+ * Sem isso, audiências vindas do DJEN (normalizadas para 12:00 UTC) mostravam
+ * "12:00" na lista/calendário, diferente do horário exibido ao abrir o item.
+ */
+export function dataInicioAudiencia(
+  dataAudiencia: string | null | undefined,
+  a: { hora?: string | null; hora_local?: string | null; hora_brasilia?: string | null } = {},
+): string | null {
+  if (!dataAudiencia) return null;
+  const dia = dataAudiencia.slice(0, 10);
+  const horaRaw = (a.hora || a.hora_local || a.hora_brasilia || "").trim();
+  const match = horaRaw.match(/^(\d{1,2}):(\d{2})/);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dia) || !match) return dataAudiencia;
+  const hh = match[1].padStart(2, "0");
+  return `${dia}T${hh}:${match[2]}:00`;
+}

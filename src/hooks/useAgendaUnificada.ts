@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, addYears } from "date-fns";
 import { format } from "date-fns";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
+import { dataInicioAudiencia } from "@/utils/date";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -1003,6 +1004,7 @@ export async function fetchAgendaPage(
             seenIds.add(audKey);
 
             const dataISO: string = aud.data_audiencia;
+            const dataInicioAud = dataInicioAudiencia(dataISO, aud) ?? dataISO;
             const dataBase = parseISO(dataISO);
             const diasRestantes = differenceInDays(startOfDay(dataBase), today);
             const statusUnificado =
@@ -1017,7 +1019,7 @@ export async function fetchAgendaPage(
               descricao: aud.observacoes ?? null,
               tipo: "audiencia",
               origem: "evento",
-              data_inicio: dataISO,
+              data_inicio: dataInicioAud,
               data_fim: null,
               dia_inteiro: !aud.hora,
               local: aud.local_audiencia || aud.forum || null,

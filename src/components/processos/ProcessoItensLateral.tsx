@@ -10,6 +10,7 @@ import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInlin
 import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
+import { dataInicioAudiencia } from "@/utils/date";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const soData = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
@@ -85,7 +86,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
           origem: "evento",
           tipo: "audiencia",
           titulo: a.titulo || a.tipo_audiencia || "Audiência",
-          data_inicio: a.data_audiencia,
+          data_inicio: dataInicioAudiencia(a.data_audiencia, a) ?? a.data_audiencia,
           hora_prevista: a.hora ?? null,
           local: a.local_audiencia || a.vara_camara || null,
           processo,
