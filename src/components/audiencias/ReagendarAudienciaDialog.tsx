@@ -116,8 +116,36 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           `Audiência reagendada para ${form.data_audiencia.split("-").reverse().join("/")}${form.hora ? ` às ${form.hora}` : ""}`,
         );
       } else {
-        // Nova audiência: copia todos os campos e cria novo registro vinculado
-        const { id, created_at, updated_at, tratado_por, tratado_em, ...copy } = audiencia as any;
+        // Nova audiência: a audiência anterior ACONTECEU e o juiz designou outra
+        // data. Cria um registro NOVO vinculado ao anterior — sem herdar origem
+        // de importação/pauta nem o criador antigo (era isso que fazia a nova
+        // data não aparecer no painel e na agenda).
+        const {
+          id,
+          created_at,
+          updated_at,
+          tratado_por,
+          tratado_em,
+          criado_por,
+          origem,
+          ...copy
+        } = audiencia as any;
+
+        // Guarda-rail: evita cópias duplicadas do mesmo processo/data/hora
+        const { data: jaExiste } = await supabase
+          .from("audiencias_detectadas")
+          .select("id")
+          .eq("processo_numero", audiencia.processo_numero ?? "")
+          .gte("data_audiencia", `${form.data_audiencia}T00:00:00.000Z`)
+          .lte("data_audiencia", `${form.data_audiencia}T23:59:59.999Z`)
+          .neq("id", audiencia.id)
+          .limit(1);
+        if (jaExiste && jaExiste.length > 0) {
+          throw new Error(
+            `Já existe uma audiência deste processo em ${form.data_audiencia.split("-").reverse().join("/")}. Abra a audiência existente em vez de criar outra.`,
+          );
+        }
+
         const insertPayload: Record<string, any> = {
           ...copy,
           data_audiencia: novaDataISO,
@@ -126,13 +154,15 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           tipo_audiencia: form.tipo_audiencia || null,
           modalidade: form.modalidade || null,
           status: "pendente",
+          origem: "manual",
+          criado_por: user?.id ?? null,
           originada_de: audiencia.id,
           tratado_por: null,
           tratado_em: null,
           providencias_tomadas: null,
           observacoes: form.motivo
-            ? `Nova audiência originada de ${audiencia.id}. Motivo: ${form.motivo}`
-            : `Nova audiência originada de ${audiencia.id}`,
+            ? `Nova audiência designada na audiência anterior. Motivo: ${form.motivo}`
+            : `Nova audiência designada na audiência anterior`,
         };
         const { data: criada, error: insErr } = await supabase
           .from("audiencias_detectadas")
@@ -141,7 +171,58 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           .maybeSingle();
         if (insErr) throw insErr;
         if (!criada) throw new Error("A nova audiência não foi criada. Verifique suas permissões.");
-        toast.success("Nova audiência criada a partir da atual");
+
+        // Replica responsáveis (advogados) e envolvidos da audiência anterior,
+        // para que a nova apareça para as mesmas pessoas.
+        const [{ data: advs }, { data: envs }] = await Promise.all([
+          supabase.from("audiencias_advogados").select("advogado_id").eq("audiencia_id", audiencia.id),
+          supabase.from("audiencia_envolvidos").select("usuario_id").eq("audiencia_id", audiencia.id),
+        ]);
+        if (advs && advs.length > 0) {
+          await supabase.from("audiencias_advogados").insert(
+            advs.map((a: any) => ({ audiencia_id: criada.id, advogado_id: a.advogado_id })),
+          );
+        }
+        if (envs && envs.length > 0) {
+          await supabase.from("audiencia_envolvidos").insert(
+            envs.map((e: any) => ({ audiencia_id: criada.id, usuario_id: e.usuario_id })),
+          );
+        }
+
+        // Histórico na audiência anterior: registra a nova data designada
+        const { error: histNovaErr } = await supabase
+          .from("historico_reagendamentos_audiencia")
+          .insert({
+            audiencia_id: audiencia.id,
+            data_anterior: audiencia.data_audiencia || null,
+            data_nova: novaDataISO,
+            hora_anterior: audiencia.hora || null,
+            hora_nova: form.hora || null,
+            tipo_anterior: audiencia.tipo_audiencia || null,
+            tipo_novo: form.tipo_audiencia || null,
+            modalidade_anterior: audiencia.modalidade || null,
+            modalidade_nova: form.modalidade || null,
+            motivo: form.motivo
+              ? `Audiência realizada — nova audiência designada. ${form.motivo}`
+              : "Audiência realizada — nova audiência designada",
+            alterado_por: user?.id ?? null,
+          });
+        if (histNovaErr) console.error("Erro ao gravar histórico da nova audiência:", histNovaErr);
+
+        // A anterior aconteceu: marca como concluída (nunca "reagendado", que é
+        // exclusivo de audiência cancelada/adiada) e sai das pendências.
+        const { error: origErr } = await supabase
+          .from("audiencias_detectadas")
+          .update({
+            status: "concluido",
+            tratado_por: user?.id ?? null,
+            tratado_em: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", audiencia.id);
+        if (origErr) console.error("Erro ao concluir a audiência anterior:", origErr);
+
+        toast.success("Nova audiência criada e vinculada à audiência anterior");
       }
 
       // Atualiza TODAS as listas (lista, agenda, kanban, painel, stats, histórico)
@@ -175,8 +256,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           </DialogTitle>
           <DialogDescription>
             {isReagendar
-              ? "Altera data/hora/tipo/modalidade do mesmo registro. O histórico fica salvo automaticamente."
-              : "Cria um novo registro copiando os dados da atual, vinculado por 'originada de'."}
+              ? "Use apenas quando a audiência foi CANCELADA/ADIADA: altera a data do próprio registro. O histórico fica salvo automaticamente."
+              : "Use quando a audiência ACONTECEU e o juiz designou outra audiência: cria um registro novo, vinculado ao anterior, com os mesmos responsáveis. A audiência anterior é marcada como concluída."}
           </DialogDescription>
         </DialogHeader>
 

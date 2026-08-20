@@ -95,6 +95,8 @@ export interface NovaAudiencia {
   coordenacao_id?: string;
   /** Origem do registro ('manual' | 'publicacao'). Default: 'manual'. */
   origem?: string;
+  /** Audiência anterior que deu origem a esta (audiência realizada → nova designada). */
+  originada_de?: string;
   /** Conteúdo da publicação DJEN que originou a audiência. */
   conteudo_publicacao?: string;
 }

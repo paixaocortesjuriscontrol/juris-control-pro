@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, FileText, MapPin, Building, Eye, Pencil, CheckCircle, XCircle, ListChecks, MoreVertical } from "lucide-react";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AudienciaVinculoBadges } from "./AudienciaVinculoBadges";
 
 interface Props {
   audiencia: AudienciaDetectada;
@@ -84,6 +85,13 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
           <Badge variant="secondary" className="text-[10px]">{audiencia.tipo_audiencia}</Badge>
         )}
       </div>
+
+      {/* Vínculo com audiência anterior / nova audiência designada */}
+      <AudienciaVinculoBadges
+        audienciaId={audiencia.id}
+        originadaDe={(audiencia as any).originada_de ?? null}
+        compact
+      />
 
       {/* Cliente */}
       {audiencia.cliente && (
