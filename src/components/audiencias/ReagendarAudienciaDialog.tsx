@@ -17,12 +17,13 @@ interface Props {
   audiencia: AudienciaDetectada | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: () => void | Promise<void>;
   /** "reagendar" edita o mesmo registro; "nova" cria uma cópia vinculada */
   modo: "reagendar" | "nova";
   invalidateKey?: unknown[];
 }
 
-export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, invalidateKey }: Props) {
+export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSuccess, modo, invalidateKey }: Props) {
   const queryClient = useQueryClient();
   const [isLoading, setIsLoading] = useState(false);
   const [form, setForm] = useState({
@@ -77,6 +78,7 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
             tipo_audiencia: form.tipo_audiencia || null,
             modalidade: form.modalidade || null,
             status: "reagendado",
+            updated_at: new Date().toISOString(),
           })
           .eq("id", audiencia.id)
           .select("id, data_audiencia, hora");
@@ -152,6 +154,7 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, modo, 
         ...(invalidateKey ? [invalidateKey as unknown[]] : []),
       ]);
       onOpenChange(false);
+      await onSuccess?.();
     } catch (err: any) {
       toast.error(`Erro: ${err.message ?? err}`);
     } finally {
