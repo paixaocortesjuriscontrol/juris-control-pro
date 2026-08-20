@@ -435,7 +435,15 @@ async function fetchPdf(
       const dataPublicacaoLegal = dataDisponibilizacao
         ? calcularDataPublicacaoYmd(dataDisponibilizacao)
         : null;
-      if (dataDisponibilizacao && dataDisponibilizacao !== requestedIso && dataPublicacaoLegal !== requestedIso) {
+      const outraData = !!dataDisponibilizacao &&
+        dataDisponibilizacao !== requestedIso &&
+        dataPublicacaoLegal !== requestedIso;
+      if (outraData && aceitarEdicaoVigente) {
+        console.log(
+          `[DJET-Pautas] aceitando edição vigente para pedido ${dataDDMMYYYY}: ` +
+          `disponibilização=${dataDisponibilizacao}, publicação=${dataPublicacaoLegal}, last-modified=${lastMod}`,
+        );
+      } else if (outraData) {
         console.log(
           `[DJET-Pautas] caderno de outra data para pedido ${dataDDMMYYYY}: ` +
           `disponibilização=${dataDisponibilizacao}, publicação=${dataPublicacaoLegal}, last-modified=${lastMod}`,
@@ -448,6 +456,7 @@ async function fetchPdf(
           dataPublicacaoLegal,
         };
       }
+
       return { ok: true, bytes: buf, lastModified: lastMod || null, dataDisponibilizacao, dataPublicacaoLegal };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
