@@ -743,10 +743,28 @@ async function runJob(
         .neq("status", "cancelado");
     }
 
-    await supabase
-      .from(configTable)
-      .update({ ultima_execucao: new Date().toISOString() })
-      .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
+    if (aceitarEdicaoVigente) {
+      // Persiste o controle de edições já processadas por tribunal e o instante
+      // da última verificação — base do alerta de fonte atrasada.
+      await supabase
+        .from(configTable)
+        .update({
+          ultima_execucao: new Date().toISOString(),
+          metadata: {
+            ...configMetadata,
+            edicoes_processadas: edicoesProcessadas,
+            edicoes_verificadas_em: new Date().toISOString(),
+          },
+        })
+        .eq("tipo", configTipo);
+      await alertarFonteAtrasada(itens, ymd);
+    } else {
+      await supabase
+        .from(configTable)
+        .update({ ultima_execucao: new Date().toISOString() })
+        .eq("tipo", configTipo);
+    }
+
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
     if (execucaoServidorId) {
