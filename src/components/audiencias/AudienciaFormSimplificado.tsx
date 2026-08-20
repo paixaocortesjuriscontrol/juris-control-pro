@@ -385,8 +385,8 @@ export function AudienciaFormSimplificado({
       cliente: form.cliente || undefined,
       terceirizado: form.terceirizado || undefined,
       status: situacao,
-      advogados_ids: responsaveisIds,
-      envolvidos_ids: envolvidosIds,
+      advogados_ids: Array.from(new Set([...coordenadoresIds, ...responsaveisIds])),
+      envolvidos_ids: Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds])),
       coordenacao_id: coordenacaoId || undefined,
       // Vínculo com a publicação DJEN que originou a audiência
       // IMPORTANTE: a origem deve permanecer "manual" (regra de segurança da
