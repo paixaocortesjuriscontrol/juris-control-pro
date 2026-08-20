@@ -251,6 +251,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
               <h3
                 className={cn(
                   "font-semibold text-base text-foreground",
+                  (evento.status === "protocolado" || evento.status === "baixado") && "line-through",
                   evento.status === "concluido" && "line-through text-muted-foreground"
                 )}
               >

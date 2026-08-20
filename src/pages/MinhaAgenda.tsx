@@ -749,6 +749,7 @@ export default function MinhaAgenda() {
               
               <h3 className={cn(
                 "font-medium text-sm line-clamp-2 flex items-center gap-1.5",
+                (item.status === "protocolado" || item.status === "baixado") && "line-through",
                 (item.status === "concluido" || item.status === "cumprido" || item.status === "cancelado") && "line-through text-muted-foreground"
               )}>
                 {item.titulo || "Sem título"}

@@ -46,7 +46,7 @@ import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersH
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { BarChart3 } from "lucide-react";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
-import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2513,7 +2513,7 @@ export default function PainelControle() {
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className={cn("truncate", (isConcluido || isCancelado) && "line-through")}>
+                                  <span className={cn("truncate", (isItemRiscado(item) || isCancelado) && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                   {temAtividade && (
