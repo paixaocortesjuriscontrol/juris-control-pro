@@ -602,16 +602,18 @@ export function PrazoDialog({
         }
         // A coordenação do item é sempre a do usuário logado; nunca alterar a do processo.
 
+        const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
+        const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
-        if (responsaveisIds.length > 0) {
+        if (responsaveisFinal.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
-            responsaveisIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
+            responsaveisFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
         await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaId);
-        if (envolvidosIds.length > 0) {
+        if (envolvidosFinal.length > 0) {
           await supabase.from("tarefa_envolvidos").insert(
-            envolvidosIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
+            envolvidosFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
 
