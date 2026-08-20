@@ -331,16 +331,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   }, [open, evento, processoId, publicacao?.id, user?.id]);
 
   const persistirRelacionamentos = async (eventoId: string) => {
+    const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
+    const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
     await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
-    if (responsaveisIds.length > 0) {
+    if (responsaveisFinal.length > 0) {
       await supabase.from("evento_responsaveis").insert(
-        responsaveisIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+        responsaveisFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
       );
     }
     await supabase.from("evento_envolvidos").delete().eq("evento_id", eventoId);
-    if (envolvidosIds.length > 0) {
+    if (envolvidosFinal.length > 0) {
       await supabase.from("evento_envolvidos").insert(
-        envolvidosIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+        envolvidosFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
       );
     }
   };
