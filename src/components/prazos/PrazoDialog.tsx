@@ -455,11 +455,10 @@ export function PrazoDialog({
 
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
-    setResponsaveisIds((prev) => {
-      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(coordenadoresIds)]);
+    const faltando = coordenadoresIds.filter((id) => !responsaveisIds.includes(id));
+    if (faltando.length === 0) return;
+    setResponsaveisIds((prev) => Array.from(new Set([...prev, ...coordenadoresIds])));
+  }, [JSON.stringify(coordenadoresIds), JSON.stringify(responsaveisIds)]);
 
   // Envolvidos fixos definidos na configuração da coordenação para o tipo Prazo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(
@@ -469,12 +468,11 @@ export function PrazoDialog({
 
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    const faltando = envolvidosFixosIds.filter((id) => !envolvidosIds.includes(id));
+    if (faltando.length === 0) return;
     setMostrarEnvolvidos(true);
-    setEnvolvidosIds((prev) => {
-      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(envolvidosFixosIds)]);
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [JSON.stringify(envolvidosFixosIds), JSON.stringify(envolvidosIds)]);
 
   useEffect(() => {
     if (prazo) return;
@@ -604,16 +602,18 @@ export function PrazoDialog({
         }
         // A coordenação do item é sempre a do usuário logado; nunca alterar a do processo.
 
+        const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
+        const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
-        if (responsaveisIds.length > 0) {
+        if (responsaveisFinal.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
-            responsaveisIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
+            responsaveisFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
         await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaId);
-        if (envolvidosIds.length > 0) {
+        if (envolvidosFinal.length > 0) {
           await supabase.from("tarefa_envolvidos").insert(
-            envolvidosIds.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
+            envolvidosFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
           );
         }
 

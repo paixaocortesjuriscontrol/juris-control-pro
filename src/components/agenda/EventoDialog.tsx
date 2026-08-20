@@ -147,24 +147,22 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   );
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "OUTROS");
-  useEffect(() => {
-    if (envolvidosFixosIds.length === 0) return;
-    setMostrarEnvolvidos(true);
-    setEnvolvidosIds((prev) => {
-      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(envolvidosFixosIds)]);
-  useEffect(() => {
-    if (coordenadoresIds.length === 0) return;
-    setResponsaveisIds((prev) => {
-      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(coordenadoresIds)]);
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [observacoes, setObservacoes] = useState("");
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    const faltando = envolvidosFixosIds.filter((id) => !envolvidosIds.includes(id));
+    if (faltando.length === 0) return;
+    setMostrarEnvolvidos(true);
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [JSON.stringify(envolvidosFixosIds), JSON.stringify(envolvidosIds)]);
+  useEffect(() => {
+    if (coordenadoresIds.length === 0) return;
+    const faltando = coordenadoresIds.filter((id) => !responsaveisIds.includes(id));
+    if (faltando.length === 0) return;
+    setResponsaveisIds((prev) => Array.from(new Set([...prev, ...coordenadoresIds])));
+  }, [JSON.stringify(coordenadoresIds), JSON.stringify(responsaveisIds)]);
 
   const [processoId, setProcessoId] = useState("");
   const [processoSearch, setProcessoSearch] = useState("");
@@ -333,16 +331,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   }, [open, evento, processoId, publicacao?.id, user?.id]);
 
   const persistirRelacionamentos = async (eventoId: string) => {
+    const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
+    const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
     await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
-    if (responsaveisIds.length > 0) {
+    if (responsaveisFinal.length > 0) {
       await supabase.from("evento_responsaveis").insert(
-        responsaveisIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+        responsaveisFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
       );
     }
     await supabase.from("evento_envolvidos").delete().eq("evento_id", eventoId);
-    if (envolvidosIds.length > 0) {
+    if (envolvidosFinal.length > 0) {
       await supabase.from("evento_envolvidos").insert(
-        envolvidosIds.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
+        envolvidosFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
       );
     }
   };

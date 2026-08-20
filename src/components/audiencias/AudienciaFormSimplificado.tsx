@@ -168,19 +168,17 @@ export function AudienciaFormSimplificado({
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
     if (envolvidosFixosIds.length === 0) return;
+    const faltando = envolvidosFixosIds.filter((id) => !envolvidosIds.includes(id));
+    if (faltando.length === 0) return;
     setMostrarEnvolvidos(true);
-    setEnvolvidosIds((prev) => {
-      const faltando = envolvidosFixosIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(envolvidosFixosIds)]);
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [JSON.stringify(envolvidosFixosIds), JSON.stringify(envolvidosIds)]);
   useEffect(() => {
     if (coordenadoresIds.length === 0) return;
-    setResponsaveisIds((prev) => {
-      const faltando = coordenadoresIds.filter((id) => !prev.includes(id));
-      return faltando.length > 0 ? [...prev, ...faltando] : prev;
-    });
-  }, [JSON.stringify(coordenadoresIds)]);
+    const faltando = coordenadoresIds.filter((id) => !responsaveisIds.includes(id));
+    if (faltando.length === 0) return;
+    setResponsaveisIds((prev) => Array.from(new Set([...prev, ...coordenadoresIds])));
+  }, [JSON.stringify(coordenadoresIds), JSON.stringify(responsaveisIds)]);
   const [buscando, setBuscando] = useState(false);
   const autoBuscaRef = useRef(false);
 
@@ -387,8 +385,8 @@ export function AudienciaFormSimplificado({
       cliente: form.cliente || undefined,
       terceirizado: form.terceirizado || undefined,
       status: situacao,
-      advogados_ids: responsaveisIds,
-      envolvidos_ids: envolvidosIds,
+      advogados_ids: Array.from(new Set([...coordenadoresIds, ...responsaveisIds])),
+      envolvidos_ids: Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds])),
       coordenacao_id: coordenacaoId || undefined,
       // Vínculo com a publicação DJEN que originou a audiência
       // IMPORTANTE: a origem deve permanecer "manual" (regra de segurança da
