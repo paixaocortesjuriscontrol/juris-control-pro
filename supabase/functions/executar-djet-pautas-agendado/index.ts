@@ -827,7 +827,7 @@ async function runJob(
           },
         })
         .eq("tipo", configTipo);
-      await alertarFonteAtrasada(itens, ymd);
+      await alertarFonteAtrasada(supabase, configTable, configTipo, itens, ymd);
     } else {
       await supabase
         .from(configTable)
