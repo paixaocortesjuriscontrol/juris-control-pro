@@ -574,6 +574,7 @@ async function runJob(
                   monitoramentos: monsInput,
                   pageStart: requestPageStart,
                   pageEnd,
+                  aceitarEdicaoVigente,
                 }),
               });
               lastStatus = resp.status;
