@@ -48,7 +48,12 @@ interface RequestBody {
   // Se omitidos, processa o PDF inteiro (comportamento legado).
   pageStart?: number;        // 1-based, inclusive
   pageEnd?: number;          // 1-based, inclusive
+  // Motor Pautas Servidor: aceita a edição vigente que o DEJT expõe no caminho
+  // fixo mesmo quando a data interna difere da pedida. O consumidor decide se
+  // processa (controle por tribunal + data de disponibilização já processada).
+  aceitarEdicaoVigente?: boolean;
 }
+
 
 interface MatchOut {
   monitoramentoId: string;
@@ -378,10 +383,12 @@ async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
   caderno: DejtCaderno,
+  aceitarEdicaoVigente = false,
 ): Promise<
   | { ok: true; bytes: Uint8Array; lastModified: string | null; dataDisponibilizacao: string | null; dataPublicacaoLegal: string | null }
   | { ok: false; reason: string; lastModified?: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null }
 > {
+
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
   if (urls.length === 0) {
     return { ok: false, reason: "tribunal-sem-url" };
@@ -428,7 +435,15 @@ async function fetchPdf(
       const dataPublicacaoLegal = dataDisponibilizacao
         ? calcularDataPublicacaoYmd(dataDisponibilizacao)
         : null;
-      if (dataDisponibilizacao && dataDisponibilizacao !== requestedIso && dataPublicacaoLegal !== requestedIso) {
+      const outraData = !!dataDisponibilizacao &&
+        dataDisponibilizacao !== requestedIso &&
+        dataPublicacaoLegal !== requestedIso;
+      if (outraData && aceitarEdicaoVigente) {
+        console.log(
+          `[DJET-Pautas] aceitando edição vigente para pedido ${dataDDMMYYYY}: ` +
+          `disponibilização=${dataDisponibilizacao}, publicação=${dataPublicacaoLegal}, last-modified=${lastMod}`,
+        );
+      } else if (outraData) {
         console.log(
           `[DJET-Pautas] caderno de outra data para pedido ${dataDDMMYYYY}: ` +
           `disponibilização=${dataDisponibilizacao}, publicação=${dataPublicacaoLegal}, last-modified=${lastMod}`,
@@ -441,6 +456,7 @@ async function fetchPdf(
           dataPublicacaoLegal,
         };
       }
+
       return { ok: true, bytes: buf, lastModified: lastMod || null, dataDisponibilizacao, dataPublicacaoLegal };
     } catch (e) {
       console.log(`[DJET-Pautas] erro fetch ${url}:`, e);
@@ -608,7 +624,7 @@ Deno.serve(async (req) => {
     }
 
     // 1) Baixa PDF (com fallback de URLs)
-    const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno);
+    const fetched = await fetchPdf(tribunal, body.dataDDMMYYYY, caderno, body.aceitarEdicaoVigente === true);
     if (!fetched.ok) {
       return new Response(
         JSON.stringify({

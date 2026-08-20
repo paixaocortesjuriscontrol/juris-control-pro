@@ -28,6 +28,11 @@ const TRIBUNAIS_DEJT = [
 
 const WINDOW_MIN = 10;
 const DELAY_BETWEEN_TRIBUNAIS_MS = 800;
+/** Alertas técnicos do motor Pautas Servidor vão só para o suporte. */
+const SUPORTE_EMAIL = "suporte@paixaocortes.adv.br";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const FROM_EMAIL = "JurisControl <alertas@juriscontrol.adv.br>";
+
 
 function brtNow(): { ymd: string; hour: number; minute: number; ddmmyyyy: string } {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -124,6 +129,8 @@ type ProgressoPautaItem = {
   duplicatas: number;
   descartadas: number;
   diasSemPdf: number;
+  /** Data (YMD) da edição do caderno efetivamente lida nesta rodada. */
+  edicao?: string | null;
 };
 
 function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
@@ -141,8 +148,88 @@ function makeProgressItems(datas: string[]): ProgressoPautaItem[] {
     duplicatas: 0,
     descartadas: 0,
     diasSemPdf: 0,
+    edicao: null,
   }));
 }
+
+/** Dias úteis (seg-sex) entre duas datas YMD. */
+function diasUteisEntre(deYmd: string, ateYmd: string): number {
+  const de = new Date(`${deYmd}T12:00:00Z`);
+  const ate = new Date(`${ateYmd}T12:00:00Z`);
+  if (Number.isNaN(de.getTime()) || Number.isNaN(ate.getTime()) || de >= ate) return 0;
+  let n = 0;
+  for (const d = new Date(de); d < ate; d.setUTCDate(d.getUTCDate() + 1)) {
+    const dow = d.getUTCDay();
+    if (dow !== 0 && dow !== 6) n++;
+  }
+  return n;
+}
+
+/**
+ * Alerta técnico (somente suporte) quando o portal do DEJT está servindo
+ * edição mais antiga que 2 dias úteis em algum tribunal — sinal de queda ou
+ * mudança de endpoint na fonte. Envia no máximo uma vez por dia.
+ */
+async function alertarFonteAtrasada(
+  supabase: ReturnType<typeof createClient>,
+  configTable: string,
+  configTipo: string,
+  itens: ProgressoPautaItem[],
+  ymd: string,
+) {
+  try {
+    const atrasados = itens
+      .filter((i) => !!i.edicao && diasUteisEntre(i.edicao!, ymd) > 2)
+      .map((i) => ({ tribunal: i.tribunal, edicao: i.edicao!, atraso: diasUteisEntre(i.edicao!, ymd) }))
+      .sort((a, b) => b.atraso - a.atraso);
+    if (atrasados.length === 0) return;
+    if (!RESEND_API_KEY) {
+      console.log("[DJET-Pautas-Agendado] fonte atrasada, sem RESEND_API_KEY:", atrasados);
+      return;
+    }
+
+    const { data: cfg } = await supabase
+      .from(configTable)
+      .select("metadata")
+      .eq("tipo", configTipo)
+      .maybeSingle();
+    const md = (cfg?.metadata as Record<string, unknown> | null) || {};
+    if (typeof md.alerta_fonte_atrasada_em === "string" && md.alerta_fonte_atrasada_em.slice(0, 10) === ymd) {
+      return; // já avisado hoje
+    }
+
+    const linhas = atrasados
+      .map((a) => `<li><strong>${a.tribunal}</strong>: última edição ${ymdToDdmmyyyy(a.edicao)} (${a.atraso} dia(s) útil(eis) de atraso)</li>`)
+      .join("");
+    const html = `
+      <p>O portal do DEJT está servindo edições antigas para ${atrasados.length} tribunal(is) no motor <strong>DJEN Pautas Servidor</strong>.</p>
+      <ul>${linhas}</ul>
+      <p>Possíveis causas: edição do dia ainda não publicada, queda do portal ou mudança do endpoint dos cadernos.</p>
+    `;
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${RESEND_API_KEY}` },
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [SUPORTE_EMAIL],
+        subject: `DJEN Pautas Servidor - Alerta técnico - Fonte DEJT atrasada (${atrasados.length} tribunal(is))`,
+        html,
+      }),
+    });
+    if (!res.ok) {
+      console.error("[DJET-Pautas-Agendado] falha ao enviar alerta de fonte atrasada:", res.status, await res.text());
+      return;
+    }
+    await supabase
+      .from(configTable)
+      .update({ metadata: { ...md, alerta_fonte_atrasada_em: new Date().toISOString() } })
+      .eq("tipo", configTipo);
+  } catch (e) {
+    console.error("[DJET-Pautas-Agendado] erro no alerta de fonte atrasada:", e);
+  }
+}
+
 
 function buildProgressPayload(itens: ProgressoPautaItem[], datasJanela: string[], ymd: string) {
   const concluidos = itens.filter((i) => ["concluido", "erro", "cancelado"].includes(i.status)).length;
@@ -390,6 +477,29 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+
+  // ── Motor Servidor: aceita a edição vigente do DEJT (o portal serve só o
+  // caderno atual num caminho fixo, muitas vezes atrasado alguns dias) e usa
+  // o controle de "edição já processada" por tribunal para não reprocessar.
+  const aceitarEdicaoVigente = persistMode === "servidor";
+  const configTipo = persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas";
+  const edicoesProcessadas: Record<string, string> = {};
+  let configMetadata: Record<string, unknown> = {};
+  if (aceitarEdicaoVigente) {
+    const { data: cfgRow } = await supabase
+      .from(configTable)
+      .select("metadata")
+      .eq("tipo", configTipo)
+      .maybeSingle();
+    configMetadata = (cfgRow?.metadata as Record<string, unknown> | null) || {};
+    const prev = configMetadata.edicoes_processadas as Record<string, unknown> | undefined;
+    if (prev && typeof prev === "object") {
+      for (const [trib, val] of Object.entries(prev)) {
+        if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) edicoesProcessadas[trib] = val;
+      }
+    }
+  }
+
   const filtroDetalhes = {
     scheduler_slot: options.schedulerSlot || null,
     filtro: {
@@ -507,6 +617,11 @@ async function runJob(
           let ultimoStatus = 0;
           let falhouChunk = false;
           let cadernoNaoAtualizado: { lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
+          // Edição efetivamente servida pelo portal (data de disponibilização
+          // lida dentro do PDF) e se ela já foi processada antes.
+          let edicaoDetectada: string | null = null;
+          let edicaoJaProcessada = false;
+
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
@@ -529,6 +644,7 @@ async function runJob(
                   monitoramentos: monsInput,
                   pageStart: requestPageStart,
                   pageEnd,
+                  aceitarEdicaoVigente,
                 }),
               });
               lastStatus = resp.status;
@@ -557,6 +673,20 @@ async function runJob(
               };
               break;
             }
+            // Motor Servidor: identifica a edição servida e evita reprocessar
+            // o mesmo caderno em outra data/rodada.
+            if (aceitarEdicaoVigente && !edicaoDetectada) {
+              const disp = (json?.dataDisponibilizacao as string | null) || null;
+              if (disp) {
+                edicaoDetectada = disp;
+                item.edicao = disp;
+                if (edicoesProcessadas[tribunal] === disp) {
+                  edicaoJaProcessada = true;
+                  break;
+                }
+              }
+            }
+
             const chunkMatches: MatchOut[] = (json?.matches || []).map((m: Record<string, unknown>) => ({
               monitoramentoId: m.monitoramentoId as string,
               termoMatch: m.termoMatch as string,
@@ -576,6 +706,13 @@ async function runJob(
             chunkIdx++;
             // Pausa entre chunks para dar respiro ao worker
             if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
+          }
+
+          if (edicaoJaProcessada) {
+            item.current += 1;
+            item.mensagem = `Edição ${ymdToDdmmyyyy(edicaoDetectada!)} já processada`;
+            await flushProgresso(true);
+            continue;
           }
 
           if (cadernoNaoAtualizado) {
@@ -605,9 +742,14 @@ async function runJob(
           item.current += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
-          item.mensagem = `${dataDDMMYYYY} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
+          if (aceitarEdicaoVigente && edicaoDetectada) {
+            edicoesProcessadas[tribunal] = edicaoDetectada;
+          }
+          const edicaoLabel = edicaoDetectada ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)}` : dataDDMMYYYY;
+          item.mensagem = `${edicaoLabel} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
           await flushProgresso();
-          console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY}: ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+          console.log(`[DJET-Pautas-Agendado] ${tribunal} ${dataDDMMYYYY} (edição ${edicaoDetectada || dataYmd}): ${matches.length} matches → ${novas} novas / ${duplicadas} dup`);
+
         } catch (e) {
           totalErros++;
           item.current += 1;
@@ -622,8 +764,15 @@ async function runJob(
       // Tribunal finalizado: se houve erro em qualquer dia, mantém vermelho no painel.
       if (item.status !== "cancelado") {
         item.status = item.ultimoErro ? "erro" : "concluido";
+        const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
+        const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (edicaoLida && atrasoDias > 2) {
+          // Portal do DEJT está servindo edição antiga neste tribunal.
+          item.mensagem = `Fonte atrasada — última edição ${edicaoLida} · ${item.novas} nova(s)`;
+        } else if (edicaoLida) {
+          item.mensagem = `Edição ${edicaoLida} processada · ${item.novas} nova(s)`;
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
           // Todos os dias da janela vieram sem caderno publicado — não mascarar
           // como "Concluído · 0 nova(s)".
@@ -634,6 +783,7 @@ async function runJob(
           item.mensagem = `Concluído · ${item.novas} nova(s)`;
         }
       }
+
       await flushProgresso(true);
     }
 
@@ -663,10 +813,28 @@ async function runJob(
         .neq("status", "cancelado");
     }
 
-    await supabase
-      .from(configTable)
-      .update({ ultima_execucao: new Date().toISOString() })
-      .eq("tipo", persistMode === "servidor" ? "djet_pautas_servidor" : "djet_pautas");
+    if (aceitarEdicaoVigente) {
+      // Persiste o controle de edições já processadas por tribunal e o instante
+      // da última verificação — base do alerta de fonte atrasada.
+      await supabase
+        .from(configTable)
+        .update({
+          ultima_execucao: new Date().toISOString(),
+          metadata: {
+            ...configMetadata,
+            edicoes_processadas: edicoesProcessadas,
+            edicoes_verificadas_em: new Date().toISOString(),
+          },
+        })
+        .eq("tipo", configTipo);
+      await alertarFonteAtrasada(supabase, configTable, configTipo, itens, ymd);
+    } else {
+      await supabase
+        .from(configTable)
+        .update({ ultima_execucao: new Date().toISOString() })
+        .eq("tipo", configTipo);
+    }
+
   } catch (e) {
     console.error("[DJET-Pautas-Agendado] erro fatal:", e);
     if (execucaoServidorId) {
