@@ -404,10 +404,12 @@ export function useAudienciasDetectadas(filtros: AudienciasFiltros = {}) {
 
       return audienciaCriada;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-processo'] });
-      queryClient.invalidateQueries({ queryKey: ['audiencias-stats'] });
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-processo'], refetchType: 'all' }),
+        queryClient.invalidateQueries({ queryKey: ['audiencias-stats'], refetchType: 'all' }),
+      ]);
       toast.success('Audiência cadastrada com sucesso!');
     },
     onError: (error) => {
