@@ -710,7 +710,9 @@ async function runJob(
 
           if (edicaoJaProcessada) {
             item.current += 1;
-            item.mensagem = `Edição ${ymdToDdmmyyyy(edicaoDetectada!)} já processada`;
+            item.mensagem = edicaoDetectada
+              ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)} já processada`
+              : "Edição já processada";
             await flushProgresso(true);
             continue;
           }
@@ -770,9 +772,9 @@ async function runJob(
           item.mensagem = `Erro · ${item.ultimoErro}`;
         } else if (edicaoLida && atrasoDias > 2) {
           // Portal do DEJT está servindo edição antiga neste tribunal.
-          item.mensagem = `Fonte atrasada — última edição ${edicaoLida} · ${item.novas} nova(s)`;
+          item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
         } else if (edicaoLida) {
-          item.mensagem = `Edição ${edicaoLida} processada · ${item.novas} nova(s)`;
+          item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
           // Todos os dias da janela vieram sem caderno publicado — não mascarar
           // como "Concluído · 0 nova(s)".
@@ -780,7 +782,7 @@ async function runJob(
             ? "Caderno ainda não publicado"
             : `Caderno ainda não publicado (${item.diasSemPdf} dia(s))`;
         } else {
-          item.mensagem = `Concluído · ${item.novas} nova(s)`;
+          item.mensagem = `Concluído · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
         }
       }
 
@@ -807,7 +809,13 @@ async function runJob(
         .update({
           status: "concluido",
           finalizado_em: new Date().toISOString(),
-          resultado: { exec_id: execId, novas: totalNovas, duplicadas: totalDuplicadas, erros: totalErros },
+          resultado: {
+            exec_id: execId,
+            encontradas: totalNovas + totalDuplicadas,
+            novas: totalNovas,
+            duplicadas: totalDuplicadas,
+            erros: totalErros,
+          },
         })
         .eq("id", execucaoServidorId)
         .neq("status", "cancelado");
