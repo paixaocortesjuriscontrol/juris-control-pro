@@ -82,7 +82,7 @@ import PainelAudiencias from "@/pages/PainelAudiencias";
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
-import { horaBrt } from "@/utils/date";
+import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
@@ -1693,7 +1693,7 @@ export default function PainelControle() {
         descricao: a.observacoes ?? null,
         tipo: "audiencia",
         origem: "evento",
-        data_inicio: a.data_audiencia,
+        data_inicio: dataInicioAudiencia(a.data_audiencia, a) ?? a.data_audiencia,
         data_fim: null,
         dia_inteiro: !a.hora,
         local: a.local_audiencia || a.forum || null,
