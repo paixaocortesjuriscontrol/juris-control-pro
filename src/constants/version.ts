@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.0.1";
+export const APP_VERSION = "5.0.2";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -43,4 +43,5 @@ export const VERSION_HISTORY = [
   { version: "4.5.5", date: "2026-08-18", notes: "Pool DJEN Servidor: VPS 4 e 5 reativadas via systemd (13 pistas ativas) e base para controle de retries por rodada" },
   { version: "5.0.0", date: "2026-08-18", notes: "Marco 5.0.0: publicação da versão revertida" },
   { version: "5.0.1", date: "2026-08-19", notes: "Atualização de versão" },
+  { version: "5.0.2", date: "2026-08-20", notes: "Atualização de versão" },
 ];
