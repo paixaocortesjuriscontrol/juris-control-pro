@@ -74,6 +74,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     "transito_julgado",
     "processo_outro_escritorio",
     "segredo_justica",
+    "cejusc",
+
     "turma",
     "problema_judit",
     "data_distribuicao_real",
