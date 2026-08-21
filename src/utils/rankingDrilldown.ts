@@ -30,6 +30,23 @@ const STATUS_CONCLUIDO = new Set([
   "concluido_sem_sucesso",
 ]);
 
+/** Origens de importação — itens importados não contam como prazo perdido. */
+const ORIGENS_IMPORTACAO = new Set([
+  "astrea",
+  "projuris",
+  "importacao",
+  "import",
+  "planilha",
+  "migracao",
+  "carga",
+  "benner",
+]);
+
+export function itemImportado(item: any): boolean {
+  const origem = norm(item?.origem_importacao ?? item?.origem);
+  return ORIGENS_IMPORTACAO.has(origem);
+}
+
 const norm = (s?: string | null) =>
   (s ?? "")
     .normalize("NFD")
@@ -100,6 +117,8 @@ export function passaMetricaRanking(
   if (metrica === "perdidos") {
     if (!dentro(prazo)) return false;
     if (cancelado) return false;
+    // Itens vindos de importações não são contados como prazo perdido.
+    if (itemImportado(item)) return false;
     if (concluido) return !!concl && concl > prazo;
     return prazo < hojeStr;
   }
