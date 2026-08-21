@@ -821,7 +821,8 @@ async function runJob(
           item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)${sufixoMesmaEdicao}`;
 
         } else if (edicaoLida) {
-          item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
+          item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)${sufixoMesmaEdicao}`;
+
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
           // Todos os dias da janela vieram sem caderno publicado — não mascarar
           // como "Concluído · 0 nova(s)".
