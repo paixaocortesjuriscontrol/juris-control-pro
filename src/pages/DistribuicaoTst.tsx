@@ -2296,7 +2296,9 @@ export default function DistribuicaoTst() {
                     <SelectItem value="outros">Outros</SelectItem>
                     <SelectItem value="outro_escritorio">Processo outro escritório</SelectItem>
                     <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
+                    <SelectItem value="cejusc">CEJUSC</SelectItem>
                     <SelectItem value="a_fazer">A fazer</SelectItem>
+
                   </SelectContent>
                 </Select>
               </div>

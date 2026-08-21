@@ -77,12 +77,14 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
           if (error) throw error;
           for (const r of (data as any[]) || []) {
             // Espelha a lógica do botão "Verificar Pendências":
-            // processos em outro escritório ou sob segredo de justiça
+            // processos em outro escritório, sob segredo de justiça ou CEJUSC
             // não são contabilizados (nem com pendência, nem sem).
             const naoPrecisaFazer =
               (r as any).processo_outro_escritorio === true ||
-              (r as any).segredo_justica === true;
+              (r as any).segredo_justica === true ||
+              (r as any).cejusc === true;
             if (naoPrecisaFazer) continue;
+
             if (getPendencias(r).length === 0) {
               semPendencia++;
               semPendenciaIds.push((r as any).id);

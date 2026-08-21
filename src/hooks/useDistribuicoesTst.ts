@@ -243,7 +243,7 @@ export interface DistribuicaoTstFilters {
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
-  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica" | "a_fazer" | "nao_precisa_fazer";
+  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica" | "cejusc" | "a_fazer" | "nao_precisa_fazer";
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
@@ -541,17 +541,21 @@ export async function fetchAllDistribuicaoTstIds(
       query = query.eq("processo_outro_escritorio", true);
     } else if (filters.situacaoProcesso === "segredo_justica") {
       query = query.eq("segredo_justica", true);
+    } else if (filters.situacaoProcesso === "cejusc") {
+      query = query.eq("cejusc", true);
     } else if (filters.situacaoProcesso === "a_fazer") {
       query = query
         .or("transito_julgado.is.null,transito_julgado.eq.false")
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("cejusc.is.null,cejusc.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
     } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
       );
     }
+
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
@@ -769,17 +773,21 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
       query = query.eq("processo_outro_escritorio", true);
     } else if (filters.situacaoProcesso === "segredo_justica") {
       query = query.eq("segredo_justica", true);
+    } else if (filters.situacaoProcesso === "cejusc") {
+      query = query.eq("cejusc", true);
     } else if (filters.situacaoProcesso === "a_fazer") {
       query = query
         .or("transito_julgado.is.null,transito_julgado.eq.false")
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("cejusc.is.null,cejusc.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
     } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
       );
     }
+
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (filters.processo) query = query.ilike("processo", `%${filters.processo}%`);
@@ -1213,17 +1221,21 @@ export async function fetchMesesDataRealFiltered(
       query = query.eq("processo_outro_escritorio", true);
     } else if (f.situacaoProcesso === "segredo_justica") {
       query = query.eq("segredo_justica", true);
+    } else if (f.situacaoProcesso === "cejusc") {
+      query = query.eq("cejusc", true);
     } else if (f.situacaoProcesso === "a_fazer") {
       query = query
         .or("transito_julgado.is.null,transito_julgado.eq.false")
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
+        .or("cejusc.is.null,cejusc.eq.false")
         .or("status.is.null,status.neq.pronto_envio");
     } else if (f.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true"
+        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
       );
     }
+
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
     if (f.processo) query = query.ilike("processo", `%${f.processo}%`);
