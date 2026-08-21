@@ -76,6 +76,17 @@ function sanitizarHorarios(horarios: unknown[]): string[] {
   )).sort().slice(0, 3);
 }
 
+/**
+ * Horários válidos para HOJE, exatamente como configurados na tela.
+ *
+ * 1) `metadata.horarios_por_dia` (matriz 7 × até 3) — card com grade por dia
+ *    da semana (DJET Pautas Paralela). É a fonte preferida.
+ * 2) `horarios_execucao` com 7 posições E alguma vazia/nula — formato legado
+ *    "um horário por dia da semana".
+ * 3) Qualquer outra lista (ex.: ["07:30","13:00","19:20"] da tela do Servidor)
+ *    vale para TODOS os dias. Antes esse caso caía em `horarios[weekday]`,
+ *    que devolvia undefined e fazia o agendamento ser ignorado ("dia_desativado").
+ */
 function resolveHorariosDoDia(cfg: { horarios_execucao?: unknown; metadata?: unknown }, weekday: number): string[] {
   const metadata = (cfg.metadata as Record<string, unknown> | null) || {};
   const matriz = metadata.horarios_por_dia as unknown;
@@ -84,9 +95,19 @@ function resolveHorariosDoDia(cfg: { horarios_execucao?: unknown; metadata?: unk
     return Array.isArray(linha) ? sanitizarHorarios(linha) : [];
   }
   const arr = Array.isArray(cfg.horarios_execucao) ? cfg.horarios_execucao as unknown[] : [];
-  const legado = resolveHorarioDoDia(arr.map((h) => h == null ? null : String(h)), weekday);
-  return legado ? [legado] : [];
+  if (arr.length === 0) return [];
+  const brutos = arr.map((h) => (h == null ? "" : String(h).trim()));
+  const HORA_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+  const temVazio = brutos.some((h) => h === "" || !HORA_RE.test(h));
+  if (brutos.length === 7 && temVazio) {
+    // Legado "um horário por dia da semana".
+    const v = brutos[weekday];
+    return v && HORA_RE.test(v) ? sanitizarHorarios([v]) : [];
+  }
+  // Lista simples de horários: vale para todos os dias.
+  return sanitizarHorarios(brutos);
 }
+
 
 function slotNaJanela(horarios: string[], hour: number, minute: number): string | null {
   const nowMin = hour * 60 + minute;
