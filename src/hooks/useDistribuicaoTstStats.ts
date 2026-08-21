@@ -133,6 +133,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
       row.transito_julgado !== true &&
       row.processo_outro_escritorio !== true &&
       row.segredo_justica !== true &&
+      row.cejusc !== true &&
       String(row.status || "") !== "pronto_envio"
     ) {
       stats.aFazer += 1;
@@ -140,11 +141,13 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     if (
       row.transito_julgado === true ||
       row.processo_outro_escritorio === true ||
-      row.segredo_justica === true
+      row.segredo_justica === true ||
+      row.cejusc === true
     ) {
       stats.naoPrecisaFazer += 1;
     }
   }
+
 
   stats.processosUnicos = processosUnicos.size;
   return stats;
