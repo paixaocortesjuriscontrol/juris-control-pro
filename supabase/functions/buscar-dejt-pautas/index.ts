@@ -379,6 +379,74 @@ async function extractDataDisponibilizacaoYmd(uint8: Uint8Array): Promise<string
   return null;
 }
 
+// ----------------------------------------------------------------------------
+// Download do caderno: acesso direto e, quando bloqueado (403 do WAF do DEJT),
+// pelo pool de proxies DJEN (VPS) via rota binária /fetch.
+// ----------------------------------------------------------------------------
+const PDF_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  "Accept": "application/pdf,*/*",
+  "Referer": "https://dejt.jt.jus.br/",
+};
+
+let proxyPoolCache: Array<{ base_url: string; token: string }> | null = null;
+
+async function getProxyPool(): Promise<Array<{ base_url: string; token: string }>> {
+  if (proxyPoolCache) return proxyPoolCache;
+  proxyPoolCache = [];
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return proxyPoolCache;
+    const res = await fetch(
+      `${url}/rest/v1/djen_proxy_pool?select=base_url,token,enabled,saude_status&enabled=eq.true&order=created_at.asc`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    if (!res.ok) return proxyPoolCache;
+    const rows = (await res.json()) as Array<Record<string, unknown>>;
+    proxyPoolCache = (rows || [])
+      .filter((r) => typeof r.base_url === "string" && typeof r.token === "string" && r.token)
+      .filter((r) => r.saude_status !== "erro" && r.saude_status !== "offline")
+      .map((r) => ({ base_url: String(r.base_url).replace(/\/+$/, ""), token: String(r.token) }));
+  } catch (e) {
+    console.log("[DJET-Pautas] falha ao carregar pool de proxies:", (e as Error)?.message || e);
+  }
+  return proxyPoolCache;
+}
+
+/**
+ * Faz GET na URL do caderno. Tenta direto; em 403/451/429 (WAF) ou erro de
+ * rede, repete a tentativa por cada VPS do pool DJEN.
+ */
+async function fetchCaderno(url: string): Promise<Response | null> {
+  try {
+    const res = await fetch(url, { method: "GET", headers: PDF_HEADERS });
+    if (res.ok) return res;
+    console.log(`[DJET-Pautas] HTTP ${res.status} (direto) em ${url}`);
+    await res.body?.cancel();
+    if (![403, 429, 451, 503].includes(res.status)) return res;
+  } catch (e) {
+    console.log(`[DJET-Pautas] erro fetch direto ${url}:`, (e as Error)?.message || e);
+  }
+
+  const pool = await getProxyPool();
+  for (const slot of pool) {
+    try {
+      const proxied = `${slot.base_url}/fetch?url=${encodeURIComponent(url)}`;
+      const res = await fetch(proxied, { headers: { "x-proxy-token": slot.token } });
+      if (res.ok) {
+        console.log(`[DJET-Pautas] obtido via proxy ${slot.base_url}: ${url}`);
+        return res;
+      }
+      console.log(`[DJET-Pautas] proxy ${slot.base_url} devolveu HTTP ${res.status} para ${url}`);
+      await res.body?.cancel();
+    } catch (e) {
+      console.log(`[DJET-Pautas] erro no proxy ${slot.base_url}:`, (e as Error)?.message || e);
+    }
+  }
+  return null;
+}
+
 async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
@@ -397,19 +465,11 @@ async function fetchPdf(
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] tentando ${url}`);
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/pdf,*/*",
-          "Referer": "https://dejt.jt.jus.br/",
-        },
-      });
-      if (!res.ok) {
-        console.log(`[DJET-Pautas] HTTP ${res.status} em ${url}`);
+      const res = await fetchCaderno(url);
+      if (!res || !res.ok) {
         continue;
       }
+
       const ctype = (res.headers.get("content-type") || "").toLowerCase();
       const lastMod = res.headers.get("last-modified") || "";
       const buf = new Uint8Array(await res.arrayBuffer());
