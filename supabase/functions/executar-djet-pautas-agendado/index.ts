@@ -51,19 +51,6 @@ function brtWeekday(ymd: string): number {
   return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)).getUTCDay();
 }
 
-/**
- * Resolve o horário do dia atual a partir do array em horarios_execucao.
- * - Array com 7 posições: usa horarios[weekday] (0=dom..6=sáb). "" ou null = desativado.
- * - Array com 1 posição (legado): usa o mesmo horário todos os dias.
- * Retorna null se o dia estiver desativado.
- */
-function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number): string | null {
-  if (!horarios || horarios.length === 0) return "06:00";
-  if (horarios.length === 1) return horarios[0] || null;
-  const v = horarios[weekday];
-  return v && v.trim() !== "" ? v : null;
-}
-
 function sanitizarHorarios(horarios: unknown[]): string[] {
   return Array.from(new Set(
     horarios
