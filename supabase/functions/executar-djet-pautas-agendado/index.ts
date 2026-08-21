@@ -636,6 +636,8 @@ async function runJob(
           // lida dentro do PDF) e se ela já foi processada antes.
           let edicaoDetectada: string | null = null;
           let edicaoJaProcessada = false;
+          let mesmaEdicaoNaRodada = false;
+
 
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
@@ -776,9 +778,11 @@ async function runJob(
           diasProcessados += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
+          if (edicaoDetectada) edicoesLidasNestaRodada.add(edicaoDetectada);
           if (aceitarEdicaoVigente && edicaoDetectada) {
             edicoesProcessadas[tribunal] = edicaoDetectada;
           }
+
           const edicaoLabel = edicaoDetectada ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)}` : dataDDMMYYYY;
           item.mensagem = `${edicaoLabel} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
           await flushProgresso();
