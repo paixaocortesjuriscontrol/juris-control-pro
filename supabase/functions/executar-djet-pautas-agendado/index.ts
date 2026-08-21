@@ -805,6 +805,9 @@ async function runJob(
         const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
         const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
         const sufixoAtraso = atrasoDias > 2 ? ` (fonte atrasada ${atrasoDias} dias úteis)` : "";
+        const sufixoMesmaEdicao = diasMesmaEdicaoNaRodada > 0
+          ? ` · ${diasMesmaEdicaoNaRodada} dia(s) da janela caíram na mesma edição`
+          : "";
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
         } else if (diasEdicaoJaProcessada > 0 && diasProcessados === 0) {
@@ -815,7 +818,8 @@ async function runJob(
             : `Edição já processada — nada novo na fonte${sufixoAtraso}`;
         } else if (edicaoLida && atrasoDias > 2) {
           // Portal do DEJT está servindo edição antiga neste tribunal.
-          item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
+          item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)${sufixoMesmaEdicao}`;
+
         } else if (edicaoLida) {
           item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
