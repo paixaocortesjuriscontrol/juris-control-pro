@@ -906,6 +906,7 @@ Deno.serve(async (req) => {
     let dataFim: string | undefined;
     let coordenacaoId: string | null = null;
     let monitoramentoIds: string[] | undefined;
+    let reprocessarEdicoes = false;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
