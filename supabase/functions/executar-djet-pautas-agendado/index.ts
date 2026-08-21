@@ -454,52 +454,8 @@ async function persistMatches(
   return { novas, duplicadas };
 }
 
-/**
- * Contingência quando o repositório de PDFs do DEJT está bloqueado ou atrasado.
- * O DJEN oficial já é indexado pelo motor de Termos em `publicacoes_djen`; nesse
- * caso reaproveitamos somente as comunicações trabalhistas da mesma data que
- * são inequivocamente pautas e as classificamos para a aba DEJT Pautas.
- */
-async function classificarPautasDoDjenOficial(
-  supabase: ReturnType<typeof createClient>,
-  tribunal: string,
-  dataYmd: string,
-  coordenacaoId?: string | null,
-): Promise<{ encontradas: number; novas: number; existentes: number }> {
-  const inicio = `${dataYmd}T00:00:00Z`;
-  const fimDate = new Date(`${dataYmd}T12:00:00Z`);
-  fimDate.setUTCDate(fimDate.getUTCDate() + 1);
-  const fim = `${fimDate.toISOString().slice(0, 10)}T00:00:00Z`;
 
-  let query = supabase
-    .from("publicacoes_djen")
-    .select("id, tipo_publicacao")
-    .eq("tribunal", tribunal)
-    .gte("data_disponibilizacao", inicio)
-    .lt("data_disponibilizacao", fim)
-    .or("tipo_comunicacao.ilike.%pauta%,conteudo.ilike.%pauta de julgamento%,conteudo.ilike.%sessão de julgamento%,conteudo.ilike.%sessao de julgamento%");
-  if (coordenacaoId) query = query.eq("coordenacao_id", coordenacaoId);
 
-  const { data, error } = await query;
-  if (error) {
-    console.error(`[DJET-Pautas-Agendado] fallback DJEN oficial ${tribunal} ${dataYmd}:`, error);
-    return { encontradas: 0, novas: 0, existentes: 0 };
-  }
-
-  const rows = data || [];
-  const novasIds = rows.filter((r) => r.tipo_publicacao !== "pauta").map((r) => r.id);
-  for (let i = 0; i < novasIds.length; i += 200) {
-    const { error: updateError } = await supabase
-      .from("publicacoes_djen")
-      .update({ tipo_publicacao: "pauta" })
-      .in("id", novasIds.slice(i, i + 200));
-    if (updateError) {
-      console.error(`[DJET-Pautas-Agendado] classificação fallback ${tribunal} ${dataYmd}:`, updateError);
-      return { encontradas: rows.length, novas: 0, existentes: rows.length };
-    }
-  }
-  return { encontradas: rows.length, novas: novasIds.length, existentes: rows.length - novasIds.length };
-}
 
 async function runJob(
   supabase: ReturnType<typeof createClient>,
