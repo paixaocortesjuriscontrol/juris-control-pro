@@ -210,3 +210,6 @@ verify_jwt = false
 
 [functions.verificar-saude-pool-djen]
 verify_jwt = false
+
+[functions.alertar-dejt-fonte-atrasada]
+verify_jwt = false
