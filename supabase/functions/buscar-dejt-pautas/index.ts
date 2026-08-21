@@ -533,24 +533,12 @@ async function fetchPdfStream(
   const urls = buildDejtPdfUrls(tribunal, dataDDMMYYYY, caderno);
   if (urls.length === 0) return { ok: false, reason: "tribunal-sem-url" };
 
-  const todayBrt = new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
-  if (dataDDMMYYYY !== todayBrt) return { ok: false, reason: "data-historica-indisponivel" };
-
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] proxy PDF ${url}`);
-      const res = await fetch(url, {
-        method: "GET",
-        headers: {
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/pdf,*/*",
-          "Referer": "https://dejt.jt.jus.br/",
-        },
-      });
-      if (!res.ok) {
-        console.log(`[DJET-Pautas] HTTP ${res.status} em ${url}`);
-        continue;
-      }
+      const res = await fetchCaderno(url);
+      if (!res || !res.ok) continue;
+
       const ctype = (res.headers.get("content-type") || "").toLowerCase();
       if (!ctype.includes("application/pdf")) {
         console.log(`[DJET-Pautas] resposta não é PDF (${ctype}) em ${url}`);
