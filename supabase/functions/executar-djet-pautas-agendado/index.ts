@@ -776,8 +776,15 @@ async function runJob(
         item.status = item.ultimoErro ? "erro" : "concluido";
         const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
         const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
+        const sufixoAtraso = atrasoDias > 2 ? ` (fonte atrasada ${atrasoDias} dias úteis)` : "";
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (diasEdicaoJaProcessada > 0 && diasProcessados === 0) {
+          // Nada novo na fonte: o DEJT continua servindo a mesma edição que já
+          // foi lida em rodada anterior. Não é "0 encontrada(s)".
+          item.mensagem = edicaoLida
+            ? `Edição ${edicaoLida} já processada — nada novo na fonte${sufixoAtraso}`
+            : `Edição já processada — nada novo na fonte${sufixoAtraso}`;
         } else if (edicaoLida && atrasoDias > 2) {
           // Portal do DEJT está servindo edição antiga neste tribunal.
           item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
