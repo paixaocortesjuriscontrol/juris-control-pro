@@ -451,6 +451,23 @@ async function fetchCaderno(url: string): Promise<Response | null> {
   return null;
 }
 
+let indiceCache: { at: number; indice: DejtIndice | null } | null = null;
+
+/** Índice do repositório (cache curto por instância da função). */
+async function getIndice(): Promise<DejtIndice | null> {
+  if (indiceCache && Date.now() - indiceCache.at < 5 * 60 * 1000) return indiceCache.indice;
+  const indice = await fetchDejtIndice((u) => fetchCaderno(u));
+  indiceCache = { at: Date.now(), indice };
+  if (indice) {
+    console.log(
+      `[DJET-Pautas] índice DEJT: edição ${indice.dataIso || "?"} com ${indice.arquivos.size} caderno(s)`,
+    );
+  } else {
+    console.log("[DJET-Pautas] índice DEJT indisponível; seguindo direto para o PDF vigente");
+  }
+  return indice;
+}
+
 async function fetchPdf(
   tribunal: string,
   dataDDMMYYYY: string,
@@ -466,6 +483,23 @@ async function fetchPdf(
     return { ok: false, reason: "tribunal-sem-url" };
   }
   const requestedIso = ddmmyyyyToIso(dataDDMMYYYY) || dataDDMMYYYY;
+
+  // O repositório publica apenas a edição vigente; o índice diz de que dia ela
+  // é e quais órgãos disponibilizaram matérias. Quando o caderno do tribunal
+  // não consta no índice, nem vale baixar o PDF (traria edição antiga).
+  const indice = await getIndice();
+  const nomeArquivo = dejtNomeArquivo(tribunal, caderno);
+  if (indice && nomeArquivo && indice.arquivos.size > 0 && !indice.arquivos.has(nomeArquivo)) {
+    return {
+      ok: false,
+      reason: "sem-materias-na-edicao",
+      lastModified: null,
+      dataDisponibilizacao: indice.dataIso,
+      dataPublicacaoLegal: indice.dataIso ? calcularDataPublicacaoYmd(indice.dataIso) : null,
+    };
+  }
+
+
   for (const url of urls) {
     try {
       console.log(`[DJET-Pautas] tentando ${url}`);
