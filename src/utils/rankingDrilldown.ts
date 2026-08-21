@@ -117,6 +117,8 @@ export function passaMetricaRanking(
   if (metrica === "perdidos") {
     if (!dentro(prazo)) return false;
     if (cancelado) return false;
+    // Itens vindos de importações não são contados como prazo perdido.
+    if (itemImportado(item)) return false;
     if (concluido) return !!concl && concl > prazo;
     return prazo < hojeStr;
   }
