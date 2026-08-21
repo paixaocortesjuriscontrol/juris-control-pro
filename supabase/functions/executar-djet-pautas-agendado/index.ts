@@ -582,6 +582,10 @@ async function runJob(
         continue;
       }
 
+      // Quando todos os dias da janela caírem em "edição já processada", o
+      // fechamento do tribunal precisa dizer isso — e não "0 encontrada(s)".
+      let diasEdicaoJaProcessada = 0;
+      let diasProcessados = 0;
       for (const dataYmd of datasJanela) {
         if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
           for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
