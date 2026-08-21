@@ -106,6 +106,8 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   const [dataFim, setDataFim] = useState<Date | undefined>(today);
 
   const isParalela = cfg.tipo === "djen_paralela_servidor";
+  const isPautas = cfg.tipo === "djet_pautas_servidor";
+  const [reprocessarEdicoes, setReprocessarEdicoes] = useState(false);
   const horariosKey = JSON.stringify(cfg.horarios_execucao || []);
   const { data: horariosDjenNormal = [] } = useQuery({
     queryKey: ["djen-normal-paralela-horarios"],
