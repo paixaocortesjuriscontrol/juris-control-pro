@@ -493,7 +493,9 @@ async function runJob(
       .maybeSingle();
     configMetadata = (cfgRow?.metadata as Record<string, unknown> | null) || {};
     const prev = configMetadata.edicoes_processadas as Record<string, unknown> | undefined;
-    if (prev && typeof prev === "object") {
+    // "Reprocessar edição": ignora o controle de edições já processadas nesta
+    // rodada (útil quando um caderno foi lido parcialmente por erro de chunk).
+    if (prev && typeof prev === "object" && !options.reprocessarEdicoes) {
       for (const [trib, val] of Object.entries(prev)) {
         if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) edicoesProcessadas[trib] = val;
       }
