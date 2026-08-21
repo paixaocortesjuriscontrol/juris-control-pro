@@ -452,7 +452,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
-  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null } = {},
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null; reprocessarEdicoes?: boolean } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -477,6 +477,9 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+  // "Reprocessar edição" pode vir do body (cron/manual) ou do payload da
+  // execução enfileirada pelo painel (rota VPS).
+  const reprocessarEdicoes = options.reprocessarEdicoes === true || payloadServidor?.reprocessarEdicoes === true;
 
   // ── Motor Servidor: aceita a edição vigente do DEJT (o portal serve só o
   // caderno atual num caminho fixo, muitas vezes atrasado alguns dias) e usa
@@ -493,7 +496,9 @@ async function runJob(
       .maybeSingle();
     configMetadata = (cfgRow?.metadata as Record<string, unknown> | null) || {};
     const prev = configMetadata.edicoes_processadas as Record<string, unknown> | undefined;
-    if (prev && typeof prev === "object") {
+    // "Reprocessar edição": ignora o controle de edições já processadas nesta
+    // rodada (útil quando um caderno foi lido parcialmente por erro de chunk).
+    if (prev && typeof prev === "object" && !reprocessarEdicoes) {
       for (const [trib, val] of Object.entries(prev)) {
         if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) edicoesProcessadas[trib] = val;
       }
@@ -580,6 +585,10 @@ async function runJob(
         continue;
       }
 
+      // Quando todos os dias da janela caírem em "edição já processada", o
+      // fechamento do tribunal precisa dizer isso — e não "0 encontrada(s)".
+      let diasEdicaoJaProcessada = 0;
+      let diasProcessados = 0;
       for (const dataYmd of datasJanela) {
         if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
           for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
@@ -710,6 +719,7 @@ async function runJob(
 
           if (edicaoJaProcessada) {
             item.current += 1;
+            diasEdicaoJaProcessada += 1;
             item.mensagem = edicaoDetectada
               ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)} já processada`
               : "Edição já processada";
@@ -742,6 +752,7 @@ async function runJob(
           totalNovas += novas;
           totalDuplicadas += duplicadas;
           item.current += 1;
+          diasProcessados += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
           if (aceitarEdicaoVigente && edicaoDetectada) {
@@ -768,8 +779,15 @@ async function runJob(
         item.status = item.ultimoErro ? "erro" : "concluido";
         const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
         const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
+        const sufixoAtraso = atrasoDias > 2 ? ` (fonte atrasada ${atrasoDias} dias úteis)` : "";
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
+        } else if (diasEdicaoJaProcessada > 0 && diasProcessados === 0) {
+          // Nada novo na fonte: o DEJT continua servindo a mesma edição que já
+          // foi lida em rodada anterior. Não é "0 encontrada(s)".
+          item.mensagem = edicaoLida
+            ? `Edição ${edicaoLida} já processada — nada novo na fonte${sufixoAtraso}`
+            : `Edição já processada — nada novo na fonte${sufixoAtraso}`;
         } else if (edicaoLida && atrasoDias > 2) {
           // Portal do DEJT está servindo edição antiga neste tribunal.
           item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
@@ -830,7 +848,12 @@ async function runJob(
           ultima_execucao: new Date().toISOString(),
           metadata: {
             ...configMetadata,
-            edicoes_processadas: edicoesProcessadas,
+            // Mescla com o histórico: tribunais cortados por "edição já
+            // processada" nesta rodada não devem perder o registro anterior.
+            edicoes_processadas: {
+              ...((configMetadata.edicoes_processadas as Record<string, string> | null) || {}),
+              ...edicoesProcessadas,
+            },
             edicoes_verificadas_em: new Date().toISOString(),
           },
         })
@@ -886,6 +909,7 @@ Deno.serve(async (req) => {
     let dataFim: string | undefined;
     let coordenacaoId: string | null = null;
     let monitoramentoIds: string[] | undefined;
+    let reprocessarEdicoes = false;
     try {
       const body = await req.json().catch(() => ({}));
       force = body?.force === true;
@@ -897,6 +921,7 @@ Deno.serve(async (req) => {
       monitoramentoIds = Array.isArray(body?.monitoramentoIds)
         ? body.monitoramentoIds.filter((id: unknown) => typeof id === "string" && id.trim())
         : undefined;
+      reprocessarEdicoes = body?.reprocessarEdicoes === true;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
@@ -981,7 +1006,7 @@ Deno.serve(async (req) => {
     }
 
     // 5) Executa em background (não bloqueia resposta do cron)
-    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds, schedulerSlot });
+    const task = runJob(supabase, exec.id as string, now.ymd, persistMode, configTable, { execucaoServidorId, dataInicio, dataFim, coordenacaoId, monitoramentoIds, schedulerSlot, reprocessarEdicoes });
     // @ts-ignore EdgeRuntime existe no Deno Deploy do Supabase
     if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
       // @ts-ignore

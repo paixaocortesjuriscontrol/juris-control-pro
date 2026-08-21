@@ -106,6 +106,8 @@ function EngineCard({ cfg, onToggle, onConfig }: {
   const [dataFim, setDataFim] = useState<Date | undefined>(today);
 
   const isParalela = cfg.tipo === "djen_paralela_servidor";
+  const isPautas = cfg.tipo === "djet_pautas_servidor";
+  const [reprocessarEdicoes, setReprocessarEdicoes] = useState(false);
   const horariosKey = JSON.stringify(cfg.horarios_execucao || []);
   const { data: horariosDjenNormal = [] } = useQuery({
     queryKey: ["djen-normal-paralela-horarios"],
@@ -193,6 +195,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
       if (coordenacaoId) payload.coordenacaoId = coordenacaoId;
       if (monitoramentoId) payload.monitoramentoIds = [monitoramentoId];
     }
+    if (isPautas && reprocessarEdicoes) payload.reprocessarEdicoes = true;
     enfileirar.mutate({ tipo: cfg.tipo, payload });
   };
 
@@ -316,6 +319,24 @@ function EngineCard({ cfg, onToggle, onConfig }: {
             </Popover>
           </div>
         </div>
+
+        {isPautas && (
+          <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={reprocessarEdicoes}
+              onChange={(e) => setReprocessarEdicoes(e.target.checked)}
+              disabled={ativaAgora}
+            />
+            <span>
+              Reprocessar edição já lida (o DEJT publica só o caderno vigente; marque para
+              varrer novamente a mesma edição)
+            </span>
+          </label>
+        )}
+
+
 
         <Button
           size="sm"
