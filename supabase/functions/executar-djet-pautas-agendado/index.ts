@@ -589,6 +589,12 @@ async function runJob(
       // fechamento do tribunal precisa dizer isso — e não "0 encontrada(s)".
       let diasEdicaoJaProcessada = 0;
       let diasProcessados = 0;
+      // Edições efetivamente lidas NESTA rodada. O portal do DEJT serve o mesmo
+      // arquivo vigente para vários dias pedidos; sem este controle o mesmo
+      // caderno era baixado e casado a cada dia, inflando "duplicadas".
+      const edicoesLidasNestaRodada = new Set<string>();
+      let diasMesmaEdicaoNaRodada = 0;
+
       for (const dataYmd of datasJanela) {
         if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
           for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
