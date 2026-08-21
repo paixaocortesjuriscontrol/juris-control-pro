@@ -716,6 +716,7 @@ async function runJob(
 
           if (edicaoJaProcessada) {
             item.current += 1;
+            diasEdicaoJaProcessada += 1;
             item.mensagem = edicaoDetectada
               ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)} já processada`
               : "Edição já processada";
