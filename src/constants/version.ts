@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.0.2";
+export const APP_VERSION = "5.0.3";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -44,4 +44,5 @@ export const VERSION_HISTORY = [
   { version: "5.0.0", date: "2026-08-18", notes: "Marco 5.0.0: publicação da versão revertida" },
   { version: "5.0.1", date: "2026-08-19", notes: "Atualização de versão" },
   { version: "5.0.2", date: "2026-08-20", notes: "Atualização de versão" },
+  { version: "5.0.3", date: "2026-08-21", notes: "DJEN Pautas Servidor: rotas datadas do DEJT via pool de proxies, sem reprocessar a mesma edição na rodada e alerta técnico de fonte defasada" },
 ];

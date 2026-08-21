@@ -49,19 +49,38 @@ export function getDejtTribunal(sigla: string): DejtTribunal | null {
 }
 
 /**
+ * Identificador do tribunal no nome do arquivo do caderno
+ * ("TST", ou o número do TRT zero-padded: TRT1 -> "01", TRT15 -> "15").
+ */
+export function dejtFileId(sigla: string): string | null {
+  const tribunal = (sigla || "").toUpperCase();
+  if (tribunal === "TST") return "TST";
+  const m = tribunal.match(/^TRT(\d{1,2})$/);
+  return m ? m[1].padStart(2, "0") : null;
+}
+
+/** URL do caderno vigente (caminho fixo, sem data). */
+export function dejtUrlVigente(sigla: string, caderno: DejtCaderno = "judiciario"): string | null {
+  const id = dejtFileId(sigla);
+  if (!id) return null;
+  const code = caderno === "administrativo" ? "A" : "J";
+  return `https://diario.jt.jus.br/cadernos/Diario_${code}_${id}.pdf`;
+}
+
+export function isDejtUrlVigente(url: string): boolean {
+  return /\/cadernos\/Diario_[JA]_[A-Z0-9]{2,3}\.pdf$/.test(url);
+}
+
+/**
  * URLs candidatas (em ordem) para baixar o PDF de um caderno específico.
  *
- * IMPORTANTE: o servidor `diario.jt.jus.br` publica APENAS o caderno
- * vigente (do dia atual) no caminho fixo `/cadernos/Diario_<C>_<ID>.pdf`,
- * onde:
- *   - C  = "J" (Judiciário) ou "A" (Administrativo)
- *   - ID = "TST" para o TST, ou o número do TRT zero-padded a 2 dígitos
- *          (ex.: TRT1 -> "01", TRT15 -> "15")
- *
- * Para dias passados, o portal só permite consulta via formulário
- * `dejt.jt.jus.br/dejt/f/n/diariocon` (com sessão JSF), que não é
- * acessível por GET simples. Por isso, datas anteriores ao dia atual
- * podem retornar 404 e devem ser tratadas como "sem-pdf".
+ * 1) Rotas DATADAS — entregam a edição do dia pedido, mas o portal
+ *    (`dejt.jt.jus.br`, atrás de WAF) responde 403 para IPs de datacenter;
+ *    por isso o download tenta o pool de proxies DJEN quando o acesso
+ *    direto é bloqueado.
+ * 2) Caderno VIGENTE (`/cadernos/Diario_<C>_<ID>.pdf`) — caminho fixo,
+ *    sem data: serve a última edição que o portal considera atual, que
+ *    frequentemente está alguns dias atrasada. É apenas fallback.
  */
 export function buildDejtPdfUrls(
   sigla: string,
@@ -69,21 +88,26 @@ export function buildDejtPdfUrls(
   caderno: DejtCaderno = "judiciario",
 ): string[] {
   const tribunal = sigla.toUpperCase();
+  const id = dejtFileId(tribunal);
+  if (!id) return [];
   const code = caderno === "administrativo" ? "A" : "J";
 
-  // Identificador no nome do arquivo
-  let id: string;
-  if (tribunal === "TST") {
-    id = "TST";
-  } else {
-    const m = tribunal.match(/^TRT(\d{1,2})$/);
-    if (!m) return [];
-    id = m[1].padStart(2, "0");
+  const urls: string[] = [];
+  const m = (dataDDMMYYYY || "").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) {
+    const [, d, mo, y] = m;
+    urls.push(
+      `https://dejt.jt.jus.br/dejt/downloadcaderno.do?tribunal=${encodeURIComponent(tribunal)}` +
+        `&data=${encodeURIComponent(dataDDMMYYYY)}&caderno=${caderno}`,
+      `https://diario.jt.jus.br/cadernos/${y}/${mo}/${d}/Diario_${code}_${id}.pdf`,
+      `https://diario.jt.jus.br/cadernos/Diario_${code}_${id}_${y}${mo}${d}.pdf`,
+    );
   }
 
-  // Único endpoint público estável (caderno vigente).
-  return [`https://diario.jt.jus.br/cadernos/Diario_${code}_${id}.pdf`];
+  urls.push(`https://diario.jt.jus.br/cadernos/Diario_${code}_${id}.pdf`);
+  return urls;
 }
+
 
 export function ddmmyyyyToIso(dmy: string): string | null {
   const m = dmy.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);

@@ -589,6 +589,12 @@ async function runJob(
       // fechamento do tribunal precisa dizer isso — e não "0 encontrada(s)".
       let diasEdicaoJaProcessada = 0;
       let diasProcessados = 0;
+      // Edições efetivamente lidas NESTA rodada. O portal do DEJT serve o mesmo
+      // arquivo vigente para vários dias pedidos; sem este controle o mesmo
+      // caderno era baixado e casado a cada dia, inflando "duplicadas".
+      const edicoesLidasNestaRodada = new Set<string>();
+      let diasMesmaEdicaoNaRodada = 0;
+
       for (const dataYmd of datasJanela) {
         if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) {
           for (const it of itens.filter((i) => i.status === "pendente" || i.status === "executando")) {
@@ -630,6 +636,8 @@ async function runJob(
           // lida dentro do PDF) e se ela já foi processada antes.
           let edicaoDetectada: string | null = null;
           let edicaoJaProcessada = false;
+          let mesmaEdicaoNaRodada = false;
+
 
 
           while (pageStart <= numPages && chunkIdx < MAX_CHUNKS) {
@@ -689,6 +697,10 @@ async function runJob(
               if (disp) {
                 edicaoDetectada = disp;
                 item.edicao = disp;
+                if (edicoesLidasNestaRodada.has(disp)) {
+                  mesmaEdicaoNaRodada = true;
+                  break;
+                }
                 if (edicoesProcessadas[tribunal] === disp) {
                   edicaoJaProcessada = true;
                   break;
@@ -717,6 +729,16 @@ async function runJob(
             if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
           }
 
+          if (mesmaEdicaoNaRodada) {
+            item.current += 1;
+            diasMesmaEdicaoNaRodada += 1;
+            item.mensagem = edicaoDetectada
+              ? `Mesma edição ${ymdToDdmmyyyy(edicaoDetectada)} já lida nesta rodada`
+              : "Mesma edição já lida nesta rodada";
+            await flushProgresso(true);
+            continue;
+          }
+
           if (edicaoJaProcessada) {
             item.current += 1;
             diasEdicaoJaProcessada += 1;
@@ -726,6 +748,7 @@ async function runJob(
             await flushProgresso(true);
             continue;
           }
+
 
           if (cadernoNaoAtualizado) {
             item.current += 1;
@@ -755,9 +778,11 @@ async function runJob(
           diasProcessados += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
+          if (edicaoDetectada) edicoesLidasNestaRodada.add(edicaoDetectada);
           if (aceitarEdicaoVigente && edicaoDetectada) {
             edicoesProcessadas[tribunal] = edicaoDetectada;
           }
+
           const edicaoLabel = edicaoDetectada ? `Edição ${ymdToDdmmyyyy(edicaoDetectada)}` : dataDDMMYYYY;
           item.mensagem = `${edicaoLabel} (${numPages}p): ${matches.length} achado(s) · ${novas} nova(s)`;
           await flushProgresso();
@@ -780,6 +805,9 @@ async function runJob(
         const edicaoLida = item.edicao ? ymdToDdmmyyyy(item.edicao) : null;
         const atrasoDias = item.edicao ? diasUteisEntre(item.edicao, ymd) : 0;
         const sufixoAtraso = atrasoDias > 2 ? ` (fonte atrasada ${atrasoDias} dias úteis)` : "";
+        const sufixoMesmaEdicao = diasMesmaEdicaoNaRodada > 0
+          ? ` · ${diasMesmaEdicaoNaRodada} dia(s) da janela caíram na mesma edição`
+          : "";
         if (item.ultimoErro) {
           item.mensagem = `Erro · ${item.ultimoErro}`;
         } else if (diasEdicaoJaProcessada > 0 && diasProcessados === 0) {
@@ -790,9 +818,11 @@ async function runJob(
             : `Edição já processada — nada novo na fonte${sufixoAtraso}`;
         } else if (edicaoLida && atrasoDias > 2) {
           // Portal do DEJT está servindo edição antiga neste tribunal.
-          item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
+          item.mensagem = `Fonte atrasada — edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)${sufixoMesmaEdicao}`;
+
         } else if (edicaoLida) {
-          item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)`;
+          item.mensagem = `Edição ${edicaoLida} · ${item.novas + item.duplicatas} encontrada(s) · ${item.novas} nova(s) · ${item.duplicatas} já existente(s)${sufixoMesmaEdicao}`;
+
         } else if (item.novas === 0 && item.duplicatas === 0 && item.diasSemPdf > 0) {
           // Todos os dias da janela vieram sem caderno publicado — não mascarar
           // como "Concluído · 0 nova(s)".
