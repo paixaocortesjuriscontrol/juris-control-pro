@@ -454,6 +454,53 @@ async function persistMatches(
   return { novas, duplicadas };
 }
 
+/**
+ * Contingência quando o repositório de PDFs do DEJT está bloqueado ou atrasado.
+ * O DJEN oficial já é indexado pelo motor de Termos em `publicacoes_djen`; nesse
+ * caso reaproveitamos somente as comunicações trabalhistas da mesma data que
+ * são inequivocamente pautas e as classificamos para a aba DEJT Pautas.
+ */
+async function classificarPautasDoDjenOficial(
+  supabase: ReturnType<typeof createClient>,
+  tribunal: string,
+  dataYmd: string,
+  coordenacaoId?: string | null,
+): Promise<{ encontradas: number; novas: number; existentes: number }> {
+  const inicio = `${dataYmd}T00:00:00Z`;
+  const fimDate = new Date(`${dataYmd}T12:00:00Z`);
+  fimDate.setUTCDate(fimDate.getUTCDate() + 1);
+  const fim = `${fimDate.toISOString().slice(0, 10)}T00:00:00Z`;
+
+  let query = supabase
+    .from("publicacoes_djen")
+    .select("id, tipo_publicacao")
+    .eq("tribunal", tribunal)
+    .gte("data_disponibilizacao", inicio)
+    .lt("data_disponibilizacao", fim)
+    .or("tipo_comunicacao.ilike.%pauta%,conteudo.ilike.%pauta de julgamento%,conteudo.ilike.%sessão de julgamento%,conteudo.ilike.%sessao de julgamento%");
+  if (coordenacaoId) query = query.eq("coordenacao_id", coordenacaoId);
+
+  const { data, error } = await query;
+  if (error) {
+    console.error(`[DJET-Pautas-Agendado] fallback DJEN oficial ${tribunal} ${dataYmd}:`, error);
+    return { encontradas: 0, novas: 0, existentes: 0 };
+  }
+
+  const rows = data || [];
+  const novasIds = rows.filter((r) => r.tipo_publicacao !== "pauta").map((r) => r.id);
+  for (let i = 0; i < novasIds.length; i += 200) {
+    const { error: updateError } = await supabase
+      .from("publicacoes_djen")
+      .update({ tipo_publicacao: "pauta" })
+      .in("id", novasIds.slice(i, i + 200));
+    if (updateError) {
+      console.error(`[DJET-Pautas-Agendado] classificação fallback ${tribunal} ${dataYmd}:`, updateError);
+      return { encontradas: rows.length, novas: 0, existentes: rows.length };
+    }
+  }
+  return { encontradas: rows.length, novas: novasIds.length, existentes: rows.length - novasIds.length };
+}
+
 async function runJob(
   supabase: ReturnType<typeof createClient>,
   execId: string,
@@ -639,7 +686,7 @@ async function runJob(
           let chunkIdx = 0;
           let ultimoStatus = 0;
           let falhouChunk = false;
-          let cadernoNaoAtualizado: { lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
+          let cadernoNaoAtualizado: { reason?: string | null; lastModified: string | null; dataDisponibilizacao?: string | null; dataPublicacaoLegal?: string | null } | null = null;
           // Edição efetivamente servida pelo portal (data de disponibilização
           // lida dentro do PDF) e se ela já foi processada antes.
           let edicaoDetectada: string | null = null;
@@ -690,8 +737,9 @@ async function runJob(
             // Endpoint diario.jt.jus.br serve "caderno vigente" — quando o TRT
             // ainda não publicou o do dia, devolve o do dia útil anterior.
             // Neste caso não faz sentido continuar paginando o mesmo PDF.
-            if (json?.sem_dados && (json?.motivo === "caderno-nao-atualizado" || json?.motivo === "caderno-de-outra-data")) {
+            if (json?.sem_dados) {
               cadernoNaoAtualizado = {
+                reason: (json?.motivo as string | null) ?? null,
                 lastModified: (json?.lastModified as string | null) ?? null,
                 dataDisponibilizacao: (json?.dataDisponibilizacao as string | null) ?? null,
                 dataPublicacaoLegal: (json?.dataPublicacaoLegal as string | null) ?? null,
@@ -759,13 +807,25 @@ async function runJob(
 
 
           if (cadernoNaoAtualizado) {
+            const fallback = await classificarPautasDoDjenOficial(
+              supabase,
+              tribunal,
+              dataYmd,
+              options.coordenacaoId,
+            );
+            totalNovas += fallback.novas;
+            totalDuplicadas += fallback.existentes;
             item.current += 1;
             item.diasSemPdf += 1;
+            item.novas += fallback.novas;
+            item.duplicatas += fallback.existentes;
             const lm = cadernoNaoAtualizado.lastModified;
             const dataInfo = cadernoNaoAtualizado.dataDisponibilizacao || cadernoNaoAtualizado.dataPublicacaoLegal;
-            item.mensagem = lm
-              ? `Caderno não corresponde ao dia (disp/pub: ${dataInfo || "—"}; last-modified: ${lm})`
-              : "Caderno ainda não publicado";
+            item.mensagem = fallback.encontradas > 0
+              ? `PDF indisponível · contingência DJEN oficial: ${fallback.encontradas} encontrada(s) · ${fallback.novas} nova(s)`
+              : lm
+                ? `Caderno não corresponde ao dia (disp/pub: ${dataInfo || "—"}; last-modified: ${lm})`
+                : `Caderno indisponível (${cadernoNaoAtualizado.reason || "sem PDF"})`;
             await flushProgresso(true);
             continue;
           }
