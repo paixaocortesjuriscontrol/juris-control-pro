@@ -193,6 +193,7 @@ function EngineCard({ cfg, onToggle, onConfig }: {
       if (coordenacaoId) payload.coordenacaoId = coordenacaoId;
       if (monitoramentoId) payload.monitoramentoIds = [monitoramentoId];
     }
+    if (isPautas && reprocessarEdicoes) payload.reprocessarEdicoes = true;
     enfileirar.mutate({ tipo: cfg.tipo, payload });
   };
 
