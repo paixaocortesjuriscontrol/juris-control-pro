@@ -477,6 +477,9 @@ async function runJob(
   const dataFimOpcao = options.dataFim || (typeof payloadServidor?.dataFim === "string" ? payloadServidor.dataFim : undefined);
   const datasJanela = buildDateRange(dataInicioOpcao || ymd, dataFimOpcao || dataInicioOpcao || ymd);
   const itens = makeProgressItems(datasJanela);
+  // "Reprocessar edição" pode vir do body (cron/manual) ou do payload da
+  // execução enfileirada pelo painel (rota VPS).
+  const reprocessarEdicoes = options.reprocessarEdicoes === true || payloadServidor?.reprocessarEdicoes === true;
 
   // ── Motor Servidor: aceita a edição vigente do DEJT (o portal serve só o
   // caderno atual num caminho fixo, muitas vezes atrasado alguns dias) e usa
