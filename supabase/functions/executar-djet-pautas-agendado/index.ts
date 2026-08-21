@@ -749,6 +749,7 @@ async function runJob(
           totalNovas += novas;
           totalDuplicadas += duplicadas;
           item.current += 1;
+          diasProcessados += 1;
           item.novas += novas;
           item.duplicatas += duplicadas;
           if (aceitarEdicaoVigente && edicaoDetectada) {
