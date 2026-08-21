@@ -13,8 +13,12 @@ import {
   buildDejtPdfUrls,
   getDejtTribunal,
   ddmmyyyyToIso,
+  dejtNomeArquivo,
+  fetchDejtIndice,
   type DejtCaderno,
+  type DejtIndice,
 } from "../_shared/dejtTribunais.ts";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
