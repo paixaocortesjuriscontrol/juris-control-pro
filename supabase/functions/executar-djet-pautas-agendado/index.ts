@@ -917,6 +917,7 @@ Deno.serve(async (req) => {
       monitoramentoIds = Array.isArray(body?.monitoramentoIds)
         ? body.monitoramentoIds.filter((id: unknown) => typeof id === "string" && id.trim())
         : undefined;
+      reprocessarEdicoes = body?.reprocessarEdicoes === true;
     } catch { /* ignore */ }
 
     // 1) Lê configuração — usa tabela correta conforme modo (servidor vs browser)
