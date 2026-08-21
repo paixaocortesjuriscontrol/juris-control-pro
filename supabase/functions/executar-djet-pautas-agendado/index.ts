@@ -498,7 +498,7 @@ async function runJob(
     const prev = configMetadata.edicoes_processadas as Record<string, unknown> | undefined;
     // "Reprocessar edição": ignora o controle de edições já processadas nesta
     // rodada (útil quando um caderno foi lido parcialmente por erro de chunk).
-    if (prev && typeof prev === "object" && !options.reprocessarEdicoes) {
+    if (prev && typeof prev === "object" && !reprocessarEdicoes) {
       for (const [trib, val] of Object.entries(prev)) {
         if (typeof val === "string" && /^\d{4}-\d{2}-\d{2}$/.test(val)) edicoesProcessadas[trib] = val;
       }
