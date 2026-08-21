@@ -45,6 +45,8 @@ async function run({ payload, log, job }) {
     execucaoServidorId: job?.id,
     dataInicio: payload?.dataInicio,
     dataFim: payload?.dataFim,
+    // Permite reprocessar a edição vigente mesmo que já tenha sido lida antes.
+    reprocessarEdicoes: payload?.reprocessarEdicoes === true,
   };
   // Pautas é um job global — cada execução já reprocessa tudo do dia.
   // Por isso só registramos falhas (para visibilidade) e marcamos
