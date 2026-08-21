@@ -317,6 +317,24 @@ function EngineCard({ cfg, onToggle, onConfig }: {
           </div>
         </div>
 
+        {isPautas && (
+          <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={reprocessarEdicoes}
+              onChange={(e) => setReprocessarEdicoes(e.target.checked)}
+              disabled={ativaAgora}
+            />
+            <span>
+              Reprocessar edição já lida (o DEJT publica só o caderno vigente; marque para
+              varrer novamente a mesma edição)
+            </span>
+          </label>
+        )}
+
+
+
         <Button
           size="sm"
           variant="secondary"
