@@ -2298,6 +2298,8 @@ export default function DistribuicaoTst() {
                     <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
                     <SelectItem value="cejusc">CEJUSC</SelectItem>
                     <SelectItem value="a_fazer">A fazer</SelectItem>
+                    <SelectItem value="nao_precisa_fazer">Não precisa fazer</SelectItem>
+
 
                   </SelectContent>
                 </Select>
