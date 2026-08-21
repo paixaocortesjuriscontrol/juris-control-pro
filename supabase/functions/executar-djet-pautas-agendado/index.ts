@@ -695,6 +695,10 @@ async function runJob(
               if (disp) {
                 edicaoDetectada = disp;
                 item.edicao = disp;
+                if (edicoesLidasNestaRodada.has(disp)) {
+                  mesmaEdicaoNaRodada = true;
+                  break;
+                }
                 if (edicoesProcessadas[tribunal] === disp) {
                   edicaoJaProcessada = true;
                   break;
@@ -723,6 +727,16 @@ async function runJob(
             if (pageStart <= numPages) await new Promise((r) => setTimeout(r, 200));
           }
 
+          if (mesmaEdicaoNaRodada) {
+            item.current += 1;
+            diasMesmaEdicaoNaRodada += 1;
+            item.mensagem = edicaoDetectada
+              ? `Mesma edição ${ymdToDdmmyyyy(edicaoDetectada)} já lida nesta rodada`
+              : "Mesma edição já lida nesta rodada";
+            await flushProgresso(true);
+            continue;
+          }
+
           if (edicaoJaProcessada) {
             item.current += 1;
             diasEdicaoJaProcessada += 1;
@@ -732,6 +746,7 @@ async function runJob(
             await flushProgresso(true);
             continue;
           }
+
 
           if (cadernoNaoAtualizado) {
             item.current += 1;
