@@ -131,6 +131,73 @@ function handleDjen(req, res, parsedUrl) {
   upstream.end();
 }
 
+// Hosts permitidos no repasse binário (/fetch). Necessário para baixar os
+// cadernos do DEJT: o portal responde 403 (WAF) para IPs de datacenter,
+// mas libera o acesso a partir das VPS do pool.
+const ALLOWED_FETCH_HOSTS = new Set([
+  'comunicaapi.pje.jus.br',
+  'dejt.jt.jus.br',
+  'diario.jt.jus.br',
+]);
+
+// GET /fetch?url=<url absoluta permitida>
+// Repassa a resposta BINÁRIA do upstream (PDF etc.) sem transformar em JSON.
+function handleFetch(req, res, parsedUrl) {
+  const receivedToken = String(req.headers['x-proxy-token'] || '')
+    .split(',')
+    .map((t) => t.trim())
+    .find(Boolean) || '';
+  if (receivedToken !== PROXY_TOKEN) {
+    return json(res, 401, { error: 'unauthorized' }, corsHeaders());
+  }
+
+  const raw = parsedUrl.searchParams.get('url') || '';
+  let target;
+  try {
+    target = new URL(raw);
+  } catch (_) {
+    return json(res, 400, { error: 'invalid_target_url' }, corsHeaders());
+  }
+  if (target.protocol !== 'https:' || !ALLOWED_FETCH_HOSTS.has(target.hostname)) {
+    return json(res, 403, { error: 'host_not_allowed', host: target.hostname }, corsHeaders());
+  }
+
+  const opts = {
+    method: 'GET',
+    hostname: target.hostname,
+    port: target.port || 443,
+    path: target.pathname + target.search,
+    headers: {
+      Accept: 'application/pdf,application/json,*/*',
+      'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+      'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Referer: `https://${target.hostname}/`,
+      Connection: 'keep-alive',
+    },
+    timeout: 180000,
+  };
+
+  const upstream = https.request(opts, (upRes) => {
+    const headers = {
+      ...corsHeaders(),
+      'Content-Type': upRes.headers['content-type'] || 'application/octet-stream',
+      'X-Upstream-Status': String(upRes.statusCode || 0),
+    };
+    if (upRes.headers['content-length']) headers['Content-Length'] = upRes.headers['content-length'];
+    if (upRes.headers['last-modified']) headers['Last-Modified'] = upRes.headers['last-modified'];
+    res.writeHead(upRes.statusCode || 502, headers);
+    upRes.pipe(res);
+  });
+
+  upstream.on('timeout', () => upstream.destroy(new Error('upstream_timeout')));
+  upstream.on('error', (err) => {
+    if (res.headersSent) return res.destroy();
+    json(res, 502, { error: 'upstream_error', code: err.code || null, message: err.message }, corsHeaders());
+  });
+  upstream.end();
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeaders());
@@ -151,6 +218,11 @@ const server = http.createServer((req, res) => {
   if (req.method === 'GET' && parsedUrl.pathname === '/djen') {
     return handleDjen(req, res, parsedUrl);
   }
+
+  if (req.method === 'GET' && parsedUrl.pathname === '/fetch') {
+    return handleFetch(req, res, parsedUrl);
+  }
+
 
   json(res, 404, { error: 'not_found' }, corsHeaders());
 });
