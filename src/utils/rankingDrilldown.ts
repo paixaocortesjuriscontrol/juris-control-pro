@@ -30,6 +30,23 @@ const STATUS_CONCLUIDO = new Set([
   "concluido_sem_sucesso",
 ]);
 
+/** Origens de importação — itens importados não contam como prazo perdido. */
+const ORIGENS_IMPORTACAO = new Set([
+  "astrea",
+  "projuris",
+  "importacao",
+  "import",
+  "planilha",
+  "migracao",
+  "carga",
+  "benner",
+]);
+
+export function itemImportado(item: any): boolean {
+  const origem = norm(item?.origem_importacao ?? item?.origem);
+  return ORIGENS_IMPORTACAO.has(origem);
+}
+
 const norm = (s?: string | null) =>
   (s ?? "")
     .normalize("NFD")
