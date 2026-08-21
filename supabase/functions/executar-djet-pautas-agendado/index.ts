@@ -452,7 +452,7 @@ async function runJob(
   ymd: string,
   persistMode: "browser" | "servidor" = "browser",
   configTable: string = "configuracoes_monitoramento",
-  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null } = {},
+  options: { execucaoServidorId?: string | null; dataInicio?: string; dataFim?: string; coordenacaoId?: string | null; monitoramentoIds?: string[]; schedulerSlot?: string | null; reprocessarEdicoes?: boolean } = {},
 ) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
