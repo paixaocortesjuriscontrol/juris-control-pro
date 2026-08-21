@@ -845,7 +845,12 @@ async function runJob(
           ultima_execucao: new Date().toISOString(),
           metadata: {
             ...configMetadata,
-            edicoes_processadas: edicoesProcessadas,
+            // Mescla com o histórico: tribunais cortados por "edição já
+            // processada" nesta rodada não devem perder o registro anterior.
+            edicoes_processadas: {
+              ...((configMetadata.edicoes_processadas as Record<string, string> | null) || {}),
+              ...edicoesProcessadas,
+            },
             edicoes_verificadas_em: new Date().toISOString(),
           },
         })
