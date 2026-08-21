@@ -761,30 +761,18 @@ async function runJob(
             continue;
           }
 
-
           if (cadernoNaoAtualizado) {
-            const fallback = await classificarPautasDoDjenOficial(
-              supabase,
-              tribunal,
-              dataYmd,
-              options.coordenacaoId,
-            );
-            totalNovas += fallback.novas;
-            totalDuplicadas += fallback.existentes;
             item.current += 1;
             item.diasSemPdf += 1;
-            item.novas += fallback.novas;
-            item.duplicatas += fallback.existentes;
             const lm = cadernoNaoAtualizado.lastModified;
             const dataInfo = cadernoNaoAtualizado.dataDisponibilizacao || cadernoNaoAtualizado.dataPublicacaoLegal;
-            item.mensagem = fallback.encontradas > 0
-              ? `PDF indisponível · contingência DJEN oficial: ${fallback.encontradas} encontrada(s) · ${fallback.novas} nova(s)`
-              : lm
-                ? `Caderno não corresponde ao dia (disp/pub: ${dataInfo || "—"}; last-modified: ${lm})`
-                : `Caderno indisponível (${cadernoNaoAtualizado.reason || "sem PDF"})`;
+            item.mensagem = lm
+              ? `Caderno não corresponde ao dia (disp/pub: ${dataInfo || "—"}; last-modified: ${lm})`
+              : `Caderno indisponível (${cadernoNaoAtualizado.reason || "sem PDF"})`;
             await flushProgresso(true);
             continue;
           }
+
 
           if (falhouChunk) {
             totalErros++;
