@@ -1,1 +1,2 @@
 - [DJEN Servidor Refila Loop](mem://logic/djen/servidor-refila-timeout-loop) — Lentidão vem do refila de timeouts; medir cards por rodada em execucoes_servidor
+- [Gemini Deprecations](mem://infrastructure/api/gemini-model-deprecations) — gemini-2.5-pro removido; pro→gemini-3.1-pro-preview e fallback 404→flash-latest
