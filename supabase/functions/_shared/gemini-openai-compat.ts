@@ -160,10 +160,9 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
   if (toolConfig) geminiBody.toolConfig = toolConfig;
   if (Object.keys(generationConfig).length) geminiBody.generationConfig = generationConfig;
 
-  const url = `${GEMINI_BASE}/models/${model}:generateContent`;
-  let resp: Response;
-  try {
-    resp = await fetch(url, {
+  let modeloUsado = model;
+  const chamar = (m: string) =>
+    fetch(`${GEMINI_BASE}/models/${m}:generateContent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -171,6 +170,21 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
       },
       body: JSON.stringify(geminiBody),
     });
+
+  let resp: Response;
+  try {
+    resp = await chamar(model);
+    // Modelo inexistente/indisponível para a conta -> tentar o alias rápido atual
+    if (resp.status === 404 && model !== FALLBACK_MODEL) {
+      console.warn(`gemini-compat: modelo ${model} retornou 404 — usando ${FALLBACK_MODEL}`);
+      const retry = await chamar(FALLBACK_MODEL);
+      if (retry.ok) {
+        modeloUsado = FALLBACK_MODEL;
+        resp = retry;
+      } else {
+        resp = retry.status === 404 ? resp : retry;
+      }
+    }
   } catch (e: any) {
     logIfCtx({ status: "error", erro: `Falha de rede Gemini: ${e?.message || e}` });
     return new Response(
@@ -180,6 +194,7 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
   }
 
   if (!resp.ok) {
+
     const errText = await resp.text();
     const lower = errText.toLowerCase();
     const creditsDepleted = lower.includes("prepayment credits are depleted")
