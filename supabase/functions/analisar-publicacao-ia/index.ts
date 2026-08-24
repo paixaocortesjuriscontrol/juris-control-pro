@@ -9,7 +9,7 @@ const corsHeaders = {
 
 // Modelo dedicado ao preenchimento automático de tarefas/prazos/eventos/audiências.
 // Usa o modelo mais capaz (Pro) por padrão; cai para o rápido em caso de 429/5xx.
-const AI_MODEL = Deno.env.get("GEMINI_MODEL_TAREFAS") || "gemini-2.5-pro";
+const AI_MODEL = Deno.env.get("GEMINI_MODEL_TAREFAS") || "gemini-flash-latest";
 const AI_MODEL_FALLBACK = "gemini-flash-latest";
 
 type TipoItem = "prazo" | "tarefa" | "evento" | "audiencia";
