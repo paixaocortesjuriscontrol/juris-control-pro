@@ -10,6 +10,8 @@
 
 const GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
 const FALLBACK_MODEL = "gemini-flash-latest";
+// Substituto para os modelos "pro" descontinuados (gemini-2.5-pro foi removido pelo Google)
+const PRO_MODEL = Deno.env.get("GEMINI_PRO_MODEL") || "gemini-3.1-pro-preview";
 const DEFAULT_MODEL = Deno.env.get("GEMINI_MODEL") || FALLBACK_MODEL;
 
 import { logAiUsage, type AiUsageLogParams } from "./ai-usage-logger.ts";
@@ -18,19 +20,27 @@ type AiUsageCtx = Pick<AiUsageLogParams, "edgeFunction" | "authHeader" | "refere
 
 function mapModel(model?: string): string {
   const rawModel = (model || DEFAULT_MODEL).replace(/^models\//, "").trim();
-  // Modelos descontinuados pelo Google -> redirecionar para o alias atual
+  // Modelos "pro" descontinuados -> substituto pro atual
+  const deprecatedPro = new Set([
+    "gemini-2.5-pro",
+    "gemini-2.5-pro-latest",
+    "gemini-1.5-pro",
+    "gemini-1.5-pro-latest",
+    "gemini-pro",
+  ]);
+  if (deprecatedPro.has(rawModel)) return PRO_MODEL;
+  // Modelos rápidos descontinuados -> alias atual
   const deprecated = new Set([
     "gemini-2.5-flash",
     "gemini-2.5-flash-latest",
     "gemini-1.5-flash",
-    "gemini-1.5-pro",
-    "gemini-pro",
   ]);
   if (deprecated.has(rawModel)) return FALLBACK_MODEL;
   if (rawModel.startsWith("gemini")) return rawModel;
   // gpt-4o, gpt-4o-mini, gpt-4.1, etc -> Gemini padrão
   return FALLBACK_MODEL;
 }
+
 
 function messagesToContents(messages: any[]) {
   const systemTexts: string[] = [];
@@ -150,10 +160,9 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
   if (toolConfig) geminiBody.toolConfig = toolConfig;
   if (Object.keys(generationConfig).length) geminiBody.generationConfig = generationConfig;
 
-  const url = `${GEMINI_BASE}/models/${model}:generateContent`;
-  let resp: Response;
-  try {
-    resp = await fetch(url, {
+  let modeloUsado = model;
+  const chamar = (m: string) =>
+    fetch(`${GEMINI_BASE}/models/${m}:generateContent`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -161,6 +170,21 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
       },
       body: JSON.stringify(geminiBody),
     });
+
+  let resp: Response;
+  try {
+    resp = await chamar(model);
+    // Modelo inexistente/indisponível para a conta -> tentar o alias rápido atual
+    if (resp.status === 404 && model !== FALLBACK_MODEL) {
+      console.warn(`gemini-compat: modelo ${model} retornou 404 — usando ${FALLBACK_MODEL}`);
+      const retry = await chamar(FALLBACK_MODEL);
+      if (retry.ok) {
+        modeloUsado = FALLBACK_MODEL;
+        resp = retry;
+      } else {
+        resp = retry.status === 404 ? resp : retry;
+      }
+    }
   } catch (e: any) {
     logIfCtx({ status: "error", erro: `Falha de rede Gemini: ${e?.message || e}` });
     return new Response(
@@ -170,6 +194,7 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
   }
 
   if (!resp.ok) {
+
     const errText = await resp.text();
     const lower = errText.toLowerCase();
     const creditsDepleted = lower.includes("prepayment credits are depleted")
@@ -212,7 +237,8 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
     id: `gemini-${Date.now()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
-    model,
+    model: modeloUsado,
+
     choices: [{
       index: 0,
       message: {

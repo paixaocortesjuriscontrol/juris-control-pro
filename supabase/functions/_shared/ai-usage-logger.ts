@@ -10,6 +10,9 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "gemini-2.5-flash": { input: 0.30, output: 2.50 },
   "gemini-2.5-flash-preview": { input: 0.30, output: 2.50 },
   "gemini-2.5-pro": { input: 1.25, output: 10.0 },
+  "gemini-3.1-pro-preview": { input: 2.0, output: 12.0 },
+  "gemini-3-pro-preview": { input: 2.0, output: 12.0 },
+
   "gemini-1.5-flash": { input: 0.075, output: 0.30 },
   "gemini-1.5-pro": { input: 1.25, output: 5.0 },
 };
