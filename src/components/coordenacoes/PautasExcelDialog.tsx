@@ -350,6 +350,7 @@ export function PautasExcelDialog({
       }
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
+      chavesDia.add(chaveDia);
       r.audienciasCriadas++;
     }
 
