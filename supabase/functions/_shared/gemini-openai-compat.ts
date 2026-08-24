@@ -237,7 +237,8 @@ export async function geminiChatCompletionsFetch(body: any): Promise<Response> {
     id: `gemini-${Date.now()}`,
     object: "chat.completion",
     created: Math.floor(Date.now() / 1000),
-    model,
+    model: modeloUsado,
+
     choices: [{
       index: 0,
       message: {
