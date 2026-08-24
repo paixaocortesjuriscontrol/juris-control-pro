@@ -239,16 +239,11 @@ export function PautasExcelDialog({
       r.processosCriados++;
     }
 
-    // 3) Pré-consulta de duplicidade: qualquer atividade (audiência, tarefa ou evento)
-    //    já existente no MESMO processo e no MESMO DIA bloqueia a criação.
+    // 3) Pré-consulta de duplicidade: atividade (audiência, tarefa ou evento)
+    //    já existente no MESMO processo + MESMO DIA + MESMO TÍTULO bloqueia a criação.
+    //    Se o título for diferente, permite criar a nova atividade.
     const procIds = Array.from(new Set(Array.from(procIdByDigits.values())));
     const audChave = new Set<string>(); // processo|dia|titulo
-    const chavesDia = new Set<string>(); // processo|dia (qualquer atividade)
-
-    const registrarDia = (processoId: string | null | undefined, dataHora: string | null | undefined) => {
-      const dia = diaLocalISO(dataHora);
-      if (processoId && dia) chavesDia.add(`${processoId}|${dia}`);
-    };
 
     if (procIds.length > 0) {
       const [{ data: audienciasDb }, { data: tarefasDb }, { data: eventosDb }] = await Promise.all([
@@ -269,17 +264,14 @@ export function PautasExcelDialog({
       for (const a of audienciasDb || []) {
         const chave = audienciaKey((a as any).processo_id || "", (a as any).data_audiencia, (a as any).titulo);
         if (chave) audChave.add(chave);
-        registrarDia((a as any).processo_id, (a as any).data_audiencia);
       }
       for (const t of tarefasDb || []) {
         const chave = audienciaKey((t as any).processo_id || "", (t as any).data_vencimento, (t as any).titulo);
         if (chave) audChave.add(chave);
-        registrarDia((t as any).processo_id, (t as any).data_vencimento);
       }
       for (const e of eventosDb || []) {
         const chave = audienciaKey((e as any).processo_id || "", (e as any).data_inicio, (e as any).titulo);
         if (chave) audChave.add(chave);
-        registrarDia((e as any).processo_id, (e as any).data_inicio);
       }
     }
 
@@ -296,12 +288,12 @@ export function PautasExcelDialog({
       const dataAudISO = `${l.data_iso}T${hora}:00-03:00`;
       const titulo = l.tipo || "Audiência";
       const chaveAudiencia = audienciaKey(procId, l.data_iso, titulo);
-      const chaveDia = `${procId}|${l.data_iso}`;
 
-      if ((chaveAudiencia && audChave.has(chaveAudiencia)) || chavesDia.has(chaveDia)) {
+      if (chaveAudiencia && audChave.has(chaveAudiencia)) {
         r.audienciasDuplicadas++;
         continue;
       }
+
 
 
       const audId = crypto.randomUUID();
@@ -350,9 +342,9 @@ export function PautasExcelDialog({
       }
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
-      chavesDia.add(chaveDia);
       r.audienciasCriadas++;
     }
+
 
     setResumo(r);
     setEtapa("concluido");
