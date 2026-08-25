@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard, FileSpreadsheet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
