@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard, FileSpreadsheet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -685,6 +685,7 @@ const Administracao = () => {
                 { label: "Consumo de IA", path: "/consumo-ia", icon: Coins, description: "Relatório detalhado de tokens, custo e chamadas por usuário/tela." },
                 { label: "Consumo Judit", path: "/consumo-judit", icon: Scale, description: "Faturamento detalhado das consultas Judit por tipo, usuário e tela." },
                 { label: "Auditoria de Itens", path: "/auditoria-itens", icon: History, description: "Histórico de criação, edição e exclusão de tarefas, prazos, eventos, audiências e parcelamentos." },
+                { label: "Relatório de Duplicados", path: "/relatorio-duplicados", icon: FileSpreadsheet, description: "Excel com tarefas, prazos, audiências e eventos repetidos (não exclui nada)." },
               ].map((tool) => (
                 <Link key={tool.path} to={tool.path} className="group">
                   <Card className="h-full transition-all border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5">

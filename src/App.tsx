@@ -91,6 +91,7 @@ import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
 import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
+import RelatorioDuplicados from "./pages/RelatorioDuplicados";
 import Workflow from "./pages/Workflow";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
@@ -170,6 +171,7 @@ function App() {
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />
               <Route path="/consumo-ia" element={<AdminRoute><ConsumoIA /></AdminRoute>} />
               <Route path="/consumo-judit" element={<AdminRoute><ConsumoJudit /></AdminRoute>} />
+              <Route path="/relatorio-duplicados" element={<AdminRoute><RelatorioDuplicados /></AdminRoute>} />
               <Route path="/auditoria-itens" element={<AdminOrCoordRoute><AuditoriaItens /></AdminOrCoordRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
               <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
