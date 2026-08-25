@@ -91,6 +91,7 @@ import ClassificacaoTst from "./pages/ClassificacaoTst";
 import IaResponde from "./pages/IaResponde";
 import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
+import RelatorioDuplicados from "./pages/RelatorioDuplicados";
 import Workflow from "./pages/Workflow";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
