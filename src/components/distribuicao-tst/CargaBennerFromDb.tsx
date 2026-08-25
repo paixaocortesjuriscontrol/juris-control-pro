@@ -561,7 +561,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             seen.add(k);
             out.push(String(it.materia).trim());
           }
-          return out.join("\n");
+          return out.join(",");
         };
         // "Outra Matéria" nunca vai para a planilha de carga — mesmo quando é a
         // única matéria selecionada (nesse caso as colunas ficam vazias).

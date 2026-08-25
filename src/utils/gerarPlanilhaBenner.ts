@@ -223,7 +223,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
       seen.add(k);
       out.push(String(it.materia).trim());
     }
-    return out.join("\n");
+    return out.join(",");
   };
   const turmaFav = joinUnique(materiasAnalise.filter((i) => norm(i.chance_turma).startsWith("FAVOR")));
   const turmaDesf = joinUnique(materiasAnalise.filter((i) => norm(i.chance_turma).startsWith("DESF")));
