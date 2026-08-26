@@ -172,6 +172,7 @@ export function NovaTarefaDialog({
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
   const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const tertiaryClickedRef = useRef(false);
+  const submitInFlightRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
@@ -820,6 +821,7 @@ export function NovaTarefaDialog({
         variant: "destructive",
       });
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
       setUploadingAnexos(false);
     }
