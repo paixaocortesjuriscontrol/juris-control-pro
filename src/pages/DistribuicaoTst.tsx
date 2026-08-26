@@ -390,10 +390,7 @@ export default function DistribuicaoTst() {
   // Processos preenchidos com "Outra Matéria": alerta ao "Verificar Pendências",
   // pois esse rótulo nunca é exportado para a planilha de Carga Benner.
   const processosComOutraMateria = useMemo(() => {
-    const temOutra = (s: any) =>
-      String(s ?? "")
-        .split(/[;\n|]/)
-        .some((n) => isOutraMateria(n));
+    const temOutra = (s: any) => parseMateriasString(s).some((n) => isOutraMateria(n));
     return (dados || [])
       .map((d: any) => {
         const partes: string[] = [];
