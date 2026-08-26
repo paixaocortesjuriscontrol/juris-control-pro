@@ -172,6 +172,7 @@ export function NovaTarefaDialog({
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
   const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const tertiaryClickedRef = useRef(false);
+  const submitInFlightRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
   const [anexos, setAnexos] = useState<AnexoComAnalise[]>([]);
   const [uploadingAnexos, setUploadingAnexos] = useState(false);
@@ -544,6 +545,10 @@ export function NovaTarefaDialog({
   };
 
   async function onSubmit(values: FormValues) {
+    // Trava anti-duplo-envio: o `disabled={loading}` só vale após o commit do
+    // estado, então dois cliques rápidos (ou header + rodapé) criavam 2 registros.
+    if (submitInFlightRef.current) return;
+    submitInFlightRef.current = true;
     setLoading(true);
     try {
       let processoId = values.tipo_vinculo === "processo" ? normalizeUuid(values.processo_id) : null;
@@ -816,6 +821,7 @@ export function NovaTarefaDialog({
         variant: "destructive",
       });
     } finally {
+      submitInFlightRef.current = false;
       setLoading(false);
       setUploadingAnexos(false);
     }
