@@ -781,10 +781,24 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
       setPhase("Concluído!");
       setProgress(100);
-      const warningSuffix = isManualSelection && warningsTotal > 0
+      const warningSuffix = warningsTotal > 0
         ? `, ${warningsTotal} aviso(s)`
         : "";
       toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
+      const rejForaLista = rejByType["Matérias fora da lista oficial de pedidos"] || 0;
+      if (rejForaLista > 0) {
+        toast.warning(
+          `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`,
+          { duration: 10000 },
+        );
+      }
+      const avisoParcial = warningsByType["Matérias descartadas fora da lista oficial"] || 0;
+      if (avisoParcial > 0) {
+        toast.info(
+          `${avisoParcial} processo(s) exportado(s) com matérias descartadas por não constarem na lista oficial de pedidos.`,
+          { duration: 8000 },
+        );
+      }
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || String(err)));
       console.error("[CargaBennerFromDb] Error:", err);
