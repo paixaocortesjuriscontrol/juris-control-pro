@@ -554,6 +554,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (!updated || updated.length === 0) {
         throw new Error("Nenhuma alteração foi gravada (sem permissão para editar este processo).");
       }
+      setEncerradoEm(novoEncerradoEm);
 
       {
         await supabase
