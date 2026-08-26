@@ -12,11 +12,18 @@
 
 export const OUTRA_MATERIA_LABEL = "Outra Matéria";
 
+/** Normaliza nome de matéria para comparação (sem acento, minúsculo, espaços colapsados). */
+export function normalizeMateriaNome(nome: string | null | undefined): string {
+  return (nome || "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
 export function isOutraMateria(nome: string | null | undefined): boolean {
-  return (
-    (nome || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim() ===
-    "outra materia"
-  );
+  return normalizeMateriaNome(nome) === "outra materia";
 }
 
 /**
