@@ -453,6 +453,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
 
+      // Encerramento: o sistema registra automaticamente a data/hora em que o
+      // contrato passou para "Encerrado" (e limpa quando volta a ficar ativo).
+      let novoEncerradoEm: string | null = encerradoEm;
+      if (form.status === "encerrado") {
+        if (!novoEncerradoEm) novoEncerradoEm = new Date().toISOString();
+        payload.data_hora_encerramento = novoEncerradoEm;
+        payload.data_encerramento = novoEncerradoEm.slice(0, 10);
+      } else {
+        novoEncerradoEm = null;
+        payload.data_hora_encerramento = null;
+      }
+
+
+
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
