@@ -24,7 +24,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
-import { isOutraMateria } from "@/utils/outraMateria";
+import { isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
+import { useMateriasPedidosOficiais } from "@/hooks/useMateriasPedidosOficiais";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 // Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
 // foram movidas para Admin TST → Importações Distribuição TST.
@@ -403,6 +404,34 @@ export default function DistribuicaoTst() {
       })
       .filter((p) => p.partes.length > 0);
   }, [dados]);
+
+  // Processos com matéria selecionada FORA da lista oficial de pedidos
+  // (tabela materias_pedidos_oficiais — coluna Pedido da planilha Santander).
+  const { data: materiasOficiais } = useMateriasPedidosOficiais();
+  const oficiaisSet = useMemo(
+    () => new Set((materiasOficiais || []).map((m) => normalizeMateriaNome(m.nome))),
+    [materiasOficiais],
+  );
+  const processosComMateriaForaDaLista = useMemo(() => {
+    if (oficiaisSet.size === 0) return [];
+    const foraDaLista = (s: any) =>
+      parseMateriasString(s).filter(
+        (n) => !isOutraMateria(n) && !oficiaisSet.has(normalizeMateriaNome(n)),
+      );
+    return (dados || [])
+      .map((d: any) => {
+        const partes: string[] = [];
+        const materias: string[] = [];
+        const fRec = foraDaLista(d.materias_recurso_reclamante);
+        if (fRec.length > 0) { partes.push("Reclamante"); materias.push(...fRec); }
+        const fBco = foraDaLista(d.materias_recurso_banco);
+        if (fBco.length > 0) { partes.push("Banco"); materias.push(...fBco); }
+        const fTer = foraDaLista(d.materias_recurso_terceiro);
+        if (fTer.length > 0) { partes.push("Terceiro"); materias.push(...fTer); }
+        return { id: d.id, processo_numero: d.processo_numero, dossie: d.dossie, partes, materias: [...new Set(materias)] };
+      })
+      .filter((p) => p.partes.length > 0);
+  }, [dados, oficiaisSet]);
 
   const dadosOrdenados = useMemo(() => {
     if (!sortBy) return dados;
@@ -2425,6 +2454,42 @@ export default function DistribuicaoTst() {
                       {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
                     </button>
                     {p.partes.length > 0 && <span className="opacity-70"> — {p.partes.join(", ")}</span>}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+
+        {/* Alerta: matérias selecionadas fora da lista oficial de pedidos */}
+        {mostrarPendencias && processosComMateriaForaDaLista.length > 0 && (
+          <div className="border border-red-500/40 rounded-lg p-3 bg-red-50 dark:bg-red-950/20 space-y-1">
+            <p className="text-sm font-medium text-red-800 dark:text-red-400">
+              {processosComMateriaForaDaLista.length} processo(s) desta página com matéria fora da lista oficial de pedidos
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300/80">
+              Matérias fora da lista oficial (coluna Pedido da planilha Santander) não devem ir para a Carga Benner. Ajuste para uma matéria oficial.
+            </p>
+            <ul className="text-xs text-red-800 dark:text-red-300 list-disc pl-4 max-h-40 overflow-auto">
+              {processosComMateriaForaDaLista.map((p) => {
+                const dado = dados.find((d: any) => d.id === p.id);
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (dado) {
+                          setDetailInitialTab("distribuicao");
+                          setEditando(dado);
+                        }
+                      }}
+                      className="font-mono text-red-900 dark:text-red-200 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                      disabled={!dado}
+                      title={dado ? "Abrir formulário de detalhe do processo" : "Registro não disponível"}
+                    >
+                      {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
+                    </button>
+                    <span className="opacity-70"> — {p.partes.join(", ")}: {p.materias.join("; ")}</span>
                   </li>
                 );
               })}
