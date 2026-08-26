@@ -193,6 +193,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  // Data/hora do encerramento preenchida automaticamente pelo sistema.
+  const [encerradoEm, setEncerradoEm] = useState<string | null>(
+    (processo as any)?.data_hora_encerramento || null,
+  );
+  useEffect(() => {
+    setEncerradoEm((processo as any)?.data_hora_encerramento || null);
+  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento]);
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
