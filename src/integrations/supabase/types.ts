@@ -5620,6 +5620,30 @@ export type Database = {
         }
         Relationships: []
       }
+      materias_pedidos_oficiais: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       membros_coordenacao: {
         Row: {
           cargo: string | null
