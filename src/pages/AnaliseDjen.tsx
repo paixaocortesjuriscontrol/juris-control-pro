@@ -3113,6 +3113,15 @@ const AnaliseDjen = () => {
       return;
     }
     const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
+    // Confirmação explícita em lote: evita marcar dezenas/centenas por engano
+    // quando "Selecionar todos" ficou ativo.
+    if (items.length > 1) {
+      const ok = window.confirm(
+        `Marcar ${items.length} publicações SELECIONADAS como lidas?\n\n` +
+          `Para marcar apenas uma, use o botão "Lida" dentro do card da publicação.`,
+      );
+      if (!ok) return;
+    }
     await marcarComoLida.mutateAsync(items);
     registrarAcaoSessao({
       tipo: "leitura",
@@ -3121,6 +3130,7 @@ const AnaliseDjen = () => {
     });
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
+
 
   // Descarta as publicações selecionadas, mas antes analisa se elas realmente
   // são duplicadas entre si (mesma coordenação + mesmo id_djen, ou fallback por
