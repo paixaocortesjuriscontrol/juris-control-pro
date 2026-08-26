@@ -193,6 +193,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  // Data/hora do encerramento preenchida automaticamente pelo sistema.
+  const [encerradoEm, setEncerradoEm] = useState<string | null>(
+    (processo as any)?.data_hora_encerramento || null,
+  );
+  useEffect(() => {
+    setEncerradoEm((processo as any)?.data_hora_encerramento || null);
+  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento]);
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
@@ -446,6 +453,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
       }
 
+      // Encerramento: o sistema registra automaticamente a data/hora em que o
+      // contrato passou para "Encerrado" (e limpa quando volta a ficar ativo).
+      let novoEncerradoEm: string | null = encerradoEm;
+      if (form.status === "encerrado") {
+        if (!novoEncerradoEm) novoEncerradoEm = new Date().toISOString();
+        payload.data_hora_encerramento = novoEncerradoEm;
+        payload.data_encerramento = novoEncerradoEm.slice(0, 10);
+      } else {
+        novoEncerradoEm = null;
+        payload.data_hora_encerramento = null;
+      }
+
+
+
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
@@ -533,6 +554,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (!updated || updated.length === 0) {
         throw new Error("Nenhuma alteração foi gravada (sem permissão para editar este processo).");
       }
+      setEncerradoEm(novoEncerradoEm);
 
       {
         await supabase
@@ -1579,7 +1601,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         readOnly
                         className={cn(inputCls, "bg-muted/40")}
                         value={(() => {
-                          const dh = (processo as any)?.data_hora_encerramento;
+                          const dh = encerradoEm || (processo as any)?.data_hora_encerramento;
                           const d = (processo as any)?.data_encerramento;
                           if (dh) {
                             return new Date(dh).toLocaleString("pt-BR", {
@@ -1588,7 +1610,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                               });
                           }
                           if (d) return new Date(String(d) + "T00:00:00").toLocaleDateString("pt-BR");
-                          return "—";
+                          return "— (será preenchido ao salvar)";
                         })()}
                       />
                     </FormField>
