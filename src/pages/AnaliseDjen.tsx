@@ -3113,6 +3113,15 @@ const AnaliseDjen = () => {
       return;
     }
     const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
+    // Confirmação explícita em lote: evita marcar dezenas/centenas por engano
+    // quando "Selecionar todos" ficou ativo.
+    if (items.length > 1) {
+      const ok = window.confirm(
+        `Marcar ${items.length} publicações SELECIONADAS como lidas?\n\n` +
+          `Para marcar apenas uma, use o botão "Lida" dentro do card da publicação.`,
+      );
+      if (!ok) return;
+    }
     await marcarComoLida.mutateAsync(items);
     registrarAcaoSessao({
       tipo: "leitura",
@@ -3121,6 +3130,7 @@ const AnaliseDjen = () => {
     });
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
+
 
   // Descarta as publicações selecionadas, mas antes analisa se elas realmente
   // são duplicadas entre si (mesma coordenação + mesmo id_djen, ou fallback por
@@ -4448,6 +4458,7 @@ const AnaliseDjen = () => {
             size="sm"
             onClick={handleMarcarLidas}
             disabled={selectedIds.size === 0}
+            title="Marca como lidas TODAS as publicações selecionadas nas caixas de seleção"
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             {marcarComoLida.isPending ? (
@@ -4455,10 +4466,11 @@ const AnaliseDjen = () => {
             ) : (
               <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             )}
-            <span className="hidden sm:inline">Marcar Lida</span>
-            <span className="sm:hidden">Lida</span>
+            <span className="hidden sm:inline">Marcar selecionadas como lidas</span>
+            <span className="sm:hidden">Lidas (seleção)</span>
             <span className="ml-1">({selectedIds.size})</span>
           </Button>
+
 
           <Button
             variant="outline"
@@ -5103,23 +5115,31 @@ const AnaliseDjen = () => {
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                        
-                                       {/* Botão Marcar como Lida individual */}
+                                       {/* Botão Marcar como Lida individual — SOMENTE esta publicação */}
                                        {!pub.lida && (
                                          <Button
                                            variant="outline"
                                            size="sm"
                                            onClick={(e) => {
                                              e.stopPropagation();
+                                             // Marca apenas a publicação clicada (mais suas
+                                             // duplicatas exatas), nunca a seleção da tela.
                                              marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                             registrarAcaoSessao({
+                                               tipo: "leitura",
+                                               label: "Marcar 1 publicação como lida",
+                                               alvos: [{ id: pub.id, tabela: String(pub.tipo_origem) }],
+                                             });
                                            }}
                                            disabled={false}
-                                           title="Marcar como lida"
+                                           title="Marcar SOMENTE esta publicação como lida"
                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                          >
                                            <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                           <span className="text-xs">Lida</span>
+                                           <span className="text-xs">Lida (só esta)</span>
                                          </Button>
                                        )}
+
 
                                         {/* Botão Descartar individual */}
                                         {(pub.tipo_origem === 'termo' || pub.tipo_origem === 'processo') && (
