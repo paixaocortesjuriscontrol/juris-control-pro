@@ -323,9 +323,42 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     setConferenciaData(null);
 
     try {
+      // Phase 0: lista oficial de pedidos (Santander). Somente matérias
+      // presentes nessa lista podem ir para a planilha de Carga Benner.
+      setPhase("Carregando lista oficial de pedidos...");
+      setProgress(5);
+      const materiasOficiaisSet = new Set<string>();
+      {
+        const PAGE_OFICIAL = 1000;
+        let pg = 0;
+        while (true) {
+          const { data, error } = await supabase
+            .from("materias_pedidos_oficiais" as any)
+            .select("nome")
+            .eq("ativo", true)
+            .range(pg * PAGE_OFICIAL, (pg + 1) * PAGE_OFICIAL - 1);
+          if (error) throw error;
+          const rows = (data as any[]) || [];
+          for (const r of rows) {
+            const k = normalizeMateriaNome(r?.nome);
+            if (k) materiasOficiaisSet.add(k);
+          }
+          if (rows.length < PAGE_OFICIAL) break;
+          pg++;
+        }
+      }
+      if (materiasOficiaisSet.size === 0) {
+        throw new Error(
+          "Lista oficial de pedidos (materias_pedidos_oficiais) está vazia — não é possível gerar a carga.",
+        );
+      }
+      const isMateriaOficial = (nome: any) =>
+        materiasOficiaisSet.has(normalizeMateriaNome(String(nome ?? "")));
+
       // Phase 1: Fetch distribuicoes_tst
       setPhase("Carregando distribuições do banco...");
       setProgress(10);
+
 
       const allDist: any[] = [];
       let page = 0;
