@@ -596,17 +596,60 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return out.join(",");
         };
-        // "Outra Matéria" nunca vai para a planilha de carga — mesmo quando é a
-        // única matéria selecionada (nesse caso as colunas ficam vazias).
-        const filtrarOutraMateria = (arr: any[]) =>
-          (Array.isArray(arr) ? arr : []).filter(
-            (it: any) => it && it.materia && !isOutraMateria(it.materia),
+        // "Outra Matéria" nunca vai para a planilha de carga. Além disso, só
+        // podem ser exportadas matérias que constem na lista oficial de pedidos
+        // do Santander (`materias_pedidos_oficiais`).
+        let materiasSelecionadasCount = 0;
+        let materiasForaListaCount = 0;
+        const filtrarMateriasExportaveis = (arr: any[]) => {
+          const itens = (Array.isArray(arr) ? arr : []).filter(
+            (it: any) => it && it.materia && String(it.materia).trim(),
           );
-        const materiasPorParte: Record<string, any[]> = {
-          reclamante: filtrarOutraMateria((d as any).materias_analise_reclamante),
-          banco: filtrarOutraMateria((d as any).materias_analise_banco),
-          terceiro: filtrarOutraMateria((d as any).materias_analise_terceiro),
+          materiasSelecionadasCount += itens.length;
+          const validas: any[] = [];
+          for (const it of itens) {
+            if (isOutraMateria(it.materia)) {
+              materiasForaListaCount++;
+              continue;
+            }
+            if (!isMateriaOficial(it.materia)) {
+              materiasForaListaCount++;
+              continue;
+            }
+            validas.push(it);
+          }
+          return validas;
         };
+        const materiasPorParte: Record<string, any[]> = {
+          reclamante: filtrarMateriasExportaveis((d as any).materias_analise_reclamante),
+          banco: filtrarMateriasExportaveis((d as any).materias_analise_banco),
+          terceiro: filtrarMateriasExportaveis((d as any).materias_analise_terceiro),
+        };
+        const materiasValidasCount =
+          materiasPorParte.reclamante.length +
+          materiasPorParte.banco.length +
+          materiasPorParte.terceiro.length;
+        const MOTIVO_MATERIAS_FORA_LISTA =
+          "Matérias fora da lista oficial de pedidos";
+        if (
+          materiasSelecionadasCount > 0 &&
+          materiasValidasCount === 0 &&
+          !isRejected
+        ) {
+          rejected.push({
+            "Dossiê": dossie,
+            "Número do Processo": numProcesso,
+            "Data Distribuição": formatDateDDMMYYYY(getDataDistribuicaoReal(d)),
+            "Turma": d.turma || "",
+            "Relator": d.relator || "",
+            "Motivo": MOTIVO_MATERIAS_FORA_LISTA,
+          });
+          isRejected = true;
+        } else if (materiasForaListaCount > 0) {
+          const label = "Matérias descartadas fora da lista oficial";
+          warningsByType[label] = (warningsByType[label] || 0) + 1;
+          warningsTotal++;
+        }
         // Detecta as partes recorrentes.
         // Regra: o campo `parte_recorrente` da aba Distribuição TST é a fonte
         // autoritativa. Quando ele está preenchido, respeitamos ESTRITAMENTE
