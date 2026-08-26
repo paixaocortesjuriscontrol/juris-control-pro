@@ -23,6 +23,8 @@ import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSitu
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
+import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import { isOutraMateria } from "@/utils/outraMateria";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 // Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
 // foram movidas para Admin TST → Importações Distribuição TST.
