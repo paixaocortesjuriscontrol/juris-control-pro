@@ -23,6 +23,8 @@ import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSitu
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
+import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import { isOutraMateria } from "@/utils/outraMateria";
 import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/DistribuicaoTstDetail";
 // Importações (Importar Planilha / PDF Certidão / Atualizar Dossiês / Equipe / Situação Envio / Resposta Santander)
 // foram movidas para Admin TST → Importações Distribuição TST.
@@ -386,6 +388,21 @@ export default function DistribuicaoTst() {
   }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
+
+  // Processos preenchidos com "Outra Matéria": alerta ao "Verificar Pendências",
+  // pois esse rótulo nunca é exportado para a planilha de Carga Benner.
+  const processosComOutraMateria = useMemo(() => {
+    const temOutra = (s: any) => parseMateriasString(s).some((n) => isOutraMateria(n));
+    return (dados || [])
+      .map((d: any) => {
+        const partes: string[] = [];
+        if (temOutra(d.materias_recurso_reclamante)) partes.push("Reclamante");
+        if (temOutra(d.materias_recurso_banco)) partes.push("Banco");
+        if (temOutra(d.materias_recurso_terceiro)) partes.push("Terceiro");
+        return { id: d.id, processo_numero: d.processo_numero, dossie: d.dossie, partes };
+      })
+      .filter((p) => p.partes.length > 0);
+  }, [dados]);
 
   const dadosOrdenados = useMemo(() => {
     if (!sortBy) return dados;
@@ -2376,6 +2393,26 @@ export default function DistribuicaoTst() {
               <span className="text-xs text-muted-foreground">{bulkJuditProgress.current}/{bulkJuditProgress.total}</span>
             </div>
             <Progress value={bulkJuditProgress.total > 0 ? (bulkJuditProgress.current / bulkJuditProgress.total) * 100 : 0} className="h-2" />
+          </div>
+        )}
+
+        {/* Alerta: processos preenchidos com "Outra Matéria" (não vai para a Carga Benner) */}
+        {mostrarPendencias && processosComOutraMateria.length > 0 && (
+          <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-50 dark:bg-amber-950/20 space-y-1">
+            <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
+              {processosComOutraMateria.length} processo(s) desta página preenchido(s) com "Outra Matéria"
+            </p>
+            <p className="text-xs text-amber-700 dark:text-amber-300/80">
+              "Outra Matéria" não é exportada para a planilha de Carga Benner. Substitua por uma matéria da lista do Santander.
+            </p>
+            <ul className="text-xs text-amber-800 dark:text-amber-300 list-disc pl-4 max-h-32 overflow-auto">
+              {processosComOutraMateria.map((p) => (
+                <li key={p.id}>
+                  {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
+                  {p.partes.length > 0 && <span className="opacity-70"> — {p.partes.join(", ")}</span>}
+                </li>
+              ))}
+            </ul>
           </div>
         )}
 
