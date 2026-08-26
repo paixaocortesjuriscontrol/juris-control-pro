@@ -746,10 +746,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             })
           )];
           if (candidateNumeros.length === 0) return;
-          let qProcessos = supabase.from('processos').select('id, numero');
-          if (filtros.coordenacaoId) {
-            qProcessos = qProcessos.eq('coordenacao_id', filtros.coordenacaoId);
-          }
+          // Existência do processo é GLOBAL: um contrato pode estar cadastrado
+          // com coordenacao_id de outra equipe (base normalizada multi-coordenação).
+          // Filtrar por coordenação aqui fazia o mesmo processo aparecer como
+          // "cadastrado" (origem processo) e "não cadastrado" (origem termo).
+          const qProcessos = supabase.from('processos').select('id, numero');
           const { data: processosExistentes } = await qProcessos.in('numero', candidateNumeros).abortSignal(signal);
           const processosDigitsMap: Record<string, string> = {};
           (processosExistentes || []).forEach((p: any) => {
