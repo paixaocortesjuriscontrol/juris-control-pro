@@ -4230,11 +4230,11 @@ const AnaliseDjenServidor = () => {
                                              marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
                                            }}
                                            disabled={marcarComoLida.isPending}
-                                           title="Marcar como lida"
+                                           title="Marcar SOMENTE esta publicação como lida"
                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                          >
                                            <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                           <span className="text-xs">Lida</span>
+                                           <span className="text-xs">Lida (só esta)</span>
                                          </Button>
                                        )}
 
@@ -4327,11 +4327,11 @@ const AnaliseDjenServidor = () => {
                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
                                           }}
                                           disabled={marcarComoLida.isPending}
-                                          title="Marcar como lida"
+                                          title="Marcar SOMENTE esta publicação como lida"
                                           className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                         >
                                           <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                          <span className="text-xs">Lida</span>
+                                          <span className="text-xs">Lida (só esta)</span>
                                         </Button>
                                       )}
 
