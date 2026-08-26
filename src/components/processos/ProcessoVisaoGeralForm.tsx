@@ -194,12 +194,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   // Data/hora do encerramento preenchida automaticamente pelo sistema.
-  const [encerradoEm, setEncerradoEm] = useState<string | null>(
-    (processo as any)?.data_hora_encerramento || null,
-  );
+  // Para processos encerrados antes da regra automática, usa data_encerramento
+  // (meio-dia) como fallback editável, permitindo ao usuário informar o horário.
+  const resolveEncerradoEmInicial = (): string | null => {
+    const dh = (processo as any)?.data_hora_encerramento;
+    if (dh) return dh;
+    const d = (processo as any)?.data_encerramento;
+    if (d) return `${String(d).slice(0, 10)}T12:00:00.000Z`;
+    return null;
+  };
+  const [encerradoEm, setEncerradoEm] = useState<string | null>(resolveEncerradoEmInicial());
   useEffect(() => {
-    setEncerradoEm((processo as any)?.data_hora_encerramento || null);
-  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento]);
+    setEncerradoEm(resolveEncerradoEmInicial());
+  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento, (processo as any)?.data_encerramento]);
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
