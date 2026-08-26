@@ -2406,12 +2406,28 @@ export default function DistribuicaoTst() {
               "Outra Matéria" não é exportada para a planilha de Carga Benner. Substitua por uma matéria da lista do Santander.
             </p>
             <ul className="text-xs text-amber-800 dark:text-amber-300 list-disc pl-4 max-h-32 overflow-auto">
-              {processosComOutraMateria.map((p) => (
-                <li key={p.id}>
-                  {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
-                  {p.partes.length > 0 && <span className="opacity-70"> — {p.partes.join(", ")}</span>}
-                </li>
-              ))}
+              {processosComOutraMateria.map((p) => {
+                const dado = dados.find((d: any) => d.id === p.id);
+                return (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (dado) {
+                          setDetailInitialTab("distribuicao");
+                          setEditando(dado);
+                        }
+                      }}
+                      className="font-mono text-amber-900 dark:text-amber-200 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                      disabled={!dado}
+                      title={dado ? "Abrir formulário de detalhe do processo" : "Registro não disponível"}
+                    >
+                      {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
+                    </button>
+                    {p.partes.length > 0 && <span className="opacity-70"> — {p.partes.join(", ")}</span>}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
