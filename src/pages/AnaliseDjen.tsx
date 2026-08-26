@@ -5115,23 +5115,31 @@ const AnaliseDjen = () => {
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                        
-                                       {/* Botão Marcar como Lida individual */}
+                                       {/* Botão Marcar como Lida individual — SOMENTE esta publicação */}
                                        {!pub.lida && (
                                          <Button
                                            variant="outline"
                                            size="sm"
                                            onClick={(e) => {
                                              e.stopPropagation();
+                                             // Marca apenas a publicação clicada (mais suas
+                                             // duplicatas exatas), nunca a seleção da tela.
                                              marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                             registrarAcaoSessao({
+                                               tipo: "leitura",
+                                               label: "Marcar 1 publicação como lida",
+                                               alvos: [{ id: pub.id, tabela: String(pub.tipo_origem) }],
+                                             });
                                            }}
                                            disabled={false}
-                                           title="Marcar como lida"
+                                           title="Marcar SOMENTE esta publicação como lida"
                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0"
                                          >
                                            <CheckCheck className="w-3.5 h-3.5 md:w-4 md:h-4 mr-1" />
-                                           <span className="text-xs">Lida</span>
+                                           <span className="text-xs">Lida (só esta)</span>
                                          </Button>
                                        )}
+
 
                                         {/* Botão Descartar individual */}
                                         {(pub.tipo_origem === 'termo' || pub.tipo_origem === 'processo') && (
