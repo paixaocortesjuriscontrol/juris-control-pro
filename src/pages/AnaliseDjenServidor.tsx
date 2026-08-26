@@ -2993,9 +2993,17 @@ const AnaliseDjenServidor = () => {
       return;
     }
     const items = Array.from(selectedIds.entries()).map(([id, tipo]) => ({ id, tipo_origem: tipo }));
+    if (items.length > 1) {
+      const ok = window.confirm(
+        `Marcar ${items.length} publicações SELECIONADAS como lidas?\n\n` +
+          `Para marcar apenas uma, use o botão "Lida" dentro do card da publicação.`,
+      );
+      if (!ok) return;
+    }
     await marcarComoLida.mutateAsync(items);
     setSelectedIds(new Map<string, TipoOrigemPublicacao>());
   };
+
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "-";
