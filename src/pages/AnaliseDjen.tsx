@@ -4458,6 +4458,7 @@ const AnaliseDjen = () => {
             size="sm"
             onClick={handleMarcarLidas}
             disabled={selectedIds.size === 0}
+            title="Marca como lidas TODAS as publicações selecionadas nas caixas de seleção"
             className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
           >
             {marcarComoLida.isPending ? (
@@ -4465,10 +4466,11 @@ const AnaliseDjen = () => {
             ) : (
               <CheckCircle className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
             )}
-            <span className="hidden sm:inline">Marcar Lida</span>
-            <span className="sm:hidden">Lida</span>
+            <span className="hidden sm:inline">Marcar selecionadas como lidas</span>
+            <span className="sm:hidden">Lidas (seleção)</span>
             <span className="ml-1">({selectedIds.size})</span>
           </Button>
+
 
           <Button
             variant="outline"
