@@ -194,12 +194,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   // Data/hora do encerramento preenchida automaticamente pelo sistema.
-  const [encerradoEm, setEncerradoEm] = useState<string | null>(
-    (processo as any)?.data_hora_encerramento || null,
-  );
+  // Para processos encerrados antes da regra automática, usa data_encerramento
+  // (meio-dia) como fallback editável, permitindo ao usuário informar o horário.
+  const resolveEncerradoEmInicial = (): string | null => {
+    const dh = (processo as any)?.data_hora_encerramento;
+    if (dh) return dh;
+    const d = (processo as any)?.data_encerramento;
+    if (d) return `${String(d).slice(0, 10)}T12:00:00.000Z`;
+    return null;
+  };
+  const [encerradoEm, setEncerradoEm] = useState<string | null>(resolveEncerradoEmInicial());
   useEffect(() => {
-    setEncerradoEm((processo as any)?.data_hora_encerramento || null);
-  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento]);
+    setEncerradoEm(resolveEncerradoEmInicial());
+  }, [(processo as any)?.id, (processo as any)?.data_hora_encerramento, (processo as any)?.data_encerramento]);
   const [syncing, setSyncing] = useState(false);
   const [syncingAnexos, setSyncingAnexos] = useState(false);
   const [syncingInterno, setSyncingInterno] = useState(false);
@@ -1597,22 +1604,45 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   </FormField>
                   {form.status === "encerrado" && (
                     <FormField label="Encerrado em (data e hora)">
-                      <Input
-                        readOnly
-                        className={cn(inputCls, "bg-muted/40")}
-                        value={(() => {
-                          const dh = encerradoEm || (processo as any)?.data_hora_encerramento;
-                          const d = (processo as any)?.data_encerramento;
-                          if (dh) {
-                            return new Date(dh).toLocaleString("pt-BR", {
+                      {(() => {
+                        const dh = (processo as any)?.data_hora_encerramento;
+                        if (dh) {
+                          return (
+                            <Input
+                              readOnly
+                              className={cn(inputCls, "bg-muted/40")}
+                              value={new Date(dh).toLocaleString("pt-BR", {
                                 day: "2-digit", month: "2-digit", year: "numeric",
                                 hour: "2-digit", minute: "2-digit",
-                              });
-                          }
-                          if (d) return new Date(String(d) + "T00:00:00").toLocaleDateString("pt-BR");
-                          return "— (será preenchido ao salvar)";
-                        })()}
-                      />
+                              })}
+                            />
+                          );
+                        }
+                        // Processos encerrados antes da regra automática: permite
+                        // preenchimento manual; se deixado em branco, o sistema
+                        // registra a data/hora atual no momento do salvamento.
+                        const isoToDatetimeLocal = (iso: string) => {
+                          const d = new Date(iso);
+                          const pad = (n: number) => String(n).padStart(2, "0");
+                          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+                        };
+                        return (
+                          <div className="space-y-1">
+                            <Input
+                              type="datetime-local"
+                              className={cn(inputCls)}
+                              value={encerradoEm ? isoToDatetimeLocal(encerradoEm) : ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setEncerradoEm(v ? new Date(v).toISOString() : null);
+                              }}
+                            />
+                            <p className="text-[10px] text-muted-foreground">
+                              Preencha manualmente ou será registrado automaticamente ao salvar.
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </FormField>
                   )}
                   {form.status === "encerrado" && (
