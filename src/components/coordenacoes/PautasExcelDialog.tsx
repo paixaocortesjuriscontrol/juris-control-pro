@@ -622,6 +622,10 @@ export function PautasExcelDialog({
               <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
               <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
               <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+              {!!resumo.etiquetasAplicadas && (
+                <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
+              )}
+
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
             </ul>
             {resumo.erros.length > 0 && (
