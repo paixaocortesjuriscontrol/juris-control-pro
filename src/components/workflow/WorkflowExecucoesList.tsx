@@ -226,11 +226,18 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                       <div className="space-y-2">
                         {etapas.map((etapa: WorkflowExecucaoEtapa) => {
                           const cfg = etapa.etapa as any;
+                          const respDoItem = etapa.item_id
+                            ? responsaveisPorItem[etapa.item_id] || []
+                            : [];
                           const respIds = Array.from(
-                            new Set([
-                              ...(responsaveisPorEtapa[etapa.etapa_id] || []),
-                              ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
-                            ])
+                            new Set(
+                              respDoItem.length
+                                ? respDoItem
+                                : [
+                                    ...(responsaveisPorEtapa[etapa.etapa_id] || []),
+                                    ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
+                                  ]
+                            )
                           );
                           const nomes = respIds.map((id) => usuarios.nome(id));
                           const prev = formatarData(etapa.data_prevista_calculada);
