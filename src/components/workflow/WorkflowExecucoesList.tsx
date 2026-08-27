@@ -6,7 +6,17 @@ import {
   useWorkflowExecucoes,
   useWorkflowExecucaoEtapas,
   useAvancarWorkflowEtapa,
+  useWorkflows,
+  useSincronizarWorkflows,
 } from "@/hooks/useWorkflows";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
 import { Eye, CheckCircle, ChevronRight, XCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -26,7 +36,26 @@ interface WorkflowExecucoesListProps {
 }
 
 export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
-  const { data: execucoes = [], isLoading } = useWorkflowExecucoes();
+  const [filtroWorkflow, setFiltroWorkflow] = useState<string>("todos");
+  const [filtroStatus, setFiltroStatus] = useState<string>("todos");
+  const [dataInicio, setDataInicio] = useState<string>("");
+  const [dataFim, setDataFim] = useState<string>("");
+  const [busca, setBusca] = useState<string>("");
+
+  useSincronizarWorkflows();
+  const { data: workflows = [] } = useWorkflows();
+  const { data: execucoesRaw = [], isLoading } = useWorkflowExecucoes({
+    workflowId: filtroWorkflow !== "todos" ? filtroWorkflow : undefined,
+    status: filtroStatus !== "todos" ? filtroStatus : undefined,
+    dataInicio: dataInicio || undefined,
+    dataFim: dataFim || undefined,
+  });
+  const termo = busca.trim().toLowerCase();
+  const execucoes = termo
+    ? execucoesRaw.filter((e) =>
+        (e.workflow?.nome || "").toLowerCase().includes(termo)
+      )
+    : execucoesRaw;
   const [selected, setSelected] = useState<string | null>(null);
   const { data: etapas = [] } = useWorkflowExecucaoEtapas(selected || undefined);
   const avancar = useAvancarWorkflowEtapa();
@@ -43,10 +72,55 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">Execuções</h2>
+
+      <div className="grid gap-2 md:grid-cols-5">
+        <Input
+          placeholder="Buscar fluxo..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="h-9"
+        />
+        <Select value={filtroWorkflow} onValueChange={setFiltroWorkflow}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Fluxo" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos os fluxos</SelectItem>
+            {workflows.map((w) => (
+              <SelectItem key={w.id} value={w.id}>
+                {w.nome}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={filtroStatus} onValueChange={setFiltroStatus}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Situação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todas as situações</SelectItem>
+            <SelectItem value="em_andamento">Em andamento</SelectItem>
+            <SelectItem value="concluido">Concluído</SelectItem>
+            <SelectItem value="cancelado">Cancelado</SelectItem>
+          </SelectContent>
+        </Select>
+        <Input
+          type="date"
+          value={dataInicio}
+          onChange={(e) => setDataInicio(e.target.value)}
+          className="h-9"
+        />
+        <Input
+          type="date"
+          value={dataFim}
+          onChange={(e) => setDataFim(e.target.value)}
+          className="h-9"
+        />
+      </div>
       {execucoes.length === 0 ? (
         <Card>
           <CardContent className="p-6 text-muted-foreground">
-            Nenhuma execução iniciada. Inicie um workflow a partir da lista de fluxos.
+            Nenhuma execução encontrada com os filtros atuais.
           </CardContent>
         </Card>
       ) : (
