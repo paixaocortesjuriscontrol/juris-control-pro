@@ -151,27 +151,67 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {onBack && (
-            <Button variant="outline" onClick={onBack}>
-              Voltar
-            </Button>
-          )}
-          <div>
-            <h2 className="text-lg font-semibold">{workflow?.nome}</h2>
-            <p className="text-sm text-muted-foreground">
-              {workflow?.descricao || "Configure as etapas do fluxo"}
-            </p>
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              {onBack && (
+                <Button variant="outline" size="icon" onClick={onBack} title="Voltar">
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
+              )}
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold">{workflow?.nome}</h2>
+                  <Badge
+                    className={
+                      workflow?.ativo === false
+                        ? "badge-status-closed rounded-full"
+                        : "badge-status-active rounded-full"
+                    }
+                  >
+                    {workflow?.ativo === false ? "Desabilitado" : "Habilitado"}
+                  </Badge>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-2">Descrição</p>
+                <p className="text-sm">{workflow?.descricao || "Não informado"}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-8">
+              <div>
+                <p className="text-[11px] text-muted-foreground">Data de criação</p>
+                <p className="text-sm">
+                  {workflow?.created_at
+                    ? new Date(workflow.created_at).toLocaleDateString("pt-BR")
+                    : "—"}
+                </p>
+              </div>
+              <div>
+                <p className="text-[11px] text-muted-foreground">
+                  Data da última atualização
+                </p>
+                <p className="text-sm">
+                  {workflow?.updated_at || workflow?.created_at
+                    ? new Date(
+                        (workflow as any).updated_at || (workflow as any).created_at
+                      ).toLocaleDateString("pt-BR")
+                    : "—"}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex justify-end">
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={handleOpen}>
               <Plus className="h-4 w-4 mr-2" />
-              Adicionar Etapa
+              Nova etapa
             </Button>
           </DialogTrigger>
+
           <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editing ? "Editar Etapa" : "Nova Etapa"}</DialogTitle>
