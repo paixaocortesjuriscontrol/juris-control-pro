@@ -62,6 +62,10 @@ export function PautasExcelDialog({
   const [linhas, setLinhas] = useState<PautaExcelRow[]>([]);
   const [errosParse, setErrosParse] = useState<PautaExcelParseError[]>([]);
   const [processosExistentes, setProcessosExistentes] = useState<Set<string>>(new Set());
+  /** Chaves `digits|dia|titulo` de atividades já existentes no banco. */
+  const [chavesExistentes, setChavesExistentes] = useState<Set<string>>(new Set());
+  const [verificandoDuplicidade, setVerificandoDuplicidade] = useState(false);
+  const [mostrarErros, setMostrarErros] = useState(true);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
