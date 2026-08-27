@@ -1,4 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
