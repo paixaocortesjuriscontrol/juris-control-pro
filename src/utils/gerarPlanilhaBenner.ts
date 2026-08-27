@@ -603,9 +603,11 @@ function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
     "Turma": d.turma || "",
     "Relator": d.relator || "",
     "Motivo": "Dossiê inválido/não localizado",
+    [HEADER_SEM_EXITO]: getValuesFromDado(d)[IDX_SEM_EXITO] || "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }];
+  ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 40 }];
+
   XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
