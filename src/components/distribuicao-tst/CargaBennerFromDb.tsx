@@ -944,7 +944,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           centeredStyleId,
           maxCol,
         );
-        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${row1}${row2}${dataRowsXml}</sheetData>`);
+        const ajuste = ajustarGrupoChanceExito({
+          row1,
+          row2,
+          sheetXml,
+          colIdx: maxCol - 1,
+          strIdxTituloGrupo: getStringIndex("Chance de êxito"),
+        });
+        sheetXml = addMergeCell(sheetXml, ajuste.mergeRef);
+        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${ajuste.row1}${ajuste.row2}${dataRowsXml}</sheetData>`);
+
       }
 
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
