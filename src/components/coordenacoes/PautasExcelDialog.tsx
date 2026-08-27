@@ -737,7 +737,14 @@ export function PautasExcelDialog({
                 </thead>
                 <tbody>
                   {linhas.map((l) => (
-                    <tr key={l.linha} className="border-t">
+                    <tr
+                      key={l.linha}
+                      className={
+                        statusPorLinha.get(l.linha) === "nova"
+                          ? "border-t"
+                          : "border-t bg-amber-500/10 text-muted-foreground"
+                      }
+                    >
                       <td className="p-2">{l.linha}</td>
                       <td className="p-2">
                         {l.data_iso.split("-").reverse().join("/")}
@@ -850,9 +857,9 @@ export function PautasExcelDialog({
               <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
               <Button
                 onClick={executarImport}
-                disabled={linhas.length === 0 || responsaveisIds.length === 0}
+                disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
               >
-                Importar {linhas.length} audiências
+                Importar {linhasImportaveis.length} audiências
               </Button>
             </>
           )}
