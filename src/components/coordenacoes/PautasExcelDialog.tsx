@@ -496,6 +496,55 @@ export function PautasExcelDialog({
               </p>
             </div>
 
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" /> Etiquetas (opcional)
+              </Label>
+              {carregandoEtiquetas ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Carregando etiquetas…
+                </div>
+              ) : catalogoEtiquetas.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma etiqueta cadastrada para itens nesta coordenação.{" "}
+                  <Link to="/etiquetas" className="inline-flex items-center gap-1 text-primary hover:underline">
+                    <Plus className="h-3 w-3" /> Gerenciar etiquetas
+                  </Link>
+                </p>
+              ) : (
+                <>
+                  <Input
+                    value={buscaEtiqueta}
+                    onChange={(e) => setBuscaEtiqueta(e.target.value)}
+                    placeholder="Buscar etiqueta..."
+                    className="h-8 text-xs"
+                  />
+                  <div className="max-h-32 overflow-auto border rounded-md p-2 space-y-1">
+                    {etiquetasFiltradas.map((et) => (
+                      <label
+                        key={et.id}
+                        className="flex items-center gap-2 text-xs px-1 py-0.5 rounded hover:bg-muted/60 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={etiquetasSel.includes(et.id)}
+                          onCheckedChange={(v) => toggleEtiqueta(et.id, !!v)}
+                        />
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: et.cor }}
+                        />
+                        <span className="truncate">{et.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    As etiquetas marcadas serão aplicadas a todas as audiências criadas.
+                  </p>
+                </>
+              )}
+            </div>
+
+
             <ScrollArea className="flex-1 border rounded-md">
               <table className="w-full text-xs">
                 <thead className="bg-muted sticky top-0">
