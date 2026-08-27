@@ -62,6 +62,23 @@ export function PautasExcelDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
+  const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
+  const [buscaEtiqueta, setBuscaEtiqueta] = useState("");
+  const { data: catalogoEtiquetas = [], isLoading: carregandoEtiquetas } = useEtiquetas(
+    coordenacaoId,
+    "itens",
+  );
+
+  const etiquetasFiltradas = useMemo(() => {
+    const q = buscaEtiqueta.trim().toLowerCase();
+    return q
+      ? catalogoEtiquetas.filter((e) => e.nome.toLowerCase().includes(q))
+      : catalogoEtiquetas;
+  }, [catalogoEtiquetas, buscaEtiqueta]);
+
+  const toggleEtiqueta = (id: string, checked: boolean) =>
+    setEtiquetasSel((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+
 
   const normalizarTitulo = (titulo: string | null | undefined) =>
     String(titulo ?? "")
