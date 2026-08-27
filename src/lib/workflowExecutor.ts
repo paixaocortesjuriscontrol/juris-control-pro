@@ -93,6 +93,9 @@ export interface IniciarWorkflowInput {
   coordenacao_id?: string;
   responsavel_inicial?: string;
   observacoes?: string;
+  /** Data de início da execução (yyyy-MM-dd). Se vazia, assume o dia atual. */
+  data_inicio?: string;
+
 }
 
 export function calcularDataOffset(
@@ -166,6 +169,9 @@ export async function criarItemWorkflow(
     new Set([...(responsavelPrincipal ? [responsavelPrincipal] : []), ...responsaveisEtapa])
   );
 
+  // A etapa é criada NO DIA da referência (início do fluxo ou conclusão da
+  // etapa anterior). Os dias previstos/fatais são apenas orientativos.
+  const dataCriacaoStr = formatarDataISOBrasilia(dataReferencia);
   const dataBase = calcularDataOffset(
     dataReferencia,
     etapa.dias_previsto || 0,
@@ -177,6 +183,7 @@ export async function criarItemWorkflow(
         calcularDataOffset(dataReferencia, etapa.dias_fatal, etapa.tipo_prazo || "dias_corridos")
       )
     : dataBaseStr;
+
 
   const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
   const itemBase: Record<string, any> = {
@@ -200,9 +207,10 @@ export async function criarItemWorkflow(
             tipo_tarefa: tipo,
             origem: "workflow",
             data_vencimento: dataBaseStr,
-            data_base: dataBaseStr,
+            data_base: dataCriacaoStr,
             data_prevista: dataBaseStr,
             data_fatal: dataFatal,
+
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: etapa.descricao || null,

@@ -400,8 +400,8 @@ export function useIniciarWorkflow() {
       if (etapasError) throw etapasError;
       if (!etapas || etapas.length === 0) throw new Error("Workflow sem etapas");
 
-      const agora = new Date().toISOString();
-      const dataInicio = new Date().toISOString().split("T")[0];
+      const hojeStr = new Date().toISOString().split("T")[0];
+      const dataInicio = input.data_inicio || hojeStr;
       const { data: execucao, error: execError } = await supabase
         .from("workflow_execucoes")
         .insert({
@@ -421,7 +421,10 @@ export function useIniciarWorkflow() {
       const execucaoCast = execucao as any;
       const primeiraEtapa = etapas[0];
 
-      const dataReferencia = new Date();
+      // Referência = data de início informada (ou hoje), ao meio-dia para
+      // evitar deslocamento de fuso ao formatar.
+      const dataReferencia = new Date(`${dataInicio}T12:00:00`);
+
       const responsavel = resolverResponsavelEtapa(primeiraEtapa as WorkflowEtapa, {
         iniciadorId: user.id,
         responsavelInicial: responsavel_inicial,

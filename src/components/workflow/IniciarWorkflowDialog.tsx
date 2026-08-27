@@ -49,6 +49,8 @@ export function IniciarWorkflowDialog({
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
   const [responsavelInicial, setResponsavelInicial] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const hoje = new Date().toISOString().split("T")[0];
+  const [dataInicio, setDataInicio] = useState(hoje);
 
   const { data: usuarios = [] } = useUsuariosCoordenacao(coordenacaoId || undefined);
 
@@ -88,6 +90,7 @@ export function IniciarWorkflowDialog({
       coordenacao_id: coordenacaoId,
       responsavel_inicial: responsavelInicial || undefined,
       observacoes: observacoes || undefined,
+      data_inicio: dataInicio || undefined,
     });
     if (!inline) setOpen(false);
     reset();
@@ -101,6 +104,7 @@ export function IniciarWorkflowDialog({
     setSelectedProcesso(preSelectedProcesso || null);
     setResponsavelInicial("");
     setObservacoes("");
+    setDataInicio(hoje);
   };
 
   const body = (
@@ -225,6 +229,20 @@ export function IniciarWorkflowDialog({
               </SelectContent>
             </Select>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="data-inicio">Data de início da execução</Label>
+            <Input
+              id="data-inicio"
+              type="date"
+              value={dataInicio}
+              onChange={(e) => setDataInicio(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Se ficar em branco, assume a data de hoje. A primeira etapa é criada
+              nesta data; dias previstos e prazo fatal são orientativos.
+            </p>
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="obs">Observações</Label>
             <Input
