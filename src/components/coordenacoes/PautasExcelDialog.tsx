@@ -674,9 +674,9 @@ export function PautasExcelDialog({
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <p className="font-medium mb-1">
-                    {errosParse.length} linha(s) não serão importadas:
+                    {errosParse.length} linha(s) da planilha não serão importadas:
                   </p>
-                  <ScrollArea className="max-h-32 pr-2">
+                  <ScrollArea className="h-40 pr-3">
                     <ul className="text-xs space-y-0.5">
                       {errosParse.map((e, i) => (
                         <li key={`pe-${i}`}>
@@ -688,6 +688,7 @@ export function PautasExcelDialog({
                   </ScrollArea>
                 </AlertDescription>
               </Alert>
+
             )}
 
             <div className="space-y-2">
