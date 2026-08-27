@@ -409,6 +409,8 @@ export function PautasExcelDialog({
       queryClient.invalidateQueries({ queryKey: ["audiencias-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["painel-controle-audiencias-det-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["processos"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+
     ]);
   };
 
