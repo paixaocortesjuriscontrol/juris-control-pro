@@ -158,20 +158,28 @@ function parsePautaSheet(ws: XLSX.WorkSheet): PautaExcelParseResult {
   const header = (rows[headerIdx] || []).map(normHeader);
   const idx = (aliases: string[]) => header.findIndex((h) => aliases.includes(h));
 
-  const iData = idx(["DATA"]);
-  const iHora = idx(["HORA", "HORARIO"]);
-  const iProc = idx(["NUMERODOPROCESSO", "NDOPROCESSO", "PROCESSO"]);
-  const iForo = idx(["FORO", "TRIBUNAL"]);
-  const iVara = idx(["VTCAMARA", "VTCAMARATURMA", "VARACAMARA", "ORGAOJULGADOR"]);
-  const iLocal = idx(["LOCAL", "ENDERECO"]);
-  const iComarca = idx(["COMARCA"]);
-  const iUf = idx(["UF"]);
-  const iPolo = idx(["POLOATIVO", "PARTECONTRARIA", "AUTOR"]);
-  const iCliente = idx(["CLIENTE"]);
+  const iData = idx(["DATA", "DATAAUDIENCIA", "DATADAAUDIENCIA"]);
+  const iHora = idx(["HORA", "HORARIO", "HORAAUDIENCIA"]);
+  const iProc = idx(["NUMERODOPROCESSO", "NDOPROCESSO", "NUMEROPROCESSO", "NUMERODOPROC", "PROCESSO"]);
+  const iForo = idx(["FORO", "TRIBUNAL", "TRT"]);
+  const iVara = idx(["VTCAMARA", "VTCAMARATURMA", "VARACAMARA", "VARA", "ORGAOJULGADOR"]);
+  const iLocal = idx(["LOCAL", "ENDERECO", "LOCALAUDIENCIA"]);
+  const iComarca = idx(["COMARCA", "CIDADE"]);
+  const iUf = idx(["UF", "ESTADO"]);
+  const iPolo = idx(["POLOATIVO", "RECLAMANTE", "PARTECONTRARIA", "AUTOR"]);
+  const iCliente = idx(["CLIENTE", "RECLAMADA", "POLOPASSIVO"]);
   const iTerc = idx(["TERCEIRIZADA", "TERCEIRIZADO"]);
-  const iTipo = idx(["TIPO", "TIPODEAUDIENCIA"]);
-  const iTele = idx(["TELEPRESENCIAL", "MODALIDADE"]);
-  const iObs = idx(["OBSERVACOESPROVIDENCIAS", "OBSERVACOES", "OBS"]);
+  const iTipo = idx(["TIPO", "TIPODEAUDIENCIA", "TIPOAUDIENCIA"]);
+  const iTele = idx(["TELEPRESENCIAL", "MODALIDADE", "VIRTUAL"]);
+  const iObs = idx([
+    "OBSERVACOESPROVIDENCIAS",
+    "OBSERVACOESPROVIDENCIA",
+    "OBSERVACOES",
+    "OBSERVACAO",
+    "PROVIDENCIAS",
+    "OBS",
+  ]);
+
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r] || [];
