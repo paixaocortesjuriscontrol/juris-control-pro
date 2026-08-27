@@ -279,7 +279,7 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
         </Card>
       )}
 
-      {/* Lista em linhas com colunas rotuladas (padrão Projuris) */}
+      {/* Lista compacta com cabeçalho único (padrão Projuris) */}
       <Card className="overflow-hidden">
         {isLoading ? (
           <CardContent className="p-6 text-muted-foreground">
@@ -290,104 +290,121 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
             Nenhum fluxo encontrado com os filtros atuais.
           </CardContent>
         ) : (
-          <div className="divide-y divide-border">
-            {listaFiltrada.map((wf: any) => (
-              <div key={wf.id}>
-                <div
-                  className="grid grid-cols-1 md:grid-cols-[minmax(0,1.6fr)_minmax(0,1.6fr)_90px_150px_170px_auto] items-center gap-3 px-4 py-3 hover:bg-accent/40 cursor-pointer"
-                  onClick={() => onSelect?.(wf.id)}
-                >
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Título</p>
-                    <p className="text-sm text-primary font-medium truncate">{wf.nome}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[11px] text-muted-foreground">Descrição</p>
-                    <p className="text-sm truncate">{wf.descricao || "Não informado"}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted-foreground">Etapas</p>
-                    <p className="text-sm">{etapasCount[wf.id] ?? 0}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted-foreground">Data de criação</p>
-                    <p className="text-sm">{fmtData(wf.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] text-muted-foreground">
-                      Data da última atualização
-                    </p>
-                    <p className="text-sm">{fmtData(wf.updated_at || wf.created_at)}</p>
-                  </div>
-                  <div
-                    className="flex items-center justify-end gap-2"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "rounded-full text-[11px]",
-                        wf.ativo
-                          ? "badge-status-active"
-                          : "badge-status-closed"
-                      )}
-                    >
-                      {wf.ativo ? "Habilitado" : "Desabilitado"}
-                    </Badge>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      title="Iniciar fluxo"
-                      onClick={() =>
-                        setIniciandoId(iniciandoId === wf.id ? null : wf.id)
-                      }
-                    >
-                      <Play className="h-4 w-4 text-primary" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="icon" className="h-8 w-8">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleEdit(wf)}>
-                          Editar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => deleteMutation.mutate(wf.id)}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          Excluir
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            updateMutation.mutate({ id: wf.id, ativo: !wf.ativo })
-                          }
-                        >
-                          {wf.ativo ? "Desabilitar" : "Habilitar"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleDuplicar(wf)}>
-                          Duplicar
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
+          <div className="text-sm">
+            {/* Cabeçalho */}
+            <div className="hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_70px_110px_120px_90px_100px] items-center gap-3 px-4 py-2 bg-muted/50 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+              <span>Título</span>
+              <span>Descrição</span>
+              <span className="text-center">Etapas</span>
+              <span>Criação</span>
+              <span>Atualização</span>
+              <span className="text-center">Situação</span>
+              <span className="text-right">Ações</span>
+            </div>
 
-                {iniciandoId === wf.id && (
-                  <div className="border-t border-border bg-muted/30 p-4">
-                    <IniciarWorkflowDialog
-                      inline
-                      workflowId={wf.id}
-                      workflowName={wf.nome}
-                      onDone={() => setIniciandoId(null)}
-                    />
+            {/* Linhas */}
+            <div className="divide-y divide-border">
+              {listaFiltrada.map((wf: any) => (
+                <div key={wf.id}>
+                  <div
+                    className="grid grid-cols-1 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_70px_110px_120px_90px_100px] items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-accent/40 cursor-pointer"
+                    onClick={() => onSelect?.(wf.id)}
+                  >
+                    <div className="min-w-0">
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Título</p>
+                      <p className="text-sm font-medium text-primary line-clamp-2 break-words" title={wf.nome}>
+                        {wf.nome}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Descrição</p>
+                      <p className="text-sm text-muted-foreground line-clamp-1" title={wf.descricao || ""}>
+                        {wf.descricao || "Não informado"}
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Etapas</p>
+                      <p className="text-sm">{etapasCount[wf.id] ?? 0}</p>
+                    </div>
+                    <div>
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Criação</p>
+                      <p className="text-sm">{fmtData(wf.created_at)}</p>
+                    </div>
+                    <div>
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Atualização</p>
+                      <p className="text-sm">{fmtData(wf.updated_at || wf.created_at)}</p>
+                    </div>
+                    <div className="flex justify-center">
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase w-full">Situação</p>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full text-[10px] px-2 py-0.5 whitespace-nowrap",
+                          wf.ativo ? "badge-status-active" : "badge-status-closed"
+                        )}
+                      >
+                        {wf.ativo ? "Habilitado" : "Desabilitado"}
+                      </Badge>
+                    </div>
+                    <div
+                      className="flex items-center justify-end gap-1"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        title="Iniciar fluxo"
+                        onClick={() =>
+                          setIniciandoId(iniciandoId === wf.id ? null : wf.id)
+                        }
+                      >
+                        <Play className="h-3.5 w-3.5 text-primary" />
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <MoreVertical className="h-3.5 w-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(wf)}>
+                            Editar
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => deleteMutation.mutate(wf.id)}
+                            className="text-destructive focus:text-destructive"
+                          >
+                            Excluir
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              updateMutation.mutate({ id: wf.id, ativo: !wf.ativo })
+                            }
+                          >
+                            {wf.ativo ? "Desabilitar" : "Habilitar"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDuplicar(wf)}>
+                            Duplicar
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {iniciandoId === wf.id && (
+                    <div className="border-t border-border bg-muted/30 p-4">
+                      <IniciarWorkflowDialog
+                        inline
+                        workflowId={wf.id}
+                        workflowName={wf.nome}
+                        onDone={() => setIniciandoId(null)}
+                      />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </Card>
