@@ -217,69 +217,129 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                       <p className="text-sm text-muted-foreground">Sem etapas</p>
                     ) : (
                       <div className="space-y-2">
-                        {etapas.map((etapa: WorkflowExecucaoEtapa) => (
-                          <div
-                            key={etapa.id}
-                            className="flex items-center justify-between rounded-md border p-2 text-sm"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span>{etapa.etapa?.titulo}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {STATUS_LABELS[etapa.status] || etapa.status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              {etapa.data_prevista_calculada && (
-                                <span>Prev: {etapa.data_prevista_calculada}</span>
-                              )}
-                              {etapa.status === "materializada" && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => avancar.mutate({ execucaoId: exec.id, sucesso: true })}
-                                    disabled={avancar.isPending}
-                                    title="Concluir etapa com sucesso e avançar"
-                                  >
-                                    <ChevronRight className="h-4 w-4 text-primary" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          "Concluir esta etapa SEM SUCESSO?\n\nAs etapas que dependem do sucesso desta serão canceladas."
-                                        )
-                                      ) {
-                                        avancar.mutate({ execucaoId: exec.id, sucesso: false });
+                        {etapas.map((etapa: WorkflowExecucaoEtapa) => {
+                          const cfg = etapa.etapa as any;
+                          const respIds = Array.from(
+                            new Set([
+                              ...(responsaveisPorEtapa[etapa.etapa_id] || []),
+                              ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
+                            ])
+                          );
+                          const nomes = respIds.map((id) => usuarios.nome(id));
+                          const prev = formatarData(etapa.data_prevista_calculada);
+                          const fatal = formatarData(etapa.data_fatal_calculada);
+                          const tipoItem =
+                            WORKFLOW_ITEM_LABELS[
+                              (etapa.item_tipo || cfg?.tipo_item) as keyof typeof WORKFLOW_ITEM_LABELS
+                            ] || String(etapa.item_tipo || cfg?.tipo_item || "");
+                          return (
+                            <div
+                              key={etapa.id}
+                              className="rounded-md border p-2.5 text-sm space-y-1.5"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                                  <span className="font-medium">
+                                    {cfg?.ordem ? `${cfg.ordem}. ` : ""}
+                                    {cfg?.titulo}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {STATUS_LABELS[etapa.status] || etapa.status}
+                                  </Badge>
+                                  {tipoItem && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {tipoItem}
+                                    </Badge>
+                                  )}
+                                  {etapa.status === "concluida" && (
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        etapa.sucesso
+                                          ? "text-xs border-primary/40 text-primary"
+                                          : "text-xs border-destructive/40 text-destructive"
                                       }
-                                    }}
-                                    disabled={avancar.isPending}
-                                    title="Concluir etapa sem sucesso"
-                                  >
-                                    <XCircle className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
-                              {etapa.status === "concluida" && (
-                                <Badge
-                                  variant="outline"
-                                  className={
-                                    etapa.sucesso
-                                      ? "text-xs border-primary/40 text-primary"
-                                      : "text-xs border-destructive/40 text-destructive"
-                                  }
-                                >
-                                  {etapa.sucesso ? "Com sucesso" : "Sem sucesso"}
-                                </Badge>
+                                    >
+                                      {etapa.sucesso ? "Com sucesso" : "Sem sucesso"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {etapa.status === "materializada" && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => avancar.mutate({ execucaoId: exec.id, sucesso: true })}
+                                      disabled={avancar.isPending}
+                                      title="Concluir etapa com sucesso e avançar"
+                                    >
+                                      <ChevronRight className="h-4 w-4 text-primary" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => {
+                                        if (
+                                          window.confirm(
+                                            "Concluir esta etapa SEM SUCESSO?\n\nAs etapas que dependem do sucesso desta serão canceladas."
+                                          )
+                                        ) {
+                                          avancar.mutate({ execucaoId: exec.id, sucesso: false });
+                                        }
+                                      }}
+                                      disabled={avancar.isPending}
+                                      title="Concluir etapa sem sucesso"
+                                    >
+                                      <XCircle className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3.5 w-3.5" />
+                                  {nomes.length
+                                    ? nomes.join(", ")
+                                    : REGRA_RESPONSAVEL_LABELS[cfg?.regra_responsavel] ||
+                                      "Sem responsável definido"}
+                                </span>
+                                {(prev || fatal) && (
+                                  <span className="flex items-center gap-1">
+                                    <CalendarClock className="h-3.5 w-3.5" />
+                                    {prev ? `Prev: ${prev}` : ""}
+                                    {fatal && fatal !== prev ? ` • Fatal: ${fatal}` : ""}
+                                  </span>
+                                )}
+                                {cfg?.prioridade && (
+                                  <span className="flex items-center gap-1">
+                                    <Flag className="h-3.5 w-3.5" />
+                                    {PRIORIDADE_LABELS[cfg.prioridade] || cfg.prioridade}
+                                  </span>
+                                )}
+                                {typeof cfg?.dias_previsto === "number" && (
+                                  <span>
+                                    {cfg.dias_previsto}{" "}
+                                    {cfg.tipo_prazo === "dias_uteis" ? "dias úteis" : "dias corridos"}
+                                  </span>
+                                )}
+                                {cfg?.condicao === "sucesso_anterior" && (
+                                  <span>Só se a etapa anterior tiver sucesso</span>
+                                )}
+                              </div>
+
+                              {cfg?.descricao && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {cfg.descricao}
+                                </p>
                               )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
+
                     )}
                   </div>
                 </CardContent>
