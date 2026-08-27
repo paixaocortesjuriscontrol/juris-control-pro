@@ -13,16 +13,22 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileSpreadsheet, Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { FileSpreadsheet, Upload, Loader2, AlertCircle, CheckCircle2, Download, Tag, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEtiquetas } from "@/hooks/useEtiquetas";
+import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
   type PautaExcelRow,
   type PautaExcelParseError,
 } from "@/lib/pautasExcelParser";
+
 
 interface Props {
   open: boolean;
@@ -38,7 +44,9 @@ interface ResumoImport {
   processosExistentes: number;
   audienciasCriadas: number;
   audienciasDuplicadas: number;
+  etiquetasAplicadas?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
+
 }
 
 export function PautasExcelDialog({
@@ -56,6 +64,23 @@ export function PautasExcelDialog({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
+  const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
+  const [buscaEtiqueta, setBuscaEtiqueta] = useState("");
+  const { data: catalogoEtiquetas = [], isLoading: carregandoEtiquetas } = useEtiquetas(
+    coordenacaoId,
+    "itens",
+  );
+
+  const etiquetasFiltradas = useMemo(() => {
+    const q = buscaEtiqueta.trim().toLowerCase();
+    return q
+      ? catalogoEtiquetas.filter((e) => e.nome.toLowerCase().includes(q))
+      : catalogoEtiquetas;
+  }, [catalogoEtiquetas, buscaEtiqueta]);
+
+  const toggleEtiqueta = (id: string, checked: boolean) =>
+    setEtiquetasSel((prev) => (checked ? [...prev, id] : prev.filter((x) => x !== id)));
+
 
   const normalizarTitulo = (titulo: string | null | undefined) =>
     String(titulo ?? "")
@@ -103,6 +128,9 @@ export function PautasExcelDialog({
     setErrosParse([]);
     setProcessosExistentes(new Set());
     setResponsaveisIds([]);
+    setEtiquetasSel([]);
+    setBuscaEtiqueta("");
+
     setProgresso(0);
     setResumo(null);
   }, []);
@@ -277,6 +305,7 @@ export function PautasExcelDialog({
 
     // 4) Criar audiências
     let processadas = 0;
+    const idsCriados: string[] = [];
     for (const l of linhas) {
       processadas++;
       setProgresso(Math.round((processadas / linhas.length) * 100));
@@ -342,17 +371,46 @@ export function PautasExcelDialog({
       }
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
+      idsCriados.push(audId);
       r.audienciasCriadas++;
     }
 
+    // 5) Aplicar etiquetas selecionadas nas audiências criadas
+    if (etiquetasSel.length > 0 && idsCriados.length > 0) {
+      const vinculos = idsCriados.flatMap((entidadeId) =>
+        etiquetasSel.map((etiquetaId) => ({
+          etiqueta_id: etiquetaId,
+          entidade: "audiencia",
+          entidade_id: entidadeId,
+          created_by: user.id,
+        })),
+      );
+      for (let i = 0; i < vinculos.length; i += 200) {
+        const slice = vinculos.slice(i, i + 200);
+        const { error } = await (supabase as any)
+          .from("etiquetas_itens")
+          .upsert(slice, {
+            onConflict: "etiqueta_id,entidade,entidade_id",
+            ignoreDuplicates: true,
+          });
+        if (error) {
+          r.erros.push({ linha: 0, motivo: `Erro ao aplicar etiquetas: ${error.message}` });
+          break;
+        }
+      }
+      r.etiquetasAplicadas = etiquetasSel.length;
+    }
 
     setResumo(r);
+
     setEtapa("concluido");
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
       queryClient.invalidateQueries({ queryKey: ["audiencias-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["painel-controle-audiencias-det-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["processos"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+
     ]);
   };
 
@@ -391,8 +449,18 @@ export function PautasExcelDialog({
                 }}
               />
             </label>
+            <div className="flex items-center justify-center">
+              <Button variant="outline" size="sm" onClick={baixarModeloPautasExcel}>
+                <Download className="h-4 w-4 mr-2" /> Baixar planilha modelo
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Todas as abas da planilha são lidas. O cabeçalho pode estar em qualquer uma das
+              primeiras linhas.
+            </p>
           </div>
         )}
+
 
         {etapa === "preview" && (
           <div className="flex flex-col gap-4 flex-1 overflow-hidden">
@@ -427,6 +495,55 @@ export function PautasExcelDialog({
                 Os responsáveis selecionados serão vinculados a todas as audiências importadas.
               </p>
             </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2">
+                <Tag className="h-4 w-4" /> Etiquetas (opcional)
+              </Label>
+              {carregandoEtiquetas ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Carregando etiquetas…
+                </div>
+              ) : catalogoEtiquetas.length === 0 ? (
+                <p className="text-xs text-muted-foreground">
+                  Nenhuma etiqueta cadastrada para itens nesta coordenação.{" "}
+                  <Link to="/etiquetas" className="inline-flex items-center gap-1 text-primary hover:underline">
+                    <Plus className="h-3 w-3" /> Gerenciar etiquetas
+                  </Link>
+                </p>
+              ) : (
+                <>
+                  <Input
+                    value={buscaEtiqueta}
+                    onChange={(e) => setBuscaEtiqueta(e.target.value)}
+                    placeholder="Buscar etiqueta..."
+                    className="h-8 text-xs"
+                  />
+                  <div className="max-h-32 overflow-auto border rounded-md p-2 space-y-1">
+                    {etiquetasFiltradas.map((et) => (
+                      <label
+                        key={et.id}
+                        className="flex items-center gap-2 text-xs px-1 py-0.5 rounded hover:bg-muted/60 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={etiquetasSel.includes(et.id)}
+                          onCheckedChange={(v) => toggleEtiqueta(et.id, !!v)}
+                        />
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ backgroundColor: et.cor }}
+                        />
+                        <span className="truncate">{et.nome}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    As etiquetas marcadas serão aplicadas a todas as audiências criadas.
+                  </p>
+                </>
+              )}
+            </div>
+
 
             <ScrollArea className="flex-1 border rounded-md">
               <table className="w-full text-xs">
@@ -505,6 +622,10 @@ export function PautasExcelDialog({
               <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
               <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
               <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+              {!!resumo.etiquetasAplicadas && (
+                <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
+              )}
+
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
             </ul>
             {resumo.erros.length > 0 && (

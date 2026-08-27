@@ -105,8 +105,29 @@ function extractUrl(text: string): string {
  */
 export function parsePautaExcel(arrayBuffer: ArrayBuffer): PautaExcelParseResult {
   const wb = XLSX.read(arrayBuffer, { cellDates: true, cellNF: false });
-  const sheetName = wb.SheetNames[0];
-  const ws = wb.Sheets[sheetName];
+  const erros: PautaExcelParseError[] = [];
+  const linhas: PautaExcelRow[] = [];
+  const vistos = new Set<string>();
+
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+    const parcial = parsePautaSheet(ws);
+    for (const l of parcial.linhas) {
+      const chave = `${l.processo_digits}|${l.data_iso}|${l.hora}|${l.tipo}`;
+      if (vistos.has(chave)) continue;
+      vistos.add(chave);
+      linhas.push(l);
+    }
+    // Só reporta erros de abas que realmente parecem pautas (têm linhas válidas
+    // ou cabeçalho reconhecido), evitando ruído de abas auxiliares.
+    if (parcial.linhas.length > 0) erros.push(...parcial.erros);
+  }
+
+  return { linhas, erros };
+}
+
+function parsePautaSheet(ws: XLSX.WorkSheet): PautaExcelParseResult {
   const rows: any[][] = XLSX.utils.sheet_to_json(ws, {
     header: 1,
     defval: "",
@@ -118,34 +139,47 @@ export function parsePautaExcel(arrayBuffer: ArrayBuffer): PautaExcelParseResult
 
   if (rows.length === 0) return { linhas, erros };
 
-  // Localizar linha do cabeçalho (procura por "NUMERO DO PROCESSO" nos primeiros 5 rows)
+  // Localizar linha do cabeçalho (procura por "NUMERO DO PROCESSO" nas primeiras linhas)
   let headerIdx = -1;
-  for (let i = 0; i < Math.min(5, rows.length); i++) {
+  for (let i = 0; i < Math.min(15, rows.length); i++) {
     const norm = (rows[i] || []).map(normHeader);
-    if (norm.some((c) => c === "NUMERODOPROCESSO" || c === "NDOPROCESSO")) {
+    if (
+      norm.some((c) =>
+        ["NUMERODOPROCESSO", "NDOPROCESSO", "NUMEROPROCESSO", "NUMERODOPROC", "PROCESSO"].includes(c),
+      )
+    ) {
       headerIdx = i;
       break;
     }
   }
-  if (headerIdx === -1) headerIdx = 0;
+  if (headerIdx === -1) return { linhas, erros };
+
 
   const header = (rows[headerIdx] || []).map(normHeader);
   const idx = (aliases: string[]) => header.findIndex((h) => aliases.includes(h));
 
-  const iData = idx(["DATA"]);
-  const iHora = idx(["HORA", "HORARIO"]);
-  const iProc = idx(["NUMERODOPROCESSO", "NDOPROCESSO", "PROCESSO"]);
-  const iForo = idx(["FORO", "TRIBUNAL"]);
-  const iVara = idx(["VTCAMARA", "VTCAMARATURMA", "VARACAMARA", "ORGAOJULGADOR"]);
-  const iLocal = idx(["LOCAL", "ENDERECO"]);
-  const iComarca = idx(["COMARCA"]);
-  const iUf = idx(["UF"]);
-  const iPolo = idx(["POLOATIVO", "PARTECONTRARIA", "AUTOR"]);
-  const iCliente = idx(["CLIENTE"]);
+  const iData = idx(["DATA", "DATAAUDIENCIA", "DATADAAUDIENCIA"]);
+  const iHora = idx(["HORA", "HORARIO", "HORAAUDIENCIA"]);
+  const iProc = idx(["NUMERODOPROCESSO", "NDOPROCESSO", "NUMEROPROCESSO", "NUMERODOPROC", "PROCESSO"]);
+  const iForo = idx(["FORO", "TRIBUNAL", "TRT"]);
+  const iVara = idx(["VTCAMARA", "VTCAMARATURMA", "VARACAMARA", "VARA", "ORGAOJULGADOR"]);
+  const iLocal = idx(["LOCAL", "ENDERECO", "LOCALAUDIENCIA"]);
+  const iComarca = idx(["COMARCA", "CIDADE"]);
+  const iUf = idx(["UF", "ESTADO"]);
+  const iPolo = idx(["POLOATIVO", "RECLAMANTE", "PARTECONTRARIA", "AUTOR"]);
+  const iCliente = idx(["CLIENTE", "RECLAMADA", "POLOPASSIVO"]);
   const iTerc = idx(["TERCEIRIZADA", "TERCEIRIZADO"]);
-  const iTipo = idx(["TIPO", "TIPODEAUDIENCIA"]);
-  const iTele = idx(["TELEPRESENCIAL", "MODALIDADE"]);
-  const iObs = idx(["OBSERVACOESPROVIDENCIAS", "OBSERVACOES", "OBS"]);
+  const iTipo = idx(["TIPO", "TIPODEAUDIENCIA", "TIPOAUDIENCIA"]);
+  const iTele = idx(["TELEPRESENCIAL", "MODALIDADE", "VIRTUAL"]);
+  const iObs = idx([
+    "OBSERVACOESPROVIDENCIAS",
+    "OBSERVACOESPROVIDENCIA",
+    "OBSERVACOES",
+    "OBSERVACAO",
+    "PROVIDENCIAS",
+    "OBS",
+  ]);
+
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
     const row = rows[r] || [];
