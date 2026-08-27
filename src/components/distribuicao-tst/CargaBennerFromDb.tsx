@@ -53,7 +53,12 @@ const LAYOUT_COLS = [
   "Processo baixado do TST/STF (S/N)", "Recorrente", "Favorável (turma)",
   "Desfavorável (turma)", "Favorável (relator)", "Desfavorável (relator)",
   "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
+  "Sem chance de êxito",
 ];
+
+/** Índice (0-based) da nova coluna final "Sem chance de êxito". */
+const COL_SEM_EXITO = LAYOUT_COLS.length - 1;
+
 
 const DOSSIE_INVALIDO_PATTERNS = [
   /nao\s*(encontrad|localizad)/i, /inv[aá]lid/i, /sem\s*dossie/i,
