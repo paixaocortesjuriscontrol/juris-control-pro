@@ -12,6 +12,8 @@ import {
   criarItemWorkflow,
   calcularDataOffset,
   resolverResponsavelEtapa,
+  avancarExecucaoWorkflow,
+  sincronizarWorkflowsPorItens,
 } from "@/lib/workflowExecutor";
 import { format } from "date-fns";
 
@@ -77,17 +79,33 @@ export function useWorkflowEtapas(workflowId?: string) {
   });
 }
 
-export function useWorkflowExecucoes(workflowId?: string) {
+export interface WorkflowExecucaoFiltros {
+  workflowId?: string;
+  status?: string;
+  dataInicio?: string;
+  dataFim?: string;
+}
+
+export function useWorkflowExecucoes(
+  workflowIdOrFiltros?: string | WorkflowExecucaoFiltros
+) {
+  const filtros: WorkflowExecucaoFiltros =
+    typeof workflowIdOrFiltros === "string"
+      ? { workflowId: workflowIdOrFiltros }
+      : workflowIdOrFiltros || {};
   return useQuery({
-    queryKey: ["workflow-execucoes", workflowId],
+    queryKey: ["workflow-execucoes", JSON.stringify(filtros)],
     queryFn: async () => {
       let query = supabase
         .from("workflow_execucoes")
         .select("*, workflow:workflows(id, nome, coordenacao:coordenacoes(id, nome))")
-        .order("iniciado_em", { ascending: false });
-      if (workflowId) {
-        query = query.eq("workflow_id", workflowId);
+        .order("created_at", { ascending: false });
+      if (filtros.workflowId) {
+        query = query.eq("workflow_id", filtros.workflowId);
       }
+      if (filtros.status) query = query.eq("status", filtros.status);
+      if (filtros.dataInicio) query = query.gte("data_inicio", filtros.dataInicio);
+      if (filtros.dataFim) query = query.lte("data_inicio", filtros.dataFim);
       const { data, error } = await query;
       if (error) throw error;
       return ((data as unknown as WorkflowExecucao[]) || []);
@@ -437,117 +455,7 @@ export function useAvancarWorkflowEtapa() {
       sucesso?: boolean;
     }) => {
       if (!user?.id) throw new Error("Usuário não autenticado");
-
-      const { data: execucao, error: execError } = await supabase
-        .from("workflow_execucoes")
-        .select("*")
-        .eq("id", execucaoId)
-        .maybeSingle();
-      if (execError || !execucao) throw execError || new Error("Execução não encontrada");
-
-      const { data: etapasExec, error: etapasError } = await supabase
-        .from("workflow_execucao_etapas")
-        .select("*, etapa:workflow_etapas(*)")
-        .eq("execucao_id", execucaoId)
-        .order("ordem", { ascending: true });
-      if (etapasError || !etapasExec) throw etapasError || new Error("Etapas não encontradas");
-
-      const execucaoCast = execucao as any;
-      const etapas = (etapasExec as any[]).map((e) => ({
-        ...e,
-        etapa: e.etapa as WorkflowEtapa,
-      })) as WorkflowExecucaoEtapa[];
-
-      const etapaConcluida = etapas.find((e) => e.status === "materializada");
-      if (!etapaConcluida) throw new Error("Nenhuma etapa ativa para concluir");
-
-      const ordemAtual = etapaConcluida.etapa?.ordem || 0;
-      // atualiza a etapa atual como concluída, com sucesso ou insucesso
-      await supabase
-        .from("workflow_execucao_etapas")
-        .update({ status: "concluida", sucesso })
-        .eq("id", etapaConcluida.id);
-      // reflete o resultado na cópia local para a avaliação das condições abaixo
-      etapaConcluida.status = "concluida" as any;
-      etapaConcluida.sucesso = sucesso as any;
-
-      // encontra próxima etapa cujas condições sejam satisfeitas
-      let proxima = etapas.find((e) => (e.etapa?.ordem || 0) > ordemAtual && e.status === "pendente");
-      while (proxima) {
-        const condicao = proxima.etapa?.condicao || "sempre";
-        if (condicao === "sucesso_anterior") {
-          // valida se a etapa anterior imediata (ou a definida por etapa_anterior_id) foi concluída com sucesso
-          const refId = proxima.etapa?.etapa_anterior_id;
-          let anteriorConcluidaComSucesso: boolean;
-          if (refId) {
-            const ref = etapas.find((e) => e.etapa_id === refId);
-            anteriorConcluidaComSucesso = ref?.status === "concluida" && ref?.sucesso;
-          } else {
-            const anterior = etapas.find((e) => (e.etapa?.ordem || 0) < (proxima.etapa?.ordem || 0) && e.status === "concluida");
-            anteriorConcluidaComSucesso = anterior?.sucesso || false;
-          }
-          if (!anteriorConcluidaComSucesso) {
-            // pula esta etapa: marca como cancelada e continua procurando
-            await supabase
-              .from("workflow_execucao_etapas")
-              .update({ status: "cancelada", sucesso: false })
-              .eq("id", proxima.id);
-            const proximaOrdem = proxima.etapa?.ordem || 0;
-            proxima = etapas.find(
-              (e) => (e.etapa?.ordem || 0) > proximaOrdem && e.status === "pendente"
-            );
-            continue;
-          }
-        }
-        break;
-      }
-
-      if (!proxima) {
-        await supabase
-          .from("workflow_execucoes")
-          .update({ status: "concluido" })
-          .eq("id", execucaoId);
-        return { concluido: true };
-      }
-
-      const dataReferencia = new Date();
-      const responsavelAnterior = etapaConcluida.item_id
-        ? await buscarResponsavelItem(etapaConcluida.item_tipo, etapaConcluida.item_id)
-        : null;
-      const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
-        responsavelAnterior,
-        iniciadorId: execucaoCast.iniciado_por,
-        responsavelInicial: undefined,
-      });
-
-      const item = await criarItemWorkflow(
-        execucaoCast as WorkflowExecucao,
-        proxima.etapa as WorkflowEtapa,
-        dataReferencia,
-        responsavel,
-        execucaoCast.processo_id,
-        execucaoCast.processo_numero
-      );
-
-      const dataPrevista = proxima.etapa?.dias_previsto
-        ? calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, proxima.etapa.tipo_prazo as "dias_corridos" | "dias_uteis").toISOString().split("T")[0]
-        : dataReferencia.toISOString().split("T")[0];
-      const dataFatal = proxima.etapa?.dias_fatal
-        ? calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, proxima.etapa.tipo_prazo as "dias_corridos" | "dias_uteis").toISOString().split("T")[0]
-        : dataPrevista;
-
-      await supabase
-        .from("workflow_execucao_etapas")
-        .update({
-          status: "materializada",
-          item_id: item?.id || null,
-          item_tipo: item?.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
-          data_prevista_calculada: dataPrevista,
-          data_fatal_calculada: dataFatal,
-        })
-        .eq("id", proxima.id);
-
-      return { concluido: false };
+      return await avancarExecucaoWorkflow(execucaoId, sucesso);
     },
     onSuccess: (_, variables) => {
       const execucaoId = variables.execucaoId;
@@ -560,45 +468,24 @@ export function useAvancarWorkflowEtapa() {
   });
 }
 
-async function buscarResponsavelItem(
-  tipoRaw: WorkflowItemType | null,
-  itemId: string | null
-): Promise<string | null> {
-  if (!tipoRaw || !itemId) return null;
-  const tipo = String(tipoRaw).toUpperCase() as WorkflowItemType;
-  try {
-    switch (tipo) {
-      case "PRAZO":
-      case "TAREFA": {
-        const { data } = await supabase
-          .from("tarefas")
-          .select("responsavel_id")
-          .eq("id", itemId)
-          .maybeSingle();
-        return (data as any)?.responsavel_id || null;
+/**
+ * Sincroniza execuções com a situação real dos itens (tarefas/agenda):
+ * ao concluir a tarefa no Painel de Controle, a próxima etapa é criada.
+ */
+export function useSincronizarWorkflows(enabled = true) {
+  const queryClient = useQueryClient();
+  return useQuery({
+    queryKey: ["workflow-sync"],
+    enabled,
+    staleTime: 30 * 1000,
+    queryFn: async () => {
+      const avancadas = await sincronizarWorkflowsPorItens();
+      if (avancadas > 0) {
+        await queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+        await queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       }
-      case "AUDIENCIA": {
-        const { data } = await supabase
-          .from("audiencias_detectadas")
-          .select("criado_por")
-          .eq("id", itemId)
-          .maybeSingle();
-        return (data as any)?.criado_por || null;
-      }
-      case "EVENTO":
-      case "PARCELAMENTO": {
-        const { data } = await supabase
-          .from("participantes_evento")
-          .select("usuario_id")
-          .eq("evento_id", itemId)
-          .limit(1)
-          .maybeSingle();
-        return (data as any)?.usuario_id || null;
-      }
-      default:
-        return null;
-    }
-  } catch {
-    return null;
-  }
+      return avancadas;
+    },
+  });
 }
+
