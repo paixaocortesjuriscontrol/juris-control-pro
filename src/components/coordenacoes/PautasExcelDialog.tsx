@@ -21,7 +21,7 @@ import { Link } from "react-router-dom";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEtiquetas } from "@/hooks/useEtiquetas";
+import { useEtiquetas, ETIQUETA_MODULOS, ETIQUETA_COLOR_PALETTE } from "@/hooks/useEtiquetas";
 import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
@@ -45,6 +45,7 @@ interface ResumoImport {
   audienciasCriadas: number;
   audienciasDuplicadas: number;
   etiquetasAplicadas?: number;
+  etiquetasCriadas?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
 
 }
@@ -303,9 +304,57 @@ export function PautasExcelDialog({
       }
     }
 
+    // 3.5) Resolver etiquetas por linha (coluna ETIQUETA): nome (normalizado) → id.
+    //      Se a etiqueta não existir no catálogo da coordenação, é criada.
+    const normNomeEtiqueta = (v: string) =>
+      v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+    const etiquetaIdByNome = new Map<string, string>();
+    for (const e of catalogoEtiquetas) {
+      etiquetaIdByNome.set(normNomeEtiqueta(e.nome), e.id);
+    }
+
+    const nomesNovos = Array.from(
+      new Set(
+        linhas
+          .map((l) => l.etiqueta)
+          .filter((n) => n && !etiquetaIdByNome.has(normNomeEtiqueta(n))),
+      ),
+    );
+    // Dedup por nome normalizado (evita criar "X" e "x")
+    const novasPorNome = new Map<string, string>();
+    for (const n of nomesNovos) {
+      const k = normNomeEtiqueta(n);
+      if (!novasPorNome.has(k)) novasPorNome.set(k, n.trim());
+    }
+
+    let etiquetasCriadas = 0;
+    for (const [nomeNorm, nomeOriginal] of novasPorNome) {
+      const cor = ETIQUETA_COLOR_PALETTE[etiquetaIdByNome.size % ETIQUETA_COLOR_PALETTE.length];
+      const { data: nova, error: errNova } = await (supabase as any)
+        .from("etiquetas")
+        .insert({
+          coordenacao_id: coordenacaoId,
+          nome: nomeOriginal,
+          cor,
+          modulos: ETIQUETA_MODULOS.map((m) => m.value),
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (errNova || !nova) {
+        r.erros.push({ linha: 0, motivo: `Erro ao criar etiqueta "${nomeOriginal}": ${errNova?.message || "desconhecido"}` });
+        continue;
+      }
+      etiquetaIdByNome.set(nomeNorm, nova.id as string);
+      etiquetasCriadas++;
+    }
+    r.etiquetasCriadas = etiquetasCriadas;
+
     // 4) Criar audiências
     let processadas = 0;
     const idsCriados: string[] = [];
+    const etiquetasPorAudiencia = new Map<string, string[]>();
     for (const l of linhas) {
       processadas++;
       setProgresso(Math.round((processadas / linhas.length) * 100));
@@ -372,18 +421,28 @@ export function PautasExcelDialog({
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
       idsCriados.push(audId);
+
+      const etiquetaLinhaId = l.etiqueta
+        ? etiquetaIdByNome.get(normNomeEtiqueta(l.etiqueta))
+        : undefined;
+      const etiquetasDaAudiencia = Array.from(
+        new Set([...(etiquetasSel || []), ...(etiquetaLinhaId ? [etiquetaLinhaId] : [])]),
+      );
+      if (etiquetasDaAudiencia.length > 0) etiquetasPorAudiencia.set(audId, etiquetasDaAudiencia);
+
       r.audienciasCriadas++;
     }
 
-    // 5) Aplicar etiquetas selecionadas nas audiências criadas
-    if (etiquetasSel.length > 0 && idsCriados.length > 0) {
-      const vinculos = idsCriados.flatMap((entidadeId) =>
-        etiquetasSel.map((etiquetaId) => ({
-          etiqueta_id: etiquetaId,
-          entidade: "audiencia",
-          entidade_id: entidadeId,
-          created_by: user.id,
-        })),
+    // 5) Aplicar etiquetas (selecionadas na tela + coluna ETIQUETA por linha)
+    if (etiquetasPorAudiencia.size > 0) {
+      const vinculos = Array.from(etiquetasPorAudiencia.entries()).flatMap(
+        ([entidadeId, ids]) =>
+          ids.map((etiquetaId) => ({
+            etiqueta_id: etiquetaId,
+            entidade: "audiencia",
+            entidade_id: entidadeId,
+            created_by: user.id,
+          })),
       );
       for (let i = 0; i < vinculos.length; i += 200) {
         const slice = vinculos.slice(i, i + 200);
@@ -398,7 +457,7 @@ export function PautasExcelDialog({
           break;
         }
       }
-      r.etiquetasAplicadas = etiquetasSel.length;
+      r.etiquetasAplicadas = vinculos.length;
     }
 
     setResumo(r);
@@ -410,6 +469,7 @@ export function PautasExcelDialog({
       queryClient.invalidateQueries({ queryKey: ["painel-controle-audiencias-det-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["processos"] }),
       queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] }),
 
     ]);
   };
@@ -434,9 +494,9 @@ export function PautasExcelDialog({
               <div className="text-center">
                 <p className="text-sm font-medium">Selecione a planilha de pautas (.xlsx)</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Colunas esperadas: DATA, HORA, NÚMERO DO PROCESSO, FORO, VT/CÂMARA, Local,
-                  COMARCA, UF, PÓLO ATIVO, CLIENTE, TERCEIRIZADA, TIPO, TELEPRESENCIAL,
-                  OBSERVAÇÕES/PROVIDÊNCIAS.
+                  Colunas esperadas: DATA, HORA, NÚMERO DO PROCESSO, ETIQUETA (opcional), FORO,
+                  VT/CÂMARA, Local, COMARCA, UF, PÓLO ATIVO, CLIENTE, TERCEIRIZADA, TIPO,
+                  TELEPRESENCIAL, OBSERVAÇÕES/PROVIDÊNCIAS.
                 </p>
               </div>
               <input
@@ -538,7 +598,9 @@ export function PautasExcelDialog({
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    As etiquetas marcadas serão aplicadas a todas as audiências criadas.
+                    As etiquetas marcadas serão aplicadas a todas as audiências criadas. Se a
+                    planilha tiver a coluna ETIQUETA, ela também é aplicada por linha (e criada
+                    automaticamente se ainda não existir).
                   </p>
                 </>
               )}
@@ -555,6 +617,7 @@ export function PautasExcelDialog({
                     <th className="p-2 text-left">Tipo</th>
                     <th className="p-2 text-left">Foro / Vara</th>
                     <th className="p-2 text-left">Cliente</th>
+                    <th className="p-2 text-left">Etiqueta</th>
                     <th className="p-2 text-left">Status</th>
                   </tr>
                 </thead>
@@ -574,6 +637,13 @@ export function PautasExcelDialog({
                       </td>
                       <td className="p-2">{l.cliente}</td>
                       <td className="p-2">
+                        {l.etiqueta ? (
+                          <Badge variant="secondary" className="text-[10px]">{l.etiqueta}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-2">
                         {processosExistentes.has(l.processo_digits) ? (
                           <Badge variant="outline" className="text-[10px]">Existente</Badge>
                         ) : (
@@ -585,7 +655,7 @@ export function PautasExcelDialog({
                   {errosParse.map((e) => (
                     <tr key={`err-${e.linha}`} className="border-t bg-destructive/10">
                       <td className="p-2">{e.linha}</td>
-                      <td colSpan={5} className="p-2 text-destructive">
+                      <td colSpan={6} className="p-2 text-destructive">
                         {e.motivo}
                         {e.processo ? ` — ${e.processo}` : ""}
                       </td>
@@ -624,6 +694,9 @@ export function PautasExcelDialog({
               <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
               {!!resumo.etiquetasAplicadas && (
                 <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
+              )}
+              {!!resumo.etiquetasCriadas && (
+                <li>• Etiquetas novas criadas: <strong>{resumo.etiquetasCriadas}</strong></li>
               )}
 
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
