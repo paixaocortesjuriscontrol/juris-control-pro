@@ -1,0 +1,2 @@
+ALTER TABLE public.workflow_etapas DROP CONSTRAINT IF EXISTS workflow_etapas_regra_responsavel_check;
+ALTER TABLE public.workflow_etapas ADD CONSTRAINT workflow_etapas_regra_responsavel_check CHECK (regra_responsavel = ANY (ARRAY['predefinido','anterior','etapa_anterior','iniciador']));
