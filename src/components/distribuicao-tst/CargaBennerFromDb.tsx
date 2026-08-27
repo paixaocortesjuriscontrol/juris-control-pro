@@ -685,7 +685,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           row[LAYOUT_COLS[31]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("BEM")));
           row[LAYOUT_COLS[32]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("MAL")));
           row[LAYOUT_COLS[33]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_exito) === "SIM"));
+          // Nova coluna final: matérias marcadas com Êxito = NÃO
+          row[LAYOUT_COLS[COL_SEM_EXITO]] = joinUniqueMat(
+            materias.filter((i: any) => normMat(i.chance_exito) === "NAO"),
+          );
         };
+
 
         // Mapeia a chave interna da parte para o rótulo exibido em "Recorrente"
         // (coluna AA) e para o campo `tipo_recurso_*` correspondente.
