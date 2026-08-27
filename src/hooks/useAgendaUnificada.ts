@@ -110,57 +110,12 @@ const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
 };
 
 /**
- * Alguns registros podem existir duplicados no banco (ex.: importações, DJEN, etc.).
- * Para não poluir a UI, deduplicamos por uma chave de negócio para tarefas.
+ * Proteção apenas de identidade: garante que o MESMO registro (origem + id) não
+ * apareça duas vezes na tela ao juntar páginas. Não escondemos mais itens por
+ * título/data/responsável — se o usuário criou duas tarefas iguais, as duas aparecem.
  */
-const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
-  const titulo = item.titulo ?? "";
-  const isDJEN = titulo.trim().startsWith("[DJEN]");
+const getAgendaDedupKey = (item: ItemAgendaUnificado) => `${item.origem}:${item.id}`;
 
-  if (item.origem === "tarefa") {
-    const tipoTarefaUpper = (item.tipo_tarefa ?? item.tipo ?? "").toUpperCase().trim();
-    const isTarefaAudiencia = tipoTarefaUpper === "AUDIÊNCIA" || tipoTarefaUpper === "AUDIENCIA" || item.tipo === "audiencia";
-    const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
-
-    // Itens materializados por Workflow são sempre únicos (uma execução pode
-    // repetir o mesmo título/data de execuções anteriores).
-    if (item.origem_importacao === "workflow") {
-      return `tarefa:workflow:${item.id}`;
-    }
-
-
-    if (isTarefaAudiencia) {
-      const processoDigits = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
-      const coordKey = item.coordenacao_id ?? item.processo_id ?? "";
-      const audienciaKey = processoDigits || normalizeDedupText(item.titulo ?? "");
-      return `tarefa-audiencia:${audienciaKey}:${data}:${coordKey}`;
-    }
-
-    // Identificador externo (quando existe) é a forma mais segura de deduplicar.
-    if (item.identificador_projuris) {
-      return `tarefa:projuris:${item.identificador_projuris}`;
-    }
-
-    const baseKey = `${normalizeDedupText(titulo)}:${data}:${item.processo_id ?? ""}:${item.responsavel_id ?? ""}:${item.criado_por ?? ""}:${item.tipo_tarefa ?? ""}`;
-    return isDJEN ? `djen:${baseKey}` : `tarefa:${baseKey}`;
-  }
-
-  // Para audiências (vindas de audiencias_detectadas, eventos_agenda ou tarefas do tipo
-  // audiência que já entram como "evento"), colapsar pelo mesmo processo+dia+hora.
-  if (item.tipo === "audiencia") {
-    const numeroProcesso = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
-    const dt = item.data_inicio ?? "";
-    const dia = dt.slice(0, 10);
-    // hora truncada em minutos, ignorando timezone label
-    const horaMatch = dt.match(/T(\d{2}:\d{2})/);
-    const hora = horaMatch ? horaMatch[1] : "";
-    if (numeroProcesso) {
-      return `audiencia:${numeroProcesso}:${dia}:${hora}`;
-    }
-  }
-
-  return `${item.origem}:${item.id}`;
-};
 
 export async function fetchAgendaPage(
   filters: AgendaUnificadaFilters,
