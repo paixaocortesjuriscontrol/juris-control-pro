@@ -32,7 +32,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
-import { Plus, Pencil, Trash2, ArrowUp, ArrowDown, GripVertical } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Plus,
+  ArrowLeft,
+  MoreVertical,
+  CalendarPlus,
+} from "lucide-react";
+
 import { toast } from "sonner";
 
 const TIPOS: { value: WorkflowItemType; label: string }[] = [
