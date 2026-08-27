@@ -1112,9 +1112,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           centeredStyleId,
           totalCols,
         );
-        headerRows = h1 + h2;
+        const ajuste = ajustarGrupoChanceExito({
+          row1: h1,
+          row2: h2,
+          sheetXml,
+          colIdx: totalCols - 1,
+          strIdxTituloGrupo: getStrIdx("Chance de êxito"),
+        });
+        mergeChanceExito = ajuste.mergeRef;
+        headerRows = ajuste.row1 + ajuste.row2;
 
       }
+
 
       let dataRowsXml = "";
       for (let i = 0; i < data.length; i++) {
