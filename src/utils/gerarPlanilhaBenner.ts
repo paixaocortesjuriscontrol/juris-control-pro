@@ -274,8 +274,37 @@ function getValuesFromDado(d: DadoBenner): string[] {
     bem,
     mal,
     exito,
+    semExito,
   ];
 }
+
+/** Cabeçalho da coluna final acrescentada em todas as planilhas de carga. */
+const HEADER_SEM_EXITO = "Sem chance de êxito";
+/** Índice da coluna "Sem chance de êxito" no array de getValuesFromDado. */
+const IDX_SEM_EXITO = 34;
+
+/**
+ * Acrescenta/substitui uma célula de cabeçalho de texto em uma linha XML.
+ */
+function setHeaderCell(
+  rowXml: string,
+  rowNum: number,
+  colIdx: number,
+  strIdx: number,
+  styleId: number,
+  totalCols: number,
+): string {
+  const letter = colToLetter(colIdx);
+  const cellXml = `<c r="${letter}${rowNum}" t="s"${styleId > 0 ? ` s="${styleId}"` : ""}><v>${strIdx}</v></c>`;
+  if (!rowXml) return `<row r="${rowNum}" spans="1:${totalCols}">${cellXml}</row>`;
+  const existing = new RegExp(`<c\\b[^>]*\\br="${letter}${rowNum}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+  let out = existing.test(rowXml)
+    ? rowXml.replace(existing, cellXml)
+    : rowXml.replace(/<\/row>\s*$/, `${cellXml}</row>`);
+  out = out.replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
+  return out;
+}
+
 
 /**
  * Generates an XLSX file from Dados Benner records using the original template.
