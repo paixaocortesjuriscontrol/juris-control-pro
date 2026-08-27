@@ -468,10 +468,28 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         </Card>
       ) : (
         <div className="space-y-3">
-          {etapas.map((etapa, idx) => {
+          {(() => {
+            const depths = new Map<string, number>();
+            etapas.forEach((e, i) => {
+              const dep = e.condicao !== "sempre";
+              if (!dep) {
+                depths.set(e.id, 0);
+                return;
+              }
+              const parentId = (e as any).etapa_anterior_id as string | null;
+              const parentDepth = parentId
+                ? depths.get(parentId)
+                : i > 0
+                ? depths.get(etapas[i - 1].id)
+                : undefined;
+              depths.set(e.id, (parentDepth ?? 0) + 1);
+            });
+            return etapas.map((etapa, idx) => {
             const dependente = etapa.condicao !== "sempre";
+            const depth = depths.get(etapa.id) ?? 0;
             return (
-              <div key={etapa.id} className={dependente ? "pl-8" : ""}>
+              <div key={etapa.id} style={{ paddingLeft: depth * 32 }}>
+
                 <Card
                   className={
                     dependente
