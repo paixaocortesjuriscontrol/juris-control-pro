@@ -126,6 +126,9 @@ export function PautasExcelDialog({
     setErrosParse([]);
     setProcessosExistentes(new Set());
     setResponsaveisIds([]);
+    setEtiquetasSel([]);
+    setBuscaEtiqueta("");
+
     setProgresso(0);
     setResumo(null);
   }, []);
