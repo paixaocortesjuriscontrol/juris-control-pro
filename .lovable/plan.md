@@ -33,7 +33,7 @@ Nenhuma outra informação do processo é alterada. Nada de mudança de tela ou 
 
 ## Detalhes técnicos
 
-- Critério de detecção: `~ '^[\s-]*-{2,}[\s-]*$'` por item, após split por `;` / `,` conforme `parseMateriasString`.
-- A limpeza roda como migração única (UPDATE em `dados_benner`), sem alterar demais campos.
-- Filtro de sanitização aplicado em `parseMateriasString` / `reconcileMateriasAnalise`, mantendo o comportamento atual de "Outra Matéria".
-- Antes/depois: contagem registrada para conferência (548 esperados).
+- Critério de detecção por item: `^[\s-]*-{2,}[\s-]*$`, após split por `;` / `,`.
+- Limpeza via UPDATE em `dados_benner`, sem tocar em outros campos.
+- Contagem antes/depois registrada para conferência (548 esperados).
+
