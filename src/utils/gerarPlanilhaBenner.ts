@@ -232,6 +232,8 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const bem = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("BEM")));
   const mal = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("MAL")));
   const exito = joinUnique(materiasAnalise.filter((i) => norm(i.chance_exito) === "SIM"));
+  const semExito = joinUnique(materiasAnalise.filter((i) => norm(i.chance_exito) === "NAO"));
+
 
   return [
     d.dossie || "",
@@ -272,8 +274,37 @@ function getValuesFromDado(d: DadoBenner): string[] {
     bem,
     mal,
     exito,
+    semExito,
   ];
 }
+
+/** Cabeçalho da coluna final acrescentada em todas as planilhas de carga. */
+const HEADER_SEM_EXITO = "Sem chance de êxito";
+/** Índice da coluna "Sem chance de êxito" no array de getValuesFromDado. */
+const IDX_SEM_EXITO = 34;
+
+/**
+ * Acrescenta/substitui uma célula de cabeçalho de texto em uma linha XML.
+ */
+function setHeaderCell(
+  rowXml: string,
+  rowNum: number,
+  colIdx: number,
+  strIdx: number,
+  styleId: number,
+  totalCols: number,
+): string {
+  const letter = colToLetter(colIdx);
+  const cellXml = `<c r="${letter}${rowNum}" t="s"${styleId > 0 ? ` s="${styleId}"` : ""}><v>${strIdx}</v></c>`;
+  if (!rowXml) return `<row r="${rowNum}" spans="1:${totalCols}">${cellXml}</row>`;
+  const existing = new RegExp(`<c\\b[^>]*\\br="${letter}${rowNum}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+  let out = existing.test(rowXml)
+    ? rowXml.replace(existing, cellXml)
+    : rowXml.replace(/<\/row>\s*$/, `${cellXml}</row>`);
+  out = out.replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
+  return out;
+}
+
 
 /**
  * Generates an XLSX file from Dados Benner records using the original template.
@@ -372,7 +403,10 @@ export async function gerarPlanilhaBenner(
   }
 
   const isConferencia = mode === "conferencia";
-  const maxCol = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
+  const baseCols = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
+  // A coluna "Sem chance de êxito" é a última em TODAS as planilhas geradas.
+  const colIdxs = [...Array(baseCols).keys(), IDX_SEM_EXITO];
+  const maxCol = colIdxs.length;
   const totalCols = isConferencia ? maxCol + 1 : maxCol; // +1 for inserted Processo column
 
   let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
@@ -386,8 +420,28 @@ export async function gerarPlanilhaBenner(
 
     if (isConferencia) {
       headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId, totalCols);
+      // Acrescenta o cabeçalho da nova coluna final na linha 2 já deslocada.
+      const h1End = headerRows.indexOf("</row>") + "</row>".length;
+      const h1 = headerRows.slice(0, h1End);
+      const h2 = setHeaderCell(
+        headerRows.slice(h1End),
+        2,
+        totalCols - 1,
+        getStrIdx(HEADER_SEM_EXITO),
+        centeredStyleId,
+        totalCols,
+      );
+      headerRows = h1 + h2;
     } else {
-      headerRows = (row1Match?.[0] ?? "") + (row2Match?.[0] ?? "");
+      const h2 = setHeaderCell(
+        row2Match?.[0] ?? "",
+        2,
+        totalCols - 1,
+        getStrIdx(HEADER_SEM_EXITO),
+        centeredStyleId,
+        totalCols,
+      );
+      headerRows = (row1Match?.[0] ?? "") + h2;
     }
   }
 
@@ -409,11 +463,12 @@ export async function gerarPlanilhaBenner(
       if (procVal) {
         cellsXml += `<c r="B${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
       }
-      // Cols C onwards = original cols B..AH (shifted +1)
-      for (let c = 1; c < maxCol; c++) {
+      // Cols C onwards = original cols B..AH (shifted +1) + coluna final
+      for (let p = 1; p < colIdxs.length; p++) {
+        const c = colIdxs[p];
         const val = values[c];
         if (!val) continue;
-        const ref = colToLetter(c + 1) + rowNum;
+        const ref = colToLetter(p + 1) + rowNum;
         // c==2 is tipo_recurso (original index 2, shifted to col D)
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
         const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
@@ -425,10 +480,11 @@ export async function gerarPlanilhaBenner(
       }
     } else {
       // Standard mode
-      for (let c = 0; c < maxCol; c++) {
+      for (let p = 0; p < colIdxs.length; p++) {
+        const c = colIdxs[p];
         const val = values[c];
         if (!val) continue;
-        const ref = colToLetter(c) + rowNum;
+        const ref = colToLetter(p) + rowNum;
         // c==2 is tipo_recurso column
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
         const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
@@ -442,6 +498,7 @@ export async function gerarPlanilhaBenner(
 
     dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
   });
+
 
   const lastRow = validos.length + 2;
   const lastColLetter = colToLetter(totalCols - 1);
@@ -546,9 +603,11 @@ function gerarPlanilhaRejeicoes(rejeitados: DadoBenner[]) {
     "Turma": d.turma || "",
     "Relator": d.relator || "",
     "Motivo": "Dossiê inválido/não localizado",
+    [HEADER_SEM_EXITO]: getValuesFromDado(d)[IDX_SEM_EXITO] || "",
   }));
   const ws = XLSX.utils.json_to_sheet(rows);
-  ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }];
+  ws["!cols"] = [{ wch: 30 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 25 }, { wch: 30 }, { wch: 40 }];
+
   XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
   const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
   const blob = new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });

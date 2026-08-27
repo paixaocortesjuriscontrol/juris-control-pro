@@ -38,7 +38,9 @@ interface RejeicaoRow {
   "Turma": string;
   "Relator": string;
   "Motivo": string;
+  "Sem chance de êxito"?: string;
 }
+
 
 // --- Layout columns ---
 const LAYOUT_COLS = [
@@ -53,7 +55,12 @@ const LAYOUT_COLS = [
   "Processo baixado do TST/STF (S/N)", "Recorrente", "Favorável (turma)",
   "Desfavorável (turma)", "Favorável (relator)", "Desfavorável (relator)",
   "Bem aparelhado", "Mal aparelhado", "Com chances de êxito",
+  "Sem chance de êxito",
 ];
+
+/** Índice (0-based) da nova coluna final "Sem chance de êxito". */
+const COL_SEM_EXITO = LAYOUT_COLS.length - 1;
+
 
 const DOSSIE_INVALIDO_PATTERNS = [
   /nao\s*(encontrad|localizad)/i, /inv[aá]lid/i, /sem\s*dossie/i,
@@ -82,6 +89,32 @@ function unescXml(s: string): string {
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&");
 }
+
+/**
+ * Grava (ou substitui) uma célula de cabeçalho de texto em uma linha XML já
+ * existente, mantendo as demais células. Usado para acrescentar a coluna final
+ * "Sem chance de êxito", ausente nos templates originais.
+ */
+function setHeaderCell(
+  rowXml: string,
+  rowNum: number,
+  colIdx: number,
+  strIdx: number,
+  styleId: number,
+  totalCols: number,
+): string {
+  const letter = colToLetter(colIdx);
+  const cellXml = `<c r="${letter}${rowNum}" t="s"${styleId > 0 ? ` s="${styleId}"` : ""}><v>${strIdx}</v></c>`;
+  if (!rowXml) {
+    return `<row r="${rowNum}" spans="1:${totalCols}">${cellXml}</row>`;
+  }
+  const existing = new RegExp(`<c\\b[^>]*\\br="${letter}${rowNum}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+  let out = existing.test(rowXml) ? rowXml.replace(existing, cellXml) : rowXml.replace(/<\/row>\s*$/, `${cellXml}</row>`);
+  out = out.replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
+  return out;
+}
+
+
 
 function isCnjLike(val: string): boolean {
   const s = String(val ?? "").trim();
@@ -480,10 +513,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
       for (let i = 0; i < allDist.length; i++) {
         const d = allDist[i];
+        const rejStartIdx = rejected.length;
         const numProcesso = String(d.processo ?? d.processo_numero ?? "").trim();
         const dossie = String(d.dossie ?? "").trim();
         const aba = d.aba_origem || "Sem aba";
         abaCount.set(aba, (abaCount.get(aba) || 0) + 1);
+
 
         let turmaRaw = String(d.turma ?? "").trim();
         if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
@@ -680,7 +715,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           row[LAYOUT_COLS[31]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("BEM")));
           row[LAYOUT_COLS[32]] = joinUniqueMat(materias.filter((i: any) => normMat(i.aparelhamento).startsWith("MAL")));
           row[LAYOUT_COLS[33]] = joinUniqueMat(materias.filter((i: any) => normMat(i.chance_exito) === "SIM"));
+          // Nova coluna final: matérias marcadas com Êxito = NÃO
+          row[LAYOUT_COLS[COL_SEM_EXITO]] = joinUniqueMat(
+            materias.filter((i: any) => normMat(i.chance_exito) === "NAO"),
+          );
         };
+
 
         // Mapeia a chave interna da parte para o rótulo exibido em "Recorrente"
         // (coluna AA) e para o campo `tipo_recurso_*` correspondente.
@@ -736,6 +776,22 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             ...materiasPorParte.terceiro,
           ]);
         }
+
+        // Coluna final "Sem chance de êxito" também na planilha de Rejeições.
+        if (rejected.length > rejStartIdx) {
+          const semExitoRej = joinUniqueMat(
+            [
+              ...materiasPorParte.reclamante,
+              ...materiasPorParte.banco,
+              ...materiasPorParte.terceiro,
+            ].filter((it: any) => normMat(it.chance_exito) === "NAO"),
+          );
+          for (let r = rejStartIdx; r < rejected.length; r++) {
+            rejected[r]["Sem chance de êxito"] = semExitoRej;
+          }
+        }
+
+
 
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
@@ -832,7 +888,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         return idx;
       }
 
-      const maxCol = fullMode === "full" ? LAYOUT_COLS.length : fullMode === "ag" ? 7 : 17;
+      // Colunas exportadas: base do modo + a coluna final "Sem chance de êxito",
+      // que deve constar em TODAS as planilhas geradas.
+      const baseCols = fullMode === "full" ? LAYOUT_COLS.length - 1 : fullMode === "ag" ? 7 : 17;
+      const colIdxs = [...Array(baseCols).keys(), COL_SEM_EXITO];
+      const maxCol = colIdxs.length;
 
       let stylesXml = await zip.file("xl/styles.xml")!.async("string");
       const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
@@ -850,12 +910,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const row = outputData[i];
         const rowNum = i + 3;
         let cellsXml = "";
-        for (let c = 0; c < maxCol; c++) {
+        for (let p = 0; p < colIdxs.length; p++) {
+          const c = colIdxs[p];
           const raw = String(row[LAYOUT_COLS[c]] ?? "");
           // Rede de segurança: coluna AA (Recorrente) nunca leva "Terceiro".
           const val = c === 26 ? normalizeRecorrenteBenner(raw) : raw;
           if (!val) continue;
-          const ref = colToLetter(c) + rowNum;
+          const ref = colToLetter(p) + rowNum;
           const idx = getStringIndex(val);
           cellsXml += centeredStyleId > 0
             ? `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${idx}</v></c>`
@@ -874,9 +935,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       if (sheetDataMatch) {
         const allContent = sheetDataMatch[1];
         const row1 = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
-        const row2 = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
+        let row2 = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
+        row2 = setHeaderCell(
+          row2,
+          2,
+          maxCol - 1,
+          getStringIndex(LAYOUT_COLS[COL_SEM_EXITO]),
+          centeredStyleId,
+          maxCol,
+        );
         sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${row1}${row2}${dataRowsXml}</sheetData>`);
       }
+
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
@@ -933,12 +1003,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const downloadRejectedXlsx = () => {
     if (rejectedData.length === 0) return;
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rejectedData);
-    ws["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 36 }];
+    const rows = rejectedData.map((r) => ({
+      ...r,
+      "Sem chance de êxito": r["Sem chance de êxito"] ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 36 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
     XLSX.writeFile(wb, `Rejeicoes_Carga_Supabase_${getTimestamp()}.xlsx`);
     toast.success("Rejeições baixadas!");
   };
+
 
   const downloadConferenciaXlsx = async () => {
     const data = conferenciaData ?? outputData;
@@ -1020,7 +1095,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         h1 = shiftRow(h1, 1);
         const npIdx = getStrIdx("Processo");
         h2 = shiftRow(h2, 2, `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`);
+        h2 = setHeaderCell(
+          h2,
+          2,
+          totalCols - 1,
+          getStrIdx(LAYOUT_COLS[COL_SEM_EXITO]),
+          centeredStyleId,
+          totalCols,
+        );
         headerRows = h1 + h2;
+
       }
 
       let dataRowsXml = "";
