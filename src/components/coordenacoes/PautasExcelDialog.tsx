@@ -299,13 +299,12 @@ export function PautasExcelDialog({
       return;
     }
 
-    // 1) Buscar processos existentes na coordenação (mapa digits → id)
+    // 1) Buscar processos já existentes (base compartilhada, sem filtro de coordenação)
     const digits = Array.from(new Set(alvos.map((l) => l.processo_digits)));
     const numerosMasked = Array.from(new Set(alvos.map((l) => l.processo_numero)));
     const { data: procsExistentes } = await supabase
       .from("processos")
       .select("id, numero")
-      .eq("coordenacao_id", coordenacaoId)
       .or(
         [
           `numero.in.(${numerosMasked.map((n) => `"${n}"`).join(",")})`,
@@ -319,6 +318,16 @@ export function PautasExcelDialog({
       if (d) procIdByDigits.set(d, p.id as string);
     }
     r.processosExistentes = procIdByDigits.size;
+
+    /** Vincula a coordenação atual a um processo já existente (não sobrescreve o dono). */
+    const vincularCoordenacao = async (processoId: string) => {
+      await (supabase as any)
+        .from("processos_coordenacoes_responsaveis")
+        .insert({ processo_id: processoId, coordenacao_id: coordenacaoId, principal: false })
+        .then(() => {}, () => {});
+    };
+
+    for (const id of procIdByDigits.values()) await vincularCoordenacao(id);
 
     // 2) Criar processos ausentes (dedup por digits, primeira ocorrência ganha)
     const primeirasPorDigits = new Map<string, PautaExcelRow>();
@@ -346,12 +355,31 @@ export function PautasExcelDialog({
         .select("id, numero")
         .single();
       if (error) {
-        r.erros.push({ linha: l.linha, motivo: `Erro ao cadastrar processo: ${error.message}`, processo: l.processo_numero });
+        // Já existe em outra coordenação (índice único global por número):
+        // reutiliza o processo e apenas vincula esta coordenação.
+        const { data: achado } = await supabase
+          .from("processos")
+          .select("id")
+          .or([`numero.eq.${l.processo_numero}`, `numero.eq.${l.processo_digits}`].join(","))
+          .limit(1)
+          .maybeSingle();
+        if (achado?.id) {
+          procIdByDigits.set(l.processo_digits, achado.id as string);
+          r.processosExistentes++;
+          await vincularCoordenacao(achado.id as string);
+          continue;
+        }
+        r.erros.push({
+          linha: l.linha,
+          motivo: `Não foi possível cadastrar o processo: ${error.message}`,
+          processo: l.processo_numero,
+        });
         continue;
       }
       procIdByDigits.set(l.processo_digits, data.id as string);
       r.processosCriados++;
     }
+
 
     // 3) Pré-consulta de duplicidade: atividade (audiência, tarefa ou evento)
     //    já existente no MESMO processo + MESMO DIA + MESMO TÍTULO bloqueia a criação.
