@@ -93,6 +93,9 @@ export interface IniciarWorkflowInput {
   coordenacao_id?: string;
   responsavel_inicial?: string;
   observacoes?: string;
+  /** Data de início da execução (yyyy-MM-dd). Se vazia, assume o dia atual. */
+  data_inicio?: string;
+
 }
 
 export function calcularDataOffset(
