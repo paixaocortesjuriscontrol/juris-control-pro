@@ -1003,12 +1003,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const downloadRejectedXlsx = () => {
     if (rejectedData.length === 0) return;
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(rejectedData);
-    ws["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 36 }];
+    const rows = rejectedData.map((r) => ({
+      ...r,
+      "Sem chance de êxito": r["Sem chance de êxito"] ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 36 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
     XLSX.writeFile(wb, `Rejeicoes_Carga_Supabase_${getTimestamp()}.xlsx`);
     toast.success("Rejeições baixadas!");
   };
+
 
   const downloadConferenciaXlsx = async () => {
     const data = conferenciaData ?? outputData;
