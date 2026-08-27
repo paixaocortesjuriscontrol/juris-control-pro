@@ -1070,7 +1070,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         h1 = shiftRow(h1, 1);
         const npIdx = getStrIdx("Processo");
         h2 = shiftRow(h2, 2, `<c r="B2" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${npIdx}</v></c>`);
+        h2 = setHeaderCell(
+          h2,
+          2,
+          totalCols - 1,
+          getStrIdx(LAYOUT_COLS[COL_SEM_EXITO]),
+          centeredStyleId,
+          totalCols,
+        );
         headerRows = h1 + h2;
+
       }
 
       let dataRowsXml = "";
