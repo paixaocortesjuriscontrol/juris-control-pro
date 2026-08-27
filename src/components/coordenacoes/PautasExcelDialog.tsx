@@ -62,6 +62,10 @@ export function PautasExcelDialog({
   const [linhas, setLinhas] = useState<PautaExcelRow[]>([]);
   const [errosParse, setErrosParse] = useState<PautaExcelParseError[]>([]);
   const [processosExistentes, setProcessosExistentes] = useState<Set<string>>(new Set());
+  /** Chaves `digits|dia|titulo` de atividades já existentes no banco. */
+  const [chavesExistentes, setChavesExistentes] = useState<Set<string>>(new Set());
+  const [verificandoDuplicidade, setVerificandoDuplicidade] = useState(false);
+  const [mostrarErros, setMostrarErros] = useState(true);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
@@ -122,12 +126,24 @@ export function PautasExcelDialog({
     return `${processoId}|${dia}|${normalizarTitulo(titulo)}`;
   };
 
+  /** Chave por número do processo (dígitos) + dia + título, usada na prévia. */
+  const chaveDigits = (
+    digits: string,
+    dataHora: string | null | undefined,
+    titulo: string | null | undefined,
+  ) => {
+    const dia = diaLocalISO(dataHora);
+    if (!digits || !dia) return null;
+    return `${digits}|${dia}|${normalizarTitulo(titulo)}`;
+  };
+
   const resetAll = useCallback(() => {
     setEtapa("upload");
     setNomeArquivo("");
     setLinhas([]);
     setErrosParse([]);
     setProcessosExistentes(new Set());
+    setChavesExistentes(new Set());
     setResponsaveisIds([]);
     setEtiquetasSel([]);
     setBuscaEtiqueta("");
@@ -157,9 +173,10 @@ export function PautasExcelDialog({
       // Consultar quais processos já existem nesta coordenação
       const numerosMasked = Array.from(new Set(ls.map((l) => l.processo_numero)));
       const numerosDigits = Array.from(new Set(ls.map((l) => l.processo_digits)));
+      setVerificandoDuplicidade(true);
       const { data: processosDb } = await supabase
         .from("processos")
-        .select("numero")
+        .select("id, numero")
         .eq("coordenacao_id", coordenacaoId)
         .or(
           [
@@ -169,18 +186,55 @@ export function PautasExcelDialog({
         );
 
       const existSet = new Set<string>();
+      const digitsById = new Map<string, string>();
       for (const p of processosDb || []) {
         const d = String(p.numero || "").replace(/\D/g, "");
-        if (d) existSet.add(d);
+        if (d) {
+          existSet.add(d);
+          digitsById.set(p.id as string, d);
+        }
+      }
+
+      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos
+      const chaves = new Set<string>();
+      const procIds = Array.from(digitsById.keys());
+      if (procIds.length > 0) {
+        const [{ data: audDb }, { data: tarDb }, { data: evtDb }] = await Promise.all([
+          supabase
+            .from("audiencias_detectadas")
+            .select("processo_id, data_audiencia, titulo")
+            .in("processo_id", procIds),
+          supabase
+            .from("tarefas")
+            .select("processo_id, titulo, data_vencimento")
+            .in("processo_id", procIds),
+          supabase
+            .from("eventos_agenda")
+            .select("processo_id, titulo, data_inicio")
+            .in("processo_id", procIds),
+        ]);
+        const add = (procId: string, data: any, titulo: any) => {
+          const d = digitsById.get(procId);
+          if (!d) return;
+          const k = chaveDigits(d, data, titulo);
+          if (k) chaves.add(k);
+        };
+        for (const a of audDb || []) add((a as any).processo_id, (a as any).data_audiencia, (a as any).titulo);
+        for (const t of tarDb || []) add((t as any).processo_id, (t as any).data_vencimento, (t as any).titulo);
+        for (const e of evtDb || []) add((e as any).processo_id, (e as any).data_inicio, (e as any).titulo);
       }
 
       setLinhas(ls);
       setErrosParse(erros);
       setProcessosExistentes(existSet);
+      setChavesExistentes(chaves);
+      setMostrarErros(erros.length > 0);
       setEtapa("preview");
     } catch (e: any) {
       console.error(e);
       toast.error(`Erro ao ler planilha: ${e.message || e}`);
+    } finally {
+      setVerificandoDuplicidade(false);
     }
   };
 
@@ -189,19 +243,42 @@ export function PautasExcelDialog({
     [linhas, processosExistentes]
   );
 
+  /** Status por linha: nova, duplicada no banco ou repetida na própria planilha. */
+  const statusPorLinha = useMemo(() => {
+    const mapa = new Map<number, "nova" | "duplicada_banco" | "duplicada_planilha">();
+    const vistas = new Set<string>();
+    for (const l of linhas) {
+      const k = chaveDigits(l.processo_digits, l.data_iso, l.tipo || "Audiência");
+      if (k && chavesExistentes.has(k)) mapa.set(l.linha, "duplicada_banco");
+      else if (k && vistas.has(k)) mapa.set(l.linha, "duplicada_planilha");
+      else {
+        mapa.set(l.linha, "nova");
+        if (k) vistas.add(k);
+      }
+    }
+    return mapa;
+  }, [linhas, chavesExistentes]);
+
+  const linhasImportaveis = useMemo(
+    () => linhas.filter((l) => statusPorLinha.get(l.linha) === "nova"),
+    [linhas, statusPorLinha]
+  );
+  const duplicadasCount = linhas.length - linhasImportaveis.length;
+
   const executarImport = async () => {
     if (responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável para as audiências.");
       return;
     }
 
+    const alvos = linhasImportaveis;
     setEtapa("importando");
     setProgresso(0);
     const r: ResumoImport = {
       processosCriados: 0,
       processosExistentes: 0,
       audienciasCriadas: 0,
-      audienciasDuplicadas: 0,
+      audienciasDuplicadas: duplicadasCount,
       erros: [...errosParse],
     };
 
@@ -215,8 +292,8 @@ export function PautasExcelDialog({
     }
 
     // 1) Buscar processos existentes na coordenação (mapa digits → id)
-    const digits = Array.from(new Set(linhas.map((l) => l.processo_digits)));
-    const numerosMasked = Array.from(new Set(linhas.map((l) => l.processo_numero)));
+    const digits = Array.from(new Set(alvos.map((l) => l.processo_digits)));
+    const numerosMasked = Array.from(new Set(alvos.map((l) => l.processo_numero)));
     const { data: procsExistentes } = await supabase
       .from("processos")
       .select("id, numero")
@@ -237,7 +314,7 @@ export function PautasExcelDialog({
 
     // 2) Criar processos ausentes (dedup por digits, primeira ocorrência ganha)
     const primeirasPorDigits = new Map<string, PautaExcelRow>();
-    for (const l of linhas) {
+    for (const l of alvos) {
       if (!procIdByDigits.has(l.processo_digits) && !primeirasPorDigits.has(l.processo_digits)) {
         primeirasPorDigits.set(l.processo_digits, l);
       }
@@ -316,7 +393,7 @@ export function PautasExcelDialog({
 
     const nomesNovos = Array.from(
       new Set(
-        linhas
+        alvos
           .map((l) => l.etiqueta)
           .filter((n) => n && !etiquetaIdByNome.has(normNomeEtiqueta(n))),
       ),
@@ -355,9 +432,9 @@ export function PautasExcelDialog({
     let processadas = 0;
     const idsCriados: string[] = [];
     const etiquetasPorAudiencia = new Map<string, string[]>();
-    for (const l of linhas) {
+    for (const l of alvos) {
       processadas++;
-      setProgresso(Math.round((processadas / linhas.length) * 100));
+      setProgresso(Math.round((processadas / alvos.length) * 100));
 
       const procId = procIdByDigits.get(l.processo_digits);
       if (!procId) continue;
@@ -535,10 +612,47 @@ export function PautasExcelDialog({
               {linhas.length - novosCount > 0 && (
                 <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
               )}
+              {duplicadasCount > 0 && (
+                <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
+                  {duplicadasCount} duplicadas (não serão importadas)
+                </Badge>
+              )}
               {errosParse.length > 0 && (
-                <Badge variant="destructive">{errosParse.length} linhas com erro</Badge>
+                <Badge
+                  variant="destructive"
+                  className="cursor-pointer"
+                  onClick={() => setMostrarErros((v) => !v)}
+                >
+                  {errosParse.length} linhas com erro
+                </Badge>
+              )}
+              {verificandoDuplicidade && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> verificando duplicidades…
+                </span>
               )}
             </div>
+
+            {errosParse.length > 0 && mostrarErros && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-medium mb-1">
+                    {errosParse.length} linha(s) não serão importadas:
+                  </p>
+                  <ScrollArea className="max-h-32 pr-2">
+                    <ul className="text-xs space-y-0.5">
+                      {errosParse.map((e, i) => (
+                        <li key={`pe-${i}`}>
+                          Linha {e.linha}: {e.motivo}
+                          {e.processo ? ` (${e.processo})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
               <Label>
@@ -623,7 +737,14 @@ export function PautasExcelDialog({
                 </thead>
                 <tbody>
                   {linhas.map((l) => (
-                    <tr key={l.linha} className="border-t">
+                    <tr
+                      key={l.linha}
+                      className={
+                        statusPorLinha.get(l.linha) === "nova"
+                          ? "border-t"
+                          : "border-t bg-amber-500/10 text-muted-foreground"
+                      }
+                    >
                       <td className="p-2">{l.linha}</td>
                       <td className="p-2">
                         {l.data_iso.split("-").reverse().join("/")}
@@ -644,7 +765,15 @@ export function PautasExcelDialog({
                         )}
                       </td>
                       <td className="p-2">
-                        {processosExistentes.has(l.processo_digits) ? (
+                        {statusPorLinha.get(l.linha) === "duplicada_banco" ? (
+                          <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
+                            Já existe
+                          </Badge>
+                        ) : statusPorLinha.get(l.linha) === "duplicada_planilha" ? (
+                          <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
+                            Repetida na planilha
+                          </Badge>
+                        ) : processosExistentes.has(l.processo_digits) ? (
                           <Badge variant="outline" className="text-[10px]">Existente</Badge>
                         ) : (
                           <Badge className="bg-emerald-600 hover:bg-emerald-600 text-[10px]">Novo</Badge>
@@ -728,9 +857,9 @@ export function PautasExcelDialog({
               <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
               <Button
                 onClick={executarImport}
-                disabled={linhas.length === 0 || responsaveisIds.length === 0}
+                disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
               >
-                Importar {linhas.length} audiências
+                Importar {linhasImportaveis.length} audiências
               </Button>
             </>
           )}
