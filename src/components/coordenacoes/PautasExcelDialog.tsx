@@ -50,6 +50,49 @@ interface ResumoImport {
 
 }
 
+type ErroImport = { linha: number; motivo: string; processo?: string };
+
+/** Classifica o erro em uma categoria legível para o usuário. */
+function categoriaErro(motivo: string): string {
+  const m = motivo.toLowerCase();
+  if (m.includes("número do processo inválido")) return "Número do processo inválido na planilha";
+  if (m.includes("duplicate key") || m.includes("já existe")) return "Processo já cadastrado (reutilizado)";
+  if (m.includes("etiqueta")) return "Falha ao aplicar etiqueta";
+  if (m.includes("audiência") || m.includes("audiencia")) return "Falha ao criar audiência";
+  if (m.includes("processo")) return "Falha ao cadastrar processo";
+  if (m.includes("data")) return "Data inválida ou ausente";
+  return "Outros";
+}
+
+function agruparErros(erros: ErroImport[]): { categoria: string; total: number }[] {
+  const mapa = new Map<string, number>();
+  for (const e of erros) {
+    const c = categoriaErro(e.motivo);
+    mapa.set(c, (mapa.get(c) || 0) + 1);
+  }
+  return Array.from(mapa, ([categoria, total]) => ({ categoria, total })).sort(
+    (a, b) => b.total - a.total
+  );
+}
+
+function baixarErrosCsv(erros: ErroImport[]) {
+  const linhas = [
+    "Linha;Processo;Categoria;Motivo",
+    ...erros.map((e) =>
+      [e.linha || "", e.processo || "", categoriaErro(e.motivo), e.motivo.replace(/;/g, ",")].join(";")
+    ),
+  ];
+  const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "erros-importacao-pautas.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+
 export function PautasExcelDialog({
   open,
   onOpenChange,
@@ -174,16 +217,19 @@ export function PautasExcelDialog({
       const numerosMasked = Array.from(new Set(ls.map((l) => l.processo_numero)));
       const numerosDigits = Array.from(new Set(ls.map((l) => l.processo_digits)));
       setVerificandoDuplicidade(true);
+      // Processos são únicos por número em TODO o sistema (uma base compartilhada
+      // entre coordenações). Por isso a busca não filtra por coordenação: se já
+      // existir, ele é reutilizado e a coordenação atual é apenas vinculada.
       const { data: processosDb } = await supabase
         .from("processos")
         .select("id, numero")
-        .eq("coordenacao_id", coordenacaoId)
         .or(
           [
             `numero.in.(${numerosMasked.map((n) => `"${n}"`).join(",")})`,
             `numero.in.(${numerosDigits.map((n) => `"${n}"`).join(",")})`,
           ].join(",")
         );
+
 
       const existSet = new Set<string>();
       const digitsById = new Map<string, string>();
@@ -296,13 +342,12 @@ export function PautasExcelDialog({
       return;
     }
 
-    // 1) Buscar processos existentes na coordenação (mapa digits → id)
+    // 1) Buscar processos já existentes (base compartilhada, sem filtro de coordenação)
     const digits = Array.from(new Set(alvos.map((l) => l.processo_digits)));
     const numerosMasked = Array.from(new Set(alvos.map((l) => l.processo_numero)));
     const { data: procsExistentes } = await supabase
       .from("processos")
       .select("id, numero")
-      .eq("coordenacao_id", coordenacaoId)
       .or(
         [
           `numero.in.(${numerosMasked.map((n) => `"${n}"`).join(",")})`,
@@ -316,6 +361,16 @@ export function PautasExcelDialog({
       if (d) procIdByDigits.set(d, p.id as string);
     }
     r.processosExistentes = procIdByDigits.size;
+
+    /** Vincula a coordenação atual a um processo já existente (não sobrescreve o dono). */
+    const vincularCoordenacao = async (processoId: string) => {
+      await (supabase as any)
+        .from("processos_coordenacoes_responsaveis")
+        .insert({ processo_id: processoId, coordenacao_id: coordenacaoId, principal: false })
+        .then(() => {}, () => {});
+    };
+
+    for (const id of procIdByDigits.values()) await vincularCoordenacao(id);
 
     // 2) Criar processos ausentes (dedup por digits, primeira ocorrência ganha)
     const primeirasPorDigits = new Map<string, PautaExcelRow>();
@@ -343,12 +398,31 @@ export function PautasExcelDialog({
         .select("id, numero")
         .single();
       if (error) {
-        r.erros.push({ linha: l.linha, motivo: `Erro ao cadastrar processo: ${error.message}`, processo: l.processo_numero });
+        // Já existe em outra coordenação (índice único global por número):
+        // reutiliza o processo e apenas vincula esta coordenação.
+        const { data: achado } = await supabase
+          .from("processos")
+          .select("id")
+          .or([`numero.eq.${l.processo_numero}`, `numero.eq.${l.processo_digits}`].join(","))
+          .limit(1)
+          .maybeSingle();
+        if (achado?.id) {
+          procIdByDigits.set(l.processo_digits, achado.id as string);
+          r.processosExistentes++;
+          await vincularCoordenacao(achado.id as string);
+          continue;
+        }
+        r.erros.push({
+          linha: l.linha,
+          motivo: `Não foi possível cadastrar o processo: ${error.message}`,
+          processo: l.processo_numero,
+        });
         continue;
       }
       procIdByDigits.set(l.processo_digits, data.id as string);
       r.processosCriados++;
     }
+
 
     // 3) Pré-consulta de duplicidade: atividade (audiência, tarefa ou evento)
     //    já existente no MESMO processo + MESMO DIA + MESMO TÍTULO bloqueia a criação.
@@ -643,9 +717,9 @@ export function PautasExcelDialog({
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <p className="font-medium mb-1">
-                    {errosParse.length} linha(s) não serão importadas:
+                    {errosParse.length} linha(s) da planilha não serão importadas:
                   </p>
-                  <ScrollArea className="max-h-32 pr-2">
+                  <ScrollArea className="h-40 pr-3">
                     <ul className="text-xs space-y-0.5">
                       {errosParse.map((e, i) => (
                         <li key={`pe-${i}`}>
@@ -657,6 +731,7 @@ export function PautasExcelDialog({
                   </ScrollArea>
                 </AlertDescription>
               </Alert>
+
             )}
 
             <div className="space-y-2">
@@ -836,20 +911,47 @@ export function PautasExcelDialog({
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
             </ul>
             {resumo.erros.length > 0 && (
-              <ScrollArea className="max-h-40 border rounded-md p-2">
-                <ul className="text-xs space-y-1">
-                  {resumo.erros.map((e, i) => (
-                    <li key={i} className="flex gap-2 items-start">
-                      <AlertCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" />
-                      <span>
-                        Linha {e.linha}: {e.motivo}
-                        {e.processo ? ` (${e.processo})` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
+              <div className="space-y-2">
+                <div className="rounded-md border bg-muted/40 p-2 space-y-1">
+                  <p className="text-xs font-medium">Resumo dos erros por motivo:</p>
+                  <ul className="text-xs space-y-0.5">
+                    {agruparErros(resumo.erros).map((g) => (
+                      <li key={g.categoria}>
+                        • {g.categoria}: <strong>{g.total}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Lista completa ({resumo.erros.length}) — role para ver todos:
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => baixarErrosCsv(resumo.erros)}
+                  >
+                    Baixar erros (CSV)
+                  </Button>
+                </div>
+                <ScrollArea className="h-64 border rounded-md p-2">
+                  <ul className="text-xs space-y-1">
+                    {resumo.erros.map((e, i) => (
+                      <li key={i} className="flex gap-2 items-start">
+                        <AlertCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" />
+                        <span>
+                          {e.linha ? `Linha ${e.linha}: ` : ""}
+                          {e.motivo}
+                          {e.processo ? ` (${e.processo})` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </div>
             )}
+
           </div>
         )}
 
