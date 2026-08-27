@@ -70,6 +70,7 @@ import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEvent
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
