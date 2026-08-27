@@ -9912,7 +9912,7 @@ export type Database = {
           id: string
           iniciado_por: string | null
           observacoes: string | null
-          processo_id: string
+          processo_id: string | null
           status: string
           updated_at: string
           workflow_id: string
@@ -9924,7 +9924,7 @@ export type Database = {
           id?: string
           iniciado_por?: string | null
           observacoes?: string | null
-          processo_id: string
+          processo_id?: string | null
           status?: string
           updated_at?: string
           workflow_id: string
@@ -9936,7 +9936,7 @@ export type Database = {
           id?: string
           iniciado_por?: string | null
           observacoes?: string | null
-          processo_id?: string
+          processo_id?: string | null
           status?: string
           updated_at?: string
           workflow_id?: string

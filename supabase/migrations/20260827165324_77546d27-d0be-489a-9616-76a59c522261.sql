@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_execucoes ALTER COLUMN processo_id DROP NOT NULL;
