@@ -271,6 +271,7 @@ export function PautasExcelDialog({
       return;
     }
 
+    const alvos = linhasImportaveis;
     setEtapa("importando");
     setProgresso(0);
     const r: ResumoImport = {
@@ -291,8 +292,8 @@ export function PautasExcelDialog({
     }
 
     // 1) Buscar processos existentes na coordenação (mapa digits → id)
-    const digits = Array.from(new Set(linhas.map((l) => l.processo_digits)));
-    const numerosMasked = Array.from(new Set(linhas.map((l) => l.processo_numero)));
+    const digits = Array.from(new Set(alvos.map((l) => l.processo_digits)));
+    const numerosMasked = Array.from(new Set(alvos.map((l) => l.processo_numero)));
     const { data: procsExistentes } = await supabase
       .from("processos")
       .select("id, numero")
@@ -313,7 +314,7 @@ export function PautasExcelDialog({
 
     // 2) Criar processos ausentes (dedup por digits, primeira ocorrência ganha)
     const primeirasPorDigits = new Map<string, PautaExcelRow>();
-    for (const l of linhas) {
+    for (const l of alvos) {
       if (!procIdByDigits.has(l.processo_digits) && !primeirasPorDigits.has(l.processo_digits)) {
         primeirasPorDigits.set(l.processo_digits, l);
       }
@@ -431,9 +432,9 @@ export function PautasExcelDialog({
     let processadas = 0;
     const idsCriados: string[] = [];
     const etiquetasPorAudiencia = new Map<string, string[]>();
-    for (const l of linhas) {
+    for (const l of alvos) {
       processadas++;
-      setProgresso(Math.round((processadas / linhas.length) * 100));
+      setProgresso(Math.round((processadas / alvos.length) * 100));
 
       const procId = procIdByDigits.get(l.processo_digits);
       if (!procId) continue;
