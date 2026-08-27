@@ -868,20 +868,47 @@ export function PautasExcelDialog({
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
             </ul>
             {resumo.erros.length > 0 && (
-              <ScrollArea className="max-h-40 border rounded-md p-2">
-                <ul className="text-xs space-y-1">
-                  {resumo.erros.map((e, i) => (
-                    <li key={i} className="flex gap-2 items-start">
-                      <AlertCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" />
-                      <span>
-                        Linha {e.linha}: {e.motivo}
-                        {e.processo ? ` (${e.processo})` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
+              <div className="space-y-2">
+                <div className="rounded-md border bg-muted/40 p-2 space-y-1">
+                  <p className="text-xs font-medium">Resumo dos erros por motivo:</p>
+                  <ul className="text-xs space-y-0.5">
+                    {agruparErros(resumo.erros).map((g) => (
+                      <li key={g.categoria}>
+                        • {g.categoria}: <strong>{g.total}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">
+                    Lista completa ({resumo.erros.length}) — role para ver todos:
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-xs"
+                    onClick={() => baixarErrosCsv(resumo.erros)}
+                  >
+                    Baixar erros (CSV)
+                  </Button>
+                </div>
+                <ScrollArea className="h-64 border rounded-md p-2">
+                  <ul className="text-xs space-y-1">
+                    {resumo.erros.map((e, i) => (
+                      <li key={i} className="flex gap-2 items-start">
+                        <AlertCircle className="h-3 w-3 text-destructive mt-0.5 shrink-0" />
+                        <span>
+                          {e.linha ? `Linha ${e.linha}: ` : ""}
+                          {e.motivo}
+                          {e.processo ? ` (${e.processo})` : ""}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </ScrollArea>
+              </div>
             )}
+
           </div>
         )}
 
