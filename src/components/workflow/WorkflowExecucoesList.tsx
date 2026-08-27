@@ -9,6 +9,7 @@ import {
   useWorkflows,
   useSincronizarWorkflows,
   useWorkflowEtapasResponsaveis,
+  useWorkflowItensResponsaveis,
 } from "@/hooks/useWorkflows";
 import { useUsuariosAuditoria } from "@/hooks/useUsuariosAuditoria";
 import { Input } from "@/components/ui/input";
@@ -93,16 +94,22 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const { data: responsaveisPorEtapa = {} } = useWorkflowEtapasResponsaveis(
     execucaoSelecionada?.workflow_id
   );
+  const itemIds = useMemo(
+    () => etapas.map((e: WorkflowExecucaoEtapa) => e.item_id).filter(Boolean) as string[],
+    [etapas]
+  );
+  const { data: responsaveisPorItem = {} } = useWorkflowItensResponsaveis(itemIds);
   const idsResponsaveis = useMemo(() => {
     const set = new Set<string>();
     etapas.forEach((e: WorkflowExecucaoEtapa) => {
       (responsaveisPorEtapa[e.etapa_id] || []).forEach((id) => set.add(id));
+      if (e.item_id) (responsaveisPorItem[e.item_id] || []).forEach((id) => set.add(id));
       const pre = (e.etapa as any)?.responsavel_id;
       if (pre) set.add(pre);
     });
     if (execucaoSelecionada?.iniciado_por) set.add(execucaoSelecionada.iniciado_por);
     return Array.from(set);
-  }, [etapas, responsaveisPorEtapa, execucaoSelecionada?.iniciado_por]);
+  }, [etapas, responsaveisPorEtapa, responsaveisPorItem, execucaoSelecionada?.iniciado_por]);
   const usuarios = useUsuariosAuditoria(idsResponsaveis);
 
 
@@ -219,11 +226,18 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                       <div className="space-y-2">
                         {etapas.map((etapa: WorkflowExecucaoEtapa) => {
                           const cfg = etapa.etapa as any;
+                          const respDoItem = etapa.item_id
+                            ? responsaveisPorItem[etapa.item_id] || []
+                            : [];
                           const respIds = Array.from(
-                            new Set([
-                              ...(responsaveisPorEtapa[etapa.etapa_id] || []),
-                              ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
-                            ])
+                            new Set(
+                              respDoItem.length
+                                ? respDoItem
+                                : [
+                                    ...(responsaveisPorEtapa[etapa.etapa_id] || []),
+                                    ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
+                                  ]
+                            )
                           );
                           const nomes = respIds.map((id) => usuarios.nome(id));
                           const prev = formatarData(etapa.data_prevista_calculada);

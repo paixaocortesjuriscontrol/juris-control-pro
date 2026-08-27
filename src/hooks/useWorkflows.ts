@@ -281,6 +281,34 @@ export function useWorkflowEtapasResponsaveis(workflowId?: string) {
   });
 }
 
+/**
+ * Responsáveis REAIS dos itens (tarefas) já materializados por etapas de execução.
+ * Retorna { [tarefaId]: string[] } combinando responsavel_id + tarefa_responsaveis.
+ */
+export function useWorkflowItensResponsaveis(itemIds: string[]) {
+  const ids = Array.from(new Set((itemIds || []).filter(Boolean))).sort();
+  return useQuery({
+    queryKey: ["workflow-itens-responsaveis", ids.join(",")],
+    enabled: ids.length > 0,
+    queryFn: async () => {
+      const map: Record<string, string[]> = {};
+      const [{ data: tarefas }, { data: vinculos }] = await Promise.all([
+        supabase.from("tarefas").select("id, responsavel_id").in("id", ids),
+        supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", ids),
+      ]);
+      for (const t of ((tarefas as any[]) || [])) {
+        if (t?.responsavel_id) map[t.id] = [t.responsavel_id];
+      }
+      for (const v of ((vinculos as any[]) || [])) {
+        if (!v?.tarefa_id || !v?.usuario_id) continue;
+        const atual = map[v.tarefa_id] || [];
+        if (!atual.includes(v.usuario_id)) map[v.tarefa_id] = [...atual, v.usuario_id];
+      }
+      return map;
+    },
+  });
+}
+
 export function useCreateWorkflowEtapa() {
   const queryClient = useQueryClient();
   return useMutation({
