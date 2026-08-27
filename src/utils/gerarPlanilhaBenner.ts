@@ -516,6 +516,11 @@ export async function gerarPlanilhaBenner(
     });
   }
 
+  // Mescla o título "Chance de êxito" sobre as duas últimas colunas.
+  sheetXml = addMergeCell(sheetXml, mergeChanceExito);
+
+
+
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
   // Rebuild shared strings
