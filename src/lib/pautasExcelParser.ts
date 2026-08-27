@@ -19,6 +19,8 @@ export interface PautaExcelRow {
   modalidade: "Presencial" | "Virtual" | "";
   link_reuniao: string;
   observacoes: string;
+  /** Nome da etiqueta vindo da coluna ETIQUETA da planilha (por linha). */
+  etiqueta: string;
   raw_telepresencial: string;
 }
 
@@ -178,7 +180,10 @@ function parsePautaSheet(ws: XLSX.WorkSheet): PautaExcelParseResult {
     "OBSERVACAO",
     "PROVIDENCIAS",
     "OBS",
+    "RESUMODOOBJETO",
+    "RESUMO",
   ]);
+  const iEtiqueta = idx(["ETIQUETA", "ETIQUETAS", "TAG", "TAGS"]);
 
 
   for (let r = headerIdx + 1; r < rows.length; r++) {
@@ -234,6 +239,9 @@ function parsePautaSheet(ws: XLSX.WorkSheet): PautaExcelParseResult {
       .filter(Boolean)
       .join("\n\n");
 
+    const etiquetaRaw = iEtiqueta >= 0 ? s(row[iEtiqueta]) : "";
+    const etiqueta = /^(N[ÃA]O|NAO|-|N\/A)$/i.test(etiquetaRaw) ? "" : etiquetaRaw;
+
     linhas.push({
       linha: linhaExcel,
       data_iso: dataIso,
@@ -252,6 +260,7 @@ function parsePautaSheet(ws: XLSX.WorkSheet): PautaExcelParseResult {
       modalidade,
       link_reuniao: linkReuniao,
       observacoes,
+      etiqueta,
       raw_telepresencial: s(row[iTele]),
     });
   }
