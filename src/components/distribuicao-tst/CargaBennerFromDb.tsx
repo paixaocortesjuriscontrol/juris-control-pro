@@ -1179,6 +1179,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         }
       );
 
+      // Mescla o título "Chance de êxito" sobre as duas últimas colunas.
+      sheetXml = addMergeCell(sheetXml, mergeChanceExito);
+
+
+
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
