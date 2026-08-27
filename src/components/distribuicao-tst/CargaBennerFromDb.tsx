@@ -777,6 +777,22 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           ]);
         }
 
+        // Coluna final "Sem chance de êxito" também na planilha de Rejeições.
+        if (rejected.length > rejStartIdx) {
+          const semExitoRej = joinUniqueMat(
+            [
+              ...materiasPorParte.reclamante,
+              ...materiasPorParte.banco,
+              ...materiasPorParte.terceiro,
+            ].filter((it: any) => normMat(it.chance_exito) === "NAO"),
+          );
+          for (let r = rejStartIdx; r < rejected.length; r++) {
+            rejected[r]["Sem chance de êxito"] = semExitoRej;
+          }
+        }
+
+
+
         if (i % 500 === 0) {
           setProgress(50 + Math.floor((i / allDist.length) * 40));
           await new Promise(r => setTimeout(r, 0));
