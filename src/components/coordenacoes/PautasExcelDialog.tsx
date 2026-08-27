@@ -44,7 +44,9 @@ interface ResumoImport {
   processosExistentes: number;
   audienciasCriadas: number;
   audienciasDuplicadas: number;
+  etiquetasAplicadas?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
+
 }
 
 export function PautasExcelDialog({
