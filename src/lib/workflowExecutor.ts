@@ -335,3 +335,248 @@ async function buscarAudienciaPorTituloData(
   if (error || !data) return null;
   return data.id;
 }
+
+/* ------------------------------------------------------------------ */
+/* Avanço automático de etapas                                        */
+/* ------------------------------------------------------------------ */
+
+/** Situações que indicam conclusão COM sucesso de um item. */
+export const WORKFLOW_STATUS_SUCESSO = [
+  "cumprido",
+  "protocolado",
+  "baixado",
+  "verificado",
+  "tratado",
+];
+
+/** Situações que indicam conclusão SEM sucesso (interrompe o ramo). */
+export const WORKFLOW_STATUS_INSUCESSO = ["concluido_sem_sucesso", "cancelado"];
+
+export async function buscarResponsavelItem(
+  tipoRaw: WorkflowItemType | null,
+  itemId: string | null
+): Promise<string | null> {
+  if (!tipoRaw || !itemId) return null;
+  const tipo = String(tipoRaw).toUpperCase() as WorkflowItemType;
+  try {
+    switch (tipo) {
+      case "PRAZO":
+      case "TAREFA": {
+        const { data } = await supabase
+          .from("tarefas")
+          .select("responsavel_id")
+          .eq("id", itemId)
+          .maybeSingle();
+        return (data as any)?.responsavel_id || null;
+      }
+      case "AUDIENCIA": {
+        const { data } = await supabase
+          .from("audiencias_detectadas")
+          .select("criado_por")
+          .eq("id", itemId)
+          .maybeSingle();
+        return (data as any)?.criado_por || null;
+      }
+      case "EVENTO":
+      case "PARCELAMENTO": {
+        const { data } = await supabase
+          .from("participantes_evento")
+          .select("usuario_id")
+          .eq("evento_id", itemId)
+          .limit(1)
+          .maybeSingle();
+        return (data as any)?.usuario_id || null;
+      }
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Conclui a etapa ativa de uma execução e materializa a próxima etapa elegível.
+ * Retorna { concluido: true } quando não há mais etapas a materializar.
+ */
+export async function avancarExecucaoWorkflow(
+  execucaoId: string,
+  sucesso = true
+): Promise<{ concluido: boolean }> {
+  const { data: execucao, error: execError } = await supabase
+    .from("workflow_execucoes")
+    .select("*")
+    .eq("id", execucaoId)
+    .maybeSingle();
+  if (execError || !execucao) throw execError || new Error("Execução não encontrada");
+
+  const { data: etapasExec, error: etapasError } = await supabase
+    .from("workflow_execucao_etapas")
+    .select("*, etapa:workflow_etapas(*)")
+    .eq("execucao_id", execucaoId)
+    .order("ordem", { ascending: true });
+  if (etapasError || !etapasExec) throw etapasError || new Error("Etapas não encontradas");
+
+  const execucaoCast = execucao as any;
+  const etapas = (etapasExec as any[]).map((e) => ({
+    ...e,
+    etapa: e.etapa as WorkflowEtapa,
+  })) as WorkflowExecucaoEtapa[];
+
+  const etapaConcluida = etapas.find((e) => e.status === "materializada");
+  if (!etapaConcluida) throw new Error("Nenhuma etapa ativa para concluir");
+
+  const ordemAtual = etapaConcluida.etapa?.ordem || 0;
+  await supabase
+    .from("workflow_execucao_etapas")
+    .update({ status: "concluida", sucesso })
+    .eq("id", etapaConcluida.id);
+  etapaConcluida.status = "concluida" as any;
+  etapaConcluida.sucesso = sucesso as any;
+
+  let proxima = etapas.find(
+    (e) => (e.etapa?.ordem || 0) > ordemAtual && e.status === "pendente"
+  );
+  while (proxima) {
+    const condicao = proxima.etapa?.condicao || "sempre";
+    if (condicao === "sucesso_anterior") {
+      const refId = proxima.etapa?.etapa_anterior_id;
+      let ok: boolean;
+      if (refId) {
+        const ref = etapas.find((e) => e.etapa_id === refId);
+        ok = ref?.status === "concluida" && !!ref?.sucesso;
+      } else {
+        ok = !!etapaConcluida.sucesso;
+      }
+      if (!ok) {
+        await supabase
+          .from("workflow_execucao_etapas")
+          .update({ status: "cancelada", sucesso: false })
+          .eq("id", proxima.id);
+        const proximaOrdem = proxima.etapa?.ordem || 0;
+        proxima = etapas.find(
+          (e) => (e.etapa?.ordem || 0) > proximaOrdem && e.status === "pendente"
+        );
+        continue;
+      }
+    }
+    break;
+  }
+
+  if (!proxima) {
+    await supabase
+      .from("workflow_execucoes")
+      .update({ status: "concluido" })
+      .eq("id", execucaoId);
+    return { concluido: true };
+  }
+
+  const dataReferencia = new Date();
+  const responsavelAnterior = etapaConcluida.item_id
+    ? await buscarResponsavelItem(etapaConcluida.item_tipo, etapaConcluida.item_id)
+    : null;
+  const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
+    responsavelAnterior,
+    iniciadorId: execucaoCast.iniciado_por,
+  });
+
+  const item = await criarItemWorkflow(
+    execucaoCast as WorkflowExecucao,
+    proxima.etapa as WorkflowEtapa,
+    dataReferencia,
+    responsavel,
+    execucaoCast.processo_id,
+    execucaoCast.processo_numero
+  );
+
+  const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
+    | "dias_corridos"
+    | "dias_uteis";
+  const dataPrevista = proxima.etapa?.dias_previsto
+    ? formatarDataISOBrasilia(
+        calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp)
+      )
+    : formatarDataISOBrasilia(dataReferencia);
+  const dataFatal = proxima.etapa?.dias_fatal
+    ? formatarDataISOBrasilia(
+        calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp)
+      )
+    : dataPrevista;
+
+  await supabase
+    .from("workflow_execucao_etapas")
+    .update({
+      status: "materializada",
+      item_id: item?.id || null,
+      item_tipo: item?.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
+      data_prevista_calculada: dataPrevista,
+      data_fatal_calculada: dataFatal,
+    })
+    .eq("id", proxima.id);
+
+  return { concluido: false };
+}
+
+/** Lê a situação atual de um item criado por workflow. */
+async function lerStatusItem(
+  tipoRaw: WorkflowItemType | null,
+  itemId: string
+): Promise<string | null> {
+  const tipo = String(tipoRaw || "TAREFA").toUpperCase();
+  try {
+    if (tipo === "TAREFA" || tipo === "PRAZO") {
+      const { data } = await supabase
+        .from("tarefas")
+        .select("status")
+        .eq("id", itemId)
+        .maybeSingle();
+      return (data as any)?.status || null;
+    }
+    if (tipo === "AUDIENCIA") {
+      const { data } = await supabase
+        .from("audiencias_detectadas")
+        .select("status")
+        .eq("id", itemId)
+        .maybeSingle();
+      return (data as any)?.status || null;
+    }
+    const { data } = await supabase
+      .from("eventos_agenda")
+      .select("status")
+      .eq("id", itemId)
+      .maybeSingle();
+    return (data as any)?.status || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Verifica os itens ativos de workflow: se o item já foi concluído
+ * (com ou sem sucesso) na tela de tarefas/agenda, avança a execução.
+ * Retorna quantas execuções avançaram.
+ */
+export async function sincronizarWorkflowsPorItens(): Promise<number> {
+  const { data, error } = await supabase
+    .from("workflow_execucao_etapas")
+    .select("id, execucao_id, item_id, item_tipo, status")
+    .eq("status", "materializada")
+    .not("item_id", "is", null);
+  if (error || !data) return 0;
+
+  let avancadas = 0;
+  for (const row of data as any[]) {
+    const status = await lerStatusItem(row.item_tipo, row.item_id);
+    if (!status) continue;
+    const sucesso = WORKFLOW_STATUS_SUCESSO.includes(status);
+    const insucesso = WORKFLOW_STATUS_INSUCESSO.includes(status);
+    if (!sucesso && !insucesso) continue;
+    try {
+      await avancarExecucaoWorkflow(row.execucao_id, sucesso);
+      avancadas++;
+    } catch (err) {
+      console.error("Falha ao avançar workflow", row.execucao_id, err);
+    }
+  }
+  return avancadas;
+}
