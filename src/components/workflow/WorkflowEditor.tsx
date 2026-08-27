@@ -594,7 +594,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 </Card>
               </div>
             );
-          })}
+          });
+          })()}
+
 
           <div className="flex justify-center pt-2">
             <Button
