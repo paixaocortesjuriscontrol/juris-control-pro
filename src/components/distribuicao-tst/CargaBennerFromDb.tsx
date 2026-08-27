@@ -38,7 +38,9 @@ interface RejeicaoRow {
   "Turma": string;
   "Relator": string;
   "Motivo": string;
+  "Sem chance de êxito"?: string;
 }
+
 
 // --- Layout columns ---
 const LAYOUT_COLS = [
