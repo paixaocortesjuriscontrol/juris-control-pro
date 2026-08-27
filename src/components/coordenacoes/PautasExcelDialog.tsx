@@ -199,18 +199,23 @@ export function PautasExcelDialog({
       const chaves = new Set<string>();
       const procIds = Array.from(digitsById.keys());
       if (procIds.length > 0) {
+        // Importante: duplicidade é avaliada APENAS dentro da coordenação atual.
+        // Itens iguais em outras coordenações são permitidos.
         const [{ data: audDb }, { data: tarDb }, { data: evtDb }] = await Promise.all([
           supabase
             .from("audiencias_detectadas")
             .select("processo_id, data_audiencia, titulo")
+            .eq("coordenacao_id", coordenacaoId)
             .in("processo_id", procIds),
           supabase
             .from("tarefas")
             .select("processo_id, titulo, data_vencimento")
+            .eq("coordenacao_id", coordenacaoId)
             .in("processo_id", procIds),
           supabase
             .from("eventos_agenda")
             .select("processo_id, titulo, data_inicio")
+            .eq("coordenacao_id", coordenacaoId)
             .in("processo_id", procIds),
         ]);
         const add = (procId: string, data: any, titulo: any) => {
