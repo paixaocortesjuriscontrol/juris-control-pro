@@ -513,10 +513,12 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
       for (let i = 0; i < allDist.length; i++) {
         const d = allDist[i];
+        const rejStartIdx = rejected.length;
         const numProcesso = String(d.processo ?? d.processo_numero ?? "").trim();
         const dossie = String(d.dossie ?? "").trim();
         const aba = d.aba_origem || "Sem aba";
         abaCount.set(aba, (abaCount.get(aba) || 0) + 1);
+
 
         let turmaRaw = String(d.turma ?? "").trim();
         if (/^[-–—_\s]+$/.test(turmaRaw)) turmaRaw = "";
