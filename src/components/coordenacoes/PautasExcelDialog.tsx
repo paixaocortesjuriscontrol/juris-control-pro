@@ -369,11 +369,38 @@ export function PautasExcelDialog({
       }
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
+      idsCriados.push(audId);
       r.audienciasCriadas++;
     }
 
+    // 5) Aplicar etiquetas selecionadas nas audiências criadas
+    if (etiquetasSel.length > 0 && idsCriados.length > 0) {
+      const vinculos = idsCriados.flatMap((entidadeId) =>
+        etiquetasSel.map((etiquetaId) => ({
+          etiqueta_id: etiquetaId,
+          entidade: "audiencia",
+          entidade_id: entidadeId,
+          created_by: user.id,
+        })),
+      );
+      for (let i = 0; i < vinculos.length; i += 200) {
+        const slice = vinculos.slice(i, i + 200);
+        const { error } = await (supabase as any)
+          .from("etiquetas_itens")
+          .upsert(slice, {
+            onConflict: "etiqueta_id,entidade,entidade_id",
+            ignoreDuplicates: true,
+          });
+        if (error) {
+          r.erros.push({ linha: 0, motivo: `Erro ao aplicar etiquetas: ${error.message}` });
+          break;
+        }
+      }
+      r.etiquetasAplicadas = etiquetasSel.length;
+    }
 
     setResumo(r);
+
     setEtapa("concluido");
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
