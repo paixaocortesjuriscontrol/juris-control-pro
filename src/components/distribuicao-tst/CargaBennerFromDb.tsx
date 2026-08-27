@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import JSZip from "jszip";
+import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import * as XLSX from "xlsx";
 import {
   Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
@@ -1069,6 +1070,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
       const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
       let headerRows = "";
+      let mergeChanceExito: string | null = null;
       if (sheetDataMatch) {
         const allContent = sheetDataMatch[1];
         const row1Match = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);

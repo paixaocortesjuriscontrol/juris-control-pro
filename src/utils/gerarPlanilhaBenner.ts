@@ -4,6 +4,7 @@ import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
 import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
+import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 const DOSSIE_INVALIDO_PATTERNS = [
