@@ -842,7 +842,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         return idx;
       }
 
-      const maxCol = fullMode === "full" ? LAYOUT_COLS.length : fullMode === "ag" ? 7 : 17;
+      // Colunas exportadas: base do modo + a coluna final "Sem chance de êxito",
+      // que deve constar em TODAS as planilhas geradas.
+      const baseCols = fullMode === "full" ? LAYOUT_COLS.length - 1 : fullMode === "ag" ? 7 : 17;
+      const colIdxs = [...Array(baseCols).keys(), COL_SEM_EXITO];
+      const maxCol = colIdxs.length;
 
       let stylesXml = await zip.file("xl/styles.xml")!.async("string");
       const cellXfsMatch = stylesXml.match(/<cellXfs count="(\d+)">/);
@@ -860,12 +864,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const row = outputData[i];
         const rowNum = i + 3;
         let cellsXml = "";
-        for (let c = 0; c < maxCol; c++) {
+        for (let p = 0; p < colIdxs.length; p++) {
+          const c = colIdxs[p];
           const raw = String(row[LAYOUT_COLS[c]] ?? "");
           // Rede de segurança: coluna AA (Recorrente) nunca leva "Terceiro".
           const val = c === 26 ? normalizeRecorrenteBenner(raw) : raw;
           if (!val) continue;
-          const ref = colToLetter(c) + rowNum;
+          const ref = colToLetter(p) + rowNum;
           const idx = getStringIndex(val);
           cellsXml += centeredStyleId > 0
             ? `<c r="${ref}" t="s" s="${centeredStyleId}"><v>${idx}</v></c>`
@@ -884,9 +889,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       if (sheetDataMatch) {
         const allContent = sheetDataMatch[1];
         const row1 = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
-        const row2 = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
+        let row2 = allContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/)?.[0] ?? "";
+        row2 = setHeaderCell(
+          row2,
+          2,
+          maxCol - 1,
+          getStringIndex(LAYOUT_COLS[COL_SEM_EXITO]),
+          centeredStyleId,
+          maxCol,
+        );
         sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${row1}${row2}${dataRowsXml}</sheetData>`);
       }
+
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
       zip.file("xl/sharedStrings.xml",
