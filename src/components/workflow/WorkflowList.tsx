@@ -328,8 +328,8 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
                       className={cn(
                         "rounded-full text-[11px]",
                         wf.ativo
-                          ? "border-success/40 bg-success/10 text-success"
-                          : "border-muted-foreground/30 bg-muted text-muted-foreground"
+                          ? "badge-status-active"
+                          : "badge-status-closed"
                       )}
                     >
                       {wf.ativo ? "Habilitado" : "Desabilitado"}
