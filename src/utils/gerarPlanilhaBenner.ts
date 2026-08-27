@@ -232,6 +232,8 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const bem = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("BEM")));
   const mal = joinUnique(materiasAnalise.filter((i) => norm(i.aparelhamento).startsWith("MAL")));
   const exito = joinUnique(materiasAnalise.filter((i) => norm(i.chance_exito) === "SIM"));
+  const semExito = joinUnique(materiasAnalise.filter((i) => norm(i.chance_exito) === "NAO"));
+
 
   return [
     d.dossie || "",
