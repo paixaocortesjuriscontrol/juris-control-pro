@@ -4,6 +4,7 @@ import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
 import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
+import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 const DOSSIE_INVALIDO_PATTERNS = [
@@ -413,37 +414,35 @@ export async function gerarPlanilhaBenner(
   const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
   
   let headerRows = "";
+  let mergeChanceExito: string | null = null;
   if (sheetDataMatch) {
     const allRowsContent = sheetDataMatch[1];
     const row1Match = allRowsContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
     const row2Match = allRowsContent.match(/<row r="2"[^>]*>[\s\S]*?<\/row>/);
 
+    let h1 = row1Match?.[0] ?? "";
+    let h2 = row2Match?.[0] ?? "";
+
     if (isConferencia) {
-      headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId, totalCols);
-      // Acrescenta o cabeçalho da nova coluna final na linha 2 já deslocada.
-      const h1End = headerRows.indexOf("</row>") + "</row>".length;
-      const h1 = headerRows.slice(0, h1End);
-      const h2 = setHeaderCell(
-        headerRows.slice(h1End),
-        2,
-        totalCols - 1,
-        getStrIdx(HEADER_SEM_EXITO),
-        centeredStyleId,
-        totalCols,
-      );
-      headerRows = h1 + h2;
-    } else {
-      const h2 = setHeaderCell(
-        row2Match?.[0] ?? "",
-        2,
-        totalCols - 1,
-        getStrIdx(HEADER_SEM_EXITO),
-        centeredStyleId,
-        totalCols,
-      );
-      headerRows = (row1Match?.[0] ?? "") + h2;
+      const shifted = shiftAndInsertHeader(h1, h2, getStrIdx, centeredStyleId, totalCols);
+      const h1End = shifted.indexOf("</row>") + "</row>".length;
+      h1 = shifted.slice(0, h1End);
+      h2 = shifted.slice(h1End);
     }
+
+    h2 = setHeaderCell(h2, 2, totalCols - 1, getStrIdx(HEADER_SEM_EXITO), centeredStyleId, totalCols);
+
+    const ajuste = ajustarGrupoChanceExito({
+      row1: h1,
+      row2: h2,
+      sheetXml,
+      colIdx: totalCols - 1,
+      strIdxTituloGrupo: getStrIdx("Chance de êxito"),
+    });
+    mergeChanceExito = ajuste.mergeRef;
+    headerRows = ajuste.row1 + ajuste.row2;
   }
+
 
   // Build data rows
   let dataRowsXml = "";
@@ -517,6 +516,11 @@ export async function gerarPlanilhaBenner(
       });
     });
   }
+
+  // Mescla o título "Chance de êxito" sobre as duas últimas colunas.
+  sheetXml = addMergeCell(sheetXml, mergeChanceExito);
+
+
 
   zip.file("xl/worksheets/sheet1.xml", sheetXml);
 

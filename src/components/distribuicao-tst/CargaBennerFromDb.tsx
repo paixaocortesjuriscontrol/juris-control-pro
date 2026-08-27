@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import JSZip from "jszip";
+import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import * as XLSX from "xlsx";
 import {
   Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
@@ -944,7 +945,16 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           centeredStyleId,
           maxCol,
         );
-        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${row1}${row2}${dataRowsXml}</sheetData>`);
+        const ajuste = ajustarGrupoChanceExito({
+          row1,
+          row2,
+          sheetXml,
+          colIdx: maxCol - 1,
+          strIdxTituloGrupo: getStringIndex("Chance de êxito"),
+        });
+        sheetXml = addMergeCell(sheetXml, ajuste.mergeRef);
+        sheetXml = sheetXml.replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${ajuste.row1}${ajuste.row2}${dataRowsXml}</sheetData>`);
+
       }
 
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
@@ -1060,6 +1070,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
       const sheetDataMatch = sheetXml.match(/<sheetData>([\s\S]*?)<\/sheetData>/);
       let headerRows = "";
+      let mergeChanceExito: string | null = null;
       if (sheetDataMatch) {
         const allContent = sheetDataMatch[1];
         const row1Match = allContent.match(/<row r="1"[^>]*>[\s\S]*?<\/row>/);
@@ -1103,9 +1114,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           centeredStyleId,
           totalCols,
         );
-        headerRows = h1 + h2;
+        const ajuste = ajustarGrupoChanceExito({
+          row1: h1,
+          row2: h2,
+          sheetXml,
+          colIdx: totalCols - 1,
+          strIdxTituloGrupo: getStrIdx("Chance de êxito"),
+        });
+        mergeChanceExito = ajuste.mergeRef;
+        headerRows = ajuste.row1 + ajuste.row2;
 
       }
+
 
       let dataRowsXml = "";
       for (let i = 0; i < data.length; i++) {
@@ -1158,6 +1178,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           return `<mergeCell ref="${newC1}${r1}:${newC2}${r2}"/>`;
         }
       );
+
+      // Mescla o título "Chance de êxito" sobre as duas últimas colunas.
+      sheetXml = addMergeCell(sheetXml, mergeChanceExito);
+
+
 
       zip.file("xl/worksheets/sheet1.xml", sheetXml);
 
