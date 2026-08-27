@@ -126,12 +126,24 @@ export function PautasExcelDialog({
     return `${processoId}|${dia}|${normalizarTitulo(titulo)}`;
   };
 
+  /** Chave por número do processo (dígitos) + dia + título, usada na prévia. */
+  const chaveDigits = (
+    digits: string,
+    dataHora: string | null | undefined,
+    titulo: string | null | undefined,
+  ) => {
+    const dia = diaLocalISO(dataHora);
+    if (!digits || !dia) return null;
+    return `${digits}|${dia}|${normalizarTitulo(titulo)}`;
+  };
+
   const resetAll = useCallback(() => {
     setEtapa("upload");
     setNomeArquivo("");
     setLinhas([]);
     setErrosParse([]);
     setProcessosExistentes(new Set());
+    setChavesExistentes(new Set());
     setResponsaveisIds([]);
     setEtiquetasSel([]);
     setBuscaEtiqueta("");
