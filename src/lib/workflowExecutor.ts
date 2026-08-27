@@ -206,7 +206,9 @@ export async function criarItemWorkflow(
             descricao: etapa.descricao || null,
             tipo_tarefa: tipo,
             origem: "workflow",
-            data_vencimento: dataBaseStr,
+            // A tarefa aparece no Painel a partir do dia em que nasceu;
+            // previsto/fatal ficam como orientação de prazo.
+            data_vencimento: dataCriacaoStr,
             data_base: dataCriacaoStr,
             data_prevista: dataBaseStr,
             data_fatal: dataFatal,
