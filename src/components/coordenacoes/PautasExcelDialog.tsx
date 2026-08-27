@@ -421,18 +421,28 @@ export function PautasExcelDialog({
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
       idsCriados.push(audId);
+
+      const etiquetaLinhaId = l.etiqueta
+        ? etiquetaIdByNome.get(normNomeEtiqueta(l.etiqueta))
+        : undefined;
+      const etiquetasDaAudiencia = Array.from(
+        new Set([...(etiquetasSel || []), ...(etiquetaLinhaId ? [etiquetaLinhaId] : [])]),
+      );
+      if (etiquetasDaAudiencia.length > 0) etiquetasPorAudiencia.set(audId, etiquetasDaAudiencia);
+
       r.audienciasCriadas++;
     }
 
-    // 5) Aplicar etiquetas selecionadas nas audiências criadas
-    if (etiquetasSel.length > 0 && idsCriados.length > 0) {
-      const vinculos = idsCriados.flatMap((entidadeId) =>
-        etiquetasSel.map((etiquetaId) => ({
-          etiqueta_id: etiquetaId,
-          entidade: "audiencia",
-          entidade_id: entidadeId,
-          created_by: user.id,
-        })),
+    // 5) Aplicar etiquetas (selecionadas na tela + coluna ETIQUETA por linha)
+    if (etiquetasPorAudiencia.size > 0) {
+      const vinculos = Array.from(etiquetasPorAudiencia.entries()).flatMap(
+        ([entidadeId, ids]) =>
+          ids.map((etiquetaId) => ({
+            etiqueta_id: etiquetaId,
+            entidade: "audiencia",
+            entidade_id: entidadeId,
+            created_by: user.id,
+          })),
       );
       for (let i = 0; i < vinculos.length; i += 200) {
         const slice = vinculos.slice(i, i + 200);
@@ -447,7 +457,7 @@ export function PautasExcelDialog({
           break;
         }
       }
-      r.etiquetasAplicadas = etiquetasSel.length;
+      r.etiquetasAplicadas = vinculos.length;
     }
 
     setResumo(r);
