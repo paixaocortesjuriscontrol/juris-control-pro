@@ -493,9 +493,9 @@ export function PautasExcelDialog({
               <div className="text-center">
                 <p className="text-sm font-medium">Selecione a planilha de pautas (.xlsx)</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Colunas esperadas: DATA, HORA, NÚMERO DO PROCESSO, FORO, VT/CÂMARA, Local,
-                  COMARCA, UF, PÓLO ATIVO, CLIENTE, TERCEIRIZADA, TIPO, TELEPRESENCIAL,
-                  OBSERVAÇÕES/PROVIDÊNCIAS.
+                  Colunas esperadas: DATA, HORA, NÚMERO DO PROCESSO, ETIQUETA (opcional), FORO,
+                  VT/CÂMARA, Local, COMARCA, UF, PÓLO ATIVO, CLIENTE, TERCEIRIZADA, TIPO,
+                  TELEPRESENCIAL, OBSERVAÇÕES/PROVIDÊNCIAS.
                 </p>
               </div>
               <input
@@ -614,6 +614,7 @@ export function PautasExcelDialog({
                     <th className="p-2 text-left">Tipo</th>
                     <th className="p-2 text-left">Foro / Vara</th>
                     <th className="p-2 text-left">Cliente</th>
+                    <th className="p-2 text-left">Etiqueta</th>
                     <th className="p-2 text-left">Status</th>
                   </tr>
                 </thead>
@@ -633,6 +634,13 @@ export function PautasExcelDialog({
                       </td>
                       <td className="p-2">{l.cliente}</td>
                       <td className="p-2">
+                        {l.etiqueta ? (
+                          <Badge variant="secondary" className="text-[10px]">{l.etiqueta}</Badge>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-2">
                         {processosExistentes.has(l.processo_digits) ? (
                           <Badge variant="outline" className="text-[10px]">Existente</Badge>
                         ) : (
@@ -644,7 +652,7 @@ export function PautasExcelDialog({
                   {errosParse.map((e) => (
                     <tr key={`err-${e.linha}`} className="border-t bg-destructive/10">
                       <td className="p-2">{e.linha}</td>
-                      <td colSpan={5} className="p-2 text-destructive">
+                      <td colSpan={6} className="p-2 text-destructive">
                         {e.motivo}
                         {e.processo ? ` — ${e.processo}` : ""}
                       </td>
