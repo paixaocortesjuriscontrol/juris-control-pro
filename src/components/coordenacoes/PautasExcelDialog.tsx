@@ -304,9 +304,57 @@ export function PautasExcelDialog({
       }
     }
 
+    // 3.5) Resolver etiquetas por linha (coluna ETIQUETA): nome (normalizado) → id.
+    //      Se a etiqueta não existir no catálogo da coordenação, é criada.
+    const normNomeEtiqueta = (v: string) =>
+      v.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+    const etiquetaIdByNome = new Map<string, string>();
+    for (const e of catalogoEtiquetas) {
+      etiquetaIdByNome.set(normNomeEtiqueta(e.nome), e.id);
+    }
+
+    const nomesNovos = Array.from(
+      new Set(
+        linhas
+          .map((l) => l.etiqueta)
+          .filter((n) => n && !etiquetaIdByNome.has(normNomeEtiqueta(n))),
+      ),
+    );
+    // Dedup por nome normalizado (evita criar "X" e "x")
+    const novasPorNome = new Map<string, string>();
+    for (const n of nomesNovos) {
+      const k = normNomeEtiqueta(n);
+      if (!novasPorNome.has(k)) novasPorNome.set(k, n.trim());
+    }
+
+    let etiquetasCriadas = 0;
+    for (const [nomeNorm, nomeOriginal] of novasPorNome) {
+      const cor = ETIQUETA_COLOR_PALETTE[etiquetaIdByNome.size % ETIQUETA_COLOR_PALETTE.length];
+      const { data: nova, error: errNova } = await (supabase as any)
+        .from("etiquetas")
+        .insert({
+          coordenacao_id: coordenacaoId,
+          nome: nomeOriginal,
+          cor,
+          modulos: ETIQUETA_MODULOS.map((m) => m.value),
+          created_by: user.id,
+        })
+        .select("id")
+        .single();
+      if (errNova || !nova) {
+        r.erros.push({ linha: 0, motivo: `Erro ao criar etiqueta "${nomeOriginal}": ${errNova?.message || "desconhecido"}` });
+        continue;
+      }
+      etiquetaIdByNome.set(nomeNorm, nova.id as string);
+      etiquetasCriadas++;
+    }
+    r.etiquetasCriadas = etiquetasCriadas;
+
     // 4) Criar audiências
     let processadas = 0;
     const idsCriados: string[] = [];
+    const etiquetasPorAudiencia = new Map<string, string[]>();
     for (const l of linhas) {
       processadas++;
       setProgresso(Math.round((processadas / linhas.length) * 100));
