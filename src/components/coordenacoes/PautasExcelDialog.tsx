@@ -303,6 +303,7 @@ export function PautasExcelDialog({
 
     // 4) Criar audiências
     let processadas = 0;
+    const idsCriados: string[] = [];
     for (const l of linhas) {
       processadas++;
       setProgresso(Math.round((processadas / linhas.length) * 100));
