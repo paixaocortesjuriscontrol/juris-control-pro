@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
+import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 
 export interface EventoAgenda {
   id: string;
@@ -383,14 +384,23 @@ export function useUpdateEvento() {
         }
       }
 
-      return data;
+      // Workflow: conclusão do item materializa a próxima etapa
+      const avancouWorkflow = await sincronizarWorkflowPorItem(
+        id,
+        (data as any)?.status ?? (updates as any)?.status ?? null
+      );
+
+      return { ...(data as any), __avancouWorkflow: avancouWorkflow };
     },
-    onSuccess: async () => {
+    onSuccess: async (data: any) => {
       await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
       await queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
       await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
       await queryClient.invalidateQueries({ queryKey: ["eventos-stats"] });
+      await queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+      await queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       toast.success("Evento atualizado!");
+      if (data?.__avancouWorkflow) toast.success("Próxima etapa do workflow criada!");
     },
     onError: (error: Error) => {
       toast.error("Erro ao atualizar evento: " + error.message);

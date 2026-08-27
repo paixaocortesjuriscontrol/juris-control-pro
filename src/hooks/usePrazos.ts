@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { registrarAuditoriaTarefa, tipoItemDeTarefa } from "@/hooks/useAuditoriaTarefas";
+import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 
 // Main type - using Tarefa as main name, Prazo as alias
 export type Tarefa = {
@@ -470,14 +471,26 @@ export function useUpdateTarefa() {
         tipoItem: tipoItemDeTarefa((data as any)?.tipo_tarefa ?? updates.tipo_tarefa),
         coordenacaoId: (data as any)?.coordenacao_id ?? null,
       });
-      return data;
+      // Workflow: se a tarefa faz parte de um fluxo e foi concluída,
+      // materializa a próxima etapa imediatamente.
+      const avancouWorkflow = await sincronizarWorkflowPorItem(
+        id,
+        (data as any)?.status ?? updates.status ?? null
+      );
+      return { ...(data as any), __avancouWorkflow: avancouWorkflow };
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
       queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       const isPrazo = (data as any)?.tipo_tarefa === "PRAZO" || variables.tipo_tarefa === "PRAZO";
       toast.success(isPrazo ? "Prazo atualizado com sucesso" : "Tarefa atualizada com sucesso");
+      if ((data as any)?.__avancouWorkflow) {
+        toast.success("Próxima etapa do workflow criada!");
+      }
     },
     onError: (error) => {
       toast.error("Erro ao atualizar tarefa: " + error.message);

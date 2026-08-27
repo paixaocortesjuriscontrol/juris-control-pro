@@ -84,6 +84,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
+import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 
@@ -733,8 +734,11 @@ export function TarefaAgendaPanel({
       setStatusOverride("cancelado");
       patchAgendaCacheStatus("cancelado", null);
       toast({ title: "Cancelada!" });
+      await sincronizarWorkflowPorItem(tarefa.id, "cancelado");
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
       queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       onUpdate();
     } catch (error: any) {
       toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });

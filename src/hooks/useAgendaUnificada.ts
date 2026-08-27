@@ -6,6 +6,7 @@ import { startOfDay, endOfDay, parseISO, differenceInDays, addDays, addMonths, a
 import { format } from "date-fns";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { dataInicioAudiencia } from "@/utils/date";
+import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -1263,6 +1264,9 @@ export function useUpdateItemAgenda() {
           tarefaId,
           tipoItem: "tarefa",
         });
+        // Workflow: concluiu a etapa -> materializa a próxima imediatamente
+        const avancou = await sincronizarWorkflowPorItem(tarefaId, tarefaStatus);
+        return { avancou };
       } else {
         const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", id);
         if (error) throw error;
@@ -1274,12 +1278,17 @@ export function useUpdateItemAgenda() {
           itemId: id,
           tipoItem: "evento",
         });
+        const avancou = await sincronizarWorkflowPorItem(id, status);
+        return { avancou };
       }
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
       queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       toast.success("Item atualizado com sucesso!");
+      if (result?.avancou) toast.success("Próxima etapa do workflow criada!");
     },
     onError: (error) => {
       console.error("Erro ao atualizar item:", error);
