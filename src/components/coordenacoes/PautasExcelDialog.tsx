@@ -21,7 +21,7 @@ import { Link } from "react-router-dom";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEtiquetas } from "@/hooks/useEtiquetas";
+import { useEtiquetas, ETIQUETA_MODULOS, ETIQUETA_COLOR_PALETTE } from "@/hooks/useEtiquetas";
 import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
@@ -45,6 +45,7 @@ interface ResumoImport {
   audienciasCriadas: number;
   audienciasDuplicadas: number;
   etiquetasAplicadas?: number;
+  etiquetasCriadas?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
 
 }
