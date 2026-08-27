@@ -50,6 +50,49 @@ interface ResumoImport {
 
 }
 
+type ErroImport = { linha: number; motivo: string; processo?: string };
+
+/** Classifica o erro em uma categoria legível para o usuário. */
+function categoriaErro(motivo: string): string {
+  const m = motivo.toLowerCase();
+  if (m.includes("número do processo inválido")) return "Número do processo inválido na planilha";
+  if (m.includes("duplicate key") || m.includes("já existe")) return "Processo já cadastrado (reutilizado)";
+  if (m.includes("etiqueta")) return "Falha ao aplicar etiqueta";
+  if (m.includes("audiência") || m.includes("audiencia")) return "Falha ao criar audiência";
+  if (m.includes("processo")) return "Falha ao cadastrar processo";
+  if (m.includes("data")) return "Data inválida ou ausente";
+  return "Outros";
+}
+
+function agruparErros(erros: ErroImport[]): { categoria: string; total: number }[] {
+  const mapa = new Map<string, number>();
+  for (const e of erros) {
+    const c = categoriaErro(e.motivo);
+    mapa.set(c, (mapa.get(c) || 0) + 1);
+  }
+  return Array.from(mapa, ([categoria, total]) => ({ categoria, total })).sort(
+    (a, b) => b.total - a.total
+  );
+}
+
+function baixarErrosCsv(erros: ErroImport[]) {
+  const linhas = [
+    "Linha;Processo;Categoria;Motivo",
+    ...erros.map((e) =>
+      [e.linha || "", e.processo || "", categoriaErro(e.motivo), e.motivo.replace(/;/g, ",")].join(";")
+    ),
+  ];
+  const blob = new Blob(["\uFEFF" + linhas.join("\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "erros-importacao-pautas.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+
+
 export function PautasExcelDialog({
   open,
   onOpenChange,
