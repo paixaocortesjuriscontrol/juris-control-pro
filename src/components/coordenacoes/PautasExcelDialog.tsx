@@ -307,7 +307,7 @@ export function PautasExcelDialog({
     // 3.5) Resolver etiquetas por linha (coluna ETIQUETA): nome (normalizado) → id.
     //      Se a etiqueta não existir no catálogo da coordenação, é criada.
     const normNomeEtiqueta = (v: string) =>
-      v.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+      v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
 
     const etiquetaIdByNome = new Map<string, string>();
     for (const e of catalogoEtiquetas) {
