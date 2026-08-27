@@ -122,6 +122,13 @@ const getAgendaDedupKey = (item: ItemAgendaUnificado) => {
     const isTarefaAudiencia = tipoTarefaUpper === "AUDIÊNCIA" || tipoTarefaUpper === "AUDIENCIA" || item.tipo === "audiencia";
     const data = (item.data_vencimento ?? item.data_fatal ?? item.data_inicio ?? "").slice(0, 10);
 
+    // Itens materializados por Workflow são sempre únicos (uma execução pode
+    // repetir o mesmo título/data de execuções anteriores).
+    if (item.origem_importacao === "workflow") {
+      return `tarefa:workflow:${item.id}`;
+    }
+
+
     if (isTarefaAudiencia) {
       const processoDigits = normalizeProcessDigits(item.processo?.numero) || normalizeProcessDigits(item.titulo);
       const coordKey = item.coordenacao_id ?? item.processo_id ?? "";
