@@ -612,10 +612,47 @@ export function PautasExcelDialog({
               {linhas.length - novosCount > 0 && (
                 <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
               )}
+              {duplicadasCount > 0 && (
+                <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
+                  {duplicadasCount} duplicadas (não serão importadas)
+                </Badge>
+              )}
               {errosParse.length > 0 && (
-                <Badge variant="destructive">{errosParse.length} linhas com erro</Badge>
+                <Badge
+                  variant="destructive"
+                  className="cursor-pointer"
+                  onClick={() => setMostrarErros((v) => !v)}
+                >
+                  {errosParse.length} linhas com erro
+                </Badge>
+              )}
+              {verificandoDuplicidade && (
+                <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> verificando duplicidades…
+                </span>
               )}
             </div>
+
+            {errosParse.length > 0 && mostrarErros && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  <p className="font-medium mb-1">
+                    {errosParse.length} linha(s) não serão importadas:
+                  </p>
+                  <ScrollArea className="max-h-32 pr-2">
+                    <ul className="text-xs space-y-0.5">
+                      {errosParse.map((e, i) => (
+                        <li key={`pe-${i}`}>
+                          Linha {e.linha}: {e.motivo}
+                          {e.processo ? ` (${e.processo})` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </ScrollArea>
+                </AlertDescription>
+              </Alert>
+            )}
 
             <div className="space-y-2">
               <Label>
