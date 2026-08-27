@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,9 @@ import {
   useAvancarWorkflowEtapa,
   useWorkflows,
   useSincronizarWorkflows,
+  useWorkflowEtapasResponsaveis,
 } from "@/hooks/useWorkflows";
+import { useUsuariosAuditoria } from "@/hooks/useUsuariosAuditoria";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,8 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle, ChevronRight, XCircle } from "lucide-react";
+import {
+  WorkflowExecucao,
+  WorkflowExecucaoEtapa,
+  WORKFLOW_ITEM_LABELS,
+} from "@/lib/workflowExecutor";
+import { Eye, CheckCircle, ChevronRight, XCircle, Users, CalendarClock, Flag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,9 +37,32 @@ const STATUS_LABELS: Record<string, string> = {
   cancelada: "Cancelada",
 };
 
+const PRIORIDADE_LABELS: Record<string, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+const REGRA_RESPONSAVEL_LABELS: Record<string, string> = {
+  predefinido: "Responsável predefinido",
+  etapa_anterior: "Responsável da etapa anterior",
+  iniciador: "Quem iniciou o fluxo",
+};
+
+function formatarData(valor?: string | null) {
+  if (!valor) return null;
+  try {
+    return format(parseISO(String(valor).slice(0, 10)), "dd/MM/yyyy");
+  } catch {
+    return String(valor);
+  }
+}
+
 interface WorkflowExecucoesListProps {
   onView?: (execucao: WorkflowExecucao) => void;
 }
+
 
 export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const [filtroWorkflow, setFiltroWorkflow] = useState<string>("todos");
@@ -59,6 +88,24 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const { data: etapas = [] } = useWorkflowExecucaoEtapas(selected || undefined);
   const avancar = useAvancarWorkflowEtapa();
+
+  const execucaoSelecionada = execucoes.find((e) => e.id === selected);
+  const { data: responsaveisPorEtapa = {} } = useWorkflowEtapasResponsaveis(
+    execucaoSelecionada?.workflow_id
+  );
+  const idsResponsaveis = useMemo(() => {
+    const set = new Set<string>();
+    etapas.forEach((e: WorkflowExecucaoEtapa) => {
+      (responsaveisPorEtapa[e.etapa_id] || []).forEach((id) => set.add(id));
+      const pre = (e.etapa as any)?.responsavel_id;
+      if (pre) set.add(pre);
+    });
+    if (execucaoSelecionada?.iniciado_por) set.add(execucaoSelecionada.iniciado_por);
+    return Array.from(set);
+  }, [etapas, responsaveisPorEtapa, execucaoSelecionada?.iniciado_por]);
+  const usuarios = useUsuariosAuditoria(idsResponsaveis);
+
+
 
 
   if (isLoading) {
@@ -170,69 +217,129 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
                       <p className="text-sm text-muted-foreground">Sem etapas</p>
                     ) : (
                       <div className="space-y-2">
-                        {etapas.map((etapa: WorkflowExecucaoEtapa) => (
-                          <div
-                            key={etapa.id}
-                            className="flex items-center justify-between rounded-md border p-2 text-sm"
-                          >
-                            <div className="flex items-center gap-2">
-                              <span>{etapa.etapa?.titulo}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {STATUS_LABELS[etapa.status] || etapa.status}
-                              </Badge>
-                            </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                              {etapa.data_prevista_calculada && (
-                                <span>Prev: {etapa.data_prevista_calculada}</span>
-                              )}
-                              {etapa.status === "materializada" && (
-                                <>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => avancar.mutate({ execucaoId: exec.id, sucesso: true })}
-                                    disabled={avancar.isPending}
-                                    title="Concluir etapa com sucesso e avançar"
-                                  >
-                                    <ChevronRight className="h-4 w-4 text-primary" />
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => {
-                                      if (
-                                        window.confirm(
-                                          "Concluir esta etapa SEM SUCESSO?\n\nAs etapas que dependem do sucesso desta serão canceladas."
-                                        )
-                                      ) {
-                                        avancar.mutate({ execucaoId: exec.id, sucesso: false });
+                        {etapas.map((etapa: WorkflowExecucaoEtapa) => {
+                          const cfg = etapa.etapa as any;
+                          const respIds = Array.from(
+                            new Set([
+                              ...(responsaveisPorEtapa[etapa.etapa_id] || []),
+                              ...(cfg?.responsavel_id ? [cfg.responsavel_id] : []),
+                            ])
+                          );
+                          const nomes = respIds.map((id) => usuarios.nome(id));
+                          const prev = formatarData(etapa.data_prevista_calculada);
+                          const fatal = formatarData(etapa.data_fatal_calculada);
+                          const tipoItem =
+                            WORKFLOW_ITEM_LABELS[
+                              (etapa.item_tipo || cfg?.tipo_item) as keyof typeof WORKFLOW_ITEM_LABELS
+                            ] || String(etapa.item_tipo || cfg?.tipo_item || "");
+                          return (
+                            <div
+                              key={etapa.id}
+                              className="rounded-md border p-2.5 text-sm space-y-1.5"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                                  <span className="font-medium">
+                                    {cfg?.ordem ? `${cfg.ordem}. ` : ""}
+                                    {cfg?.titulo}
+                                  </span>
+                                  <Badge variant="outline" className="text-xs">
+                                    {STATUS_LABELS[etapa.status] || etapa.status}
+                                  </Badge>
+                                  {tipoItem && (
+                                    <Badge variant="secondary" className="text-xs">
+                                      {tipoItem}
+                                    </Badge>
+                                  )}
+                                  {etapa.status === "concluida" && (
+                                    <Badge
+                                      variant="outline"
+                                      className={
+                                        etapa.sucesso
+                                          ? "text-xs border-primary/40 text-primary"
+                                          : "text-xs border-destructive/40 text-destructive"
                                       }
-                                    }}
-                                    disabled={avancar.isPending}
-                                    title="Concluir etapa sem sucesso"
-                                  >
-                                    <XCircle className="h-4 w-4 text-destructive" />
-                                  </Button>
-                                </>
-                              )}
-                              {etapa.status === "concluida" && (
-                                <Badge
-                                  variant="outline"
-                                  className={
-                                    etapa.sucesso
-                                      ? "text-xs border-primary/40 text-primary"
-                                      : "text-xs border-destructive/40 text-destructive"
-                                  }
-                                >
-                                  {etapa.sucesso ? "Com sucesso" : "Sem sucesso"}
-                                </Badge>
+                                    >
+                                      {etapa.sucesso ? "Com sucesso" : "Sem sucesso"}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {etapa.status === "materializada" && (
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => avancar.mutate({ execucaoId: exec.id, sucesso: true })}
+                                      disabled={avancar.isPending}
+                                      title="Concluir etapa com sucesso e avançar"
+                                    >
+                                      <ChevronRight className="h-4 w-4 text-primary" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6"
+                                      onClick={() => {
+                                        if (
+                                          window.confirm(
+                                            "Concluir esta etapa SEM SUCESSO?\n\nAs etapas que dependem do sucesso desta serão canceladas."
+                                          )
+                                        ) {
+                                          avancar.mutate({ execucaoId: exec.id, sucesso: false });
+                                        }
+                                      }}
+                                      disabled={avancar.isPending}
+                                      title="Concluir etapa sem sucesso"
+                                    >
+                                      <XCircle className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Users className="h-3.5 w-3.5" />
+                                  {nomes.length
+                                    ? nomes.join(", ")
+                                    : REGRA_RESPONSAVEL_LABELS[cfg?.regra_responsavel] ||
+                                      "Sem responsável definido"}
+                                </span>
+                                {(prev || fatal) && (
+                                  <span className="flex items-center gap-1">
+                                    <CalendarClock className="h-3.5 w-3.5" />
+                                    {prev ? `Prev: ${prev}` : ""}
+                                    {fatal && fatal !== prev ? ` • Fatal: ${fatal}` : ""}
+                                  </span>
+                                )}
+                                {cfg?.prioridade && (
+                                  <span className="flex items-center gap-1">
+                                    <Flag className="h-3.5 w-3.5" />
+                                    {PRIORIDADE_LABELS[cfg.prioridade] || cfg.prioridade}
+                                  </span>
+                                )}
+                                {typeof cfg?.dias_previsto === "number" && (
+                                  <span>
+                                    {cfg.dias_previsto}{" "}
+                                    {cfg.tipo_prazo === "dias_uteis" ? "dias úteis" : "dias corridos"}
+                                  </span>
+                                )}
+                                {cfg?.condicao === "sucesso_anterior" && (
+                                  <span>Só se a etapa anterior tiver sucesso</span>
+                                )}
+                              </div>
+
+                              {cfg?.descricao && (
+                                <p className="text-xs text-muted-foreground line-clamp-2">
+                                  {cfg.descricao}
+                                </p>
                               )}
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
+
                     )}
                   </div>
                 </CardContent>
