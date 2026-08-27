@@ -204,9 +204,10 @@ export async function criarItemWorkflow(
             tipo_tarefa: tipo,
             origem: "workflow",
             data_vencimento: dataBaseStr,
-            data_base: dataBaseStr,
+            data_base: dataCriacaoStr,
             data_prevista: dataBaseStr,
             data_fatal: dataFatal,
+
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: etapa.descricao || null,
