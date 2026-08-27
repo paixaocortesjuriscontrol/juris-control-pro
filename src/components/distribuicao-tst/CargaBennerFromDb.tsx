@@ -88,6 +88,32 @@ function unescXml(s: string): string {
     .replace(/&amp;/g, "&");
 }
 
+/**
+ * Grava (ou substitui) uma célula de cabeçalho de texto em uma linha XML já
+ * existente, mantendo as demais células. Usado para acrescentar a coluna final
+ * "Sem chance de êxito", ausente nos templates originais.
+ */
+function setHeaderCell(
+  rowXml: string,
+  rowNum: number,
+  colIdx: number,
+  strIdx: number,
+  styleId: number,
+  totalCols: number,
+): string {
+  const letter = colToLetter(colIdx);
+  const cellXml = `<c r="${letter}${rowNum}" t="s"${styleId > 0 ? ` s="${styleId}"` : ""}><v>${strIdx}</v></c>`;
+  if (!rowXml) {
+    return `<row r="${rowNum}" spans="1:${totalCols}">${cellXml}</row>`;
+  }
+  const existing = new RegExp(`<c\\b[^>]*\\br="${letter}${rowNum}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`);
+  let out = existing.test(rowXml) ? rowXml.replace(existing, cellXml) : rowXml.replace(/<\/row>\s*$/, `${cellXml}</row>`);
+  out = out.replace(/spans="[^"]*"/, `spans="1:${totalCols}"`);
+  return out;
+}
+
+
+
 function isCnjLike(val: string): boolean {
   const s = String(val ?? "").trim();
   const digits = s.replace(/\D/g, "");
