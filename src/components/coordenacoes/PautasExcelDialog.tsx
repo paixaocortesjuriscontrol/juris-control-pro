@@ -278,7 +278,7 @@ export function PautasExcelDialog({
       processosCriados: 0,
       processosExistentes: 0,
       audienciasCriadas: 0,
-      audienciasDuplicadas: 0,
+      audienciasDuplicadas: duplicadasCount,
       erros: [...errosParse],
     };
 
@@ -393,7 +393,7 @@ export function PautasExcelDialog({
 
     const nomesNovos = Array.from(
       new Set(
-        linhas
+        alvos
           .map((l) => l.etiqueta)
           .filter((n) => n && !etiquetaIdByNome.has(normNomeEtiqueta(n))),
       ),
