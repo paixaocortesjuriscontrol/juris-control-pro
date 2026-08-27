@@ -13,16 +13,22 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { FileSpreadsheet, Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { FileSpreadsheet, Upload, Loader2, AlertCircle, CheckCircle2, Download, Tag, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEtiquetas } from "@/hooks/useEtiquetas";
+import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
   type PautaExcelRow,
   type PautaExcelParseError,
 } from "@/lib/pautasExcelParser";
+
 
 interface Props {
   open: boolean;
