@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,9 @@ import {
   useAvancarWorkflowEtapa,
   useWorkflows,
   useSincronizarWorkflows,
+  useWorkflowEtapasResponsaveis,
 } from "@/hooks/useWorkflows";
+import { useUsuariosAuditoria } from "@/hooks/useUsuariosAuditoria";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -17,8 +19,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { WorkflowExecucao, WorkflowExecucaoEtapa } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle, ChevronRight, XCircle } from "lucide-react";
+import {
+  WorkflowExecucao,
+  WorkflowExecucaoEtapa,
+  WORKFLOW_ITEM_LABELS,
+} from "@/lib/workflowExecutor";
+import { Eye, CheckCircle, ChevronRight, XCircle, Users, CalendarClock, Flag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -31,9 +37,32 @@ const STATUS_LABELS: Record<string, string> = {
   cancelada: "Cancelada",
 };
 
+const PRIORIDADE_LABELS: Record<string, string> = {
+  baixa: "Baixa",
+  media: "Média",
+  alta: "Alta",
+  urgente: "Urgente",
+};
+
+const REGRA_RESPONSAVEL_LABELS: Record<string, string> = {
+  predefinido: "Responsável predefinido",
+  etapa_anterior: "Responsável da etapa anterior",
+  iniciador: "Quem iniciou o fluxo",
+};
+
+function formatarData(valor?: string | null) {
+  if (!valor) return null;
+  try {
+    return format(parseISO(String(valor).slice(0, 10)), "dd/MM/yyyy");
+  } catch {
+    return String(valor);
+  }
+}
+
 interface WorkflowExecucoesListProps {
   onView?: (execucao: WorkflowExecucao) => void;
 }
+
 
 export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const [filtroWorkflow, setFiltroWorkflow] = useState<string>("todos");
