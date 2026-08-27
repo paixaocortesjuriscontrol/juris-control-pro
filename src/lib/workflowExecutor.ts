@@ -402,7 +402,8 @@ export async function buscarResponsavelItem(
  */
 export async function avancarExecucaoWorkflow(
   execucaoId: string,
-  sucesso = true
+  sucesso = true,
+  etapaExecId?: string
 ): Promise<{ concluido: boolean }> {
   const { data: execucao, error: execError } = await supabase
     .from("workflow_execucoes")
@@ -424,7 +425,9 @@ export async function avancarExecucaoWorkflow(
     etapa: e.etapa as WorkflowEtapa,
   })) as WorkflowExecucaoEtapa[];
 
-  const etapaConcluida = etapas.find((e) => e.status === "materializada");
+  const etapaConcluida = etapaExecId
+    ? etapas.find((e) => e.id === etapaExecId && e.status === "materializada")
+    : etapas.find((e) => e.status === "materializada");
   if (!etapaConcluida) throw new Error("Nenhuma etapa ativa para concluir");
 
   const ordemAtual = etapaConcluida.etapa?.ordem || 0;
@@ -573,11 +576,49 @@ export async function sincronizarWorkflowsPorItens(): Promise<number> {
     const insucesso = WORKFLOW_STATUS_INSUCESSO.includes(status);
     if (!sucesso && !insucesso) continue;
     try {
-      await avancarExecucaoWorkflow(row.execucao_id, sucesso);
+      await avancarExecucaoWorkflow(row.execucao_id, sucesso, row.id);
       avancadas++;
     } catch (err) {
       console.error("Falha ao avançar workflow", row.execucao_id, err);
     }
   }
   return avancadas;
+}
+
+/**
+ * Avanço IMEDIATO: chamado logo após mudar a situação de um item.
+ * Se o item pertencer a uma etapa ativa de workflow e a nova situação
+ * for de conclusão (com ou sem sucesso), materializa a próxima etapa.
+ * Best-effort: nunca lança erro para não quebrar o salvamento do item.
+ */
+export async function sincronizarWorkflowPorItem(
+  itemId?: string | null,
+  statusConhecido?: string | null
+): Promise<boolean> {
+  if (!itemId) return false;
+  const id = String(itemId).split("::")[0];
+  try {
+    const { data, error } = await supabase
+      .from("workflow_execucao_etapas")
+      .select("id, execucao_id, item_id, item_tipo, status")
+      .eq("status", "materializada")
+      .eq("item_id", id)
+      .maybeSingle();
+    if (error || !data) return false;
+
+    const row = data as any;
+    const status =
+      statusConhecido || (await lerStatusItem(row.item_tipo, row.item_id));
+    if (!status) return false;
+    const st = String(status).toLowerCase();
+    const sucesso = WORKFLOW_STATUS_SUCESSO.includes(st);
+    const insucesso = WORKFLOW_STATUS_INSUCESSO.includes(st);
+    if (!sucesso && !insucesso) return false;
+
+    await avancarExecucaoWorkflow(row.execucao_id, sucesso, row.id);
+    return true;
+  } catch (err) {
+    console.error("Falha ao sincronizar workflow do item", itemId, err);
+    return false;
+  }
 }
