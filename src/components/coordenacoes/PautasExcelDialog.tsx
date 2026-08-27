@@ -173,9 +173,10 @@ export function PautasExcelDialog({
       // Consultar quais processos já existem nesta coordenação
       const numerosMasked = Array.from(new Set(ls.map((l) => l.processo_numero)));
       const numerosDigits = Array.from(new Set(ls.map((l) => l.processo_digits)));
+      setVerificandoDuplicidade(true);
       const { data: processosDb } = await supabase
         .from("processos")
-        .select("numero")
+        .select("id, numero")
         .eq("coordenacao_id", coordenacaoId)
         .or(
           [
@@ -185,18 +186,55 @@ export function PautasExcelDialog({
         );
 
       const existSet = new Set<string>();
+      const digitsById = new Map<string, string>();
       for (const p of processosDb || []) {
         const d = String(p.numero || "").replace(/\D/g, "");
-        if (d) existSet.add(d);
+        if (d) {
+          existSet.add(d);
+          digitsById.set(p.id as string, d);
+        }
+      }
+
+      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos
+      const chaves = new Set<string>();
+      const procIds = Array.from(digitsById.keys());
+      if (procIds.length > 0) {
+        const [{ data: audDb }, { data: tarDb }, { data: evtDb }] = await Promise.all([
+          supabase
+            .from("audiencias_detectadas")
+            .select("processo_id, data_audiencia, titulo")
+            .in("processo_id", procIds),
+          supabase
+            .from("tarefas")
+            .select("processo_id, titulo, data_vencimento")
+            .in("processo_id", procIds),
+          supabase
+            .from("eventos_agenda")
+            .select("processo_id, titulo, data_inicio")
+            .in("processo_id", procIds),
+        ]);
+        const add = (procId: string, data: any, titulo: any) => {
+          const d = digitsById.get(procId);
+          if (!d) return;
+          const k = chaveDigits(d, data, titulo);
+          if (k) chaves.add(k);
+        };
+        for (const a of audDb || []) add((a as any).processo_id, (a as any).data_audiencia, (a as any).titulo);
+        for (const t of tarDb || []) add((t as any).processo_id, (t as any).data_vencimento, (t as any).titulo);
+        for (const e of evtDb || []) add((e as any).processo_id, (e as any).data_inicio, (e as any).titulo);
       }
 
       setLinhas(ls);
       setErrosParse(erros);
       setProcessosExistentes(existSet);
+      setChavesExistentes(chaves);
+      setMostrarErros(erros.length > 0);
       setEtapa("preview");
     } catch (e: any) {
       console.error(e);
       toast.error(`Erro ao ler planilha: ${e.message || e}`);
+    } finally {
+      setVerificandoDuplicidade(false);
     }
   };
 
@@ -204,6 +242,28 @@ export function PautasExcelDialog({
     () => linhas.filter((l) => !processosExistentes.has(l.processo_digits)).length,
     [linhas, processosExistentes]
   );
+
+  /** Status por linha: nova, duplicada no banco ou repetida na própria planilha. */
+  const statusPorLinha = useMemo(() => {
+    const mapa = new Map<number, "nova" | "duplicada_banco" | "duplicada_planilha">();
+    const vistas = new Set<string>();
+    for (const l of linhas) {
+      const k = chaveDigits(l.processo_digits, l.data_iso, l.tipo || "Audiência");
+      if (k && chavesExistentes.has(k)) mapa.set(l.linha, "duplicada_banco");
+      else if (k && vistas.has(k)) mapa.set(l.linha, "duplicada_planilha");
+      else {
+        mapa.set(l.linha, "nova");
+        if (k) vistas.add(k);
+      }
+    }
+    return mapa;
+  }, [linhas, chavesExistentes]);
+
+  const linhasImportaveis = useMemo(
+    () => linhas.filter((l) => statusPorLinha.get(l.linha) === "nova"),
+    [linhas, statusPorLinha]
+  );
+  const duplicadasCount = linhas.length - linhasImportaveis.length;
 
   const executarImport = async () => {
     if (responsaveisIds.length === 0) {
