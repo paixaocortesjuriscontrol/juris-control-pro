@@ -850,12 +850,16 @@ export function NovaTarefaDialog({
         })
         .eq("id", tarefaParaEditar.id);
       if (error) throw error;
+      const avancouWorkflow = await sincronizarWorkflowPorItem(tarefaParaEditar.id, status);
       await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
       await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+      await queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
+      await queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
       await invalidarItensAgenda(queryClient);
       toast({
         title: status === "cumprido" ? "Tarefa concluída" : status === "cancelado" ? "Tarefa cancelada" : "Tarefa reaberta",
       });
+      if (avancouWorkflow) toast({ title: "Próxima etapa do workflow criada" });
       onSuccess?.();
       onOpenChange(false);
     } catch (error: any) {
