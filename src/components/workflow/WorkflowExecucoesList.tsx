@@ -9,6 +9,7 @@ import {
   useWorkflows,
   useSincronizarWorkflows,
   useWorkflowEtapasResponsaveis,
+  useWorkflowItensResponsaveis,
 } from "@/hooks/useWorkflows";
 import { useUsuariosAuditoria } from "@/hooks/useUsuariosAuditoria";
 import { Input } from "@/components/ui/input";
