@@ -403,7 +403,10 @@ export async function gerarPlanilhaBenner(
   }
 
   const isConferencia = mode === "conferencia";
-  const maxCol = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
+  const baseCols = mode === "full" || isConferencia ? 34 : mode === "ag" ? 7 : 17;
+  // A coluna "Sem chance de êxito" é a última em TODAS as planilhas geradas.
+  const colIdxs = [...Array(baseCols).keys(), IDX_SEM_EXITO];
+  const maxCol = colIdxs.length;
   const totalCols = isConferencia ? maxCol + 1 : maxCol; // +1 for inserted Processo column
 
   let sheetXml = await zip.file("xl/worksheets/sheet1.xml")!.async("string");
@@ -417,8 +420,28 @@ export async function gerarPlanilhaBenner(
 
     if (isConferencia) {
       headerRows = shiftAndInsertHeader(row1Match?.[0] ?? "", row2Match?.[0] ?? "", getStrIdx, centeredStyleId, totalCols);
+      // Acrescenta o cabeçalho da nova coluna final na linha 2 já deslocada.
+      const h1End = headerRows.indexOf("</row>") + "</row>".length;
+      const h1 = headerRows.slice(0, h1End);
+      const h2 = setHeaderCell(
+        headerRows.slice(h1End),
+        2,
+        totalCols - 1,
+        getStrIdx(HEADER_SEM_EXITO),
+        centeredStyleId,
+        totalCols,
+      );
+      headerRows = h1 + h2;
     } else {
-      headerRows = (row1Match?.[0] ?? "") + (row2Match?.[0] ?? "");
+      const h2 = setHeaderCell(
+        row2Match?.[0] ?? "",
+        2,
+        totalCols - 1,
+        getStrIdx(HEADER_SEM_EXITO),
+        centeredStyleId,
+        totalCols,
+      );
+      headerRows = (row1Match?.[0] ?? "") + h2;
     }
   }
 
@@ -440,11 +463,12 @@ export async function gerarPlanilhaBenner(
       if (procVal) {
         cellsXml += `<c r="B${rowNum}" t="s"${centeredStyleId > 0 ? ` s="${centeredStyleId}"` : ""}><v>${getStrIdx(procVal)}</v></c>`;
       }
-      // Cols C onwards = original cols B..AH (shifted +1)
-      for (let c = 1; c < maxCol; c++) {
+      // Cols C onwards = original cols B..AH (shifted +1) + coluna final
+      for (let p = 1; p < colIdxs.length; p++) {
+        const c = colIdxs[p];
         const val = values[c];
         if (!val) continue;
-        const ref = colToLetter(c + 1) + rowNum;
+        const ref = colToLetter(p + 1) + rowNum;
         // c==2 is tipo_recurso (original index 2, shifted to col D)
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
         const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
@@ -456,10 +480,11 @@ export async function gerarPlanilhaBenner(
       }
     } else {
       // Standard mode
-      for (let c = 0; c < maxCol; c++) {
+      for (let p = 0; p < colIdxs.length; p++) {
+        const c = colIdxs[p];
         const val = values[c];
         if (!val) continue;
-        const ref = colToLetter(c) + rowNum;
+        const ref = colToLetter(p) + rowNum;
         // c==2 is tipo_recurso column
         const isYellow = c === 2 && d.tipo_recurso_auto && yellowStyleId > 0;
         const styleId = isYellow ? yellowStyleId : (centeredStyleId > 0 ? centeredStyleId : 0);
@@ -473,6 +498,7 @@ export async function gerarPlanilhaBenner(
 
     dataRowsXml += `<row r="${rowNum}" spans="1:${totalCols}">${cellsXml}</row>`;
   });
+
 
   const lastRow = validos.length + 2;
   const lastColLetter = colToLetter(totalCols - 1);
