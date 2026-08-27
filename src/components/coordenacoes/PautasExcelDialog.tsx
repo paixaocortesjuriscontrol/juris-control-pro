@@ -758,7 +758,15 @@ export function PautasExcelDialog({
                         )}
                       </td>
                       <td className="p-2">
-                        {processosExistentes.has(l.processo_digits) ? (
+                        {statusPorLinha.get(l.linha) === "duplicada_banco" ? (
+                          <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
+                            Já existe
+                          </Badge>
+                        ) : statusPorLinha.get(l.linha) === "duplicada_planilha" ? (
+                          <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
+                            Repetida na planilha
+                          </Badge>
+                        ) : processosExistentes.has(l.processo_digits) ? (
                           <Badge variant="outline" className="text-[10px]">Existente</Badge>
                         ) : (
                           <Badge className="bg-emerald-600 hover:bg-emerald-600 text-[10px]">Novo</Badge>
