@@ -70,6 +70,7 @@ import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEvent
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
@@ -148,6 +149,8 @@ export default function PainelControle() {
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { totalNaoLidas } = useMensagensNaoLidas();
+  // Workflow: garante que etapas concluídas por qualquer caminho gerem a próxima
+  useSincronizarWorkflows();
   const handledSelectedIdRef = useRef(false);
   const handledItemParamRef = useRef(false);
   const [tabMode, setTabMode] = useState<TabMode>("pessoal");
