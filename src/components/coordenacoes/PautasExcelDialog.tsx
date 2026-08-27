@@ -449,8 +449,18 @@ export function PautasExcelDialog({
                 }}
               />
             </label>
+            <div className="flex items-center justify-center">
+              <Button variant="outline" size="sm" onClick={baixarModeloPautasExcel}>
+                <Download className="h-4 w-4 mr-2" /> Baixar planilha modelo
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground text-center">
+              Todas as abas da planilha são lidas. O cabeçalho pode estar em qualquer uma das
+              primeiras linhas.
+            </p>
           </div>
         )}
+
 
         {etapa === "preview" && (
           <div className="flex flex-col gap-4 flex-1 overflow-hidden">
