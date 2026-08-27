@@ -174,16 +174,19 @@ export function PautasExcelDialog({
       const numerosMasked = Array.from(new Set(ls.map((l) => l.processo_numero)));
       const numerosDigits = Array.from(new Set(ls.map((l) => l.processo_digits)));
       setVerificandoDuplicidade(true);
+      // Processos são únicos por número em TODO o sistema (uma base compartilhada
+      // entre coordenações). Por isso a busca não filtra por coordenação: se já
+      // existir, ele é reutilizado e a coordenação atual é apenas vinculada.
       const { data: processosDb } = await supabase
         .from("processos")
         .select("id, numero")
-        .eq("coordenacao_id", coordenacaoId)
         .or(
           [
             `numero.in.(${numerosMasked.map((n) => `"${n}"`).join(",")})`,
             `numero.in.(${numerosDigits.map((n) => `"${n}"`).join(",")})`,
           ].join(",")
         );
+
 
       const existSet = new Set<string>();
       const digitsById = new Map<string, string>();
