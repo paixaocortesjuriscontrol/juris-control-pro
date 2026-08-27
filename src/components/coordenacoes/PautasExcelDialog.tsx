@@ -469,6 +469,7 @@ export function PautasExcelDialog({
       queryClient.invalidateQueries({ queryKey: ["painel-controle-audiencias-det-stats"] }),
       queryClient.invalidateQueries({ queryKey: ["processos"] }),
       queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] }),
 
     ]);
   };
@@ -597,7 +598,9 @@ export function PautasExcelDialog({
                     ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    As etiquetas marcadas serão aplicadas a todas as audiências criadas.
+                    As etiquetas marcadas serão aplicadas a todas as audiências criadas. Se a
+                    planilha tiver a coluna ETIQUETA, ela também é aplicada por linha (e criada
+                    automaticamente se ainda não existir).
                   </p>
                 </>
               )}
@@ -691,6 +694,9 @@ export function PautasExcelDialog({
               <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
               {!!resumo.etiquetasAplicadas && (
                 <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
+              )}
+              {!!resumo.etiquetasCriadas && (
+                <li>• Etiquetas novas criadas: <strong>{resumo.etiquetasCriadas}</strong></li>
               )}
 
               <li>• Erros: <strong>{resumo.erros.length}</strong></li>
