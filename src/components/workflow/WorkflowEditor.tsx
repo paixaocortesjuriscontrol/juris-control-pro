@@ -456,90 +456,130 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
         </Card>
       ) : (
         <div className="space-y-3">
-          {etapas.map((etapa, idx) => (
-            <Card key={etapa.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start gap-2">
-                  <GripVertical className="h-5 w-5 text-muted-foreground mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-muted-foreground">
-                          {idx + 1}.
-                        </span>
-                        <CardTitle className="text-base">{etapa.titulo}</CardTitle>
-                        <Badge variant="outline">
-                          {TIPOS.find((t) => t.value === etapa.tipo_item)?.label ||
-                            etapa.tipo_item}
-                        </Badge>
+          {etapas.map((etapa, idx) => {
+            const dependente = etapa.condicao !== "sempre";
+            return (
+              <div key={etapa.id} className={dependente ? "pl-8" : ""}>
+                <Card
+                  className={
+                    dependente
+                      ? "border-l-4 border-l-[hsl(var(--status-pending))]"
+                      : "border-l-4 border-l-primary"
+                  }
+                >
+                  <CardContent className="p-0">
+                    <div className="flex items-start justify-between gap-3 p-4">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="rounded-md border border-border p-1.5 text-muted-foreground">
+                          <CalendarPlus className="h-4 w-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold">
+                            {idx + 1}. Criar{" "}
+                            {(
+                              TIPOS.find((t) => t.value === etapa.tipo_item)?.label ||
+                              etapa.tipo_item
+                            ).toLowerCase()}
+                          </p>
+                          <p className="text-sm text-muted-foreground truncate">
+                            {etapa.titulo}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => moveEtapa(etapa, "up")}
-                          disabled={idx === 0}
-                        >
-                          <ArrowUp className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => moveEtapa(etapa, "down")}
-                          disabled={idx === etapas.length - 1}
-                        >
-                          <ArrowDown className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleEdit(etapa)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            deleteEtapa.mutate({ id: etapa.id, workflowId })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      <div className="flex items-start gap-6">
+                        <div className="text-right">
+                          <p className="text-[11px] text-muted-foreground">
+                            Prazo previsto
+                          </p>
+                          <p className="text-sm">+{etapa.dias_previsto ?? 0} dias</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] text-muted-foreground">Prazo fatal</p>
+                          <p className="text-sm">+{etapa.dias_fatal ?? 0} dias</p>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="icon" className="h-8 w-8">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleEdit(etapa)}>
+                              Editar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={idx === 0}
+                              onClick={() => moveEtapa(etapa, "up")}
+                            >
+                              Mover para cima
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={idx === etapas.length - 1}
+                              onClick={() => moveEtapa(etapa, "down")}
+                            >
+                              Mover para baixo
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() =>
+                                deleteEtapa.mutate({ id: etapa.id, workflowId })
+                              }
+                            >
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {etapa.descricao || "Sem descrição"}
-                    </p>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <Badge variant="secondary">
-                        +{etapa.dias_previsto} dia(s) {etapa.tipo_prazo.replace("dias_", "")}
-                      </Badge>
-                      {etapa.dias_fatal && (
-                        <Badge variant="secondary">Fatal: {etapa.dias_fatal} dias</Badge>
-                      )}
-                      <Badge variant="secondary">
-                        {REGRAS_RESPONSAVEL.find((t) => t.value === etapa.regra_responsavel)?.label}
-                      </Badge>
-                      {(respMap[etapa.id] || []).map((uid) => (
-                        <Badge key={uid} variant="outline">
-                          {usuarios.find((u) => u.id === uid)?.nome || "Usuário"}
-                        </Badge>
-                      ))}
-                      {etapa.condicao !== "sempre" && (
+
+                    <div className="border-t border-border px-4 py-3">
+                      <p className="text-[11px] text-muted-foreground">
+                        Condição de início
+                      </p>
+                      <p className="text-sm">
+                        {dependente
+                          ? "Ao mudar a situação de uma etapa > Concluída com sucesso"
+                          : "Ao iniciar o fluxo"}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
                         <Badge variant="secondary">
-                          {CONDICOES.find((t) => t.value === etapa.condicao)?.label}
+                          {String(etapa.tipo_prazo || "").replace("dias_", "dias ")}
                         </Badge>
-                      )}
-                      {etapa.exibir_kanban && <Badge variant="outline">Kanban</Badge>}
+                        <Badge variant="secondary">
+                          {
+                            REGRAS_RESPONSAVEL.find(
+                              (t) => t.value === etapa.regra_responsavel
+                            )?.label
+                          }
+                        </Badge>
+                        {(respMap[etapa.id] || []).map((uid) => (
+                          <Badge key={uid} variant="outline">
+                            {usuarios.find((u) => u.id === uid)?.nome || "Usuário"}
+                          </Badge>
+                        ))}
+                        {etapa.exibir_kanban && <Badge variant="outline">Kanban</Badge>}
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </CardHeader>
-            </Card>
-          ))}
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          })}
+
+          <div className="flex justify-center pt-2">
+            <Button
+              onClick={() => {
+                handleOpen();
+                setDialogOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Nova etapa
+            </Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
+
