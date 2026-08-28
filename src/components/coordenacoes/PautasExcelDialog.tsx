@@ -1157,7 +1157,15 @@ export function PautasExcelDialog({
                         )}
                       </td>
                       <td className="p-2">
-                        {statusPorLinha.get(l.linha) === "duplicada_banco" ? (
+                        {modo === "etiquetas" ? (
+                          (matchEtiquetas.get(l.linha)?.length ?? 0) > 0 ? (
+                            <Badge className="bg-primary hover:bg-primary text-[10px]">
+                              Etiquetar ({matchEtiquetas.get(l.linha)!.length})
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">Sem audiência</Badge>
+                          )
+                        ) : statusPorLinha.get(l.linha) === "duplicada_banco" ? (
                           <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
                             Já existe
                           </Badge>
