@@ -3039,6 +3039,19 @@ const AnaliseDjen = () => {
               .join("; ")
           : "";
 
+      // Excel limita cada célula a 32.767 caracteres. Recortamos com folga e,
+      // no modo completo, seguimos o texto em colunas de continuação.
+      const MAX_CELULA = 32000;
+      const cap = (v: any): string => {
+        const s = String(v ?? "");
+        return s.length > MAX_CELULA ? `${s.slice(0, MAX_CELULA)} […texto truncado]` : s;
+      };
+      const partesTexto = (s: string): string[] => {
+        const out: string[] = [];
+        for (let i = 0; i < s.length; i += MAX_CELULA) out.push(s.slice(i, i + MAX_CELULA));
+        return out.length > 0 ? out : [""];
+      };
+
       const linhas = pubs.map((pub: any, idx: number) => {
         const conteudoLimpo = stripHtmlAndDecodeEntities(pub.conteudo || "")
           .replace(/\s+/g, " ")
@@ -3047,28 +3060,39 @@ const AnaliseDjen = () => {
         const coms = (comentariosMap.get(pub.id) || [])
           .map((c) => `${c.autor}: ${c.comentario}`)
           .join(" | ");
+
+        let colunasConteudo: Record<string, string>;
+        if (variante === "completo") {
+          const blocos = partesTexto(conteudoLimpo);
+          colunasConteudo = { "Conteúdo integral": blocos[0] };
+          blocos.slice(1).forEach((b, i) => {
+            colunasConteudo[`Conteúdo integral (cont. ${i + 2})`] = b;
+          });
+        } else {
+          colunasConteudo = { Resumo: cap(resumo || conteudoLimpo.slice(0, 3000)) };
+        }
+
         return {
           "#": idx + 1,
           "Data publicação": fmtData(pub.data_publicacao),
           "Data disponibilização": fmtData(pub.data_disponibilizacao),
-          "Nº do processo": pub.processo_numero || "",
-          Tribunal: pub.tribunal || "",
-          "Órgão / Vara": pub.orgao || "",
-          "Tipo de comunicação": pub.tipo_comunicacao || "",
-          Meio: pub.meio || "",
-          "Polo ativo": pub.polo_ativo || nomes(pub.partes_json),
-          "Polo passivo": pub.polo_passivo || "",
-          Advogados: nomes(pub.advogados_json),
-          Monitoramento: pub.monitoramento_descricao || pub.monitoramento_termo || "",
-          "Tipo do monitoramento": pub.monitoramento_tipo || "",
-          Coordenação: pub.coordenacao_nome || "",
+          "Nº do processo": cap(pub.processo_numero || ""),
+          Tribunal: cap(pub.tribunal || ""),
+          "Órgão / Vara": cap(pub.orgao || ""),
+          "Tipo de comunicação": cap(pub.tipo_comunicacao || ""),
+          Meio: cap(pub.meio || ""),
+          "Polo ativo": cap(pub.polo_ativo || nomes(pub.partes_json)),
+          "Polo passivo": cap(pub.polo_passivo || ""),
+          Advogados: cap(nomes(pub.advogados_json)),
+          Monitoramento: cap(pub.monitoramento_descricao || pub.monitoramento_termo || ""),
+          "Tipo do monitoramento": cap(pub.monitoramento_tipo || ""),
+          Coordenação: cap(pub.coordenacao_nome || ""),
           Lida: pub.lida ? "Sim" : "Não",
-          Comentários: coms,
-          ...(variante === "completo"
-            ? { "Conteúdo integral": conteudoLimpo }
-            : { Resumo: resumo || conteudoLimpo.slice(0, 3000) }),
+          Comentários: cap(coms),
+          ...colunasConteudo,
         };
       });
+
 
       const ws = XLSX.utils.json_to_sheet(linhas);
       ws["!cols"] = [
