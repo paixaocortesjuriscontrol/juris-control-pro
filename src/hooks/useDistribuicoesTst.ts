@@ -344,6 +344,9 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     segredo_justica: !!b.segredo_justica,
     recurso_terceiro: !!b.recurso_terceiro,
     cejusc: !!b.cejusc,
+    // Isenção por Acordo: sem este campo no objeto mapeado a tabela recalculava
+    // pendências para linhas que o card "Pronto sem pendência" já isentava.
+    acordo: !!b.acordo,
     ic_arquivado: !!b.ic_arquivado,
     // Campos extras de dados_benner expostos para checagem de pendências
     // (não fazem parte do "form" da Distribuição mas são lidos em UI/relatórios).
