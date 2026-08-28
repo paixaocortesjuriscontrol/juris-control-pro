@@ -803,38 +803,18 @@ serve(async (req) => {
       console.log(`[buscar-judit] cache hit (tribunal=${cached?.tribunal_acronym})`);
     }
 
-    // 2) Cache-first: se o cache já é utilizável, responde imediato e dispara
-    //    o crawler em background para atualizar o cache da próxima vez.
+    // 2) O datalake da Judit (lookup instantâneo) NÃO encerra mais a consulta:
+    //    o advogado clica no botão justamente para ver o dado atual. Ele fica
+    //    apenas em rawCollector.cache_lookup como complemento (partes da
+    //    origem, trânsito etc.) e a execução segue para o crawler com
+    //    cache_ttl_in_days=0. A única economia é o app-cache do MESMO DIA,
+    //    tratado no passo 0 acima.
     let rdSelecionada: any = null;
     let foiTst = false;
     let respondidoDoCache = false;
 
-    // Cache-first, MAS: quando o cliente pede TST (Distribuição TST pede
-    // sempre), o atalho só vale se o próprio cache for da instância TST.
-    // Um processo trabalhista tem várias instâncias sob o mesmo CNJ; devolver
-    // a de origem (TRT) faz tipo_recurso/relator/turma sairem nulos por regra
-    // (`classeRecursal = foiTst ? classe : null`) e era exatamente o que a
-    // advogada via como "não preenche completamente". O cache de TRT continua
-    // guardado em rawCollector.cache_lookup (serve para reclamante/reclamada da
-    // origem e trânsito), mas a execução segue para o crawler, que devolve
-    // todas as instâncias e escolhe a do TST.
-    const cachedClasse = extrairClasse(cached || {});
-    const cachedOrgaoRel = extrairOrgaoERelator(cached || {});
-    const cachedTemSinal = !!(
-      cachedClasse ||
-      cachedOrgaoRel?.relator ||
-      cachedOrgaoRel?.turma ||
-      cachedOrgaoRel?.orgao ||
-      (Array.isArray(cached?.steps) && cached.steps.length >= 5)
-    );
-    const cacheUsavel =
-      cached &&
-      !comAnexos &&
-      !forceRefresh &&
-      (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      (tribunalHint === "TST"
-        ? isTstRd(cached)
-        : (isTstRd(cached) || cachedTemSinal));
+    const cacheUsavel = false;
+
 
     if (cacheUsavel) {
       rdSelecionada = cached;
