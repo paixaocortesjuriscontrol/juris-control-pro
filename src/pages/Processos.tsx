@@ -340,6 +340,51 @@ const Processos = () => {
     }
   }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
 
+  // Filtros ativos da tela — usados tanto na listagem paginada quanto na exportação
+  const filtrosProcessos = useMemo(
+    () => ({
+      search: debouncedSearch,
+      // "Caso" no filtro de tipos equivale à área "caso"
+      area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
+      status: statusFilter,
+      coordenacao_id: coordenacaoFilter,
+      responsavel_id: filtrosAplicados.responsavelId,
+      instancia: filtrosAplicados.instancia,
+      comMovimento: comAndamentos,
+      comPublicacaoDjen: comPublicacaoDjen,
+      comAudiencia: comAudiencias,
+      comIntimacao: comIntimacoes,
+      comTarefa: comTarefas,
+      acompanhamentoEspecial: acompanhamentoEspecial,
+      segredoJustica: segredoJustica,
+      etiquetaIds: etiquetasFiltro,
+      periodoInicio: filtrosAplicados.periodoInicio,
+      periodoFim: filtrosAplicados.periodoFim,
+      clienteIds: clienteIds,
+      tipoProcesso: tipoProcessoFilter === "caso" ? "all" : tipoProcessoFilter,
+      testemunhaNome: filtrosAplicados.testemunhaNome,
+      comTestemunha: filtrosAplicados.comTestemunha,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      debouncedSearch,
+      areaFilter,
+      statusFilter,
+      coordenacaoFilter,
+      tipoProcessoFilter,
+      comAndamentos,
+      comPublicacaoDjen,
+      comAudiencias,
+      comIntimacoes,
+      comTarefas,
+      acompanhamentoEspecial,
+      segredoJustica,
+      JSON.stringify(etiquetasFiltro),
+      JSON.stringify(clienteIds),
+      JSON.stringify(filtrosAplicados),
+    ]
+  );
+
   const { 
     data, 
     isLoading, 
@@ -355,27 +400,7 @@ const Processos = () => {
     previousPage,
     resetPage
   } = useProcessosPaginados({
-    search: debouncedSearch,
-    // "Caso" no filtro de tipos equivale à área "caso"
-    area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
-    status: statusFilter,
-    coordenacao_id: coordenacaoFilter,
-    responsavel_id: filtrosAplicados.responsavelId,
-    instancia: filtrosAplicados.instancia,
-    comMovimento: comAndamentos,
-    comPublicacaoDjen: comPublicacaoDjen,
-    comAudiencia: comAudiencias,
-    comIntimacao: comIntimacoes,
-    comTarefa: comTarefas,
-    acompanhamentoEspecial: acompanhamentoEspecial,
-    segredoJustica: segredoJustica,
-    etiquetaIds: etiquetasFiltro,
-    periodoInicio: filtrosAplicados.periodoInicio,
-    periodoFim: filtrosAplicados.periodoFim,
-    clienteIds: clienteIds,
-    tipoProcesso: tipoProcessoFilter === "caso" ? "all" : tipoProcessoFilter,
-    testemunhaNome: filtrosAplicados.testemunhaNome,
-    comTestemunha: filtrosAplicados.comTestemunha,
+    ...filtrosProcessos,
     enabled: coordenacaoCarregada, // Não buscar enquanto está carregando a coordenação
   });
 
