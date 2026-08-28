@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
+import { useProcessosPaginados, fetchTodosProcessosFiltrados } from "@/hooks/useProcessosPaginados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
@@ -35,6 +35,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gerarManualProcessosPdf } from "@/lib/manualProcessosPdf";
+import { toast } from "sonner";
 
 type AreaType = "civil" | "trabalhista" | "empresarial" | "caso";
 type StatusType = "pending" | "active" | "closed" | "urgent";
@@ -115,6 +116,7 @@ const Processos = () => {
   const [areaFilter, setAreaFilter] = useState<string>(() => searchParams.get("area") || "all");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
+  const [exportando, setExportando] = useState(false);
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [lateralProcessoId, setLateralProcessoId] = useState<string | null>(null);
@@ -340,6 +342,51 @@ const Processos = () => {
     }
   }, [searchParams, searchQuery, areaFilter, statusFilter, coordenacaoFilter, comPublicacaoDjen, comAndamentos, comAudiencias, comIntimacoes, comTarefas, acompanhamentoEspecial, segredoJustica, tipoProcessoFilter, selectedGrupoId, selectedClienteId, setSearchParams, coordenacaoCarregada]);
 
+  // Filtros ativos da tela — usados tanto na listagem paginada quanto na exportação
+  const filtrosProcessos = useMemo(
+    () => ({
+      search: debouncedSearch,
+      // "Caso" no filtro de tipos equivale à área "caso"
+      area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
+      status: statusFilter,
+      coordenacao_id: coordenacaoFilter,
+      responsavel_id: filtrosAplicados.responsavelId,
+      instancia: filtrosAplicados.instancia,
+      comMovimento: comAndamentos,
+      comPublicacaoDjen: comPublicacaoDjen,
+      comAudiencia: comAudiencias,
+      comIntimacao: comIntimacoes,
+      comTarefa: comTarefas,
+      acompanhamentoEspecial: acompanhamentoEspecial,
+      segredoJustica: segredoJustica,
+      etiquetaIds: etiquetasFiltro,
+      periodoInicio: filtrosAplicados.periodoInicio,
+      periodoFim: filtrosAplicados.periodoFim,
+      clienteIds: clienteIds,
+      tipoProcesso: tipoProcessoFilter === "caso" ? "all" : tipoProcessoFilter,
+      testemunhaNome: filtrosAplicados.testemunhaNome,
+      comTestemunha: filtrosAplicados.comTestemunha,
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      debouncedSearch,
+      areaFilter,
+      statusFilter,
+      coordenacaoFilter,
+      tipoProcessoFilter,
+      comAndamentos,
+      comPublicacaoDjen,
+      comAudiencias,
+      comIntimacoes,
+      comTarefas,
+      acompanhamentoEspecial,
+      segredoJustica,
+      JSON.stringify(etiquetasFiltro),
+      JSON.stringify(clienteIds),
+      JSON.stringify(filtrosAplicados),
+    ]
+  );
+
   const { 
     data, 
     isLoading, 
@@ -355,27 +402,7 @@ const Processos = () => {
     previousPage,
     resetPage
   } = useProcessosPaginados({
-    search: debouncedSearch,
-    // "Caso" no filtro de tipos equivale à área "caso"
-    area: tipoProcessoFilter === "caso" ? "caso" : areaFilter,
-    status: statusFilter,
-    coordenacao_id: coordenacaoFilter,
-    responsavel_id: filtrosAplicados.responsavelId,
-    instancia: filtrosAplicados.instancia,
-    comMovimento: comAndamentos,
-    comPublicacaoDjen: comPublicacaoDjen,
-    comAudiencia: comAudiencias,
-    comIntimacao: comIntimacoes,
-    comTarefa: comTarefas,
-    acompanhamentoEspecial: acompanhamentoEspecial,
-    segredoJustica: segredoJustica,
-    etiquetaIds: etiquetasFiltro,
-    periodoInicio: filtrosAplicados.periodoInicio,
-    periodoFim: filtrosAplicados.periodoFim,
-    clienteIds: clienteIds,
-    tipoProcesso: tipoProcessoFilter === "caso" ? "all" : tipoProcessoFilter,
-    testemunhaNome: filtrosAplicados.testemunhaNome,
-    comTestemunha: filtrosAplicados.comTestemunha,
+    ...filtrosProcessos,
     enabled: coordenacaoCarregada, // Não buscar enquanto está carregando a coordenação
   });
 
@@ -869,13 +896,25 @@ const Processos = () => {
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
+                  disabled={exportando}
                   onClick={async () => {
+                    setExportando(true);
+                    const toastId = toast.loading("Exportando processos...");
                     try {
                       const XLSX = await import("xlsx");
                       const coordMap = new Map<string, string>(
                         (coordenacoes || []).map((c: any) => [c.id, c.nome])
                       );
-                      const rows = (processos || []).map((p: any) => ({
+                      // Busca TODAS as linhas que atendem aos filtros ativos (não só a página)
+                      const todos = await fetchTodosProcessosFiltrados(
+                        filtrosProcessos,
+                        (carregados, total) => {
+                          toast.loading(`Exportando ${carregados} de ${total} processos...`, {
+                            id: toastId,
+                          });
+                        }
+                      );
+                      const rows = todos.map((p: any) => ({
                         Numero: p.numero || "",
                         Assunto: p.assunto || "",
                         Cliente: p.cliente?.nome || p.cliente_nome || "",
@@ -883,9 +922,15 @@ const Processos = () => {
                           p.coordenacao?.nome ||
                           p.coordenacao_nome ||
                           (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
+                        Responsavel: p.advogado_responsavel?.nome || "",
                         Situacao: p.situacao || p.status || "",
                         Area: p.area || "",
+                        Tipo: p.tipo_processo || "",
+                        Polo_Ativo: p.polo_ativo || "",
+                        Polo_Passivo: p.polo_passivo || "",
                         Tribunal: p.tribunal || "",
+                        Vara: p.vara || "",
+                        Comarca: p.comarca || "",
                         Instancia: p.instancia || "",
                         Orgao_Julgador: p.orgao_julgador || "",
                         Data_Distribuicao: p.data_distribuicao || "",
@@ -896,13 +941,17 @@ const Processos = () => {
                       XLSX.utils.book_append_sheet(wb, ws, "Processos");
                       const stamp = new Date().toISOString().slice(0, 10);
                       XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
-                    } catch (e) {
+                      toast.success(`${rows.length} processos exportados!`, { id: toastId });
+                    } catch (e: any) {
                       console.error("Erro ao exportar:", e);
+                      toast.error(`Erro ao exportar: ${e?.message || e}`, { id: toastId });
+                    } finally {
+                      setExportando(false);
                     }
                   }}
                 >
                   <Download className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Exportar</span>
+                  <span className="hidden sm:inline">{exportando ? "Exportando..." : "Exportar"}</span>
                 </Button>
                 <Button
                   variant="outline"

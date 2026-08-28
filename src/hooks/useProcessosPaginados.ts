@@ -33,6 +33,72 @@ interface ProcessosPaginadosFilters {
   enabled?: boolean;
 }
 
+export type { ProcessosPaginadosFilters };
+
+/** Monta os parâmetros da RPC a partir dos filtros da tela (reutilizado na exportação). */
+export function buildProcessosRpcParams(
+  filters: ProcessosPaginadosFilters,
+  page: number,
+  pageSize: number
+) {
+  const coordId =
+    filters.coordenacao_id && filters.coordenacao_id !== "all" ? filters.coordenacao_id : null;
+  return {
+    _page: page,
+    _page_size: pageSize,
+    _search: filters.search || null,
+    _area: filters.area && filters.area !== "all" ? filters.area : null,
+    _status: filters.status && filters.status !== "all" ? filters.status : null,
+    _coordenacao_id: coordId,
+    _responsavel_id: filters.responsavel_id || null,
+    _instancia: filters.instancia && filters.instancia !== "todos" ? filters.instancia : null,
+    _com_movimento: filters.comMovimento ?? false,
+    _com_publicacao_djen: filters.comPublicacaoDjen ?? false,
+    _com_audiencia: filters.comAudiencia ?? false,
+    _com_intimacao: filters.comIntimacao ?? false,
+    _com_tarefa: filters.comTarefa ?? false,
+    _periodo_inicio: filters.periodoInicio ? filters.periodoInicio.toISOString() : null,
+    _periodo_fim: filters.periodoFim ? filters.periodoFim.toISOString() : null,
+    _cliente_ids: filters.clienteIds && filters.clienteIds.length > 0 ? filters.clienteIds : null,
+    _tipo_processo:
+      filters.tipoProcesso && filters.tipoProcesso !== "all" ? filters.tipoProcesso : null,
+    _testemunha_nome:
+      filters.testemunhaNome && filters.testemunhaNome.trim() ? filters.testemunhaNome.trim() : null,
+    _com_testemunha: filters.comTestemunha ?? false,
+    _acompanhamento_especial: filters.acompanhamentoEspecial ?? false,
+    _segredo_justica: filters.segredoJustica ?? false,
+    _etiqueta_ids:
+      filters.etiquetaIds && filters.etiquetaIds.length > 0 ? filters.etiquetaIds : null,
+  };
+}
+
+/** Busca TODAS as linhas que atendem aos filtros (usado na exportação Excel). */
+export async function fetchTodosProcessosFiltrados(
+  filters: ProcessosPaginadosFilters,
+  onProgress?: (carregados: number, total: number) => void
+) {
+  const EXPORT_PAGE_SIZE = 1000;
+  const all: any[] = [];
+  let page = 1;
+  let total = Infinity;
+
+  while (all.length < total) {
+    const params = buildProcessosRpcParams(filters, page, EXPORT_PAGE_SIZE);
+    const { data, error } = await supabase.rpc("get_processos_paginados", params as any);
+    if (error) throw error;
+    const rows = (data as any[]) || [];
+    if (rows.length === 0) break;
+    total = Number(rows[0].total_count) || rows.length;
+    all.push(...rows);
+    onProgress?.(all.length, total);
+    if (rows.length < EXPORT_PAGE_SIZE) break;
+    page += 1;
+    if (page > 200) break; // trava de segurança (200k linhas)
+  }
+
+  return all;
+}
+
 export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
