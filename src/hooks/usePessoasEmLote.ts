@@ -413,7 +413,24 @@ export async function aplicarPessoasEmLote({
               .is("responsavel_id", null);
           }
 
-          if (novosResp.length > 0 || novosEnv.length > 0) itensAlterados += 1;
+          if (novosResp.length > 0 || novosEnv.length > 0) {
+            itensAlterados += 1;
+            auditoria.push({
+              usuario_id: usuarioAtualId ?? null,
+              acao: "atualizar",
+              sucesso: true,
+              origem: "pessoas-em-lote",
+              tipo_item: item.tipo,
+              tarefa_id: item.fonte === "tarefa" ? item.id : null,
+              processo_id: item.processo_id,
+              coordenacao_id: item.coordenacao_id,
+              campos_alterados: {
+                responsaveis_adicionados: novosResp,
+                envolvidos_adicionados: novosEnv,
+              },
+              dados_entrada: { item_id: item.id, fonte: item.fonte, titulo: item.titulo },
+            });
+          }
         } catch (e: any) {
           erros.push(`${item.titulo}: ${e?.message || "erro desconhecido"}`);
         } finally {
