@@ -1136,6 +1136,7 @@ export default function PainelControle() {
 
   // ===== Exportação (Excel) com período e tipos selecionáveis =====
   const [exportOpen, setExportOpen] = useState(false);
+  const [pessoasLoteOpen, setPessoasLoteOpen] = useState(false);
 
   const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
     const XLSX = await import("xlsx");
