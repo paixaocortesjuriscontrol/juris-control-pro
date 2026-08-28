@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
-import { COLUNAS_SELECT_PENDENCIAS, getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { COLUNAS_SELECT_PRONTO_SEM_PENDENCIA, getPendencias, isNaoPrecisaFazer } from "@/utils/distribuicaoTstPendencias";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 
 interface Card {
