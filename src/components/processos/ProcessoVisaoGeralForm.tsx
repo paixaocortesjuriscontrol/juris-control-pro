@@ -1541,13 +1541,15 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                             ? "Deixe em branco se o processo ainda não foi distribuído"
                             : (form.tipo_processo || "judicial") === "administrativo"
                               ? "14152.127256/2023-39"
-                              : "0000000-00.0000.0.00.0000"
+                              : (form.tipo_processo || "judicial") === "outro"
+                                ? "Digite o número em qualquer formato"
+                                : "0000000-00.0000.0.00.0000"
                         }
                         value={form.numero || ""}
-                        maxLength={30}
+                        maxLength={60}
                         onChange={(e) => {
                           const tipo = form.tipo_processo || "judicial";
-                          const valor = tipo === "administrativo"
+                          const valor = tipo === "administrativo" || tipo === "outro"
                             ? e.target.value
                             : mascararCnjDigitacao(e.target.value);
                           update("numero", valor);
