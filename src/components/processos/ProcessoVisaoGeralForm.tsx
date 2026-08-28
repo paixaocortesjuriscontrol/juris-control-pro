@@ -1589,6 +1589,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       <SelectContent>
                         <SelectItem value="judicial">Judicial</SelectItem>
                         <SelectItem value="administrativo">Administrativo</SelectItem>
+                        <SelectItem value="outro">Outro</SelectItem>
                       </SelectContent>
                     </Select>
                   </FormField>
