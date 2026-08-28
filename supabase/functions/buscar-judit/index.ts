@@ -179,7 +179,7 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
       );
       if (!temAlgo) continue;
       if (tribunalHint === "TST" && !ehTst) continue;
-      return raw;
+      return { ...raw, _app_cache_created_at: (row as any)?.created_at || null };
     }
     return null;
   } catch (e) {
