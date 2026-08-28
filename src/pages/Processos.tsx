@@ -1355,6 +1355,15 @@ const Processos = () => {
         open={showTransferirDialog}
         onOpenChange={setShowTransferirDialog}
       />
+
+      <ExportarModeloDialog
+        open={showExportarModelo}
+        onOpenChange={setShowExportarModelo}
+        modelo={modeloExportacao}
+        filtros={filtrosProcessos}
+        selecionados={selectedProcessos}
+      />
+
     </MainLayout>
   );
 };
