@@ -51,12 +51,14 @@ const PRECOS_BRL: Record<string, number> = {
   com_anexos: 3.75, // Consulta processual com anexos
   on_demand: 0.25,  // Consulta processual on demand
   datalake: 0.25,   // Consulta processual datalake
+  cache_local: 0,   // Reaproveitamento do resultado já obtido no mesmo dia
 };
 
 const ROTULO_TIPO: Record<string, string> = {
   com_anexos: "Consulta com anexos",
   on_demand: "Consulta on demand",
   datalake: "Consulta datalake",
+  cache_local: "Reaproveitado do dia (sem custo)",
 };
 
 const PAGE_SIZE = 50;
@@ -91,7 +93,7 @@ type Row = {
 };
 
 function detectarTipo(payload: any, salvo: string | null): keyof typeof PRECOS_BRL {
-  if (salvo && (salvo === "com_anexos" || salvo === "on_demand" || salvo === "datalake")) {
+  if (salvo && (salvo === "com_anexos" || salvo === "on_demand" || salvo === "datalake" || salvo === "cache_local")) {
     return salvo as any;
   }
   const p = payload || {};
@@ -163,7 +165,8 @@ export default function ConsumoJudit() {
       const perfil = r.created_by ? perfilMap.get(r.created_by) : undefined;
       const email = r.user_email || perfil?.email || null;
       const nome = perfil?.nome || email || "(desconhecido)";
-      const cobrado = r.status === "sucesso";
+      // Reaproveitamento do resultado do mesmo dia não gera chamada à Judit.
+      const cobrado = r.status === "sucesso" && tipo !== "cache_local";
       const custo = cobrado ? PRECOS_BRL[tipo] : 0;
       return { ...r, tipo, email, nome, cobrado, custo };
     });
@@ -194,10 +197,10 @@ export default function ConsumoJudit() {
   }, [filtered]);
 
   const perDay = useMemo(() => {
-    const map = new Map<string, { dia: string; com_anexos: number; on_demand: number; datalake: number; custo: number }>();
+    const map = new Map<string, { dia: string; com_anexos: number; on_demand: number; datalake: number; cache_local: number; custo: number }>();
     for (const r of filtered) {
       const d = r.created_at.slice(0, 10);
-      const e = map.get(d) ?? { dia: d, com_anexos: 0, on_demand: 0, datalake: 0, custo: 0 };
+      const e = map.get(d) ?? { dia: d, com_anexos: 0, on_demand: 0, datalake: 0, cache_local: 0, custo: 0 };
       if (r.cobrado) (e as any)[r.tipo] += 1;
       e.custo += r.custo;
       map.set(d, e);
@@ -307,6 +310,7 @@ export default function ConsumoJudit() {
                     <SelectItem value="com_anexos">Com anexos (R$ 3,75)</SelectItem>
                     <SelectItem value="on_demand">On demand (R$ 0,25)</SelectItem>
                     <SelectItem value="datalake">Datalake (R$ 0,25)</SelectItem>
+                    <SelectItem value="cache_local">Reaproveitado do dia (R$ 0,00)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -354,7 +358,7 @@ export default function ConsumoJudit() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard icon={<Activity className="w-4 h-4" />} label="Chamadas cobradas" value={fmtInt(kpis.totalCobrado)} sub={`${fmtInt(kpis.total)} no total`} />
           <KpiCard icon={<Paperclip className="w-4 h-4" />} label="Com anexos" value={fmtInt(kpis.porTipo["com_anexos"]?.qtd ?? 0)} sub={fmtBrl(kpis.porTipo["com_anexos"]?.custo ?? 0)} />
-          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} />
+          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={`${fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} · ${fmtInt(enriched.filter((r) => r.tipo === "cache_local").length)} reaproveitadas do dia`} />
           <KpiCard icon={<DollarSign className="w-4 h-4" />} label="Custo total BRL" value={fmtBrl(kpis.custoTotal)} sub="estimado (tabela Judit)" />
         </div>
 

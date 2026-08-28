@@ -35,10 +35,23 @@ const POLL_TIMEOUT_MS = 35_000;
 // Teto total por requisição — se estourar, respondemos com o que já temos em
 // vez de enfileirar outra rodada de crawler.
 const REQUEST_BUDGET_MS = 75_000;
-// Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
-// instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
-// no body (envia cache_ttl_in_days=0).
-const CACHE_TTL_DAYS_DEFAULT = 3;
+// Todo clique busca dados ATUAIS (crawler, cache_ttl_in_days=0). A única
+// economia é o cache local do app: se o MESMO processo já foi consultado com
+// sucesso HOJE (data civil de America/Sao_Paulo), reaproveitamos o resultado
+// já gravado em judit_logs. Ontem ou antes ⇒ consulta nova.
+const CACHE_TTL_DAYS_DEFAULT = 0;
+
+// Início do dia civil de São Paulo (UTC-3) em ISO — usado como corte do cache.
+function inicioDoDiaSaoPauloISO(): string {
+  const agora = new Date();
+  const spMs = agora.getTime() - 3 * 60 * 60 * 1000;
+  const sp = new Date(spMs);
+  const y = sp.getUTCFullYear();
+  const m = String(sp.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(sp.getUTCDate()).padStart(2, "0");
+  // 00:00 em São Paulo = 03:00 UTC do mesmo dia
+  return `${y}-${m}-${d}T03:00:00.000Z`;
+}
 
 // ---------- Helpers ---------------------------------------------------------
 
@@ -127,7 +140,8 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS_DEFAULT * 24 * 60 * 60 * 1000).toISOString();
+    // Cache SOMENTE do dia de hoje (data civil de São Paulo).
+    const cutoff = inicioDoDiaSaoPauloISO();
     const { data, error } = await admin
       .from("judit_logs")
       .select("raw_response, created_at")
@@ -165,7 +179,7 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
       );
       if (!temAlgo) continue;
       if (tribunalHint === "TST" && !ehTst) continue;
-      return raw;
+      return { ...raw, _app_cache_created_at: (row as any)?.created_at || null };
     }
     return null;
   } catch (e) {
@@ -746,18 +760,22 @@ serve(async (req) => {
     const cnj = `${digitosCnj.slice(0, 7)}-${digitosCnj.slice(7, 9)}.${digitosCnj.slice(9, 13)}.${digitosCnj.slice(13, 14)}.${digitosCnj.slice(14, 16)}.${digitosCnj.slice(16, 20)}`;
     console.log(`[buscar-judit] cnj normalizado=${cnj}`);
 
-    // 0) Cache local do app: se este processo já foi consultado com sucesso
-    // recentemente, não chama a Judit de novo. Isso evita pagar 40–60s em
-    // processos cujo lookup direto da Judit ainda não está aquecido.
+    // 0) Cache local do app: SOMENTE quando o mesmo processo já foi consultado
+    // com sucesso HOJE. Cliques repetidos no mesmo dia não são cobrados de novo;
+    // qualquer consulta de dias anteriores dispara crawler novo.
     if (!comAnexos && !forceRefresh) {
       const appCached = await juditAppCache(cnj, tribunalHint);
       if (appCached) {
+        const consultadoEm = appCached?._app_cache_created_at || null;
         const bodyCached: any = stripAttachments(appCached);
+        delete bodyCached._app_cache_created_at;
         bodyCached._judit_meta = {
           ...(bodyCached._judit_meta || {}),
-          fonte: "app_cache_instant",
+          fonte: "app_cache_hoje",
           respondido_do_cache: true,
           app_cache: true,
+          app_cache_consultado_em: consultadoEm,
+          cobrado: false,
           instancia_tst: appCached?._instancia_tst === false
             ? false
             : (String(appCached?.tribunal || "").toUpperCase() === "TST" || undefined),
@@ -767,10 +785,11 @@ serve(async (req) => {
         };
         bodyCached.attachments = null;
         delete bodyCached._instancia_tst;
-        console.log(`[buscar-judit] app-cache instant response cnj=${cnj}`);
+        console.log(`[buscar-judit] app-cache do dia cnj=${cnj} consultado_em=${consultadoEm}`);
         return json(bodyCached, 200);
       }
     }
+
 
     const rawCollector: { cache_lookup: any; crawler: any } = {
       cache_lookup: null,
@@ -784,38 +803,18 @@ serve(async (req) => {
       console.log(`[buscar-judit] cache hit (tribunal=${cached?.tribunal_acronym})`);
     }
 
-    // 2) Cache-first: se o cache já é utilizável, responde imediato e dispara
-    //    o crawler em background para atualizar o cache da próxima vez.
+    // 2) O datalake da Judit (lookup instantâneo) NÃO encerra mais a consulta:
+    //    o advogado clica no botão justamente para ver o dado atual. Ele fica
+    //    apenas em rawCollector.cache_lookup como complemento (partes da
+    //    origem, trânsito etc.) e a execução segue para o crawler com
+    //    cache_ttl_in_days=0. A única economia é o app-cache do MESMO DIA,
+    //    tratado no passo 0 acima.
     let rdSelecionada: any = null;
     let foiTst = false;
     let respondidoDoCache = false;
 
-    // Cache-first, MAS: quando o cliente pede TST (Distribuição TST pede
-    // sempre), o atalho só vale se o próprio cache for da instância TST.
-    // Um processo trabalhista tem várias instâncias sob o mesmo CNJ; devolver
-    // a de origem (TRT) faz tipo_recurso/relator/turma sairem nulos por regra
-    // (`classeRecursal = foiTst ? classe : null`) e era exatamente o que a
-    // advogada via como "não preenche completamente". O cache de TRT continua
-    // guardado em rawCollector.cache_lookup (serve para reclamante/reclamada da
-    // origem e trânsito), mas a execução segue para o crawler, que devolve
-    // todas as instâncias e escolhe a do TST.
-    const cachedClasse = extrairClasse(cached || {});
-    const cachedOrgaoRel = extrairOrgaoERelator(cached || {});
-    const cachedTemSinal = !!(
-      cachedClasse ||
-      cachedOrgaoRel?.relator ||
-      cachedOrgaoRel?.turma ||
-      cachedOrgaoRel?.orgao ||
-      (Array.isArray(cached?.steps) && cached.steps.length >= 5)
-    );
-    const cacheUsavel =
-      cached &&
-      !comAnexos &&
-      !forceRefresh &&
-      (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      (tribunalHint === "TST"
-        ? isTstRd(cached)
-        : (isTstRd(cached) || cachedTemSinal));
+    const cacheUsavel = false;
+
 
     if (cacheUsavel) {
       rdSelecionada = cached;

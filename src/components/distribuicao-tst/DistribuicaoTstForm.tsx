@@ -768,7 +768,17 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             { duration: 8000 },
           );
         } else if (m?.respondido_do_cache === true) {
-          toast.success("Judit (cache TST) — resposta instantânea");
+          const em = m?.app_cache_consultado_em
+            ? new Date(m.app_cache_consultado_em).toLocaleTimeString("pt-BR", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : null;
+          toast.success(
+            em
+              ? `Já consultado hoje às ${em} — reaproveitado sem novo custo`
+              : "Já consultado hoje — reaproveitado sem novo custo",
+          );
         }
       }
 

@@ -21,7 +21,14 @@ export type JuditLogParams = {
   origem?: string | null;
 };
 
-function detectarTipoCobranca(payload: Record<string, any>): "com_anexos" | "on_demand" | "datalake" {
+function detectarTipoCobranca(
+  payload: Record<string, any>,
+  juditData?: any,
+): "com_anexos" | "on_demand" | "datalake" | "cache_local" {
+  const meta = juditData?._judit_meta;
+  // Reaproveitamento do resultado já obtido HOJE: não há chamada nova à Judit,
+  // portanto não há custo.
+  if (meta?.app_cache === true || meta?.respondido_do_cache === true) return "cache_local";
   const p = payload || {};
   if (p.com_anexos === true || p.with_attachments === true) return "com_anexos";
   if (p.on_demand === true || p.force_refresh === true) return "on_demand";
@@ -52,7 +59,7 @@ export async function logJudit(params: JuditLogParams): Promise<void> {
       user_email: userData?.user?.email || null,
       origem,
       duracao_ms: params.duracaoMs ?? null,
-      tipo_cobranca: detectarTipoCobranca(params.requestPayload),
+      tipo_cobranca: detectarTipoCobranca(params.requestPayload, params.juditData),
     });
   } catch (e) {
     console.warn("Falha ao gravar judit_logs:", e);
