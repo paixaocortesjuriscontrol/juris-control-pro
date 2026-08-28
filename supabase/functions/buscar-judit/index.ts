@@ -790,18 +790,15 @@ serve(async (req) => {
     let foiTst = false;
     let respondidoDoCache = false;
 
-    // Cache-first: se o cache tem qualquer dado útil, devolve na hora.
-    // Antes exigíamos `isTstRd(cached)` quando tribunalHint=TST — mas processos
-    // que NÃO têm instância TST (ex.: 0000385-38.2024.5.23.0002, só TRT23)
-    // nunca satisfaziam isso e pagavam 30-60s de crawler a cada clique. Agora
-    // aceitamos o cache mesmo sem TST e disparamos refresh em background; se
-    // surgir TST depois, o próximo clique já vê.
-    // Cache-first SÓ quando o cache tem dados realmente úteis para preencher
-    // o formulário. Antes bastava ter `parties` ou `steps`, mas isso fazia o
-    // app responder instantaneamente com tudo null (ex.: 1001703-15.2023.5.02.0081,
-    // cuja cache TRT2 não traz classe/relator/órgão). Agora exigimos pelo menos
-    // um sinal extraível (classe OU relator OU órgão OU steps suficientes),
-    // OU que seja a instância TST quando o cliente pediu TST.
+    // Cache-first, MAS: quando o cliente pede TST (Distribuição TST pede
+    // sempre), o atalho só vale se o próprio cache for da instância TST.
+    // Um processo trabalhista tem várias instâncias sob o mesmo CNJ; devolver
+    // a de origem (TRT) faz tipo_recurso/relator/turma sairem nulos por regra
+    // (`classeRecursal = foiTst ? classe : null`) e era exatamente o que a
+    // advogada via como "não preenche completamente". O cache de TRT continua
+    // guardado em rawCollector.cache_lookup (serve para reclamante/reclamada da
+    // origem e trânsito), mas a execução segue para o crawler, que devolve
+    // todas as instâncias e escolhe a do TST.
     const cachedClasse = extrairClasse(cached || {});
     const cachedOrgaoRel = extrairOrgaoERelator(cached || {});
     const cachedTemSinal = !!(
@@ -816,10 +813,9 @@ serve(async (req) => {
       !comAnexos &&
       !forceRefresh &&
       (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      // Aceita cache de qualquer instância desde que haja dado útil, inclusive
-      // quando a tela pediu TST. Sem isso, todo processo que ainda só tem TRT
-      // pagava 60–124s de crawler a cada clique.
-      (isTstRd(cached) || cachedTemSinal);
+      (tribunalHint === "TST"
+        ? isTstRd(cached)
+        : (isTstRd(cached) || cachedTemSinal));
 
     if (cacheUsavel) {
       rdSelecionada = cached;
