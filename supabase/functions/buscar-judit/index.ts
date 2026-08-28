@@ -774,6 +774,7 @@ serve(async (req) => {
           fonte: "app_cache_hoje",
           respondido_do_cache: true,
           app_cache: true,
+          consulta_real: false,
           app_cache_consultado_em: consultadoEm,
           cobrado: false,
           instancia_tst: appCached?._instancia_tst === false
@@ -1259,6 +1260,9 @@ serve(async (req) => {
         cache_ttl_days: cacheTtlDays,
         elapsed_ms: Date.now() - t0,
         respondido_do_cache: respondidoDoCache,
+        // true = a resposta veio de uma consulta real (crawler), não de cache.
+        // Usado pela UI para decidir se sugere "Forçar atualização" no alerta.
+        consulta_real: !respondidoDoCache,
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,

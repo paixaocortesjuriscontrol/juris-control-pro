@@ -266,8 +266,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     activeRecordIdRef.current = dado?.id || undefined;
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
-  // true quando a Judit não devolveu a instância TST do processo nesta consulta.
-  const [tstIndisponivel, setTstIndisponivel] = useState(false);
+  // Estado do alerta quando a Judit não devolveu a instância TST do processo.
+  // `origem` indica se a resposta veio de cache local do dia (sugere forçar)
+  // ou de uma consulta real (não sugere forçar).
+  const [tstIndisponivel, setTstIndisponivel] = useState<{ show: boolean; origem: "cache" | "real" | null }>({
+    show: false,
+    origem: null,
+  });
 
   // Campos que a tela identifica explicitamente com o badge "Judit".
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
@@ -761,12 +766,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const m = (data as any)?._judit_meta;
         const tribSel = String(m?.tribunal_selecionado || "").toUpperCase();
         const semTst = m?.tst_indisponivel === true || m?.instancia_tst === false || (!!tribSel && tribSel !== "TST");
-        setTstIndisponivel(semTst);
+        // Decide se a resposta veio de cache local do dia ou de consulta real.
+        // A Edge Function marca consulta_real=true quando o crawler foi acionado.
+        const veioDeCache = m?.app_cache === true || m?.respondido_do_cache === true;
+        setTstIndisponivel({ show: semTst, origem: semTst ? (veioDeCache ? "cache" : "real") : null });
         if (semTst) {
-          toast.warning(
-            "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente.",
-            { duration: 8000 },
-          );
+          if (veioDeCache) {
+            toast.warning(
+              "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente.",
+              { duration: 8000 },
+            );
+          } else {
+            toast.warning(
+              "A Judit não localizou a instância TST deste processo nesta consulta — tipo de recurso e situação não podem ser preenchidos automaticamente.",
+              { duration: 8000 },
+            );
+          }
         } else if (m?.respondido_do_cache === true) {
           const em = m?.app_cache_consultado_em
             ? new Date(m.app_cache_consultado_em).toLocaleTimeString("pt-BR", {
@@ -1267,14 +1282,26 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   return (
     <div id="dtst-form-root" className="space-y-6">
-      {tstIndisponivel && (
+      {tstIndisponivel.show && (
         <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
-          <p className="font-semibold">A Judit ainda não indexou a instância TST deste processo</p>
-          <p className="mt-1">
-            Tipo de recurso, relator, turma e situação não podem ser preenchidos automaticamente
-            enquanto a instância do TST não aparecer na base da Judit. Preencha manualmente ou tente
-            novamente com “Forçar atualização”.
-          </p>
+          {tstIndisponivel.origem === "cache" ? (
+            <>
+              <p className="font-semibold">A Judit ainda não indexou a instância TST deste processo</p>
+              <p className="mt-1">
+                Tipo de recurso, relator, turma e situação não podem ser preenchidos automaticamente
+                enquanto a instância do TST não aparecer na base da Judit. Preencha manualmente ou tente
+                novamente com “Forçar atualização”.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="font-semibold">A Judit não localizou a instância TST deste processo nesta consulta</p>
+              <p className="mt-1">
+                Tipo de recurso, relator, turma e situação não podem ser preenchidos automaticamente.
+                Preencha manualmente.
+              </p>
+            </>
+          )}
         </div>
       )}
       <div className="flex items-center gap-3">
