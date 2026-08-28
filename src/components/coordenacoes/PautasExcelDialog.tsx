@@ -1203,7 +1203,9 @@ export function PautasExcelDialog({
           <div className="space-y-4 py-8">
             <div className="flex items-center gap-3 justify-center">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Importando pautas…</span>
+              <span className="text-sm">
+                {modo === "etiquetas" ? "Aplicando etiquetas…" : "Importando pautas…"}
+              </span>
             </div>
             <Progress value={progresso} />
             <p className="text-xs text-center text-muted-foreground">{progresso}%</p>
