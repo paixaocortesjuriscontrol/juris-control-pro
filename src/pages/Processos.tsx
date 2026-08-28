@@ -35,6 +35,13 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gerarManualProcessosPdf } from "@/lib/manualProcessosPdf";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ExportarModeloDialog, type ModeloExportacao } from "@/components/processos/ExportarModeloDialog";
 import { toast } from "sonner";
 
 type AreaType = "civil" | "trabalhista" | "empresarial" | "caso";
@@ -124,6 +131,8 @@ const Processos = () => {
   const [showTransferirDialog, setShowTransferirDialog] = useState(false);
   const [showFormDialog, setShowFormDialog] = useState(false);
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
+  const [showExportarModelo, setShowExportarModelo] = useState(false);
+  const [modeloExportacao, setModeloExportacao] = useState<ModeloExportacao>("monitoramento");
   const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
