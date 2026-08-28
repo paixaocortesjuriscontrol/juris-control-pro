@@ -899,6 +899,34 @@ export function PautasExcelDialog({
 
         {etapa === "upload" && (
           <div className="space-y-4 py-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={modo === "importar" ? "default" : "outline"}
+                onClick={() => setModo("importar")}
+              >
+                Importar audiências
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={modo === "etiquetas" ? "default" : "outline"}
+                onClick={() => setModo("etiquetas")}
+              >
+                <Tag className="h-4 w-4 mr-2" /> Somente aplicar etiquetas
+              </Button>
+            </div>
+            {modo === "etiquetas" && (
+              <Alert>
+                <Tag className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Neste modo nada é criado: o sistema procura as audiências já cadastradas nesta
+                  coordenação (mesmo processo e mesmo dia) e aplica a etiqueta da coluna ETIQUETA de
+                  cada linha da planilha.
+                </AlertDescription>
+              </Alert>
+            )}
             <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-lg p-10 cursor-pointer hover:bg-muted/40 transition-colors">
               <Upload className="h-10 w-10 text-muted-foreground" />
               <div className="text-center">
