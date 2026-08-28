@@ -64,12 +64,15 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
           ]),
         ).join(", ");
 
-        const PAGE = 500;
+        const PAGE = 1000;
+        const CONCURRENCY = 4;
         let semPendencia = 0;
         const semPendenciaIds: string[] = [];
-        for (let i = 0; i < ids.length; i += PAGE) {
-          if (cancelled || runId !== runIdRef.current) return;
-          const batch = ids.slice(i, i + PAGE);
+
+        const lotes: string[][] = [];
+        for (let i = 0; i < ids.length; i += PAGE) lotes.push(ids.slice(i, i + PAGE));
+
+        const processarLote = async (batch: string[]) => {
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .select(cols)
@@ -91,6 +94,11 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
               semPendenciaIds.push((r as any).id);
             }
           }
+        };
+
+        for (let i = 0; i < lotes.length; i += CONCURRENCY) {
+          if (cancelled || runId !== runIdRef.current) return;
+          await Promise.all(lotes.slice(i, i + CONCURRENCY).map(processarLote));
         }
         if (!cancelled && runId === runIdRef.current) {
           setCount(semPendencia);
