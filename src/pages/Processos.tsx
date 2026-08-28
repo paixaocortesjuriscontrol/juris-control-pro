@@ -35,6 +35,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { gerarManualProcessosPdf } from "@/lib/manualProcessosPdf";
+import { toast } from "sonner";
 
 type AreaType = "civil" | "trabalhista" | "empresarial" | "caso";
 type StatusType = "pending" | "active" | "closed" | "urgent";
