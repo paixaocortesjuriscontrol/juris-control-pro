@@ -1,6 +1,6 @@
 # Botão Judit na Distribuição TST — diagnóstico revisado
 
-Você está certo: os processos são do TST. O problema não é "processo sem TST" — é que a consulta está **respondendo com a instância de origem (TRT)** do mesmo processo e a tela não tem como preencher os campos do TST com isso.
+Você está certo, e o plano não diz o contrário: **a tela sempre pede TST** (`tribunal: "TST"` em toda consulta). O problema está na **resposta**: cada processo trabalhista tem várias instâncias na Judit sob o mesmo número CNJ (a de origem, no TRT, e a do TST). A tela pede TST, mas a função devolve a instância do TRT do mesmo processo — e com dado de TRT ela não pode preencher tipo de recurso, relator e turma do TST.
 
 ## O que foi verificado
 
