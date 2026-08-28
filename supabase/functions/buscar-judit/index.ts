@@ -28,14 +28,13 @@ const POLL_INTERVAL_MS = 1000;
 // em 2–4s quando o processo já está no cache interno deles.
 const POLL_FAST_INTERVAL_MS = 400;
 const POLL_FAST_ATTEMPTS = 5;
-// Crawler do TST normalmente leva 8–25s. Esperar 60s fazia o clique da
-// advogada travar por mais de um minuto (e até ~124s quando havia retentativa
-// TST em sequência). 25s cobre a grande maioria dos casos; o que não completar
-// nesse tempo cai no melhor dado disponível (cache/fallback).
-const POLL_TIMEOUT_MS = 25_000;
+// Crawler do TST normalmente leva 8–25s, e a retentativa dirigida ao TST soma
+// outra rodada. Como a tela Distribuição TST SEMPRE precisa da instância TST,
+// damos orçamento para as duas rodadas em vez de devolver dado incompleto.
+const POLL_TIMEOUT_MS = 35_000;
 // Teto total por requisição — se estourar, respondemos com o que já temos em
 // vez de enfileirar outra rodada de crawler.
-const REQUEST_BUDGET_MS = 30_000;
+const REQUEST_BUDGET_MS = 75_000;
 // Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
 // instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
 // no body (envia cache_ttl_in_days=0).
