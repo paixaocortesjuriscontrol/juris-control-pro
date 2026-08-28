@@ -153,6 +153,13 @@ export function NovoItemPanel({
             defaultProcessoId={processoPreSelecionado?.id}
           />
         )}
+
+        {/* Atividades vinculadas ao item (somente em edição de item existente) */}
+        {itemParaEditar?.id && (
+          <div className="px-4 sm:px-6 pb-6 pt-2 border-t mt-2">
+            <ItemAtividades tipo={tipo} itemId={String(itemParaEditar.id)} />
+          </div>
+        )}
       </div>
     </div>
   );
