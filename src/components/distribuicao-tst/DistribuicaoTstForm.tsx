@@ -50,6 +50,7 @@ const eq = (v: any, ...alvos: string[]) => {
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import { logJudit } from "@/lib/juditLog";
 import {
   useTurmasTst,
   useRelatoresTst,
@@ -265,6 +266,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     activeRecordIdRef.current = dado?.id || undefined;
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
+  // true quando a Judit não devolveu a instância TST do processo nesta consulta.
+  const [tstIndisponivel, setTstIndisponivel] = useState(false);
 
   // Campos que a tela identifica explicitamente com o badge "Judit".
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
@@ -703,27 +706,46 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         console.warn("Pré-save antes da Judit falhou:", e);
       }
       const requestPayload = { numero_processo: numero, tribunal: "TST", com_anexos: comAnexosArg, force_refresh: forceRefresh };
-      const { data, error } = await supabase.functions.invoke("buscar-judit", {
-        body: requestPayload,
-      });
-      // Persiste log da consulta (sucesso, erro de função ou erro retornado).
-      try {
-        const { data: userData } = await supabase.auth.getUser();
-        await supabase.from("judit_logs" as any).insert({
-          processo_numero: numero,
-          tribunal: "TST",
-          request_payload: { ...requestPayload, numero_processo_original: numeroRaw },
-          raw_response: data ?? null,
-          status: error ? "erro_funcao" : (data?.error ? "erro_api" : "sucesso"),
-          error_message: error?.message || data?.error || null,
-          created_by: userData?.user?.id || null,
-      });
-      } catch (logErr) {
-        console.warn("Falha ao gravar judit_logs:", logErr);
+      const t0Judit = Date.now();
+      const ehErroDeRede = (msg: string) => {
+        const m = (msg || "").toLowerCase();
+        return (
+          m.includes("failed to send a request") ||
+          m.includes("timeout") ||
+          m.includes("aborted") ||
+          m.includes("network") ||
+          m.includes("fetch")
+        );
+      };
+      // A instância TST pode exigir crawler + retentativa (duas rodadas). Se a
+      // primeira tentativa cair por rede/timeout, repetimos UMA vez em vez de
+      // mostrar erro no primeiro tropeço — o resultado normalmente já está
+      // pronto no cache da Judit na segunda chamada.
+      let data: any = null;
+      let error: any = null;
+      for (let tentativa = 0; tentativa < 2; tentativa++) {
+        const resp = await supabase.functions.invoke("buscar-judit", { body: requestPayload });
+        data = resp.data;
+        error = resp.error;
+        if (!error || !ehErroDeRede(error.message || "")) break;
+        if (tentativa === 0) {
+          toast.info("A Judit está demorando para responder — tentando mais uma vez...", { duration: 4000 });
+          await new Promise((r) => setTimeout(r, 1500));
+        }
       }
+      // Persiste log da consulta (sucesso, erro de função ou erro retornado),
+      // já com usuário, origem, duração e tipo de cobrança para o /consumo-judit.
+      await logJudit({
+        processoNumero: numero,
+        tribunal: "TST",
+        requestPayload: { ...requestPayload, numero_processo_original: numeroRaw },
+        juditData: data ?? null,
+        juditError: error ?? null,
+        duracaoMs: Date.now() - t0Judit,
+        origem: "distribuicao-tst",
+      });
       if (error) {
-        const msg = (error.message || "").toLowerCase();
-        if (msg.includes("timeout") || msg.includes("aborted") || msg.includes("network")) {
+        if (ehErroDeRede(error.message || "")) {
           toast.error("A Judit demorou mais que o normal. Tente novamente em alguns segundos — o resultado já pode estar em cache.");
         } else {
           toast.error("Erro ao buscar na Judit: " + (error.message || "desconhecido"));
@@ -738,16 +760,18 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       {
         const m = (data as any)?._judit_meta;
         const tribSel = String(m?.tribunal_selecionado || "").toUpperCase();
-        const naoTst = m?.instancia_tst === false || (tribSel && tribSel !== "TST");
-        if (naoTst && !forceRefresh) {
-          toast.info(
-            `Judit respondeu com dados de ${tribSel || "outra instância"} (resposta rápida). Se precisar do TST atualizado, clique em "Forçar atualização".`,
-            { duration: 7000 },
+        const semTst = m?.tst_indisponivel === true || m?.instancia_tst === false || (!!tribSel && tribSel !== "TST");
+        setTstIndisponivel(semTst);
+        if (semTst) {
+          toast.warning(
+            "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente.",
+            { duration: 8000 },
           );
         } else if (m?.respondido_do_cache === true) {
-          toast.success("Judit (cache) — resposta instantânea");
+          toast.success("Judit (cache TST) — resposta instantânea");
         }
       }
+
 
       if (comAnexosArg) {
         const atts = Array.isArray((data as any)?.attachments) ? (data as any).attachments : [];
@@ -1233,6 +1257,16 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   return (
     <div id="dtst-form-root" className="space-y-6">
+      {tstIndisponivel && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-100">
+          <p className="font-semibold">A Judit ainda não indexou a instância TST deste processo</p>
+          <p className="mt-1">
+            Tipo de recurso, relator, turma e situação não podem ser preenchidos automaticamente
+            enquanto a instância do TST não aparecer na base da Judit. Preencha manualmente ou tente
+            novamente com “Forçar atualização”.
+          </p>
+        </div>
+      )}
       <div className="flex items-center gap-3">
         {iaResumo && (
           <div

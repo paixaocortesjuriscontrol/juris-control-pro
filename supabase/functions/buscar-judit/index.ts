@@ -28,14 +28,13 @@ const POLL_INTERVAL_MS = 1000;
 // em 2–4s quando o processo já está no cache interno deles.
 const POLL_FAST_INTERVAL_MS = 400;
 const POLL_FAST_ATTEMPTS = 5;
-// Crawler do TST normalmente leva 8–25s. Esperar 60s fazia o clique da
-// advogada travar por mais de um minuto (e até ~124s quando havia retentativa
-// TST em sequência). 25s cobre a grande maioria dos casos; o que não completar
-// nesse tempo cai no melhor dado disponível (cache/fallback).
-const POLL_TIMEOUT_MS = 25_000;
+// Crawler do TST normalmente leva 8–25s, e a retentativa dirigida ao TST soma
+// outra rodada. Como a tela Distribuição TST SEMPRE precisa da instância TST,
+// damos orçamento para as duas rodadas em vez de devolver dado incompleto.
+const POLL_TIMEOUT_MS = 35_000;
 // Teto total por requisição — se estourar, respondemos com o que já temos em
 // vez de enfileirar outra rodada de crawler.
-const REQUEST_BUDGET_MS = 30_000;
+const REQUEST_BUDGET_MS = 75_000;
 // Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
 // instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
 // no body (envia cache_ttl_in_days=0).
@@ -145,18 +144,17 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
       const raw = (row as any)?.raw_response;
       if (!raw || raw?.error) continue;
       if (raw?._judit_meta?.com_anexos === true) continue;
-      // Quando a tela pede TST, o cache local NÃO pode devolver uma resposta
-      // antiga de TRT/1ª instância. Isso foi a causa de formulários que
-      // pareciam “não preencher”: a função respondia rápido, mas com dados que
-      // não eram da instância TST. Só aceitamos app-cache se a própria resposta
-      // já foi normalizada como TST/crawler_tst.
-      // Antes descartávamos qualquer resposta que não fosse TST quando a tela
-      // pedia TST — isso fazia cada clique pagar 60–124s de crawler em
-      // processos que só têm TRT. Agora aceitamos e marcamos a instância; a
-      // busca dirigida ao TST fica no "Forçar atualização".
+      // Quando a tela pede TST (Distribuição TST pede SEMPRE), o cache local
+      // NÃO pode devolver uma resposta antiga da instância de origem (TRT).
+      // Isso era a causa dos formulários que "não preenchem": a função
+      // respondia em 1s, mas com a instância errada do mesmo processo — e
+      // tipo_recurso/relator/turma do TST ficavam nulos por até 3 dias.
       const rawTribunal = String(raw?.tribunal || "").toUpperCase();
       const fonte = String(raw?._judit_meta?.fonte || "").toLowerCase();
-      const ehTst = rawTribunal === "TST" || fonte === "crawler_tst";
+      const ehTst =
+        rawTribunal === "TST" ||
+        fonte === "crawler_tst" ||
+        raw?._judit_meta?.instancia_tst === true;
       // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
       // o app-cache trava o processo em "tudo null" para sempre.
       const temAlgo = !!(
@@ -166,9 +164,7 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
         (Array.isArray(raw?.parties_detail) && raw.parties_detail.length > 0)
       );
       if (!temAlgo) continue;
-      if (tribunalHint === "TST" && !ehTst) {
-        raw._instancia_tst = false;
-      }
+      if (tribunalHint === "TST" && !ehTst) continue;
       return raw;
     }
     return null;
@@ -794,18 +790,15 @@ serve(async (req) => {
     let foiTst = false;
     let respondidoDoCache = false;
 
-    // Cache-first: se o cache tem qualquer dado útil, devolve na hora.
-    // Antes exigíamos `isTstRd(cached)` quando tribunalHint=TST — mas processos
-    // que NÃO têm instância TST (ex.: 0000385-38.2024.5.23.0002, só TRT23)
-    // nunca satisfaziam isso e pagavam 30-60s de crawler a cada clique. Agora
-    // aceitamos o cache mesmo sem TST e disparamos refresh em background; se
-    // surgir TST depois, o próximo clique já vê.
-    // Cache-first SÓ quando o cache tem dados realmente úteis para preencher
-    // o formulário. Antes bastava ter `parties` ou `steps`, mas isso fazia o
-    // app responder instantaneamente com tudo null (ex.: 1001703-15.2023.5.02.0081,
-    // cuja cache TRT2 não traz classe/relator/órgão). Agora exigimos pelo menos
-    // um sinal extraível (classe OU relator OU órgão OU steps suficientes),
-    // OU que seja a instância TST quando o cliente pediu TST.
+    // Cache-first, MAS: quando o cliente pede TST (Distribuição TST pede
+    // sempre), o atalho só vale se o próprio cache for da instância TST.
+    // Um processo trabalhista tem várias instâncias sob o mesmo CNJ; devolver
+    // a de origem (TRT) faz tipo_recurso/relator/turma sairem nulos por regra
+    // (`classeRecursal = foiTst ? classe : null`) e era exatamente o que a
+    // advogada via como "não preenche completamente". O cache de TRT continua
+    // guardado em rawCollector.cache_lookup (serve para reclamante/reclamada da
+    // origem e trânsito), mas a execução segue para o crawler, que devolve
+    // todas as instâncias e escolhe a do TST.
     const cachedClasse = extrairClasse(cached || {});
     const cachedOrgaoRel = extrairOrgaoERelator(cached || {});
     const cachedTemSinal = !!(
@@ -820,10 +813,9 @@ serve(async (req) => {
       !comAnexos &&
       !forceRefresh &&
       (Array.isArray(cached?.parties) && cached.parties.length > 0) &&
-      // Aceita cache de qualquer instância desde que haja dado útil, inclusive
-      // quando a tela pediu TST. Sem isso, todo processo que ainda só tem TRT
-      // pagava 60–124s de crawler a cada clique.
-      (isTstRd(cached) || cachedTemSinal);
+      (tribunalHint === "TST"
+        ? isTstRd(cached)
+        : (isTstRd(cached) || cachedTemSinal));
 
     if (cacheUsavel) {
       rdSelecionada = cached;
@@ -867,11 +859,11 @@ serve(async (req) => {
     // forçar recrawl e agrega as páginas novas ao conjunto analisado.
     let retentativaTst = false;
     let retentativaTstTrouxeTst = false;
-    // Só roda no mesmo clique quando o usuário pediu atualização forçada e
-    // ainda há orçamento de tempo. No fluxo normal a retentativa é dispensada
-    // (o usuário pode clicar em "Forçar atualização" se precisar do TST).
+    // Roda no clique normal também: a tela sempre pede TST, então se depois do
+    // crawler nenhuma instância retornada é do TST vale uma segunda rodada com
+    // ttl=0 antes de devolver dado incompleto. Protegido por orçamento de tempo.
     const orcamentoRestante = REQUEST_BUDGET_MS - (Date.now() - t0);
-    if (tribunalHint === "TST" && forceRefresh && orcamentoRestante > 5_000) {
+    if (tribunalHint === "TST" && orcamentoRestante > 12_000) {
       const paginasAtuais: any[] = Array.isArray(rawCollector.crawler?.page_data)
         ? rawCollector.crawler.page_data
         : [];
@@ -1277,6 +1269,10 @@ serve(async (req) => {
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
+        // true = pedimos TST, esgotamos cache + crawler + retentativa e a Judit
+        // não devolveu a instância TST deste processo. A UI usa isso para
+        // avisar que tipo de recurso/situação não podem vir automaticamente.
+        tst_indisponivel: tribunalHint === "TST" && !foiTst,
       },
       requer_revisao_polo: requerRevisaoPolo,
       attachments: comAnexos
