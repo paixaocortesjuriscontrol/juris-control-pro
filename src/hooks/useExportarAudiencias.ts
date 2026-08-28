@@ -32,7 +32,12 @@ export function useExportarAudiencias() {
       "CLIENTE": a.cliente || "",
       "TERCEIRIZADO": a.terceirizado || "",
       "TIPO": a.tipo_audiencia || "",
+      "MODALIDADE": (a as any).modalidade || "",
+      "FÓRUM": (a as any).forum || "",
+      "SALA": (a as any).sala_forum || "",
+      "LOCAL": (a as any).local_audiencia || "",
       "RESUMO DO OBJETO": a.resumo_objeto || "",
+
       "FUNÇÃO": a.funcao || "",
       "PREPOSTO": a.preposto || "",
       "TESTEMUNHAS": a.testemunhas || "",
