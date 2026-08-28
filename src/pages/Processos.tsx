@@ -116,6 +116,7 @@ const Processos = () => {
   const [areaFilter, setAreaFilter] = useState<string>(() => searchParams.get("area") || "all");
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get("status") || "all");
   const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
+  const [exportando, setExportando] = useState(false);
   const [selectedProcessos, setSelectedProcessos] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [lateralProcessoId, setLateralProcessoId] = useState<string | null>(null);
