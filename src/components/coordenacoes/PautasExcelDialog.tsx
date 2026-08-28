@@ -676,6 +676,14 @@ export function PautasExcelDialog({
         await supabase.from("audiencias_advogados").insert(advogadosInsert);
       }
 
+      // Vincular envolvidos (fixos da coordenação + selecionados na tela)
+      const envolvidosInsert = envolvidosIds
+        .filter((id) => !responsaveisIds.includes(id))
+        .map((usuarioId) => ({ audiencia_id: audId, usuario_id: usuarioId }));
+      if (envolvidosInsert.length > 0) {
+        await (supabase as any).from("audiencia_envolvidos").insert(envolvidosInsert);
+      }
+
       if (chaveAudiencia) audChave.add(chaveAudiencia);
       idsCriados.push(audId);
 
