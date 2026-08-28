@@ -67,12 +67,13 @@ const CONTEUDO: Bloco[] = [
     texto:
       "A Judit preenche apenas campos vazios: informações digitadas manualmente não são sobrescritas, exceto o Tipo de Recurso, que só é considerado válido quando confirmado por andamento da Judit.",
   },
-  { tipo: "subtitulo", texto: "Forçar atualização" },
+  { tipo: "subtitulo", texto: "Dados sempre atuais e cache do dia" },
   {
     tipo: "paragrafo",
     texto:
-      "A consulta normal aproveita o cache para responder rápido. Se precisar dos dados mais recentes (por exemplo, uma distribuição no TST ocorrida hoje), use a opção Forçar atualização. Essa consulta é mais lenta e consome mais créditos, portanto utilize apenas quando necessário.",
+      "Cada clique no botão Judit faz uma consulta atualizada no tribunal (mais lenta, de 8 a 30 segundos). A única exceção é quando o mesmo processo já foi consultado com sucesso no mesmo dia: nesse caso o sistema reaproveita o resultado do dia, respondendo na hora e sem novo custo. Consultas de dias anteriores nunca são reaproveitadas. Use Forçar atualização para ignorar até o resultado do dia.",
   },
+
   { tipo: "subtitulo", texto: "Consulta com anexos" },
   {
     tipo: "paragrafo",
