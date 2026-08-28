@@ -8,6 +8,7 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
+import { ItemAtividades } from "@/components/comum/ItemAtividades";
 
 export type NovoItemTipo = "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
 
