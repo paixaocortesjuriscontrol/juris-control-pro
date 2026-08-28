@@ -32,7 +32,8 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
-import { Download } from "lucide-react";
+import { Download, UsersRound } from "lucide-react";
+import { PessoasEmLoteDialog } from "@/components/painel/PessoasEmLoteDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1136,6 +1137,7 @@ export default function PainelControle() {
 
   // ===== Exportação (Excel) com período e tipos selecionáveis =====
   const [exportOpen, setExportOpen] = useState(false);
+  const [pessoasLoteOpen, setPessoasLoteOpen] = useState(false);
 
   const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
     const XLSX = await import("xlsx");
@@ -2053,6 +2055,21 @@ export default function PainelControle() {
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
               />
+              {isAdminOrCoordinator && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs gap-1"
+                    onClick={() => setPessoasLoteOpen(true)}
+                    title="Acrescentar responsáveis/envolvidos em lote"
+                  >
+                    <UsersRound className="w-3.5 h-3.5" />
+                    Pessoas em lote
+                  </Button>
+                  <PessoasEmLoteDialog open={pessoasLoteOpen} onOpenChange={setPessoasLoteOpen} />
+                </>
+              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button size="sm" className="h-7 px-3 text-xs gap-1">
