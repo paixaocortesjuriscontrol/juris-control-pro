@@ -35,10 +35,23 @@ const POLL_TIMEOUT_MS = 35_000;
 // Teto total por requisição — se estourar, respondemos com o que já temos em
 // vez de enfileirar outra rodada de crawler.
 const REQUEST_BUDGET_MS = 75_000;
-// Cache padrão de 3 dias — buscas repetidas no mesmo processo voltam quase
-// instantâneas. Quando precisa ignorar o cache, passar `force_refresh: true`
-// no body (envia cache_ttl_in_days=0).
-const CACHE_TTL_DAYS_DEFAULT = 3;
+// Todo clique busca dados ATUAIS (crawler, cache_ttl_in_days=0). A única
+// economia é o cache local do app: se o MESMO processo já foi consultado com
+// sucesso HOJE (data civil de America/Sao_Paulo), reaproveitamos o resultado
+// já gravado em judit_logs. Ontem ou antes ⇒ consulta nova.
+const CACHE_TTL_DAYS_DEFAULT = 0;
+
+// Início do dia civil de São Paulo (UTC-3) em ISO — usado como corte do cache.
+function inicioDoDiaSaoPauloISO(): string {
+  const agora = new Date();
+  const spMs = agora.getTime() - 3 * 60 * 60 * 1000;
+  const sp = new Date(spMs);
+  const y = sp.getUTCFullYear();
+  const m = String(sp.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(sp.getUTCDate()).padStart(2, "0");
+  // 00:00 em São Paulo = 03:00 UTC do mesmo dia
+  return `${y}-${m}-${d}T03:00:00.000Z`;
+}
 
 // ---------- Helpers ---------------------------------------------------------
 
