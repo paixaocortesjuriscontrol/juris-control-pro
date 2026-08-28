@@ -4800,6 +4800,45 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">{gerandoDocResumoIntimacaoSemRep ? "..." : "Intimação s/ rep."}</span>
           </Button>
 
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={allPublicacoes.length === 0 || !!gerandoExcel}
+                title="Exporta para Excel as mesmas seleções disponíveis em PDF e DOC"
+                className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+              >
+                {gerandoExcel ? (
+                  <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                )}
+                <span className="hidden sm:inline">{gerandoExcel ? "Gerando..." : "Exportar Excel"}</span>
+                <span className="sm:hidden">{gerandoExcel ? "..." : "Excel"}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("completo"), 0)}>
+                Excel completo (conteúdo integral)
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("resumo"), 0)}>
+                Excel Resumo
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("resumo-sem-rep"), 0)}>
+                Excel Resumo sem repetição
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("intimacao"), 0)}>
+                Excel Intimações (sem Lista de Distribuição)
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("intimacao-sem-rep"), 0)}>
+                Excel Intimações sem repetição
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+
+
           <Button
               variant="outline"
               size="sm"
