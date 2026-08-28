@@ -59,7 +59,12 @@ export function useExportarAudiencias() {
       { wch: 35 }, // CLIENTE
       { wch: 25 }, // TERCEIRIZADO
       { wch: 25 }, // TIPO
+      { wch: 18 }, // MODALIDADE
+      { wch: 25 }, // FÓRUM
+      { wch: 14 }, // SALA
+      { wch: 30 }, // LOCAL
       { wch: 50 }, // RESUMO
+
       { wch: 20 }, // FUNÇÃO
       { wch: 30 }, // PREPOSTO
       { wch: 25 }, // TESTEMUNHAS
