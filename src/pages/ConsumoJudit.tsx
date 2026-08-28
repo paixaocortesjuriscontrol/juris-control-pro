@@ -93,7 +93,7 @@ type Row = {
 };
 
 function detectarTipo(payload: any, salvo: string | null): keyof typeof PRECOS_BRL {
-  if (salvo && (salvo === "com_anexos" || salvo === "on_demand" || salvo === "datalake")) {
+  if (salvo && (salvo === "com_anexos" || salvo === "on_demand" || salvo === "datalake" || salvo === "cache_local")) {
     return salvo as any;
   }
   const p = payload || {};
