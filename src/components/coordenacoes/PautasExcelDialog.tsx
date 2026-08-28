@@ -1047,7 +1047,8 @@ export function PautasExcelDialog({
                     emptyLabel="Nenhum responsável selecionado — obrigatório"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Pré-carregados com os responsáveis fixos de Audiência desta coordenação.
+                    Os responsáveis fixos de Audiência desta coordenação são sempre incluídos, mesmo
+                    se removidos aqui.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -1059,8 +1060,10 @@ export function PautasExcelDialog({
                     emptyLabel="Nenhum envolvido selecionado"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Pré-carregados com os envolvidos fixos de Audiência desta coordenação.
+                    Os envolvidos fixos de Audiência desta coordenação são sempre incluídos, mesmo se
+                    removidos aqui.
                   </p>
+
                 </div>
               </div>
             )}
