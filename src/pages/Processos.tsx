@@ -648,6 +648,12 @@ const Processos = () => {
                     Administrativo
                   </div>
                 </SelectItem>
+                <SelectItem value="outro">
+                  <div className="flex items-center gap-2">
+                    <FileText className="w-4 h-4" />
+                    Outro
+                  </div>
+                </SelectItem>
                 <SelectItem value="caso">
                   <div className="flex items-center gap-2">
                     <Briefcase className="w-4 h-4" />
