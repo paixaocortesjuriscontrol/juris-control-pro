@@ -92,6 +92,44 @@ function baixarErrosCsv(erros: ErroImport[]) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Busca todas as linhas de uma tabela para uma lista de valores, em blocos e
+ * paginando as respostas — o Supabase devolve no máximo 1000 linhas por página,
+ * e truncar aqui fazia a checagem de duplicidade falhar.
+ */
+async function buscarPaginado<T = any>(
+  tabela: string,
+  colunas: string,
+  valores: string[],
+  coluna: string,
+  coordenacaoId?: string,
+): Promise<T[]> {
+  const unicos = Array.from(new Set(valores.filter(Boolean)));
+  if (unicos.length === 0) return [];
+  const BLOCO = 150;
+  const PAGINA = 1000;
+  const out: T[] = [];
+  for (let i = 0; i < unicos.length; i += BLOCO) {
+    const slice = unicos.slice(i, i + BLOCO);
+    let from = 0;
+    while (true) {
+      let q = (supabase as any)
+        .from(tabela)
+        .select(colunas)
+        .in(coluna, slice)
+        .range(from, from + PAGINA - 1);
+      if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = (data as T[]) || [];
+      out.push(...rows);
+      if (rows.length < PAGINA) break;
+      from += PAGINA;
+    }
+  }
+  return out;
+}
+
 
 
 export function PautasExcelDialog({
