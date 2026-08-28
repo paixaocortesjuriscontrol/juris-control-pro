@@ -22,6 +22,7 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEtiquetas, ETIQUETA_MODULOS, ETIQUETA_COLOR_PALETTE } from "@/hooks/useEtiquetas";
+import { useFixosDoTipoCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
