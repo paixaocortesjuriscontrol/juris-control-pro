@@ -55,3 +55,42 @@ export function useItensComAtividades(items: ItemAgendaUnificado[] | undefined) 
     },
   });
 }
+
+/**
+ * Retorna a contagem de atividades (subatividades) por item, para exibir
+ * badges "N atividade(s)" em listas/cards (ex.: abas laterais do Processo).
+ */
+export function useContagemAtividades(itemIds: (string | null | undefined)[]) {
+  const ids = useMemo(() => {
+    const set = new Set<string>();
+    (itemIds || []).forEach((id) => {
+      if (id) set.add(getItemRawId(String(id)));
+    });
+    return Array.from(set).sort();
+  }, [itemIds]);
+
+  return useQuery({
+    queryKey: ["contagem-atividades-itens", ids],
+    enabled: ids.length > 0,
+    staleTime: 30 * 1000,
+    queryFn: async () => {
+      const contagem: Record<string, number> = {};
+      const chunks: string[][] = [];
+      for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+      await Promise.all(
+        chunks.map(async (chunk) => {
+          const { data, error } = await (supabase as any)
+            .from("subatividades_item")
+            .select("item_id")
+            .in("item_id", chunk);
+          if (error) throw error;
+          (data || []).forEach((row: any) => {
+            if (!row.item_id) return;
+            contagem[row.item_id] = (contagem[row.item_id] || 0) + 1;
+          });
+        })
+      );
+      return contagem;
+    },
+  });
+}
