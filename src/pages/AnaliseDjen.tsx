@@ -2960,6 +2960,136 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== Exportações para Excel — espelham as opções de PDF/DOC =====
+  type VarianteExcel =
+    | "completo"
+    | "resumo"
+    | "resumo-sem-rep"
+    | "intimacao"
+    | "intimacao-sem-rep";
+
+  const LABEL_EXCEL: Record<VarianteExcel, string> = {
+    completo: "Excel Completo",
+    resumo: "Excel Resumo",
+    "resumo-sem-rep": "Excel Resumo sem repetição",
+    intimacao: "Excel Intimações",
+    "intimacao-sem-rep": "Excel Intimações sem repetição",
+  };
+
+  const handleGerarExcel = async (variante: VarianteExcel) => {
+    const rawPubs = getPubsParaGerar();
+    if (rawPubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+
+    const ehListaDistribuicaoXls = (pub: any) => {
+      const tipoCom = (pub?.tipo_comunicacao || "").toString().toLowerCase();
+      if (tipoCom.includes("lista de distribui")) return true;
+      const texto = stripHtmlAndDecodeEntities(pub?.conteudo)
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+      return texto.includes("lista de distribuicao");
+    };
+
+    let pubs = rawPubs;
+    if (variante === "intimacao" || variante === "intimacao-sem-rep") {
+      pubs = pubs.filter((p) => !ehListaDistribuicaoXls(p));
+    }
+    if (variante === "resumo-sem-rep" || variante === "intimacao-sem-rep") {
+      pubs = dedupPubsPorProcessoSemDestinatarios(pubs);
+    }
+    if (pubs.length === 0) {
+      toast.error("Nenhuma publicação restou após os filtros desta exportação");
+      return;
+    }
+
+    const ignoradas = rawPubs.length - pubs.length;
+    setGerandoExcel(variante);
+    const toastId = toast.loading(
+      ignoradas > 0
+        ? `Gerando ${LABEL_EXCEL[variante]} (${ignoradas} ignorada(s))...`
+        : `Gerando ${LABEL_EXCEL[variante]}...`
+    );
+
+    try {
+      const [XLSX, comentariosMap] = await Promise.all([
+        import("xlsx"),
+        fetchComentariosMap(pubs.map((p) => p.id)),
+      ]);
+
+      const fmtData = (v?: string | null) => {
+        if (!v) return "";
+        try {
+          return format(new Date(v), "dd/MM/yyyy");
+        } catch {
+          return "";
+        }
+      };
+      const nomes = (arr: any): string =>
+        Array.isArray(arr)
+          ? arr
+              .map((x: any) => (typeof x === "string" ? x : x?.nome || x?.name || ""))
+              .filter(Boolean)
+              .join("; ")
+          : "";
+
+      const linhas = pubs.map((pub: any, idx: number) => {
+        const conteudoLimpo = stripHtmlAndDecodeEntities(pub.conteudo || "")
+          .replace(/\s+/g, " ")
+          .trim();
+        const resumo = extractResumoSemIA(pub);
+        const coms = (comentariosMap.get(pub.id) || [])
+          .map((c) => `${c.autor}: ${c.comentario}`)
+          .join(" | ");
+        return {
+          "#": idx + 1,
+          "Data publicação": fmtData(pub.data_publicacao),
+          "Data disponibilização": fmtData(pub.data_disponibilizacao),
+          "Nº do processo": pub.processo_numero || "",
+          Tribunal: pub.tribunal || "",
+          "Órgão / Vara": pub.orgao || "",
+          "Tipo de comunicação": pub.tipo_comunicacao || "",
+          Meio: pub.meio || "",
+          "Polo ativo": pub.polo_ativo || nomes(pub.partes_json),
+          "Polo passivo": pub.polo_passivo || "",
+          Advogados: nomes(pub.advogados_json),
+          Monitoramento: pub.monitoramento_descricao || pub.monitoramento_termo || "",
+          "Tipo do monitoramento": pub.monitoramento_tipo || "",
+          Coordenação: pub.coordenacao_nome || "",
+          Lida: pub.lida ? "Sim" : "Não",
+          Comentários: coms,
+          ...(variante === "completo"
+            ? { "Conteúdo integral": conteudoLimpo }
+            : { Resumo: resumo || conteudoLimpo.slice(0, 3000) }),
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      ws["!cols"] = [
+        { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 26 }, { wch: 12 },
+        { wch: 30 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 34 },
+        { wch: 34 }, { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 8 },
+        { wch: 40 }, { wch: 120 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Publicações");
+      const origem = tipoOrigem === "djet-pautas" ? "DEJT" : "DJEN";
+      XLSX.writeFile(
+        wb,
+        `${origem}_${variante}_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`
+      );
+      toast.success(`${LABEL_EXCEL[variante]}: ${linhas.length} publicação(ões)`, { id: toastId });
+    } catch (e: any) {
+      toast.error(`Erro ao gerar Excel: ${e?.message ?? e}`, { id: toastId });
+    } finally {
+      setGerandoExcel(null);
+    }
+  };
+
+
+
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
   //  (TEMAS_IRR, PAUTA, CEJUSC, DISTRIBUIÇÕES, PRAZOS).
   //  Regras (case-insensitive, primeira que casar vence):
