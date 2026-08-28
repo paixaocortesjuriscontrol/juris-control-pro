@@ -325,6 +325,7 @@ export interface AplicarPessoasParams {
   atividadesIds: string[];
   responsaveis: string[];
   envolvidos: string[];
+  usuarioAtualId?: string | null;
   onProgress?: (feitos: number, total: number) => void;
 }
 
