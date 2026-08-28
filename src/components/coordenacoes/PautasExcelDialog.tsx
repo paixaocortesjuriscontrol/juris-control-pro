@@ -111,6 +111,11 @@ export function PautasExcelDialog({
   const [verificandoDuplicidade, setVerificandoDuplicidade] = useState(false);
   const [mostrarErros, setMostrarErros] = useState(true);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  /** "importar" cria as audiências; "etiquetas" só aplica etiquetas em itens já existentes. */
+  const [modo, setModo] = useState<"importar" | "etiquetas">("importar");
+  /** Resultado do casamento planilha → audiência existente (modo etiquetas). */
+  const [matchEtiquetas, setMatchEtiquetas] = useState<Map<number, string[]>>(new Map());
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
   const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
@@ -119,6 +124,17 @@ export function PautasExcelDialog({
     coordenacaoId,
     "itens",
   );
+  const { data: fixos } = useFixosDoTipoCoordenacao(coordenacaoId, "audiencia");
+
+  // Pré-carrega responsáveis/envolvidos fixos do tipo Audiência da coordenação.
+  const fixosKey = JSON.stringify(fixos ?? null);
+  useEffect(() => {
+    if (!open || !fixos) return;
+    setResponsaveisIds((prev) => (prev.length ? prev : fixos.responsaveis));
+    setEnvolvidosIds((prev) => (prev.length ? prev : fixos.envolvidos));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fixosKey]);
+
 
   const etiquetasFiltradas = useMemo(() => {
     const q = buscaEtiqueta.trim().toLowerCase();
