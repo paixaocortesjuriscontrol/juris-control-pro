@@ -859,11 +859,11 @@ serve(async (req) => {
     // forçar recrawl e agrega as páginas novas ao conjunto analisado.
     let retentativaTst = false;
     let retentativaTstTrouxeTst = false;
-    // Só roda no mesmo clique quando o usuário pediu atualização forçada e
-    // ainda há orçamento de tempo. No fluxo normal a retentativa é dispensada
-    // (o usuário pode clicar em "Forçar atualização" se precisar do TST).
+    // Roda no clique normal também: a tela sempre pede TST, então se depois do
+    // crawler nenhuma instância retornada é do TST vale uma segunda rodada com
+    // ttl=0 antes de devolver dado incompleto. Protegido por orçamento de tempo.
     const orcamentoRestante = REQUEST_BUDGET_MS - (Date.now() - t0);
-    if (tribunalHint === "TST" && forceRefresh && orcamentoRestante > 5_000) {
+    if (tribunalHint === "TST" && orcamentoRestante > 12_000) {
       const paginasAtuais: any[] = Array.isArray(rawCollector.crawler?.page_data)
         ? rawCollector.crawler.page_data
         : [];
