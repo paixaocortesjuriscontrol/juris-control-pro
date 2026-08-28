@@ -408,6 +408,149 @@ export function PautasExcelDialog({
   );
   const duplicadasCount = linhas.length - linhasImportaveis.length;
 
+  /** Linhas com etiqueta na planilha que casaram com audiências existentes. */
+  const linhasEtiquetaveis = useMemo(
+    () =>
+      linhas.filter(
+        (l) => (l.etiqueta || etiquetasSel.length > 0) && (matchEtiquetas.get(l.linha)?.length ?? 0) > 0,
+      ),
+    [linhas, matchEtiquetas, etiquetasSel],
+  );
+
+  const normNomeEtiqueta = (v: string) =>
+    v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  /**
+   * Resolve os nomes de etiqueta usados nas linhas para ids, criando no catálogo
+   * da coordenação as que ainda não existem.
+   */
+  const resolverEtiquetas = async (
+    nomes: string[],
+    userId: string,
+    r: ResumoImport,
+  ): Promise<Map<string, string>> => {
+    const byNome = new Map<string, string>();
+    for (const e of catalogoEtiquetas) byNome.set(normNomeEtiqueta(e.nome), e.id);
+
+    const novasPorNome = new Map<string, string>();
+    for (const n of nomes) {
+      if (!n) continue;
+      const k = normNomeEtiqueta(n);
+      if (!k || byNome.has(k) || novasPorNome.has(k)) continue;
+      novasPorNome.set(k, n.trim());
+    }
+
+    let criadas = 0;
+    for (const [nomeNorm, nomeOriginal] of novasPorNome) {
+      const cor = ETIQUETA_COLOR_PALETTE[byNome.size % ETIQUETA_COLOR_PALETTE.length];
+      const { data: nova, error: errNova } = await (supabase as any)
+        .from("etiquetas")
+        .insert({
+          coordenacao_id: coordenacaoId,
+          nome: nomeOriginal,
+          cor,
+          modulos: ETIQUETA_MODULOS.map((m) => m.value),
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (errNova || !nova) {
+        r.erros.push({
+          linha: 0,
+          motivo: `Erro ao criar etiqueta "${nomeOriginal}": ${errNova?.message || "desconhecido"}`,
+        });
+        continue;
+      }
+      byNome.set(nomeNorm, nova.id as string);
+      criadas++;
+    }
+    r.etiquetasCriadas = (r.etiquetasCriadas || 0) + criadas;
+    return byNome;
+  };
+
+  /**
+   * Modo "Aplicar etiquetas": não cria nada além do vínculo de etiqueta nas
+   * audiências que já existem (mesma coordenação, mesmo processo, mesmo dia).
+   */
+  const executarAplicarEtiquetas = async () => {
+    setEtapa("importando");
+    setProgresso(0);
+    const r: ResumoImport = {
+      processosCriados: 0,
+      processosExistentes: 0,
+      audienciasCriadas: 0,
+      audienciasDuplicadas: 0,
+      erros: [...errosParse],
+    };
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Sessão expirada.");
+      setEtapa("preview");
+      return;
+    }
+
+    const etiquetaIdByNome = await resolverEtiquetas(
+      linhas.map((l) => l.etiqueta).filter(Boolean) as string[],
+      user.id,
+      r,
+    );
+
+    const vinculos: { etiqueta_id: string; entidade: string; entidade_id: string; created_by: string }[] = [];
+    let semAudiencia = 0;
+    let processadas = 0;
+    for (const l of linhas) {
+      processadas++;
+      setProgresso(Math.round((processadas / linhas.length) * 100));
+      const audIds = matchEtiquetas.get(l.linha) || [];
+      if (audIds.length === 0) {
+        semAudiencia++;
+        r.erros.push({
+          linha: l.linha,
+          motivo: "Nenhuma audiência encontrada nesta coordenação para o processo/data desta linha",
+          processo: l.processo_numero,
+        });
+        continue;
+      }
+      const idLinha = l.etiqueta ? etiquetaIdByNome.get(normNomeEtiqueta(l.etiqueta)) : undefined;
+      const ids = Array.from(new Set([...(etiquetasSel || []), ...(idLinha ? [idLinha] : [])]));
+      if (ids.length === 0) continue;
+      for (const audId of audIds) {
+        for (const etiquetaId of ids) {
+          vinculos.push({
+            etiqueta_id: etiquetaId,
+            entidade: "audiencia",
+            entidade_id: audId,
+            created_by: user.id,
+          });
+        }
+      }
+    }
+
+    for (let i = 0; i < vinculos.length; i += 200) {
+      const slice = vinculos.slice(i, i + 200);
+      const { error } = await (supabase as any)
+        .from("etiquetas_itens")
+        .upsert(slice, { onConflict: "etiqueta_id,entidade,entidade_id", ignoreDuplicates: true });
+      if (error) {
+        r.erros.push({ linha: 0, motivo: `Erro ao aplicar etiquetas: ${error.message}` });
+        break;
+      }
+    }
+    r.etiquetasAplicadas = vinculos.length;
+    r.linhasSemAudiencia = semAudiencia;
+
+    setResumo(r);
+    setEtapa("concluido");
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] }),
+      queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
+    ]);
+  };
+
   const executarImport = async () => {
     if (responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável para as audiências.");
