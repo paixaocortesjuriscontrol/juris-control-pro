@@ -2825,14 +2825,24 @@ const AnaliseDjen = () => {
       return texto.includes("lista de distribuicao");
     };
     const semListas = rawPubs.filter((p) => !ehListaDistribuicao(p));
-    const allPublicacoes = semRepeticao
-      ? dedupPubsPorProcessoSemDestinatarios(semListas)
+    // No modo "sem repetição" também removemos as pautas de julgamento:
+    // o documento deve conter somente intimações.
+    const baseFiltrada = semRepeticao
+      ? semListas.filter((p) => !isPautaDeJulgamento(p?.conteudo))
       : semListas;
+    const allPublicacoes = semRepeticao
+      ? dedupPubsPorProcessoSemDestinatarios(baseFiltrada)
+      : baseFiltrada;
     const removidas = rawPubs.length - allPublicacoes.length;
     if (allPublicacoes.length === 0) {
-      toast.error("Todas as publicações são Lista de Distribuição — nada a exportar");
+      toast.error(
+        semRepeticao
+          ? "Todas as publicações são Lista de Distribuição ou pauta — nada a exportar"
+          : "Todas as publicações são Lista de Distribuição — nada a exportar"
+      );
       return;
     }
+
     const label = semRepeticao ? "Doc Resumo Intimação sem repetição" : "Doc Resumo Intimação";
     if (semRepeticao) setGerandoDocResumoIntimacaoSemRep(true);
     else setGerandoDocResumoIntimacao(true);
@@ -2846,8 +2856,9 @@ const AnaliseDjen = () => {
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
       const children: Paragraph[] = [...buildDocHeader(
         semRepeticao
-          ? `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição, sem repetição)`
+          ? `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição, sem pautas, sem repetição)`
           : `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição)`,
+
         allPublicacoes.length
       )];
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
