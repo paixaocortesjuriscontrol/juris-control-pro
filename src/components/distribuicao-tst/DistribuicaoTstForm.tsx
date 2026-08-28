@@ -766,12 +766,22 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         const m = (data as any)?._judit_meta;
         const tribSel = String(m?.tribunal_selecionado || "").toUpperCase();
         const semTst = m?.tst_indisponivel === true || m?.instancia_tst === false || (!!tribSel && tribSel !== "TST");
-        setTstIndisponivel(semTst);
+        // Decide se a resposta veio de cache local do dia ou de consulta real.
+        // A Edge Function marca consulta_real=true quando o crawler foi acionado.
+        const veioDeCache = m?.app_cache === true || m?.respondido_do_cache === true;
+        setTstIndisponivel({ show: semTst, origem: semTst ? (veioDeCache ? "cache" : "real") : null });
         if (semTst) {
-          toast.warning(
-            "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente.",
-            { duration: 8000 },
-          );
+          if (veioDeCache) {
+            toast.warning(
+              "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente.",
+              { duration: 8000 },
+            );
+          } else {
+            toast.warning(
+              "A Judit não localizou a instância TST deste processo nesta consulta — tipo de recurso e situação não podem ser preenchidos automaticamente.",
+              { duration: 8000 },
+            );
+          }
         } else if (m?.respondido_do_cache === true) {
           const em = m?.app_cache_consultado_em
             ? new Date(m.app_cache_consultado_em).toLocaleTimeString("pt-BR", {
