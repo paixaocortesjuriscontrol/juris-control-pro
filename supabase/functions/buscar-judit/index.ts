@@ -760,18 +760,22 @@ serve(async (req) => {
     const cnj = `${digitosCnj.slice(0, 7)}-${digitosCnj.slice(7, 9)}.${digitosCnj.slice(9, 13)}.${digitosCnj.slice(13, 14)}.${digitosCnj.slice(14, 16)}.${digitosCnj.slice(16, 20)}`;
     console.log(`[buscar-judit] cnj normalizado=${cnj}`);
 
-    // 0) Cache local do app: se este processo já foi consultado com sucesso
-    // recentemente, não chama a Judit de novo. Isso evita pagar 40–60s em
-    // processos cujo lookup direto da Judit ainda não está aquecido.
+    // 0) Cache local do app: SOMENTE quando o mesmo processo já foi consultado
+    // com sucesso HOJE. Cliques repetidos no mesmo dia não são cobrados de novo;
+    // qualquer consulta de dias anteriores dispara crawler novo.
     if (!comAnexos && !forceRefresh) {
       const appCached = await juditAppCache(cnj, tribunalHint);
       if (appCached) {
+        const consultadoEm = appCached?._app_cache_created_at || null;
         const bodyCached: any = stripAttachments(appCached);
+        delete bodyCached._app_cache_created_at;
         bodyCached._judit_meta = {
           ...(bodyCached._judit_meta || {}),
-          fonte: "app_cache_instant",
+          fonte: "app_cache_hoje",
           respondido_do_cache: true,
           app_cache: true,
+          app_cache_consultado_em: consultadoEm,
+          cobrado: false,
           instancia_tst: appCached?._instancia_tst === false
             ? false
             : (String(appCached?.tribunal || "").toUpperCase() === "TST" || undefined),
@@ -781,10 +785,11 @@ serve(async (req) => {
         };
         bodyCached.attachments = null;
         delete bodyCached._instancia_tst;
-        console.log(`[buscar-judit] app-cache instant response cnj=${cnj}`);
+        console.log(`[buscar-judit] app-cache do dia cnj=${cnj} consultado_em=${consultadoEm}`);
         return json(bodyCached, 200);
       }
     }
+
 
     const rawCollector: { cache_lookup: any; crawler: any } = {
       cache_lookup: null,
