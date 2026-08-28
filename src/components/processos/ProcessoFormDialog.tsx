@@ -47,7 +47,7 @@ import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso
 
 const formSchema = z.object({
   pasta_id: z.string().optional(),
-  tipo_processo: z.enum(["judicial", "administrativo"]),
+  tipo_processo: z.enum(["judicial", "administrativo", "outro"]),
   numero: z.string().min(5, "Número do processo deve ter no mínimo 5 caracteres"),
   assunto: z.string().optional(),
   area: z.enum(["civil", "trabalhista", "empresarial", "caso"]),
@@ -1179,6 +1179,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                         <SelectContent>
                           <SelectItem value="judicial">Judicial</SelectItem>
                           <SelectItem value="administrativo">Administrativo</SelectItem>
+                          <SelectItem value="outro">Outro</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />
@@ -1261,18 +1262,18 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
                         <FormLabel>Número do Processo *</FormLabel>
                         <FormControl>
                           <Input 
-                            placeholder={tipoProcesso === "administrativo" ? "14152.127256/2023-39" : "0000000-00.0000.0.00.0000"}
+                            placeholder={tipoProcesso === "administrativo" ? "14152.127256/2023-39" : tipoProcesso === "outro" ? "Digite o número em qualquer formato" : "0000000-00.0000.0.00.0000"}
                             value={field.value}
                             onChange={(e) => {
                               // Só aplica máscara CNJ para processos judiciais
-                              if (tipoProcesso === "administrativo") {
+                              if (tipoProcesso === "administrativo" || tipoProcesso === "outro") {
                                 field.onChange(e.target.value);
                               } else {
                                 handleNumeroChange(e, field.onChange);
                               }
                             }}
                             disabled={isEditing}
-                            maxLength={30}
+                            maxLength={60}
                           />
                         </FormControl>
                         <FormMessage />
