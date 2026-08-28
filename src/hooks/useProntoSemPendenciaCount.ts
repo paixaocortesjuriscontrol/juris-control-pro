@@ -6,7 +6,8 @@ import {
 } from "@/hooks/useDistribuicoesTst";
 import {
   getPendencias,
-  COLUNAS_SELECT_PENDENCIAS,
+  COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
+  isNaoPrecisaFazer,
 } from "@/utils/distribuicaoTstPendencias";
 
 /**
@@ -43,26 +44,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
           return;
         }
         // Colunas necessárias para computar pendências + campos de isenção.
-        const cols = Array.from(
-          new Set([
-            "id",
-            "status",
-            "acordo",
-            "cejusc",
-            "processo_outro_escritorio",
-            "segredo_justica",
-            "transito_julgado",
-            "recurso_terceiro",
-            "recurso_terceiros",
-            "recorrente",
-            "midia_negativa",
-            "tem_data_julgamento",
-            "materias_analise_reclamante",
-            "materias_analise_banco",
-            
-            ...COLUNAS_SELECT_PENDENCIAS,
-          ]),
-        ).join(", ");
+        const cols = COLUNAS_SELECT_PRONTO_SEM_PENDENCIA.join(", ");
 
         const PAGE = 1000;
         let semPendencia = 0;
@@ -90,11 +72,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             // Espelha a lógica do botão "Verificar Pendências":
             // processos em outro escritório, sob segredo de justiça ou CEJUSC
             // não são contabilizados (nem com pendência, nem sem).
-            const naoPrecisaFazer =
-              (r as any).processo_outro_escritorio === true ||
-              (r as any).segredo_justica === true ||
-              (r as any).cejusc === true;
-            if (naoPrecisaFazer) continue;
+            if (isNaoPrecisaFazer(r)) continue;
 
             if (getPendencias(r).length === 0) {
               semPendencia++;

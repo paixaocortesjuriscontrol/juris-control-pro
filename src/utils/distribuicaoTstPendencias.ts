@@ -154,6 +154,44 @@ export const COLUNAS_SELECT_PENDENCIAS = Array.from(
   new Set(CAMPOS_OBRIGATORIOS.map((c) => c.key)),
 );
 
+/**
+ * Conjunto COMPLETO de colunas necessário para reproduzir o card
+ * "Pronto sem pendência". Inclui os campos de isenção — sem eles
+ * `getPendencias` acusa pendências inexistentes.
+ */
+export const COLUNAS_SELECT_PRONTO_SEM_PENDENCIA = Array.from(
+  new Set([
+    "id",
+    "status",
+    "acordo",
+    "cejusc",
+    "processo_outro_escritorio",
+    "segredo_justica",
+    "transito_julgado",
+    "recurso_terceiro",
+    "recurso_terceiros",
+    "recorrente",
+    "midia_negativa",
+    "tem_data_julgamento",
+    "materias_analise_reclamante",
+    "materias_analise_banco",
+    ...COLUNAS_SELECT_PENDENCIAS,
+  ]),
+);
+
+/**
+ * Processos em outro escritório, sob segredo de justiça ou CEJUSC não são
+ * contabilizados (nem com pendência, nem sem) — mesma regra do botão
+ * "Verificar Pendências".
+ */
+export function isNaoPrecisaFazer(row: any): boolean {
+  return (
+    row?.processo_outro_escritorio === true ||
+    row?.segredo_justica === true ||
+    row?.cejusc === true
+  );
+}
+
 function getValor(row: any, c: CampoObrigatorio): any {
   if (row == null) return null;
   const tentativas = [c.key, ...(c.aliases || [])];
