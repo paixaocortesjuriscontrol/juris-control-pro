@@ -165,7 +165,8 @@ export default function ConsumoJudit() {
       const perfil = r.created_by ? perfilMap.get(r.created_by) : undefined;
       const email = r.user_email || perfil?.email || null;
       const nome = perfil?.nome || email || "(desconhecido)";
-      const cobrado = r.status === "sucesso";
+      // Reaproveitamento do resultado do mesmo dia não gera chamada à Judit.
+      const cobrado = r.status === "sucesso" && tipo !== "cache_local";
       const custo = cobrado ? PRECOS_BRL[tipo] : 0;
       return { ...r, tipo, email, nome, cobrado, custo };
     });
