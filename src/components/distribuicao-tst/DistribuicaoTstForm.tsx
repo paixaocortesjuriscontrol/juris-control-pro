@@ -50,6 +50,7 @@ const eq = (v: any, ...alvos: string[]) => {
 import { Badge } from "@/components/ui/badge";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
+import { logJudit } from "@/lib/juditLog";
 import {
   useTurmasTst,
   useRelatoresTst,
@@ -265,6 +266,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     activeRecordIdRef.current = dado?.id || undefined;
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
+  // true quando a Judit não devolveu a instância TST do processo nesta consulta.
+  const [tstIndisponivel, setTstIndisponivel] = useState(false);
 
   // Campos que a tela identifica explicitamente com o badge "Judit".
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
