@@ -274,6 +274,7 @@ export function PautasExcelDialog({
         "id, processo_id, processo_numero, data_audiencia, titulo",
         [...numerosMasked, ...numerosDigits],
         "processo_numero",
+        coordenacaoId,
       );
       /** `digits|dia` → ids das audiências existentes (usado no modo etiquetas). */
       const audienciasPorDigitsDia = new Map<string, string[]>();
