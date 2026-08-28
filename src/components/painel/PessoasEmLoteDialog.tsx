@@ -56,8 +56,6 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const hojeStr = () => format(new Date(), "yyyy-MM-dd");
-
 export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const { user } = useAuth();
