@@ -24,20 +24,20 @@ Comprovação no mesmo processo 1002068-91.2023.5.02.0203, em 28/08: clique norm
 
 ## Correção proposta
 
-**A. Para pedido `tribunal: "TST"`, resposta de instância não-TST não encerra a consulta.**
-Em `buscar-judit`: quando `tribunalHint === "TST"`, o cache-first passa a valer **somente** se o cache é da instância TST. Se o cache é do TRT, ele é guardado (serve para partes de origem e detecção de trânsito) e a função segue para o crawler, que agrega todas as instâncias e usa `selecionarTst` — sem exigir clique em "Forçar atualização".
+**A. A consulta não termina enquanto a resposta não for da instância TST.**
+Em `buscar-judit`: como a tela sempre pede TST, o atalho de cache passa a valer **somente** quando o registro em cache é da instância TST. Se o cache trouxe a instância do TRT, ele é guardado (serve para identificar reclamante/reclamada da origem e detectar trânsito) e a função segue para o crawler, que devolve todas as instâncias do processo e escolhe a do TST — sem depender de clique em "Forçar atualização".
 
 **B. Retentativa dirigida ao TST no clique normal.**
-Soltar a retentativa da condição `forceRefresh`: se depois do crawler nenhuma página é TST e ainda há orçamento de tempo, refaz uma vez com `cache_ttl_in_days=0`. Mantida a proteção de orçamento para não estourar o tempo do clique.
+Soltar a retentativa da condição `forceRefresh`: se depois do crawler nenhuma instância retornada é do TST e ainda há orçamento de tempo, refaz uma vez com `cache_ttl_in_days=0`. Mantida a proteção de orçamento para não estourar o tempo do clique.
 
-**C. App-cache não pode servir TRT quando se pede TST.**
-Em `juditAppCache`, descartar respostas cujo `tribunal` não é TST quando `tribunalHint === "TST"`, em vez de devolvê-las marcadas como `_instancia_tst: false`. Isso remove o congelamento de 3 dias no dado incompleto.
+**C. O cache interno do app não pode devolver a instância do TRT.**
+Em `juditAppCache`, descartar respostas anteriores cuja instância não é TST, em vez de devolvê-las marcadas como `_instancia_tst: false`. Isso remove o congelamento de até 3 dias no dado incompleto.
 
 **D. Orçamento de tempo maior e sem erro de rede seco.**
 Elevar `POLL_TIMEOUT_MS`/`REQUEST_BUDGET_MS` o suficiente para a instância TST (crawler TST leva 8-25s, e a retentativa soma outra rodada), e no cliente repetir uma vez automaticamente quando o erro for de rede/timeout (`Failed to send a request to the Edge Function`), em vez de mostrar erro no primeiro tropeço.
 
-**E. Aviso honesto quando a instância TST realmente não existir.**
-Se após crawler + retentativa nenhuma instância TST aparecer, exibir alerta fixo no formulário: "A Judit ainda não tem a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente", com o botão "Forçar atualização" ao lado. Assim a advogada distingue "Judit incompleta" de "botão falhou", e o `problema_judit` passa a ser marcado com informação.
+**E. Aviso honesto quando a Judit ainda não tiver a instância TST.**
+Se após crawler + retentativa a Judit não devolver a instância TST do processo, exibir alerta fixo no formulário: "A Judit ainda não indexou a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente", com o botão "Forçar atualização" ao lado. Assim a advogada distingue "Judit sem o dado" de "botão falhou", e o `problema_judit` passa a ser marcado com informação.
 
 **F. Log com autoria e duração.**
 O insert em `judit_logs` feito por esta tela não grava `user_email`, `origem`, `duracao_ms` nem `tipo_cobranca` (1009 registros com esses campos nulos, atribuíveis só via `created_by`). Passar a usar `logJudit` de `src/lib/juditLog.ts` com `origem: "distribuicao-tst"`, registrando também se houve retentativa TST — permite medir no /consumo-judit quantos cliques ficam incompletos e quanto tempo levam.
