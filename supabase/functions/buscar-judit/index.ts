@@ -144,18 +144,17 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
       const raw = (row as any)?.raw_response;
       if (!raw || raw?.error) continue;
       if (raw?._judit_meta?.com_anexos === true) continue;
-      // Quando a tela pede TST, o cache local NÃO pode devolver uma resposta
-      // antiga de TRT/1ª instância. Isso foi a causa de formulários que
-      // pareciam “não preencher”: a função respondia rápido, mas com dados que
-      // não eram da instância TST. Só aceitamos app-cache se a própria resposta
-      // já foi normalizada como TST/crawler_tst.
-      // Antes descartávamos qualquer resposta que não fosse TST quando a tela
-      // pedia TST — isso fazia cada clique pagar 60–124s de crawler em
-      // processos que só têm TRT. Agora aceitamos e marcamos a instância; a
-      // busca dirigida ao TST fica no "Forçar atualização".
+      // Quando a tela pede TST (Distribuição TST pede SEMPRE), o cache local
+      // NÃO pode devolver uma resposta antiga da instância de origem (TRT).
+      // Isso era a causa dos formulários que "não preenchem": a função
+      // respondia em 1s, mas com a instância errada do mesmo processo — e
+      // tipo_recurso/relator/turma do TST ficavam nulos por até 3 dias.
       const rawTribunal = String(raw?.tribunal || "").toUpperCase();
       const fonte = String(raw?._judit_meta?.fonte || "").toLowerCase();
-      const ehTst = rawTribunal === "TST" || fonte === "crawler_tst";
+      const ehTst =
+        rawTribunal === "TST" ||
+        fonte === "crawler_tst" ||
+        raw?._judit_meta?.instancia_tst === true;
       // Rejeita respostas anteriores que vieram sem nenhum dado útil — senão
       // o app-cache trava o processo em "tudo null" para sempre.
       const temAlgo = !!(
@@ -165,9 +164,7 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
         (Array.isArray(raw?.parties_detail) && raw.parties_detail.length > 0)
       );
       if (!temAlgo) continue;
-      if (tribunalHint === "TST" && !ehTst) {
-        raw._instancia_tst = false;
-      }
+      if (tribunalHint === "TST" && !ehTst) continue;
       return raw;
     }
     return null;
