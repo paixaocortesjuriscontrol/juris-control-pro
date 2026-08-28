@@ -967,16 +967,31 @@ export function PautasExcelDialog({
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
                 {linhas.length} linhas válidas
               </Badge>
-              {novosCount > 0 && (
-                <Badge variant="outline">{novosCount} processos novos</Badge>
-              )}
-              {linhas.length - novosCount > 0 && (
-                <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
-              )}
-              {duplicadasCount > 0 && (
-                <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
-                  {duplicadasCount} duplicadas (não serão importadas)
-                </Badge>
+              {modo === "etiquetas" ? (
+                <>
+                  <Badge className="bg-primary hover:bg-primary">
+                    {linhasEtiquetaveis.length} audiências para etiquetar
+                  </Badge>
+                  {linhas.length - linhasEtiquetaveis.length > 0 && (
+                    <Badge variant="outline">
+                      {linhas.length - linhasEtiquetaveis.length} sem audiência correspondente
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <>
+                  {novosCount > 0 && (
+                    <Badge variant="outline">{novosCount} processos novos</Badge>
+                  )}
+                  {linhas.length - novosCount > 0 && (
+                    <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
+                  )}
+                  {duplicadasCount > 0 && (
+                    <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
+                      {duplicadasCount} duplicadas (não serão importadas)
+                    </Badge>
+                  )}
+                </>
               )}
               {errosParse.length > 0 && (
                 <Badge
