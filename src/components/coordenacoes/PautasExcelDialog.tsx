@@ -523,31 +523,40 @@ export function PautasExcelDialog({
     const audChave = new Set<string>(); // processo|dia|titulo
 
     if (procIds.length > 0) {
-      const [{ data: audienciasDb }, { data: tarefasDb }, { data: eventosDb }] = await Promise.all([
-        supabase
-          .from("audiencias_detectadas")
-          .select("processo_id, data_audiencia, titulo")
-          .in("processo_id", procIds),
-        supabase
-          .from("tarefas")
-          .select("processo_id, titulo, data_vencimento")
-          .in("processo_id", procIds),
-        supabase
-          .from("eventos_agenda")
-          .select("processo_id, titulo, data_inicio")
-          .in("processo_id", procIds),
+      const [audienciasDb, tarefasDb, eventosDb] = await Promise.all([
+        buscarPaginado<any>(
+          "audiencias_detectadas",
+          "processo_id, data_audiencia, titulo",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
+        buscarPaginado<any>(
+          "tarefas",
+          "processo_id, titulo, data_vencimento",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
+        buscarPaginado<any>(
+          "eventos_agenda",
+          "processo_id, titulo, data_inicio",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
       ]);
 
-      for (const a of audienciasDb || []) {
-        const chave = audienciaKey((a as any).processo_id || "", (a as any).data_audiencia, (a as any).titulo);
+      for (const a of audienciasDb) {
+        const chave = audienciaKey(a.processo_id || "", a.data_audiencia, a.titulo);
         if (chave) audChave.add(chave);
       }
-      for (const t of tarefasDb || []) {
-        const chave = audienciaKey((t as any).processo_id || "", (t as any).data_vencimento, (t as any).titulo);
+      for (const t of tarefasDb) {
+        const chave = audienciaKey(t.processo_id || "", t.data_vencimento, t.titulo);
         if (chave) audChave.add(chave);
       }
-      for (const e of eventosDb || []) {
-        const chave = audienciaKey((e as any).processo_id || "", (e as any).data_inicio, (e as any).titulo);
+      for (const e of eventosDb) {
+        const chave = audienciaKey(e.processo_id || "", e.data_inicio, e.titulo);
         if (chave) audChave.add(chave);
       }
     }
