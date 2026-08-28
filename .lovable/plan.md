@@ -1,30 +1,41 @@
-# Etiquetas da importação da Jéssica: diagnóstico e correção
+# Pautas Excel: responsáveis fixos, etiquetas e duplicidade
 
-## O que os dados mostram
+## Diagnóstico da importação da Jéssica
 
-Consultei o banco:
+Consultei o banco: a Jéssica importou **25 audiências** em 27/08 às 19:54–19:55 (Brasília), na Coordenação Dra. Beatriz Costa, e **nenhuma delas tem etiqueta vinculada**. Nenhuma etiqueta nova foi criada nesse horário (as da coordenação são todas de 04/08). Ou seja: subiu sem etiquetas — o suporte à coluna ETIQUETA já existe no código, mas a tela dela estava com a versão antiga em cache.
 
-- A Jéssica Alves importou **25 audiências** pela planilha de pautas em 27/08/2026 às 19:54–19:55 (horário de Brasília), todas na Coordenação Dra. Beatriz Costa.
-- **Nenhuma dessas 25 audiências tem etiqueta vinculada** (zero registros em `etiquetas_itens`).
-- Nenhuma etiqueta nova foi criada nesse horário — as etiquetas da coordenação são todas de 04/08. Ou seja, a coluna ETIQUETA não foi processada nessa importação (versão antiga carregada no navegador dela, ou coluna ausente/vazia na planilha enviada).
+## 1) Responsáveis e envolvidos fixos da coordenação
 
-Conclusão: a importação subiu **sem** as etiquetas, como você suspeitava. Os dados das audiências em si estão corretos; falta apenas o vínculo das etiquetas.
+Hoje o diálogo de Pautas Excel só vincula quem é escolhido manualmente em "Responsáveis pelas audiências". Vou fazer o mesmo que os formulários do botão Adicionar:
 
-## Como corrigir
+- Ao abrir o diálogo, pré-carregar os **responsáveis e envolvidos fixos do tipo "Audiência"** da coordenação (Beatriz Costa como envolvida, Mayara como responsável, etc.), já marcados e editáveis.
+- Na importação, gravar os responsáveis em `audiencias_advogados` e os envolvidos em `audiencia_envolvidos` para cada audiência criada.
+- Aviso na tela deixando claro que os fixos da coordenação foram aplicados.
 
-Modo "Aplicar etiquetas" no diálogo de Importar Pautas Excel:
+## 2) Novo modo "Aplicar etiquetas"
 
-- Nova opção no diálogo: **"Somente aplicar etiquetas (não criar itens)"**.
-- Ao subir a mesma planilha nesse modo, o sistema casa cada linha com a audiência já existente (mesmo processo + mesma data + mesma coordenação) e aplica apenas a etiqueta da coluna ETIQUETA, criando a etiqueta na coordenação caso ainda não exista.
-- A prévia mostra, por linha: audiência encontrada / não encontrada, etiqueta a aplicar e se ela já existe no catálogo. Nada é criado ou duplicado.
-- Ao final, resumo com quantas etiquetas foram aplicadas, quantas linhas não encontraram audiência e exportação CSV dos casos não resolvidos.
+Nova aba/opção no próprio diálogo Pautas Excel: **"Somente aplicar etiquetas (não criar itens)"**.
 
-Também vou reforçar a prévia da importação normal com um aviso quando a planilha não tiver a coluna ETIQUETA reconhecida, para o problema não passar batido.
+- Sobe a mesma planilha; o sistema casa cada linha com a audiência já existente (mesma coordenação, mesmo processo, mesmo dia) e aplica **a etiqueta da coluna ETIQUETA daquela linha** (item 4). Etiqueta que não existe no catálogo da coordenação é criada automaticamente.
+- Opcionalmente, uma etiqueta escolhida na tela pode ser aplicada a todas as linhas — mas o padrão é usar a coluna da planilha.
+- Prévia por linha: audiência encontrada / não encontrada, etiqueta a aplicar, se ela já existe e se já está aplicada. Nada é criado, alterado ou duplicado além do vínculo de etiqueta.
+- Resumo final: etiquetas aplicadas, etiquetas criadas, linhas sem audiência correspondente, com exportação CSV.
+
+Isso resolve retroativamente as 25 audiências da Jéssica: ela (ou você) sobe a mesma planilha nesse modo e as etiquetas entram.
+
+## 3) Prévia mostrando 15 audiências "novas" na mesma planilha
+
+A checagem de duplicidade compara processo + data + título, mas hoje ela tem duas falhas que explicam linhas reaparecendo como novas:
+
+- A consulta de itens existentes não trata o **limite de 1000 linhas** do Supabase: com 135 processos, audiências/tarefas/eventos podem passar disso e as chaves faltantes viram "nova".
+- Linhas cujo processo ainda não existe na base **nunca** geram chave e são sempre marcadas como novas, mesmo que a audiência já tenha sido criada na importação anterior (o processo passa a existir só depois).
+- O título comparado é o tipo da planilha; variações de caixa/acentos/espaços na coluna TIPO fazem a chave não casar.
+
+Correções: paginar as consultas de duplicidade em blocos (sem estourar 1000), reconsultar por **número do processo** (dígitos) além do `processo_id`, e normalizar o título na chave (maiúsculas, sem acento, espaços colapsados). Depois disso, reimportar a mesma planilha deve resultar em 0 audiências a criar.
 
 ## Detalhes técnicos
 
-- `src/components/coordenacoes/PautasExcelDialog.tsx`: flag `modoSomenteEtiquetas`; quando ativa, pula criação de processo/audiência/tarefa/evento e executa apenas a resolução de etiqueta + `etiquetas_itens` (insert idempotente por `etiqueta_id + entidade + entidade_id`).
-- Casamento da linha com a audiência: busca em `audiencias_detectadas` por `coordenacao_id`, `processo_numero` (dígitos) e data do dia da audiência; múltiplos resultados no mesmo dia são etiquetados todos e sinalizados na prévia.
-- Reuso do resolvedor de etiquetas já existente (busca por nome normalizado em `etiquetas` da coordenação, criação com `modulos` padrão quando ausente) e de `useToggleEtiquetaItem`/insert direto conforme o padrão atual do arquivo.
-- `src/lib/pautasExcelParser.ts`: expor no resultado se a coluna ETIQUETA foi localizada no cabeçalho, para o aviso na prévia.
-- Nenhuma alteração de schema; `await invalidateQueries` antes de fechar o diálogo.
+- `src/components/coordenacoes/PautasExcelDialog.tsx`: usar `useFixosDoTipoCoordenacao(coordenacaoId, "audiencia")` para pré-selecionar responsáveis/envolvidos; inserir em `audiencia_envolvidos`; novo estado `modo: "importar" | "etiquetas"`; no modo etiquetas, pular criação de processo/audiência e apenas resolver etiqueta + upsert em `etiquetas_itens` (`onConflict: etiqueta_id,entidade,entidade_id`).
+- Casamento no modo etiquetas: `audiencias_detectadas` filtrada por `coordenacao_id` + `processo_numero` (dígitos) + faixa do dia da audiência; múltiplas no mesmo dia recebem a etiqueta e são sinalizadas na prévia.
+- Duplicidade: helper de paginação (`range` em páginas de 1000) para `audiencias_detectadas`, `tarefas` e `eventos_agenda`; chave `digits|YYYY-MM-DD|tituloNormalizado`.
+- `await invalidateQueries` (`etiquetas`, `etiquetas-itens`, agenda) antes de fechar o diálogo. Sem mudanças de schema.
