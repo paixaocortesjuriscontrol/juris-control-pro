@@ -81,26 +81,43 @@ export default function DistribuicaoTstKanban() {
         "id", "processo", "dossie", "prazo_entrega", "status", "status_distribuicao",
         "distribuido_em", "observacao_distribuicao", "aba_origem", "fontes_importacao",
       ];
-      const selectCols = Array.from(new Set([...baseCols, ...COLUNAS_SELECT_PENDENCIAS])).join(", ");
-      let query = supabase
-        .from("dados_benner" as any)
-        .select(`${selectCols}, dados_benner_responsaveis!inner(usuario_id)`)
-        .order("prazo_entrega", { ascending: true, nullsFirst: false })
-        .limit(filtroAdvogados.length > 0 ? 1000 : 2000);
+      // Usa exatamente o mesmo conjunto de colunas do card "Pronto sem pendência".
+      const selectCols = Array.from(new Set([...baseCols, ...COLUNAS_SELECT_PRONTO_SEM_PENDENCIA])).join(", ");
 
-      const advFilter: string[] = [];
-      if (filtroAdvogados.length > 0) advFilter.push(...filtroAdvogados);
-      if (advFilter.length > 0) {
-        query = query.in("dados_benner_responsaveis.usuario_id", advFilter);
+      // Paginação completa (sem limite fixo) para as contagens baterem com os
+      // totalizadores da tela Distribuição TST.
+      const PAGE = 1000;
+      const rows: any[] = [];
+      let from = 0;
+      while (true) {
+        let query = supabase
+          .from("dados_benner" as any)
+          .select(`${selectCols}, dados_benner_responsaveis!inner(usuario_id)`)
+          .order("id", { ascending: true })
+          .range(from, from + PAGE - 1);
+
+        if (filtroAdvogados.length > 0) {
+          query = query.in("dados_benner_responsaveis.usuario_id", filtroAdvogados);
+        }
+        const { data, error } = await query;
+        if (error) throw error;
+        const pagina = (data as any[]) || [];
+        rows.push(...pagina);
+        if (pagina.length < PAGE) break;
+        from += PAGE;
       }
-      const { data, error } = await query;
-      if (error) throw error;
 
-      const rows = ((data as any[]) || []);
       // dedup by id (the inner join may duplicate)
       const uniqMap = new Map<string, any>();
       rows.forEach((r) => uniqMap.set(r.id, r));
       const uniq = [...uniqMap.values()];
+      // Mantém a ordenação por prazo de entrega na exibição.
+      uniq.sort((a, b) => {
+        if (!a.prazo_entrega && !b.prazo_entrega) return 0;
+        if (!a.prazo_entrega) return 1;
+        if (!b.prazo_entrega) return -1;
+        return a.prazo_entrega.localeCompare(b.prazo_entrega);
+      });
       const ids = uniq.map((r) => r.id);
       const respMap = await loadResponsaveisMap(ids);
       setCards(uniq.map((r) => ({
@@ -116,7 +133,8 @@ export default function DistribuicaoTstKanban() {
         fontes_importacao: r.fontes_importacao || [],
         responsaveis: respMap.get(r.id) || [],
         raw: r,
-        semPendencia: getPendencias(r).length === 0,
+        // Mesma regra do card: isentos ("não precisa fazer") não entram.
+        semPendencia: !isNaoPrecisaFazer(r) && getPendencias(r).length === 0,
       })));
     } catch (e: any) {
       toast.error("Erro ao carregar Kanban: " + (e?.message || ""));
