@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
+import { useProcessosPaginados, fetchTodosProcessosFiltrados } from "@/hooks/useProcessosPaginados";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { AtribuirCoordenacaoLoteDialog } from "@/components/processos/AtribuirCoordenacaoLoteDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
