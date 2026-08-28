@@ -59,7 +59,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             "tem_data_julgamento",
             "materias_analise_reclamante",
             "materias_analise_banco",
-            "materias_analise_terceiro",
+            
             ...COLUNAS_SELECT_PENDENCIAS,
           ]),
         ).join(", ");
