@@ -781,6 +781,37 @@ export default function Monitoramento() {
                 variant="outline"
                 size="sm"
                 className="h-8"
+                onClick={exportarMovimentacoesExcel}
+                disabled={exportando || grupos.length === 0}
+                title="Exporta para Excel as movimentações dos filtros atuais"
+              >
+                {exportando ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={exportarMovimentacoesPdf}
+                disabled={exportando || grupos.length === 0}
+                title="Exporta para PDF as movimentações dos filtros atuais"
+              >
+                {exportando ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                PDF
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
                 onClick={marcarTodasLidas}
                 disabled={marcando || countMov === 0}
                 title="Marca como lidas todas as movimentações do seu escopo, inclusive fora do período filtrado"
