@@ -774,6 +774,7 @@ serve(async (req) => {
           fonte: "app_cache_hoje",
           respondido_do_cache: true,
           app_cache: true,
+          consulta_real: false,
           app_cache_consultado_em: consultadoEm,
           cobrado: false,
           instancia_tst: appCached?._instancia_tst === false
