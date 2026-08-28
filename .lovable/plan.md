@@ -1,25 +1,31 @@
-# Judit — Consulta sempre atual (sem cache)
+# Judit — Consulta atual com cache apenas no mesmo dia
 
 ## Decisão
-Cada clique no botão Judit (Distribuição TST, Processos e Casos, etc.) passa a disparar uma **consulta nova na Judit com `cache_ttl_in_days: 0` (crawler/dados frescos)**. O `judit_logs` deixa de ser usado como cache de leitura e vira **somente log de auditoria/consumo** (tela Consumo Judit).
+O clique no botão Judit sempre busca dados atuais (crawler, `cache_ttl_in_days: 0`), **exceto** quando o mesmo processo já foi consultado com sucesso **no mesmo dia (data de hoje, fuso America/Sao_Paulo)**. Nesse caso reaproveita o resultado já gravado, evitando cobrança dupla por cliques repetidos no mesmo dia.
+
+## Regra do cache
+- Janela: **hoje** apenas. Ontem ou antes = consulta nova.
+- Só reaproveita registro de `judit_logs` que seja da **instância TST** (na Distribuição TST) e com resposta completa/sucesso. Resposta de TRT ou incompleta nunca serve como cache.
+- "Forçar atualização" ignora o cache do dia e sempre dispara o crawler.
 
 ## O que muda
 
 ### 1. Edge Function `buscar-judit`
-- Remover a etapa de leitura de cache local (`judit_logs` com `is_tst_rd` / validade de 3 dias) que encerrava a consulta cedo.
-- Toda chamada envia `cache_ttl_in_days: 0` à Judit (equivalente ao "Forçar atualização" atual).
-- Manter a gravação no `judit_logs` apenas para auditoria (latência, custo, instância retornada).
-- Manter retentativa dirigida à instância TST e o alerta quando a Judit ainda não indexou a instância TST.
+- Substituir a validade atual de 3 dias por "mesmo dia civil (America/Sao_Paulo)".
+- Manter o filtro de instância TST + resposta completa antes de aceitar o cache.
+- Fora dessa janela: enviar `cache_ttl_in_days: 0` à Judit (crawler) e manter a retentativa dirigida ao TST.
+- Continuar gravando `judit_logs` em toda consulta real (auditoria de custo/latência), marcando os hits de cache como não cobrados.
 
 ### 2. Frontend
-- `DistribuicaoTstForm.tsx` e demais telas com botão Judit: remover mensagens/lógica de "resultado do cache"; exibir "consultando dados atualizados na Judit..." durante o polling.
-- Botão "Forçar atualização" passa a ser redundante — pode ser mantido como alias ou removido (decisão: remover, já que todo clique agora é forçado).
+- `DistribuicaoTstForm.tsx` e demais telas com botão Judit: indicar de forma discreta quando o dado veio do cache de hoje ("consultado hoje às HH:MM") e manter o botão "Forçar atualização" para busca imediata.
+- Durante a consulta real, mensagem "buscando dados atualizados na Judit...".
 
-## Impacto de custo (importante)
-- **Cada clique vira uma chamada paga de crawler na Judit.** Hoje, cliques repetidos no mesmo processo em até 3 dias saem de graça (cache). Com a mudança, todos são cobrados.
-- O consumo passa a ser integralmente auditável na tela **Consumo Judit** (cliques, latência, custo estimado por usuário).
+## Impacto de custo
+- Primeiro clique do dia em cada processo = 1 consulta cobrada.
+- Cliques repetidos no mesmo dia = grátis.
+- Tela **Consumo Judit** separa consultas reais de reaproveitamentos do dia.
 
 ## Verificação
-- Clicar no Judit em um processo já consultado antes: resposta deve vir do crawler (latência ~8–30s) e não do log.
-- Conferir `judit_logs`: cada clique gera um registro novo com `com_anexos: false` e instância correta.
-- Tela Consumo Judit refletindo o volume real de consultas.
+- Clicar duas vezes no mesmo processo hoje: segunda resposta instantânea, sem novo registro cobrado.
+- Clicar em processo consultado ontem: dispara crawler (~8–30s) e grava novo log.
+- Conferir que respostas de instância TRT não são aceitas como cache na Distribuição TST.
