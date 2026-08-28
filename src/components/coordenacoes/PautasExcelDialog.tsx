@@ -812,8 +812,10 @@ export function PautasExcelDialog({
         continue;
       }
 
-      // Vincular responsáveis
-      const advogadosInsert = responsaveisIds.map((advogadoId) => ({
+      // Vincular responsáveis (seleção da tela SEMPRE complementada pelos fixos)
+      const respFinal = Array.from(new Set([...(fixos?.responsaveis ?? []), ...responsaveisIds]));
+      const envFinal = Array.from(new Set([...(fixos?.envolvidos ?? []), ...envolvidosIds]));
+      const advogadosInsert = respFinal.map((advogadoId) => ({
         audiencia_id: audId,
         advogado_id: advogadoId,
       }));
@@ -822,12 +824,13 @@ export function PautasExcelDialog({
       }
 
       // Vincular envolvidos (fixos da coordenação + selecionados na tela)
-      const envolvidosInsert = envolvidosIds
-        .filter((id) => !responsaveisIds.includes(id))
+      const envolvidosInsert = envFinal
+        .filter((id) => !respFinal.includes(id))
         .map((usuarioId) => ({ audiencia_id: audId, usuario_id: usuarioId }));
       if (envolvidosInsert.length > 0) {
         await (supabase as any).from("audiencia_envolvidos").insert(envolvidosInsert);
       }
+
 
       if (chaveAudiencia) audChave.add(chaveAudiencia);
       idsCriados.push(audId);
