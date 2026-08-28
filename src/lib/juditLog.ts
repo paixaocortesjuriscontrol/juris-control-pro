@@ -59,7 +59,7 @@ export async function logJudit(params: JuditLogParams): Promise<void> {
       user_email: userData?.user?.email || null,
       origem,
       duracao_ms: params.duracaoMs ?? null,
-      tipo_cobranca: detectarTipoCobranca(params.requestPayload),
+      tipo_cobranca: detectarTipoCobranca(params.requestPayload, params.juditData),
     });
   } catch (e) {
     console.warn("Falha ao gravar judit_logs:", e);
