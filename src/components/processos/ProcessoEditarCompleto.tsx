@@ -368,7 +368,8 @@ export function ProcessoEditarCompleto({
                       type="select"
                       options={[
                         { value: "judicial", label: "Judicial" },
-                        { value: "administrativo", label: "Administrativo" }
+                        { value: "administrativo", label: "Administrativo" },
+                        { value: "outro", label: "Outro" }
                       ]}
                     />
                     <EditableField label="Número" field="numero" />
