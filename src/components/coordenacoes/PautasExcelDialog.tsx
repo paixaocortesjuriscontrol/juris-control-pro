@@ -1282,12 +1282,21 @@ export function PautasExcelDialog({
           {etapa === "preview" && (
             <>
               <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-              <Button
-                onClick={executarImport}
-                disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
-              >
-                Importar {linhasImportaveis.length} audiências
-              </Button>
+              {modo === "etiquetas" ? (
+                <Button
+                  onClick={executarAplicarEtiquetas}
+                  disabled={linhasEtiquetaveis.length === 0}
+                >
+                  <Tag className="h-4 w-4 mr-2" /> Aplicar etiquetas em {linhasEtiquetaveis.length}
+                </Button>
+              ) : (
+                <Button
+                  onClick={executarImport}
+                  disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
+                >
+                  Importar {linhasImportaveis.length} audiências
+                </Button>
+              )}
             </>
           )}
           {etapa === "concluido" && (
