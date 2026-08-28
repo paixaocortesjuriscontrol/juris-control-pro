@@ -1031,21 +1031,36 @@ export function PautasExcelDialog({
 
             )}
 
-            <div className="space-y-2">
-              <Label>
-                Responsáveis pelas audiências{" "}
-                <span className="text-destructive">*</span>
-              </Label>
-              <PeoplePicker
-                selectedIds={responsaveisIds}
-                onChange={setResponsaveisIds}
-                placeholder="Adicionar responsável"
-                emptyLabel="Nenhum responsável selecionado — obrigatório"
-              />
-              <p className="text-xs text-muted-foreground">
-                Os responsáveis selecionados serão vinculados a todas as audiências importadas.
-              </p>
-            </div>
+            {modo === "importar" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>
+                    Responsáveis pelas audiências <span className="text-destructive">*</span>
+                  </Label>
+                  <PeoplePicker
+                    selectedIds={responsaveisIds}
+                    onChange={setResponsaveisIds}
+                    placeholder="Adicionar responsável"
+                    emptyLabel="Nenhum responsável selecionado — obrigatório"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pré-carregados com os responsáveis fixos de Audiência desta coordenação.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Envolvidos</Label>
+                  <PeoplePicker
+                    selectedIds={envolvidosIds}
+                    onChange={setEnvolvidosIds}
+                    placeholder="Adicionar envolvido"
+                    emptyLabel="Nenhum envolvido selecionado"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pré-carregados com os envolvidos fixos de Audiência desta coordenação.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
