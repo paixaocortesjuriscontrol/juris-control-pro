@@ -1269,6 +1269,10 @@ serve(async (req) => {
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
+        // true = pedimos TST, esgotamos cache + crawler + retentativa e a Judit
+        // não devolveu a instância TST deste processo. A UI usa isso para
+        // avisar que tipo de recurso/situação não podem vir automaticamente.
+        tst_indisponivel: tribunalHint === "TST" && !foiTst,
       },
       requer_revisao_polo: requerRevisaoPolo,
       attachments: comAnexos
