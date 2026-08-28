@@ -349,6 +349,20 @@ export function ProcessoDetalhesCompletos({
   const tarefasSemPrazo = agruparDuplicados(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
   const prazosDoProcesso = agruparDuplicados(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
 
+  // Contagem de atividades (subatividades) vinculadas aos itens do processo,
+  // para exibir nas abas laterais (Tarefa, Prazo, Evento, Audiência).
+  const idsItensProcesso = useMemo(
+    () => [
+      ...tarefas.map((t: any) => t?.id),
+      ...eventosAgenda.map((e: any) => e?.id),
+      ...audiencias.map((a: any) => a?.id),
+    ],
+    [tarefas, eventosAgenda, audiencias]
+  );
+  const { data: contagemAtividades = {} } = useContagemAtividades(idsItensProcesso);
+  const qtdAtividades = (id?: string | null) => (id ? contagemAtividades[String(id)] || 0 : 0);
+
+
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
   const [resumoInitialized, setResumoInitialized] = useState(false);
