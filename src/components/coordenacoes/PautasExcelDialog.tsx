@@ -1214,13 +1214,22 @@ export function PautasExcelDialog({
           <div className="space-y-3 py-4">
             <Alert className="border-emerald-600/40 bg-emerald-600/10">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <AlertDescription>Importação concluída.</AlertDescription>
+              <AlertDescription>
+                {modo === "etiquetas" ? "Etiquetas aplicadas." : "Importação concluída."}
+              </AlertDescription>
             </Alert>
             <ul className="text-sm space-y-1">
-              <li>• Processos criados: <strong>{resumo.processosCriados}</strong></li>
-              <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
-              <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
-              <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+              {modo === "importar" && (
+                <>
+                  <li>• Processos criados: <strong>{resumo.processosCriados}</strong></li>
+                  <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
+                  <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
+                  <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+                </>
+              )}
+              {resumo.linhasSemAudiencia !== undefined && (
+                <li>• Linhas sem audiência correspondente: <strong>{resumo.linhasSemAudiencia}</strong></li>
+              )}
               {!!resumo.etiquetasAplicadas && (
                 <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
               )}
