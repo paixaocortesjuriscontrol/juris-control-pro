@@ -85,7 +85,10 @@ const empty = {
   polo_ativo: "",
   cliente: "",
   terceirizado: "",
+  preposto: "",
+  testemunhas: "",
 };
+
 
 export function AudienciaFormSimplificado({
   defaultProcessoNumero,
@@ -139,7 +142,10 @@ export function AudienciaFormSimplificado({
     polo_ativo: audienciaParaEditar?.polo_ativo ?? "",
     cliente: audienciaParaEditar?.cliente ?? "",
     terceirizado: audienciaParaEditar?.terceirizado ?? "",
+    preposto: audienciaParaEditar?.preposto ?? "",
+    testemunhas: audienciaParaEditar?.testemunhas ?? "",
   });
+
   const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
   const situacaoInicial = audienciaParaEditar?.status ?? "pendente";
   // Reagendamento: nova data obrigatória para a audiência mudar de dia no painel
@@ -200,7 +206,10 @@ export function AudienciaFormSimplificado({
       polo_ativo: audienciaParaEditar.polo_ativo ?? "",
       cliente: audienciaParaEditar.cliente ?? "",
       terceirizado: audienciaParaEditar.terceirizado ?? "",
+      preposto: audienciaParaEditar.preposto ?? "",
+      testemunhas: audienciaParaEditar.testemunhas ?? "",
     });
+
     setSituacao(audienciaParaEditar.status ?? "pendente");
     setProcessoNumero(audienciaParaEditar.processo_numero ? formatProcessoNumero(audienciaParaEditar.processo_numero) : "");
     setProcessoId(audienciaParaEditar.processo_id ?? undefined);
@@ -384,6 +393,9 @@ export function AudienciaFormSimplificado({
       polo_ativo: form.polo_ativo || undefined,
       cliente: form.cliente || undefined,
       terceirizado: form.terceirizado || undefined,
+      preposto: form.preposto || undefined,
+      testemunhas: form.testemunhas || undefined,
+
       status: situacao,
       advogados_ids: Array.from(new Set([...coordenadoresIds, ...responsaveisIds])),
       envolvidos_ids: Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds])),
@@ -748,6 +760,29 @@ export function AudienciaFormSimplificado({
           />
         </div>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-sm">Preposto(s)</Label>
+          <Textarea
+            value={form.preposto}
+            onChange={(e) => set("preposto", e.target.value)}
+            placeholder="Nome do preposto (separe por vírgula se houver mais de um)"
+            rows={2}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm">Testemunha(s)</Label>
+          <Textarea
+            value={form.testemunhas}
+            onChange={(e) => set("testemunhas", e.target.value)}
+            placeholder="Nome das testemunhas (separe por vírgula)"
+            rows={2}
+          />
+        </div>
+      </div>
+
+
 
       <div className="space-y-1.5">
         <Label className="text-sm">Endereço ou local</Label>

@@ -16,7 +16,10 @@ import {
   Loader2,
   Sparkles,
   AlertTriangle,
+  FileSpreadsheet,
+  FileDown,
 } from "lucide-react";
+
 
 import { toast } from "sonner";
 
@@ -537,6 +540,119 @@ export default function Monitoramento() {
     await marcarCienteIds(ids);
   };
 
+  // ===== Exportações das movimentações (obedecem os filtros da aba) =====
+  const [exportando, setExportando] = useState(false);
+
+  const linhasMovimentacoes = () =>
+    grupos.flatMap((g) =>
+      g.eventos.map((ev) => ({
+        Processo: g.numero,
+        Partes: g.parte,
+        Coordenações: coordsDoProcesso(g.processoId, g.coordenacaoId).join(", "),
+        Data: ev.step_date
+          ? format(new Date(ev.step_date), "dd/MM/yyyy")
+          : ev.criado_em
+            ? format(new Date(ev.criado_em), "dd/MM/yyyy")
+            : "",
+        Detectado: ev.criado_em ? format(new Date(ev.criado_em), "dd/MM/yyyy HH:mm") : "",
+        Instância: ev.instancia ?? "",
+        Tribunal: ev.tribunal ?? "",
+        Anexos: ev.anexos_count ?? 0,
+        Situação: ev.lido_em ? "Lida" : "Não lida",
+        Movimentação: (ev.conteudo ?? "").replace(/\s+/g, " ").trim(),
+      })),
+    );
+
+  const exportarMovimentacoesExcel = async () => {
+    const linhas = linhasMovimentacoes();
+    if (linhas.length === 0) {
+      toast.error("Nenhuma movimentação para exportar com os filtros atuais");
+      return;
+    }
+    setExportando(true);
+    try {
+      const XLSX = await import("xlsx");
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      ws["!cols"] = [
+        { wch: 26 }, { wch: 40 }, { wch: 24 }, { wch: 12 }, { wch: 17 },
+        { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 10 }, { wch: 90 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Movimentações");
+      XLSX.writeFile(wb, `movimentacoes_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`);
+      toast.success(`${linhas.length} movimentação(ões) exportada(s)`);
+    } catch (e: any) {
+      toast.error(`Erro ao exportar Excel: ${e?.message ?? e}`);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const exportarMovimentacoesPdf = async () => {
+    const linhas = linhasMovimentacoes();
+    if (linhas.length === 0) {
+      toast.error("Nenhuma movimentação para exportar com os filtros atuais");
+      return;
+    }
+    setExportando(true);
+    try {
+      const [{ default: jsPDF }, { default: autoTable }] = await Promise.all([
+        import("jspdf"),
+        import("jspdf-autotable"),
+      ]);
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFillColor(26, 42, 71);
+      doc.rect(0, 0, pageWidth, 18, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("JURIS CONTROL — Movimentações monitoradas", 14, 11);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.text(
+        `${linhas.length} movimentação(ões) · emitido em ${format(new Date(), "dd/MM/yyyy HH:mm")}`,
+        pageWidth - 14,
+        11,
+        { align: "right" },
+      );
+      autoTable(doc, {
+        startY: 24,
+        head: [["Processo", "Partes", "Data", "Instância", "Tribunal", "Situação", "Movimentação"]],
+        body: linhas.map((l) => [
+          l.Processo,
+          l.Partes,
+          l.Data,
+          l.Instância,
+          l.Tribunal,
+          l.Situação,
+          l.Movimentação,
+        ]),
+        margin: { left: 10, right: 10 },
+        styles: { font: "helvetica", fontSize: 7.5, cellPadding: 1.6, overflow: "linebreak", valign: "top" },
+        headStyles: { fillColor: [26, 42, 71], textColor: [255, 255, 255], fontSize: 8 },
+        alternateRowStyles: { fillColor: [241, 245, 249] },
+        columnStyles: {
+          0: { cellWidth: 38 },
+          1: { cellWidth: 45 },
+          2: { cellWidth: 18 },
+          3: { cellWidth: 18 },
+          4: { cellWidth: 18 },
+          5: { cellWidth: 18 },
+          6: { cellWidth: "auto" },
+        },
+      });
+      doc.save(`movimentacoes_${format(new Date(), "yyyy-MM-dd_HHmm")}.pdf`);
+      toast.success(`${linhas.length} movimentação(ões) exportada(s)`);
+    } catch (e: any) {
+      toast.error(`Erro ao exportar PDF: ${e?.message ?? e}`);
+    } finally {
+      setExportando(false);
+    }
+  };
+
+
+
   return (
     <MainLayout
       title="Monitoramento"
@@ -661,6 +777,37 @@ export default function Monitoramento() {
               <span>
                 {grupos.length} processo(s) · {totalNaoLidos} não lida(s)
               </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={exportarMovimentacoesExcel}
+                disabled={exportando || grupos.length === 0}
+                title="Exporta para Excel as movimentações dos filtros atuais"
+              >
+                {exportando ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={exportarMovimentacoesPdf}
+                disabled={exportando || grupos.length === 0}
+                title="Exporta para PDF as movimentações dos filtros atuais"
+              >
+                {exportando ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <FileDown className="w-3.5 h-3.5 mr-1.5" />
+                )}
+                PDF
+              </Button>
+
               <Button
                 variant="outline"
                 size="sm"

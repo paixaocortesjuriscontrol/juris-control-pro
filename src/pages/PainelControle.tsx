@@ -1222,6 +1222,22 @@ export default function PainelControle() {
         : Promise.resolve({ data: [] as any[] }),
     ]);
 
+    // Detalhes completos das audiências (pauta): tipo, modalidade, partes,
+    // preposto, testemunhas, fórum/vara — usados nas colunas da planilha.
+    const audDetalhes = new Map<string, any>();
+    if (audienciaIds.length > 0) {
+      for (let i = 0; i < audienciaIds.length; i += 200) {
+        const { data } = await supabase
+          .from("audiencias_detectadas")
+          .select(
+            "id, titulo, tipo_audiencia, modalidade, forum, sala_forum, vara_camara, comarca, polo_ativo, cliente, terceirizado, preposto, testemunhas, advogado, funcao, hora, hora_fim, local_audiencia",
+          )
+          .in("id", audienciaIds.slice(i, i + 200));
+        (data || []).forEach((a: any) => audDetalhes.set(String(a.id), a));
+      }
+    }
+
+
     const allProfileIds = new Set<string>();
     ((tarefaResp.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
     ((tarefaEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
@@ -1386,12 +1402,16 @@ export default function PainelControle() {
         const [y, m, d] = s.split("-");
         return `${d}/${m}/${y}`;
       };
+      const aud = rawId.startsWith("audiencia-det-")
+        ? audDetalhes.get(rawId.replace("audiencia-det-", ""))
+        : null;
       return {
         Classificação: TIPO_LABELS[it.tipo as string] ?? it.tipo_tarefa ?? it.tipo,
         Título: it.titulo,
         Status: it.status,
         "Data prevista": fmtDate(it.data_vencimento ?? it.data_inicio),
         Horário: horario,
+        "Hora término": (aud?.hora_fim ?? "").slice(0, 5),
         "Data fatal": fmtDate(it.data_fatal),
         Responsáveis: responsaveisArr.join(", "),
         Envolvidos: envolvidosArr.join(", "),
@@ -1399,10 +1419,25 @@ export default function PainelControle() {
         Reclamante: partes?.ativo ?? "",
         Reclamada: partes?.passivo ?? "",
         Cliente: partes?.clienteId ? clienteNomeById.get(String(partes.clienteId)) ?? "" : "",
+        "Tipo de audiência": aud?.tipo_audiencia ?? aud?.titulo ?? "",
+        Modalidade: aud?.modalidade ?? "",
+        "Polo ativo (audiência)": aud?.polo_ativo ?? "",
+        "Cliente (audiência)": aud?.cliente ?? "",
+        Terceirizada: aud?.terceirizado ?? "",
+        Preposto: aud?.preposto ?? "",
+        Testemunhas: aud?.testemunhas ?? "",
+        Advogado: aud?.advogado ?? "",
+        Função: aud?.funcao ?? "",
+        Fórum: aud?.forum ?? "",
+        "Sala do fórum": aud?.sala_forum ?? "",
+        "Vara / Câmara": aud?.vara_camara ?? "",
+        Comarca: aud?.comarca ?? "",
+        "Local / endereço": aud?.local_audiencia ?? "",
         Etiquetas: etiquetasArr.join(", "),
         Coordenação:
           coordNomeById.get((it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? "") ?? "",
       };
+
     });
 
     if (rowsFinal.length === 0) {

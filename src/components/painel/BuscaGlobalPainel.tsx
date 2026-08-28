@@ -132,13 +132,38 @@ export function BuscaGlobalPainel() {
             .limit(20),
           supabase
             .from("audiencias_detectadas")
-            .select("id, processo_numero, data_audiencia, tipo_audiencia")
+            .select("id, processo_numero, data_audiencia, tipo_audiencia, titulo, cliente, polo_ativo, preposto, testemunhas")
             .or(
-              numeroVariantes.length > 0
-                ? `${numeroOr("processo_numero")},tipo_audiencia.ilike.${like}`
-                : `tipo_audiencia.ilike.${like}`
+              [
+                ...(numeroVariantes.length > 0 ? [numeroOr("processo_numero")] : []),
+                buildOr(
+                  [
+                    "titulo",
+                    "tipo_audiencia",
+                    "cliente",
+                    "polo_ativo",
+                    "terceirizado",
+                    "preposto",
+                    "testemunhas",
+                    "advogado",
+                    "funcao",
+                    "resumo_objeto",
+                    "vara_camara",
+                    "comarca",
+                    "forum",
+                    "local_audiencia",
+                    "modalidade",
+                    "observacoes",
+                  ],
+                  termosBusca
+                ),
+              ]
+                .filter(Boolean)
+                .join(",")
             )
-            .limit(5),
+            .order("data_audiencia", { ascending: false })
+            .limit(20),
+
           supabase
             .from("publicacoes_djen")
             .select("id, processo_numero, data_disponibilizacao, tribunal")
@@ -195,7 +220,16 @@ export function BuscaGlobalPainel() {
             id: `a-${a.id}`,
             tipo: "audiencia",
             titulo: a.processo_numero || "(audiência)",
-            subtitulo: [a.tipo_audiencia, a.data_audiencia].filter(Boolean).join(" • "),
+            subtitulo: [
+              a.titulo || a.tipo_audiencia,
+              a.data_audiencia,
+              a.cliente,
+              a.preposto && `Preposto: ${a.preposto}`,
+              a.testemunhas && `Testemunhas: ${a.testemunhas}`,
+            ]
+              .filter(Boolean)
+              .join(" • "),
+
             to: `/painel-audiencias`,
           })
         );

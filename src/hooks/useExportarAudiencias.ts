@@ -32,7 +32,12 @@ export function useExportarAudiencias() {
       "CLIENTE": a.cliente || "",
       "TERCEIRIZADO": a.terceirizado || "",
       "TIPO": a.tipo_audiencia || "",
+      "MODALIDADE": (a as any).modalidade || "",
+      "FÓRUM": (a as any).forum || "",
+      "SALA": (a as any).sala_forum || "",
+      "LOCAL": (a as any).local_audiencia || "",
       "RESUMO DO OBJETO": a.resumo_objeto || "",
+
       "FUNÇÃO": a.funcao || "",
       "PREPOSTO": a.preposto || "",
       "TESTEMUNHAS": a.testemunhas || "",
@@ -54,7 +59,12 @@ export function useExportarAudiencias() {
       { wch: 35 }, // CLIENTE
       { wch: 25 }, // TERCEIRIZADO
       { wch: 25 }, // TIPO
+      { wch: 18 }, // MODALIDADE
+      { wch: 25 }, // FÓRUM
+      { wch: 14 }, // SALA
+      { wch: 30 }, // LOCAL
       { wch: 50 }, // RESUMO
+
       { wch: 20 }, // FUNÇÃO
       { wch: 30 }, // PREPOSTO
       { wch: 25 }, // TESTEMUNHAS
