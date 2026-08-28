@@ -204,13 +204,16 @@ export function PautasExcelDialog({
     setErrosParse([]);
     setProcessosExistentes(new Set());
     setChavesExistentes(new Set());
+    setMatchEtiquetas(new Map());
     setResponsaveisIds([]);
+    setEnvolvidosIds([]);
     setEtiquetasSel([]);
     setBuscaEtiqueta("");
 
     setProgresso(0);
     setResumo(null);
   }, []);
+
 
   const handleClose = () => {
     if (etapa === "importando") return;
