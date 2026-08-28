@@ -150,7 +150,7 @@ const CONTEUDO: Bloco[] = [
     tipo: "lista",
     itens: [
       "Sempre confira o número CNJ antes de consultar a Judit: um dígito errado traz outro processo.",
-      "Prefira a consulta normal (cache) e reserve Forçar atualização para casos urgentes.",
+      "Evite cliques repetidos no mesmo processo em dias diferentes sem necessidade: cada primeiro clique do dia é uma consulta cobrada.",
       "Revise polo ativo e passivo antes de salvar: eles alimentam o monitoramento do DJEN.",
       "Preencha a coordenação responsável, pois ela define quem recebe alertas e enxerga os prazos.",
       "Um mesmo processo pode ter várias coordenações responsáveis; prazos e eventos são filtrados pela coordenação do usuário logado.",
