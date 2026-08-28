@@ -266,8 +266,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     activeRecordIdRef.current = dado?.id || undefined;
   }, [dado?.id]);
   const [tipoRecursoJuditVazio, setTipoRecursoJuditVazio] = useState(false);
-  // true quando a Judit não devolveu a instância TST do processo nesta consulta.
-  const [tstIndisponivel, setTstIndisponivel] = useState(false);
+  // Estado do alerta quando a Judit não devolveu a instância TST do processo.
+  // `origem` indica se a resposta veio de cache local do dia (sugere forçar)
+  // ou de uma consulta real (não sugere forçar).
+  const [tstIndisponivel, setTstIndisponivel] = useState<{ show: boolean; origem: "cache" | "real" | null }>({
+    show: false,
+    origem: null,
+  });
 
   // Campos que a tela identifica explicitamente com o badge "Judit".
   // O toast deve contar estes campos, não campos técnicos/ocultos nem campos
