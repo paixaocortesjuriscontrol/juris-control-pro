@@ -1,38 +1,50 @@
-# Botão Judit na Distribuição TST — diagnóstico e correção
+# Botão Judit na Distribuição TST — diagnóstico revisado
 
-## O que os logs mostram (Kellen Ferreira)
+Você está certo: os processos são do TST. O problema não é "processo sem TST" — é que a consulta está **respondendo com a instância de origem (TRT)** do mesmo processo e a tela não tem como preencher os campos do TST com isso.
 
-Consultei a tabela `judit_logs` cruzada com `profiles`. A Kellen tem **124 cliques com sucesso**, **17 com "Judit não retornou dados para este processo"** e **1 com "Failed to send a request to the Edge Function"** (esse último é o clique que "não funciona": a Edge Function não respondeu no tempo do navegador).
+## O que foi verificado
 
-Nos cliques com sucesso, o padrão é claro — quase todos voltam com `tribunal_selecionado = TRT2/TRT15/TRT3` e resposta de cache, e nesses casos **relator, turma e tipo de recurso vêm vazios**. Exemplos dos últimos dias dela: em 26, 27 e 28/08, de 8 consultas com sucesso, 8 vieram de instância não-TST e 7 sem relator/turma/tipo de recurso.
+**1. Os registros que a Kellen marcou como "problema Judit" têm sempre o mesmo perfil.**
+Consultei `dados_benner` onde `problema_judit = true`: nesses processos há relator e turma (vindos da planilha), mas **`tipo_recurso` está nulo** em praticamente todos — inclusive os que estão com `judit_preenchido = true`. Exemplos dela: 1001927-21.2024.5.02.0435 (4ª Turma, sem tipo de recurso), 1000940-55.2023.5.02.0035 (1ª Turma, sem tipo de recurso), 0010737-94.2024.5.18.0131, 0010514-89.2024.5.15.0143, 0010386-22.2024.5.15.0094. Ou seja, "não preenche completamente" = **tipo de recurso (e situação) não vêm**.
 
-Caso que fecha o diagnóstico — processo 1002068-91.2023.5.02.0203, em 28/08:
-- 20:13:48 — clique normal: resposta de cache, TRT2, relator/turma/tipo de recurso **nulos** → tela preenche pela metade.
-- 20:14:22 — mesmo processo com "Forçar atualização": relator "ANTÔNIO FABRÍCIO DE MATOS GONÇALVES", 6ª Turma, Agravo de Instrumento → tela preenchida.
+**2. O log mostra por que o tipo de recurso não vem.**
+Em `judit_logs`, os cliques dela com sucesso voltam com `_judit_meta.tribunal_selecionado = TRT2 / TRT15 / TRT3` e `instancia_tst: false`. No caso 1000940-55.2023.5.02.0035 (27/08 18:43) o meta é explícito: `fonte: "cache_instant"`, `instancia_tst: false`, `fonte_tipo_recurso: "classe_nao_recursal_ignorada"`.
+No código de `buscar-judit`, `tipo_recurso` só é preenchido quando a instância selecionada é TST (`classeRecursal = foiTst ? classe : null`). Como a instância escolhida foi a do TRT, o campo sai nulo **por regra** — não é falha da Judit.
 
-Ou seja: **não é falha aleatória do botão**. Na primeira tentativa a função devolve o cache da instância de origem (TRT), que não tem os campos do TST; a advogada só consegue o dado completo se souber clicar em "Forçar atualização" — e hoje isso não fica óbvio na tela.
+**3. A instância TST só é buscada quando se clica em "Forçar atualização".**
+Três camadas conspiram para devolver o TRT no clique normal:
+- `cacheUsavel` (linhas ~818-836) aceita o cache de qualquer instância desde que tenha partes e algum sinal, mesmo com `tribunal: "TST"` no pedido — e responde na hora sem consultar o crawler, que é quem traz todas as instâncias (incluindo TST).
+- `juditAppCache` (linhas ~157-171) reaproveita respostas anteriores de TRT gravadas em `judit_logs`, apenas marcando `_instancia_tst: false` — congelando o processo no dado incompleto por 3 dias.
+- A retentativa dirigida ao TST (`retentativaTst`, linha ~874) está condicionada a `forceRefresh === true`.
+Comprovação no mesmo processo 1002068-91.2023.5.02.0203, em 28/08: clique normal às 20:13:48 → cache TRT2, relator/turma/tipo de recurso nulos; clique com "Forçar atualização" às 20:14:22 → relator, 6ª Turma e "Agravo de Instrumento" preenchidos.
 
-Há também um problema de rastreabilidade: o log gravado por esta tela não preenche `user_email`, `origem`, `duracao_ms` nem `tipo_cobranca` (1009 registros com esses campos nulos), o que impede o relatório /consumo-judit de atribuir consumo e impede medir lentidão.
+**4. "Às vezes não funciona" são dois erros distintos, também no log.**
+- `Failed to send a request to the Edge Function` — a função não respondeu no tempo do navegador (Kellen 1 vez; no escritório 39 vezes em 30 dias). Coerente com o orçamento de 25-30s do crawler.
+- `Judit não retornou dados para este processo` — 17 vezes com a Kellen (ex.: 1000352-38.2016.5.02.0053, três cliques seguidos em 26/08, às 00:40). Nesses logs `_judit_meta` vem nulo: não houve cache nem página do crawler.
 
-## O que fazer
+## Correção proposta
 
-1. **Segunda tentativa automática quando a resposta vier incompleta.**
-   Se a resposta não é do TST (`instancia_tst === false` ou `tribunal_selecionado != TST`) **e** relator, turma e tipo de recurso vierem todos vazios, a tela repete a consulta uma vez com `force_refresh: true`, sem o usuário precisar fazer nada. O toast passa a informar: "Resposta rápida incompleta — buscando dados atualizados do TST…". Só depois disso, se ainda vier vazio, exibe o aviso atual.
+**A. Para pedido `tribunal: "TST"`, resposta de instância não-TST não encerra a consulta.**
+Em `buscar-judit`: quando `tribunalHint === "TST"`, o cache-first passa a valer **somente** se o cache é da instância TST. Se o cache é do TRT, ele é guardado (serve para partes de origem e detecção de trânsito) e a função segue para o crawler, que agrega todas as instâncias e usa `selecionarTst` — sem exigir clique em "Forçar atualização".
 
-2. **Aviso claro quando permanecer incompleto.**
-   Substituir o toast informativo por um alerta persistente no cabeçalho do formulário listando quais campos a Judit não trouxe (Relator, Turma, Tipo de recurso, Dossiê), com botão "Forçar atualização" ao lado. Assim a advogada vê o que falta em vez de achar que o botão falhou.
+**B. Retentativa dirigida ao TST no clique normal.**
+Soltar a retentativa da condição `forceRefresh`: se depois do crawler nenhuma página é TST e ainda há orçamento de tempo, refaz uma vez com `cache_ttl_in_days=0`. Mantida a proteção de orçamento para não estourar o tempo do clique.
 
-3. **Erro de rede tratado com nova tentativa.**
-   Em "Failed to send a request to the Edge Function" (timeout de rede) e em erros 5xx, tentar novamente uma vez após 2s antes de mostrar erro; a mensagem final explica que o processo pode ser consultado de novo em alguns segundos.
+**C. App-cache não pode servir TRT quando se pede TST.**
+Em `juditAppCache`, descartar respostas cujo `tribunal` não é TST quando `tribunalHint === "TST"`, em vez de devolvê-las marcadas como `_instancia_tst: false`. Isso remove o congelamento de 3 dias no dado incompleto.
 
-4. **"Judit não retornou dados" com mensagem útil.**
-   Hoje aparece como erro genérico. Passa a explicar que a base Judit não tem o processo (comum em processos que ainda não subiram ao TST) e que os campos podem ser preenchidos manualmente.
+**D. Orçamento de tempo maior e sem erro de rede seco.**
+Elevar `POLL_TIMEOUT_MS`/`REQUEST_BUDGET_MS` o suficiente para a instância TST (crawler TST leva 8-25s, e a retentativa soma outra rodada), e no cliente repetir uma vez automaticamente quando o erro for de rede/timeout (`Failed to send a request to the Edge Function`), em vez de mostrar erro no primeiro tropeço.
 
-5. **Log completo para auditoria.**
-   Passar a gravar `user_email`, `origem` ("distribuicao-tst"), `duracao_ms` e `tipo_cobranca` no insert de `judit_logs` desta tela (reaproveitando `src/lib/juditLog.ts`, que já faz isso), registrando também as tentativas automáticas com uma marca `retry: true`. Isso permite acompanhar no /consumo-judit quem consultou, quanto demorou e quantas consultas precisaram de segunda tentativa.
+**E. Aviso honesto quando a instância TST realmente não existir.**
+Se após crawler + retentativa nenhuma instância TST aparecer, exibir alerta fixo no formulário: "A Judit ainda não tem a instância TST deste processo — tipo de recurso e situação não podem ser preenchidos automaticamente", com o botão "Forçar atualização" ao lado. Assim a advogada distingue "Judit incompleta" de "botão falhou", e o `problema_judit` passa a ser marcado com informação.
+
+**F. Log com autoria e duração.**
+O insert em `judit_logs` feito por esta tela não grava `user_email`, `origem`, `duracao_ms` nem `tipo_cobranca` (1009 registros com esses campos nulos, atribuíveis só via `created_by`). Passar a usar `logJudit` de `src/lib/juditLog.ts` com `origem: "distribuicao-tst"`, registrando também se houve retentativa TST — permite medir no /consumo-judit quantos cliques ficam incompletos e quanto tempo levam.
 
 ## Detalhes técnicos
 
-- `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`: extrair a chamada da Judit em uma rotina reutilizável para permitir o retry com `force_refresh`; substituir o insert manual em `judit_logs` (linhas ~710-723) por `logJudit` de `src/lib/juditLog.ts` com `origem: "distribuicao-tst"` e duração medida; adicionar estado para o alerta de campos faltantes.
-- Sem alteração na Edge Function `buscar-judit` e sem mudança de schema — a política de cache do backend continua a mesma, o retry é decidido no cliente para não encarecer consultas que já vêm completas.
-- Custo: o retry só dispara quando a primeira resposta é inútil, mantendo `com_anexos: false` (cobrança datalake/on-demand, não a de anexos).
+- `supabase/functions/buscar-judit/index.ts`: condicionar `cacheUsavel` a `isTstRd(cached)` quando `tribunalHint === "TST"`; remover a exceção de `juditAppCache` (linhas 169-171); retirar `forceRefresh` da guarda da retentativa TST (linha ~874) mantendo `orcamentoRestante`; ajustar `POLL_TIMEOUT_MS` e `REQUEST_BUDGET_MS`; expor em `_judit_meta` um campo `tst_indisponivel` para a UI.
+- `src/components/distribuicao-tst/DistribuicaoTstForm.tsx`: retry único em erro de rede; alerta persistente de instância TST indisponível; trocar o insert manual de `judit_logs` (linhas ~710-723) por `logJudit`.
+- Sem alteração de schema.
+- Custo: o clique normal passa a poder disparar crawler em processos cujo cache é só TRT. Como `com_anexos` continua `false` e o TTL padrão de 3 dias é mantido na primeira rodada, o custo fica na faixa datalake/on-demand — e substitui o duplo clique (normal + forçar) que a advogada faz hoje, que já cobrava duas consultas.
