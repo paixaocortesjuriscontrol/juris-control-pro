@@ -65,21 +65,28 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
         ).join(", ");
 
         const PAGE = 1000;
-        const CONCURRENCY = 4;
         let semPendencia = 0;
         const semPendenciaIds: string[] = [];
+        const idsPermitidos = new Set(ids);
 
-        const lotes: string[][] = [];
-        for (let i = 0; i < ids.length; i += PAGE) lotes.push(ids.slice(i, i + PAGE));
-
-        const processarLote = async (batch: string[]) => {
+        // Não use `.in("id", batch)` aqui. Com centenas de UUIDs, o filtro é
+        // enviado na URL pelo PostgREST e pode ultrapassar o limite HTTP; o
+        // card então caía no catch e mostrava zero. Há poucos registros prontos
+        // em relação à base inteira, então paginamos diretamente esse conjunto
+        // e cruzamos localmente com os IDs que respeitam os filtros da tela.
+        let from = 0;
+        while (true) {
+          if (cancelled || runId !== runIdRef.current) return;
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .select(cols)
-            .in("id", batch)
-            .eq("status", "pronto_envio");
+            .eq("status", "pronto_envio")
+            .order("id", { ascending: true })
+            .range(from, from + PAGE - 1);
           if (error) throw error;
-          for (const r of (data as any[]) || []) {
+          const rows = (data as any[]) || [];
+          for (const r of rows) {
+            if (!idsPermitidos.has((r as any).id)) continue;
             // Espelha a lógica do botão "Verificar Pendências":
             // processos em outro escritório, sob segredo de justiça ou CEJUSC
             // não são contabilizados (nem com pendência, nem sem).
@@ -94,11 +101,8 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
               semPendenciaIds.push((r as any).id);
             }
           }
-        };
-
-        for (let i = 0; i < lotes.length; i += CONCURRENCY) {
-          if (cancelled || runId !== runIdRef.current) return;
-          await Promise.all(lotes.slice(i, i + CONCURRENCY).map(processarLote));
+          if (rows.length < PAGE) break;
+          from += PAGE;
         }
         if (!cancelled && runId === runIdRef.current) {
           setCount(semPendencia);
