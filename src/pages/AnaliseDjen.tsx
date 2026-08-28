@@ -2856,8 +2856,9 @@ const AnaliseDjen = () => {
       const origemLabel = isPautasDejt ? 'DEJT' : 'DJEN';
       const children: Paragraph[] = [...buildDocHeader(
         semRepeticao
-          ? `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição, sem repetição)`
+          ? `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição, sem pautas, sem repetição)`
           : `Resumo de Intimações ${origemLabel} (sem Lista de Distribuição)`,
+
         allPublicacoes.length
       )];
       const comentariosMap = await fetchComentariosMap(allPublicacoes.map(p => p.id));
