@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.0.7";
+export const APP_VERSION = "5.0.8";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -48,4 +48,5 @@ export const VERSION_HISTORY = [
   { version: "5.0.5", date: "2026-08-26", notes: "Limpeza de duplicidades (coordenação Dra. Janaina), trava contra duplo submit em prazos, Carga Benner sem espaço após vírgula e relatório de duplicados" },
   { version: "5.0.6", date: "2026-08-28", notes: "Atualização de versão" },
   { version: "5.0.7", date: "2026-08-28", notes: "Atualização de versão" },
+  { version: "5.0.8", date: "2026-08-28", notes: "Atualização de versão" },
 ];
