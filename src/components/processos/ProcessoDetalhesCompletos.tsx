@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
@@ -38,6 +38,7 @@ import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
 import { ProcessoAuditoriaTab } from "./ProcessoAuditoriaTab";
+import { useContagemAtividades } from "@/hooks/useItensComAtividades";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
@@ -347,6 +348,20 @@ export function ProcessoDetalhesCompletos({
   };
   const tarefasSemPrazo = agruparDuplicados(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
   const prazosDoProcesso = agruparDuplicados(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
+
+  // Contagem de atividades (subatividades) vinculadas aos itens do processo,
+  // para exibir nas abas laterais (Tarefa, Prazo, Evento, Audiência).
+  const idsItensProcesso = useMemo(
+    () => [
+      ...tarefas.map((t: any) => t?.id),
+      ...eventosAgenda.map((e: any) => e?.id),
+      ...audiencias.map((a: any) => a?.id),
+    ],
+    [tarefas, eventosAgenda, audiencias]
+  );
+  const { data: contagemAtividades = {} } = useContagemAtividades(idsItensProcesso);
+  const qtdAtividades = (id?: string | null) => (id ? contagemAtividades[String(id)] || 0 : 0);
+
 
   // Inline editable resumo
   const [resumoForm, setResumoForm] = useState<Record<string, any>>({});
@@ -1373,6 +1388,12 @@ export function ProcessoDetalhesCompletos({
                                         <span className="flex items-center gap-1">
                                           <User className="h-3 w-3" />
                                           {tarefa._responsaveisNomes.join(", ")}
+                                        </span>
+                                      )}
+                                      {qtdAtividades(tarefa.id) > 0 && (
+                                        <span className="flex items-center gap-1 text-emerald-600">
+                                          <ListChecks className="h-3 w-3" />
+                                          {qtdAtividades(tarefa.id)} atividade{qtdAtividades(tarefa.id) > 1 ? "s" : ""}
                                         </span>
                                       )}
                                     </div>
