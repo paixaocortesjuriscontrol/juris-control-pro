@@ -261,28 +261,54 @@ export function PautasExcelDialog({
         }
       }
 
-      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos
+      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos.
+      // Importante: duplicidade é avaliada APENAS dentro da coordenação atual.
+      // Itens iguais em outras coordenações são permitidos.
       const chaves = new Set<string>();
       const procIds = Array.from(digitsById.keys());
+
+      // Audiências da coordenação: busca por NÚMERO do processo (mascarado ou só
+      // dígitos), o que também alcança audiências sem processo_id vinculado.
+      const audiencias = await buscarPaginado<any>(
+        "audiencias_detectadas",
+        "id, processo_id, processo_numero, data_audiencia, titulo",
+        [...numerosMasked, ...numerosDigits],
+        "processo_numero",
+      );
+      /** `digits|dia` → ids das audiências existentes (usado no modo etiquetas). */
+      const audienciasPorDigitsDia = new Map<string, string[]>();
+      for (const a of audiencias) {
+        const d = String(a.processo_numero || "").replace(/\D/g, "") ||
+          digitsById.get(a.processo_id as string) ||
+          "";
+        if (!d) continue;
+        const k = chaveDigits(d, a.data_audiencia, a.titulo);
+        if (k) chaves.add(k);
+        const dia = diaLocalISO(a.data_audiencia);
+        if (dia) {
+          const kd = `${d}|${dia}`;
+          const arr = audienciasPorDigitsDia.get(kd) || [];
+          arr.push(a.id as string);
+          audienciasPorDigitsDia.set(kd, arr);
+        }
+      }
+
       if (procIds.length > 0) {
-        // Importante: duplicidade é avaliada APENAS dentro da coordenação atual.
-        // Itens iguais em outras coordenações são permitidos.
-        const [{ data: audDb }, { data: tarDb }, { data: evtDb }] = await Promise.all([
-          supabase
-            .from("audiencias_detectadas")
-            .select("processo_id, data_audiencia, titulo")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
-          supabase
-            .from("tarefas")
-            .select("processo_id, titulo, data_vencimento")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
-          supabase
-            .from("eventos_agenda")
-            .select("processo_id, titulo, data_inicio")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
+        const [tarDb, evtDb] = await Promise.all([
+          buscarPaginado<any>(
+            "tarefas",
+            "processo_id, titulo, data_vencimento",
+            procIds,
+            "processo_id",
+            coordenacaoId,
+          ),
+          buscarPaginado<any>(
+            "eventos_agenda",
+            "processo_id, titulo, data_inicio",
+            procIds,
+            "processo_id",
+            coordenacaoId,
+          ),
         ]);
         const add = (procId: string, data: any, titulo: any) => {
           const d = digitsById.get(procId);
@@ -290,15 +316,22 @@ export function PautasExcelDialog({
           const k = chaveDigits(d, data, titulo);
           if (k) chaves.add(k);
         };
-        for (const a of audDb || []) add((a as any).processo_id, (a as any).data_audiencia, (a as any).titulo);
-        for (const t of tarDb || []) add((t as any).processo_id, (t as any).data_vencimento, (t as any).titulo);
-        for (const e of evtDb || []) add((e as any).processo_id, (e as any).data_inicio, (e as any).titulo);
+        for (const t of tarDb) add(t.processo_id, t.data_vencimento, t.titulo);
+        for (const e of evtDb) add(e.processo_id, e.data_inicio, e.titulo);
+      }
+
+      // Casamento planilha → audiências existentes (modo "aplicar etiquetas")
+      const match = new Map<number, string[]>();
+      for (const l of ls) {
+        const ids = audienciasPorDigitsDia.get(`${l.processo_digits}|${l.data_iso}`);
+        if (ids?.length) match.set(l.linha, ids);
       }
 
       setLinhas(ls);
       setErrosParse(erros);
       setProcessosExistentes(existSet);
       setChavesExistentes(chaves);
+      setMatchEtiquetas(match);
       setMostrarErros(erros.length > 0);
       setEtapa("preview");
     } catch (e: any) {
