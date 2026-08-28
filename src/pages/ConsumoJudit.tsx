@@ -358,7 +358,7 @@ export default function ConsumoJudit() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <KpiCard icon={<Activity className="w-4 h-4" />} label="Chamadas cobradas" value={fmtInt(kpis.totalCobrado)} sub={`${fmtInt(kpis.total)} no total`} />
           <KpiCard icon={<Paperclip className="w-4 h-4" />} label="Com anexos" value={fmtInt(kpis.porTipo["com_anexos"]?.qtd ?? 0)} sub={fmtBrl(kpis.porTipo["com_anexos"]?.custo ?? 0)} />
-          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} />
+          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={`${fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} · ${fmtInt(enriched.filter((r) => r.tipo === "cache_local").length)} reaproveitadas do dia`} />
           <KpiCard icon={<DollarSign className="w-4 h-4" />} label="Custo total BRL" value={fmtBrl(kpis.custoTotal)} sub="estimado (tabela Judit)" />
         </div>
 
