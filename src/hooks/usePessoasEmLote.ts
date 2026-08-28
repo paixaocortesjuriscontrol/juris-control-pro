@@ -477,6 +477,15 @@ export async function aplicarPessoasEmLote({
     }
   }
 
+  // Auditoria (best-effort: falha aqui não invalida a operação)
+  for (const parte of chunk(auditoria, 100)) {
+    try {
+      await (supabase as any).from("auditoria_tarefas").insert(parte);
+    } catch (e) {
+      console.warn("Falha ao registrar auditoria de pessoas em lote", e);
+    }
+  }
+
   return { itensAlterados, atividadesAlteradas, erros };
 }
 
