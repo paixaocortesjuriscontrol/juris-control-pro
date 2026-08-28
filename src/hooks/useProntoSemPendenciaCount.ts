@@ -6,7 +6,8 @@ import {
 } from "@/hooks/useDistribuicoesTst";
 import {
   getPendencias,
-  COLUNAS_SELECT_PENDENCIAS,
+  COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
+  isNaoPrecisaFazer,
 } from "@/utils/distribuicaoTstPendencias";
 
 /**
