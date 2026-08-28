@@ -38,6 +38,7 @@ import { ProcessoAnexosJuditTab } from "./ProcessoAnexosJuditTab";
 import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
 import { ProcessoPartesTab } from "./ProcessoPartesTab";
 import { ProcessoAuditoriaTab } from "./ProcessoAuditoriaTab";
+import { useContagemAtividades } from "@/hooks/useItensComAtividades";
 import { PrazoSectionEditable } from "./PrazoSectionEditable";
 import { SelecionarResponsaveisProcesso } from "./SelecionarResponsaveisProcesso";
 import { BaixarAutosButton } from "./BaixarAutosButton";
