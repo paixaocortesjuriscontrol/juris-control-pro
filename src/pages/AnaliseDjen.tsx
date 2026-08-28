@@ -311,6 +311,8 @@ const AnaliseDjen = () => {
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
+  const [gerandoExcel, setGerandoExcel] = useState<string | null>(null);
+
 
   // ===== Foco vindo da tela "Errata DJEN" =====
   // Quando o usuário clica em "Gerar resumos das exclusivas" na Errata DJEN,
