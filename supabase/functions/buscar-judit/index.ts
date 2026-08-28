@@ -140,7 +140,8 @@ async function juditAppCache(cnj: string, tribunalHint: string | null = null): P
     const admin = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const cutoff = new Date(Date.now() - CACHE_TTL_DAYS_DEFAULT * 24 * 60 * 60 * 1000).toISOString();
+    // Cache SOMENTE do dia de hoje (data civil de São Paulo).
+    const cutoff = inicioDoDiaSaoPauloISO();
     const { data, error } = await admin
       .from("judit_logs")
       .select("raw_response, created_at")
