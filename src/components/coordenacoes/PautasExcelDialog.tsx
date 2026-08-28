@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +22,7 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEtiquetas, ETIQUETA_MODULOS, ETIQUETA_COLOR_PALETTE } from "@/hooks/useEtiquetas";
+import { useFixosDoTipoCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
 import { baixarModeloPautasExcel } from "@/lib/pautasExcelModelo";
 import {
   parsePautaExcel,
@@ -46,6 +47,8 @@ interface ResumoImport {
   audienciasDuplicadas: number;
   etiquetasAplicadas?: number;
   etiquetasCriadas?: number;
+  /** Modo etiquetas: linhas sem audiência correspondente. */
+  linhasSemAudiencia?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
 
 }
@@ -91,6 +94,44 @@ function baixarErrosCsv(erros: ErroImport[]) {
   URL.revokeObjectURL(url);
 }
 
+/**
+ * Busca todas as linhas de uma tabela para uma lista de valores, em blocos e
+ * paginando as respostas — o Supabase devolve no máximo 1000 linhas por página,
+ * e truncar aqui fazia a checagem de duplicidade falhar.
+ */
+async function buscarPaginado<T = any>(
+  tabela: string,
+  colunas: string,
+  valores: string[],
+  coluna: string,
+  coordenacaoId?: string,
+): Promise<T[]> {
+  const unicos = Array.from(new Set(valores.filter(Boolean)));
+  if (unicos.length === 0) return [];
+  const BLOCO = 150;
+  const PAGINA = 1000;
+  const out: T[] = [];
+  for (let i = 0; i < unicos.length; i += BLOCO) {
+    const slice = unicos.slice(i, i + BLOCO);
+    let from = 0;
+    while (true) {
+      let q = (supabase as any)
+        .from(tabela)
+        .select(colunas)
+        .in(coluna, slice)
+        .range(from, from + PAGINA - 1);
+      if (coordenacaoId) q = q.eq("coordenacao_id", coordenacaoId);
+      const { data, error } = await q;
+      if (error) throw error;
+      const rows = (data as T[]) || [];
+      out.push(...rows);
+      if (rows.length < PAGINA) break;
+      from += PAGINA;
+    }
+  }
+  return out;
+}
+
 
 
 export function PautasExcelDialog({
@@ -110,6 +151,11 @@ export function PautasExcelDialog({
   const [verificandoDuplicidade, setVerificandoDuplicidade] = useState(false);
   const [mostrarErros, setMostrarErros] = useState(true);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  /** "importar" cria as audiências; "etiquetas" só aplica etiquetas em itens já existentes. */
+  const [modo, setModo] = useState<"importar" | "etiquetas">("importar");
+  /** Resultado do casamento planilha → audiência existente (modo etiquetas). */
+  const [matchEtiquetas, setMatchEtiquetas] = useState<Map<number, string[]>>(new Map());
   const [progresso, setProgresso] = useState(0);
   const [resumo, setResumo] = useState<ResumoImport | null>(null);
   const [etiquetasSel, setEtiquetasSel] = useState<string[]>([]);
@@ -118,6 +164,17 @@ export function PautasExcelDialog({
     coordenacaoId,
     "itens",
   );
+  const { data: fixos } = useFixosDoTipoCoordenacao(coordenacaoId, "audiencia");
+
+  // Pré-carrega responsáveis/envolvidos fixos do tipo Audiência da coordenação.
+  const fixosKey = JSON.stringify(fixos ?? null);
+  useEffect(() => {
+    if (!open || !fixos) return;
+    setResponsaveisIds((prev) => (prev.length ? prev : fixos.responsaveis));
+    setEnvolvidosIds((prev) => (prev.length ? prev : fixos.envolvidos));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, fixosKey]);
+
 
   const etiquetasFiltradas = useMemo(() => {
     const q = buscaEtiqueta.trim().toLowerCase();
@@ -187,13 +244,16 @@ export function PautasExcelDialog({
     setErrosParse([]);
     setProcessosExistentes(new Set());
     setChavesExistentes(new Set());
+    setMatchEtiquetas(new Map());
     setResponsaveisIds([]);
+    setEnvolvidosIds([]);
     setEtiquetasSel([]);
     setBuscaEtiqueta("");
 
     setProgresso(0);
     setResumo(null);
   }, []);
+
 
   const handleClose = () => {
     if (etapa === "importando") return;
@@ -241,28 +301,55 @@ export function PautasExcelDialog({
         }
       }
 
-      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos
+      // Atividades já existentes (audiência, tarefa ou evento) nos mesmos processos.
+      // Importante: duplicidade é avaliada APENAS dentro da coordenação atual.
+      // Itens iguais em outras coordenações são permitidos.
       const chaves = new Set<string>();
       const procIds = Array.from(digitsById.keys());
+
+      // Audiências da coordenação: busca por NÚMERO do processo (mascarado ou só
+      // dígitos), o que também alcança audiências sem processo_id vinculado.
+      const audiencias = await buscarPaginado<any>(
+        "audiencias_detectadas",
+        "id, processo_id, processo_numero, data_audiencia, titulo",
+        [...numerosMasked, ...numerosDigits],
+        "processo_numero",
+        coordenacaoId,
+      );
+      /** `digits|dia` → ids das audiências existentes (usado no modo etiquetas). */
+      const audienciasPorDigitsDia = new Map<string, string[]>();
+      for (const a of audiencias) {
+        const d = String(a.processo_numero || "").replace(/\D/g, "") ||
+          digitsById.get(a.processo_id as string) ||
+          "";
+        if (!d) continue;
+        const k = chaveDigits(d, a.data_audiencia, a.titulo);
+        if (k) chaves.add(k);
+        const dia = diaLocalISO(a.data_audiencia);
+        if (dia) {
+          const kd = `${d}|${dia}`;
+          const arr = audienciasPorDigitsDia.get(kd) || [];
+          arr.push(a.id as string);
+          audienciasPorDigitsDia.set(kd, arr);
+        }
+      }
+
       if (procIds.length > 0) {
-        // Importante: duplicidade é avaliada APENAS dentro da coordenação atual.
-        // Itens iguais em outras coordenações são permitidos.
-        const [{ data: audDb }, { data: tarDb }, { data: evtDb }] = await Promise.all([
-          supabase
-            .from("audiencias_detectadas")
-            .select("processo_id, data_audiencia, titulo")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
-          supabase
-            .from("tarefas")
-            .select("processo_id, titulo, data_vencimento")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
-          supabase
-            .from("eventos_agenda")
-            .select("processo_id, titulo, data_inicio")
-            .eq("coordenacao_id", coordenacaoId)
-            .in("processo_id", procIds),
+        const [tarDb, evtDb] = await Promise.all([
+          buscarPaginado<any>(
+            "tarefas",
+            "processo_id, titulo, data_vencimento",
+            procIds,
+            "processo_id",
+            coordenacaoId,
+          ),
+          buscarPaginado<any>(
+            "eventos_agenda",
+            "processo_id, titulo, data_inicio",
+            procIds,
+            "processo_id",
+            coordenacaoId,
+          ),
         ]);
         const add = (procId: string, data: any, titulo: any) => {
           const d = digitsById.get(procId);
@@ -270,15 +357,22 @@ export function PautasExcelDialog({
           const k = chaveDigits(d, data, titulo);
           if (k) chaves.add(k);
         };
-        for (const a of audDb || []) add((a as any).processo_id, (a as any).data_audiencia, (a as any).titulo);
-        for (const t of tarDb || []) add((t as any).processo_id, (t as any).data_vencimento, (t as any).titulo);
-        for (const e of evtDb || []) add((e as any).processo_id, (e as any).data_inicio, (e as any).titulo);
+        for (const t of tarDb) add(t.processo_id, t.data_vencimento, t.titulo);
+        for (const e of evtDb) add(e.processo_id, e.data_inicio, e.titulo);
+      }
+
+      // Casamento planilha → audiências existentes (modo "aplicar etiquetas")
+      const match = new Map<number, string[]>();
+      for (const l of ls) {
+        const ids = audienciasPorDigitsDia.get(`${l.processo_digits}|${l.data_iso}`);
+        if (ids?.length) match.set(l.linha, ids);
       }
 
       setLinhas(ls);
       setErrosParse(erros);
       setProcessosExistentes(existSet);
       setChavesExistentes(chaves);
+      setMatchEtiquetas(match);
       setMostrarErros(erros.length > 0);
       setEtapa("preview");
     } catch (e: any) {
@@ -315,6 +409,149 @@ export function PautasExcelDialog({
     [linhas, statusPorLinha]
   );
   const duplicadasCount = linhas.length - linhasImportaveis.length;
+
+  /** Linhas com etiqueta na planilha que casaram com audiências existentes. */
+  const linhasEtiquetaveis = useMemo(
+    () =>
+      linhas.filter(
+        (l) => (l.etiqueta || etiquetasSel.length > 0) && (matchEtiquetas.get(l.linha)?.length ?? 0) > 0,
+      ),
+    [linhas, matchEtiquetas, etiquetasSel],
+  );
+
+  const normNomeEtiqueta = (v: string) =>
+    v.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+  /**
+   * Resolve os nomes de etiqueta usados nas linhas para ids, criando no catálogo
+   * da coordenação as que ainda não existem.
+   */
+  const resolverEtiquetas = async (
+    nomes: string[],
+    userId: string,
+    r: ResumoImport,
+  ): Promise<Map<string, string>> => {
+    const byNome = new Map<string, string>();
+    for (const e of catalogoEtiquetas) byNome.set(normNomeEtiqueta(e.nome), e.id);
+
+    const novasPorNome = new Map<string, string>();
+    for (const n of nomes) {
+      if (!n) continue;
+      const k = normNomeEtiqueta(n);
+      if (!k || byNome.has(k) || novasPorNome.has(k)) continue;
+      novasPorNome.set(k, n.trim());
+    }
+
+    let criadas = 0;
+    for (const [nomeNorm, nomeOriginal] of novasPorNome) {
+      const cor = ETIQUETA_COLOR_PALETTE[byNome.size % ETIQUETA_COLOR_PALETTE.length];
+      const { data: nova, error: errNova } = await (supabase as any)
+        .from("etiquetas")
+        .insert({
+          coordenacao_id: coordenacaoId,
+          nome: nomeOriginal,
+          cor,
+          modulos: ETIQUETA_MODULOS.map((m) => m.value),
+          created_by: userId,
+        })
+        .select("id")
+        .single();
+      if (errNova || !nova) {
+        r.erros.push({
+          linha: 0,
+          motivo: `Erro ao criar etiqueta "${nomeOriginal}": ${errNova?.message || "desconhecido"}`,
+        });
+        continue;
+      }
+      byNome.set(nomeNorm, nova.id as string);
+      criadas++;
+    }
+    r.etiquetasCriadas = (r.etiquetasCriadas || 0) + criadas;
+    return byNome;
+  };
+
+  /**
+   * Modo "Aplicar etiquetas": não cria nada além do vínculo de etiqueta nas
+   * audiências que já existem (mesma coordenação, mesmo processo, mesmo dia).
+   */
+  const executarAplicarEtiquetas = async () => {
+    setEtapa("importando");
+    setProgresso(0);
+    const r: ResumoImport = {
+      processosCriados: 0,
+      processosExistentes: 0,
+      audienciasCriadas: 0,
+      audienciasDuplicadas: 0,
+      erros: [...errosParse],
+    };
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      toast.error("Sessão expirada.");
+      setEtapa("preview");
+      return;
+    }
+
+    const etiquetaIdByNome = await resolverEtiquetas(
+      linhas.map((l) => l.etiqueta).filter(Boolean) as string[],
+      user.id,
+      r,
+    );
+
+    const vinculos: { etiqueta_id: string; entidade: string; entidade_id: string; created_by: string }[] = [];
+    let semAudiencia = 0;
+    let processadas = 0;
+    for (const l of linhas) {
+      processadas++;
+      setProgresso(Math.round((processadas / linhas.length) * 100));
+      const audIds = matchEtiquetas.get(l.linha) || [];
+      if (audIds.length === 0) {
+        semAudiencia++;
+        r.erros.push({
+          linha: l.linha,
+          motivo: "Nenhuma audiência encontrada nesta coordenação para o processo/data desta linha",
+          processo: l.processo_numero,
+        });
+        continue;
+      }
+      const idLinha = l.etiqueta ? etiquetaIdByNome.get(normNomeEtiqueta(l.etiqueta)) : undefined;
+      const ids = Array.from(new Set([...(etiquetasSel || []), ...(idLinha ? [idLinha] : [])]));
+      if (ids.length === 0) continue;
+      for (const audId of audIds) {
+        for (const etiquetaId of ids) {
+          vinculos.push({
+            etiqueta_id: etiquetaId,
+            entidade: "audiencia",
+            entidade_id: audId,
+            created_by: user.id,
+          });
+        }
+      }
+    }
+
+    for (let i = 0; i < vinculos.length; i += 200) {
+      const slice = vinculos.slice(i, i + 200);
+      const { error } = await (supabase as any)
+        .from("etiquetas_itens")
+        .upsert(slice, { onConflict: "etiqueta_id,entidade,entidade_id", ignoreDuplicates: true });
+      if (error) {
+        r.erros.push({ linha: 0, motivo: `Erro ao aplicar etiquetas: ${error.message}` });
+        break;
+      }
+    }
+    r.etiquetasAplicadas = vinculos.length;
+    r.linhasSemAudiencia = semAudiencia;
+
+    setResumo(r);
+    setEtapa("concluido");
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] }),
+      queryClient.invalidateQueries({ queryKey: ["etiquetas"] }),
+      queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] }),
+    ]);
+  };
 
   const executarImport = async () => {
     if (responsaveisIds.length === 0) {
@@ -431,31 +668,40 @@ export function PautasExcelDialog({
     const audChave = new Set<string>(); // processo|dia|titulo
 
     if (procIds.length > 0) {
-      const [{ data: audienciasDb }, { data: tarefasDb }, { data: eventosDb }] = await Promise.all([
-        supabase
-          .from("audiencias_detectadas")
-          .select("processo_id, data_audiencia, titulo")
-          .in("processo_id", procIds),
-        supabase
-          .from("tarefas")
-          .select("processo_id, titulo, data_vencimento")
-          .in("processo_id", procIds),
-        supabase
-          .from("eventos_agenda")
-          .select("processo_id, titulo, data_inicio")
-          .in("processo_id", procIds),
+      const [audienciasDb, tarefasDb, eventosDb] = await Promise.all([
+        buscarPaginado<any>(
+          "audiencias_detectadas",
+          "processo_id, data_audiencia, titulo",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
+        buscarPaginado<any>(
+          "tarefas",
+          "processo_id, titulo, data_vencimento",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
+        buscarPaginado<any>(
+          "eventos_agenda",
+          "processo_id, titulo, data_inicio",
+          procIds,
+          "processo_id",
+          coordenacaoId,
+        ),
       ]);
 
-      for (const a of audienciasDb || []) {
-        const chave = audienciaKey((a as any).processo_id || "", (a as any).data_audiencia, (a as any).titulo);
+      for (const a of audienciasDb) {
+        const chave = audienciaKey(a.processo_id || "", a.data_audiencia, a.titulo);
         if (chave) audChave.add(chave);
       }
-      for (const t of tarefasDb || []) {
-        const chave = audienciaKey((t as any).processo_id || "", (t as any).data_vencimento, (t as any).titulo);
+      for (const t of tarefasDb) {
+        const chave = audienciaKey(t.processo_id || "", t.data_vencimento, t.titulo);
         if (chave) audChave.add(chave);
       }
-      for (const e of eventosDb || []) {
-        const chave = audienciaKey((e as any).processo_id || "", (e as any).data_inicio, (e as any).titulo);
+      for (const e of eventosDb) {
+        const chave = audienciaKey(e.processo_id || "", e.data_inicio, e.titulo);
         if (chave) audChave.add(chave);
       }
     }
@@ -575,6 +821,14 @@ export function PautasExcelDialog({
         await supabase.from("audiencias_advogados").insert(advogadosInsert);
       }
 
+      // Vincular envolvidos (fixos da coordenação + selecionados na tela)
+      const envolvidosInsert = envolvidosIds
+        .filter((id) => !responsaveisIds.includes(id))
+        .map((usuarioId) => ({ audiencia_id: audId, usuario_id: usuarioId }));
+      if (envolvidosInsert.length > 0) {
+        await (supabase as any).from("audiencia_envolvidos").insert(envolvidosInsert);
+      }
+
       if (chaveAudiencia) audChave.add(chaveAudiencia);
       idsCriados.push(audId);
 
@@ -645,6 +899,34 @@ export function PautasExcelDialog({
 
         {etapa === "upload" && (
           <div className="space-y-4 py-4">
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={modo === "importar" ? "default" : "outline"}
+                onClick={() => setModo("importar")}
+              >
+                Importar audiências
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={modo === "etiquetas" ? "default" : "outline"}
+                onClick={() => setModo("etiquetas")}
+              >
+                <Tag className="h-4 w-4 mr-2" /> Somente aplicar etiquetas
+              </Button>
+            </div>
+            {modo === "etiquetas" && (
+              <Alert>
+                <Tag className="h-4 w-4" />
+                <AlertDescription className="text-xs">
+                  Neste modo nada é criado: o sistema procura as audiências já cadastradas nesta
+                  coordenação (mesmo processo e mesmo dia) e aplica a etiqueta da coluna ETIQUETA de
+                  cada linha da planilha.
+                </AlertDescription>
+              </Alert>
+            )}
             <label className="flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-lg p-10 cursor-pointer hover:bg-muted/40 transition-colors">
               <Upload className="h-10 w-10 text-muted-foreground" />
               <div className="text-center">
@@ -685,16 +967,31 @@ export function PautasExcelDialog({
               <Badge className="bg-emerald-600 hover:bg-emerald-600">
                 {linhas.length} linhas válidas
               </Badge>
-              {novosCount > 0 && (
-                <Badge variant="outline">{novosCount} processos novos</Badge>
-              )}
-              {linhas.length - novosCount > 0 && (
-                <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
-              )}
-              {duplicadasCount > 0 && (
-                <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
-                  {duplicadasCount} duplicadas (não serão importadas)
-                </Badge>
+              {modo === "etiquetas" ? (
+                <>
+                  <Badge className="bg-primary hover:bg-primary">
+                    {linhasEtiquetaveis.length} audiências para etiquetar
+                  </Badge>
+                  {linhas.length - linhasEtiquetaveis.length > 0 && (
+                    <Badge variant="outline">
+                      {linhas.length - linhasEtiquetaveis.length} sem audiência correspondente
+                    </Badge>
+                  )}
+                </>
+              ) : (
+                <>
+                  {novosCount > 0 && (
+                    <Badge variant="outline">{novosCount} processos novos</Badge>
+                  )}
+                  {linhas.length - novosCount > 0 && (
+                    <Badge variant="outline">{linhas.length - novosCount} já cadastrados</Badge>
+                  )}
+                  {duplicadasCount > 0 && (
+                    <Badge className="bg-amber-500 hover:bg-amber-500 text-black">
+                      {duplicadasCount} duplicadas (não serão importadas)
+                    </Badge>
+                  )}
+                </>
               )}
               {errosParse.length > 0 && (
                 <Badge
@@ -734,21 +1031,36 @@ export function PautasExcelDialog({
 
             )}
 
-            <div className="space-y-2">
-              <Label>
-                Responsáveis pelas audiências{" "}
-                <span className="text-destructive">*</span>
-              </Label>
-              <PeoplePicker
-                selectedIds={responsaveisIds}
-                onChange={setResponsaveisIds}
-                placeholder="Adicionar responsável"
-                emptyLabel="Nenhum responsável selecionado — obrigatório"
-              />
-              <p className="text-xs text-muted-foreground">
-                Os responsáveis selecionados serão vinculados a todas as audiências importadas.
-              </p>
-            </div>
+            {modo === "importar" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>
+                    Responsáveis pelas audiências <span className="text-destructive">*</span>
+                  </Label>
+                  <PeoplePicker
+                    selectedIds={responsaveisIds}
+                    onChange={setResponsaveisIds}
+                    placeholder="Adicionar responsável"
+                    emptyLabel="Nenhum responsável selecionado — obrigatório"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pré-carregados com os responsáveis fixos de Audiência desta coordenação.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Envolvidos</Label>
+                  <PeoplePicker
+                    selectedIds={envolvidosIds}
+                    onChange={setEnvolvidosIds}
+                    placeholder="Adicionar envolvido"
+                    emptyLabel="Nenhum envolvido selecionado"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Pré-carregados com os envolvidos fixos de Audiência desta coordenação.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label className="flex items-center gap-2">
@@ -845,7 +1157,15 @@ export function PautasExcelDialog({
                         )}
                       </td>
                       <td className="p-2">
-                        {statusPorLinha.get(l.linha) === "duplicada_banco" ? (
+                        {modo === "etiquetas" ? (
+                          (matchEtiquetas.get(l.linha)?.length ?? 0) > 0 ? (
+                            <Badge className="bg-primary hover:bg-primary text-[10px]">
+                              Etiquetar ({matchEtiquetas.get(l.linha)!.length})
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-[10px]">Sem audiência</Badge>
+                          )
+                        ) : statusPorLinha.get(l.linha) === "duplicada_banco" ? (
                           <Badge className="bg-amber-500 hover:bg-amber-500 text-black text-[10px]">
                             Já existe
                           </Badge>
@@ -883,7 +1203,9 @@ export function PautasExcelDialog({
           <div className="space-y-4 py-8">
             <div className="flex items-center gap-3 justify-center">
               <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Importando pautas…</span>
+              <span className="text-sm">
+                {modo === "etiquetas" ? "Aplicando etiquetas…" : "Importando pautas…"}
+              </span>
             </div>
             <Progress value={progresso} />
             <p className="text-xs text-center text-muted-foreground">{progresso}%</p>
@@ -894,13 +1216,22 @@ export function PautasExcelDialog({
           <div className="space-y-3 py-4">
             <Alert className="border-emerald-600/40 bg-emerald-600/10">
               <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <AlertDescription>Importação concluída.</AlertDescription>
+              <AlertDescription>
+                {modo === "etiquetas" ? "Etiquetas aplicadas." : "Importação concluída."}
+              </AlertDescription>
             </Alert>
             <ul className="text-sm space-y-1">
-              <li>• Processos criados: <strong>{resumo.processosCriados}</strong></li>
-              <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
-              <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
-              <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+              {modo === "importar" && (
+                <>
+                  <li>• Processos criados: <strong>{resumo.processosCriados}</strong></li>
+                  <li>• Processos reutilizados: <strong>{resumo.processosExistentes}</strong></li>
+                  <li>• Audiências criadas: <strong>{resumo.audienciasCriadas}</strong></li>
+                  <li>• Audiências duplicadas ignoradas: <strong>{resumo.audienciasDuplicadas}</strong></li>
+                </>
+              )}
+              {resumo.linhasSemAudiencia !== undefined && (
+                <li>• Linhas sem audiência correspondente: <strong>{resumo.linhasSemAudiencia}</strong></li>
+              )}
               {!!resumo.etiquetasAplicadas && (
                 <li>• Etiquetas aplicadas: <strong>{resumo.etiquetasAplicadas}</strong></li>
               )}
@@ -962,12 +1293,21 @@ export function PautasExcelDialog({
           {etapa === "preview" && (
             <>
               <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
-              <Button
-                onClick={executarImport}
-                disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
-              >
-                Importar {linhasImportaveis.length} audiências
-              </Button>
+              {modo === "etiquetas" ? (
+                <Button
+                  onClick={executarAplicarEtiquetas}
+                  disabled={linhasEtiquetaveis.length === 0}
+                >
+                  <Tag className="h-4 w-4 mr-2" /> Aplicar etiquetas em {linhasEtiquetaveis.length}
+                </Button>
+              ) : (
+                <Button
+                  onClick={executarImport}
+                  disabled={linhasImportaveis.length === 0 || responsaveisIds.length === 0}
+                >
+                  Importar {linhasImportaveis.length} audiências
+                </Button>
+              )}
             </>
           )}
           {etapa === "concluido" && (
