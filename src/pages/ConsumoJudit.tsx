@@ -310,6 +310,7 @@ export default function ConsumoJudit() {
                     <SelectItem value="com_anexos">Com anexos (R$ 3,75)</SelectItem>
                     <SelectItem value="on_demand">On demand (R$ 0,25)</SelectItem>
                     <SelectItem value="datalake">Datalake (R$ 0,25)</SelectItem>
+                    <SelectItem value="cache_local">Reaproveitado do dia (R$ 0,00)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
