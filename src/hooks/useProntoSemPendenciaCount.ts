@@ -44,26 +44,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
           return;
         }
         // Colunas necessárias para computar pendências + campos de isenção.
-        const cols = Array.from(
-          new Set([
-            "id",
-            "status",
-            "acordo",
-            "cejusc",
-            "processo_outro_escritorio",
-            "segredo_justica",
-            "transito_julgado",
-            "recurso_terceiro",
-            "recurso_terceiros",
-            "recorrente",
-            "midia_negativa",
-            "tem_data_julgamento",
-            "materias_analise_reclamante",
-            "materias_analise_banco",
-            
-            ...COLUNAS_SELECT_PENDENCIAS,
-          ]),
-        ).join(", ");
+        const cols = COLUNAS_SELECT_PRONTO_SEM_PENDENCIA.join(", ");
 
         const PAGE = 1000;
         let semPendencia = 0;
