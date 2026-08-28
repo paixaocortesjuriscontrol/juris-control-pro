@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.get_processos_paginados(integer, integer, text, text, text, uuid, uuid, text, boolean, boolean, boolean, boolean, boolean, timestamptz, timestamptz, uuid[], text, text, boolean, boolean, boolean);
