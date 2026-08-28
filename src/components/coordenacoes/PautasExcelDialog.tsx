@@ -47,6 +47,8 @@ interface ResumoImport {
   audienciasDuplicadas: number;
   etiquetasAplicadas?: number;
   etiquetasCriadas?: number;
+  /** Modo etiquetas: linhas sem audiência correspondente. */
+  linhasSemAudiencia?: number;
   erros: { linha: number; motivo: string; processo?: string }[];
 
 }
