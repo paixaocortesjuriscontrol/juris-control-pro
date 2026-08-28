@@ -893,66 +893,94 @@ const Processos = () => {
                   <CheckSquare className="w-4 h-4 mr-2" />
                   <span className="hidden sm:inline">Selecionar</span>
                 </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  disabled={exportando}
-                  onClick={async () => {
-                    setExportando(true);
-                    const toastId = toast.loading("Exportando processos...");
-                    try {
-                      const XLSX = await import("xlsx");
-                      const coordMap = new Map<string, string>(
-                        (coordenacoes || []).map((c: any) => [c.id, c.nome])
-                      );
-                      // Busca TODAS as linhas que atendem aos filtros ativos (não só a página)
-                      const todos = await fetchTodosProcessosFiltrados(
-                        filtrosProcessos,
-                        (carregados, total) => {
-                          toast.loading(`Exportando ${carregados} de ${total} processos...`, {
-                            id: toastId,
-                          });
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="flex-1 sm:flex-none" disabled={exportando}>
+                      <Download className="w-4 h-4 mr-2" />
+                      <span className="hidden sm:inline">
+                        {exportando ? "Exportando..." : "Exportar"}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-64">
+                    <DropdownMenuItem
+                      onClick={async () => {
+                        setExportando(true);
+                        const toastId = toast.loading("Exportando processos...");
+                        try {
+                          const XLSX = await import("xlsx");
+                          const coordMap = new Map<string, string>(
+                            (coordenacoes || []).map((c: any) => [c.id, c.nome])
+                          );
+                          // Busca TODAS as linhas que atendem aos filtros ativos (não só a página)
+                          const todos = await fetchTodosProcessosFiltrados(
+                            filtrosProcessos,
+                            (carregados, total) => {
+                              toast.loading(`Exportando ${carregados} de ${total} processos...`, {
+                                id: toastId,
+                              });
+                            }
+                          );
+                          const rows = todos.map((p: any) => ({
+                            Numero: p.numero || "",
+                            Assunto: p.assunto || "",
+                            Cliente: p.cliente?.nome || p.cliente_nome || "",
+                            Coordenacao:
+                              p.coordenacao?.nome ||
+                              p.coordenacao_nome ||
+                              (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
+                            Responsavel: p.advogado_responsavel?.nome || "",
+                            Situacao: p.situacao || p.status || "",
+                            Area: p.area || "",
+                            Tipo: p.tipo_processo || "",
+                            Polo_Ativo: p.polo_ativo || "",
+                            Polo_Passivo: p.polo_passivo || "",
+                            Tribunal: p.tribunal || "",
+                            Vara: p.vara || "",
+                            Comarca: p.comarca || "",
+                            Instancia: p.instancia || "",
+                            Orgao_Julgador: p.orgao_julgador || "",
+                            Data_Distribuicao: p.data_distribuicao || "",
+                            Valor_Causa: p.valor_causa || "",
+                          }));
+                          const ws = XLSX.utils.json_to_sheet(rows);
+                          const wb = XLSX.utils.book_new();
+                          XLSX.utils.book_append_sheet(wb, ws, "Processos");
+                          const stamp = new Date().toISOString().slice(0, 10);
+                          XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
+                          toast.success(`${rows.length} processos exportados!`, { id: toastId });
+                        } catch (e: any) {
+                          console.error("Erro ao exportar:", e);
+                          toast.error(`Erro ao exportar: ${e?.message || e}`, { id: toastId });
+                        } finally {
+                          setExportando(false);
                         }
-                      );
-                      const rows = todos.map((p: any) => ({
-                        Numero: p.numero || "",
-                        Assunto: p.assunto || "",
-                        Cliente: p.cliente?.nome || p.cliente_nome || "",
-                        Coordenacao:
-                          p.coordenacao?.nome ||
-                          p.coordenacao_nome ||
-                          (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
-                        Responsavel: p.advogado_responsavel?.nome || "",
-                        Situacao: p.situacao || p.status || "",
-                        Area: p.area || "",
-                        Tipo: p.tipo_processo || "",
-                        Polo_Ativo: p.polo_ativo || "",
-                        Polo_Passivo: p.polo_passivo || "",
-                        Tribunal: p.tribunal || "",
-                        Vara: p.vara || "",
-                        Comarca: p.comarca || "",
-                        Instancia: p.instancia || "",
-                        Orgao_Julgador: p.orgao_julgador || "",
-                        Data_Distribuicao: p.data_distribuicao || "",
-                        Valor_Causa: p.valor_causa || "",
-                      }));
-                      const ws = XLSX.utils.json_to_sheet(rows);
-                      const wb = XLSX.utils.book_new();
-                      XLSX.utils.book_append_sheet(wb, ws, "Processos");
-                      const stamp = new Date().toISOString().slice(0, 10);
-                      XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
-                      toast.success(`${rows.length} processos exportados!`, { id: toastId });
-                    } catch (e: any) {
-                      console.error("Erro ao exportar:", e);
-                      toast.error(`Erro ao exportar: ${e?.message || e}`, { id: toastId });
-                    } finally {
-                      setExportando(false);
-                    }
-                  }}
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">{exportando ? "Exportando..." : "Exportar"}</span>
-                </Button>
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Lista de processos (padrão)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setModeloExportacao("monitoramento");
+                        setShowExportarModelo(true);
+                      }}
+                    >
+                      <Activity className="w-4 h-4 mr-2" />
+                      Excel Monitoramento (andamentos)
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setModeloExportacao("cadastro-lote");
+                        setShowExportarModelo(true);
+                      }}
+                    >
+                      <ClipboardList className="w-4 h-4 mr-2" />
+                      Excel Cadastro em Lote
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
                 <Button
                   variant="outline"
                   className="flex-1 sm:flex-none"
