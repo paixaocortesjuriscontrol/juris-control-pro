@@ -1390,6 +1390,12 @@ export function ProcessoDetalhesCompletos({
                                           {tarefa._responsaveisNomes.join(", ")}
                                         </span>
                                       )}
+                                      {qtdAtividades(tarefa.id) > 0 && (
+                                        <span className="flex items-center gap-1 text-emerald-600">
+                                          <ListChecks className="h-3 w-3" />
+                                          {qtdAtividades(tarefa.id)} atividade{qtdAtividades(tarefa.id) > 1 ? "s" : ""}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                   <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
