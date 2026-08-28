@@ -196,10 +196,10 @@ export default function ConsumoJudit() {
   }, [filtered]);
 
   const perDay = useMemo(() => {
-    const map = new Map<string, { dia: string; com_anexos: number; on_demand: number; datalake: number; custo: number }>();
+    const map = new Map<string, { dia: string; com_anexos: number; on_demand: number; datalake: number; cache_local: number; custo: number }>();
     for (const r of filtered) {
       const d = r.created_at.slice(0, 10);
-      const e = map.get(d) ?? { dia: d, com_anexos: 0, on_demand: 0, datalake: 0, custo: 0 };
+      const e = map.get(d) ?? { dia: d, com_anexos: 0, on_demand: 0, datalake: 0, cache_local: 0, custo: 0 };
       if (r.cobrado) (e as any)[r.tipo] += 1;
       e.custo += r.custo;
       map.set(d, e);
