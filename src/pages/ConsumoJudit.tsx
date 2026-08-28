@@ -51,12 +51,14 @@ const PRECOS_BRL: Record<string, number> = {
   com_anexos: 3.75, // Consulta processual com anexos
   on_demand: 0.25,  // Consulta processual on demand
   datalake: 0.25,   // Consulta processual datalake
+  cache_local: 0,   // Reaproveitamento do resultado já obtido no mesmo dia
 };
 
 const ROTULO_TIPO: Record<string, string> = {
   com_anexos: "Consulta com anexos",
   on_demand: "Consulta on demand",
   datalake: "Consulta datalake",
+  cache_local: "Reaproveitado do dia (sem custo)",
 };
 
 const PAGE_SIZE = 50;
