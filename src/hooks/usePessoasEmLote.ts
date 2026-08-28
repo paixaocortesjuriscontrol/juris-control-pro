@@ -358,9 +358,11 @@ export async function aplicarPessoasEmLote({
   atividadesIds,
   responsaveis,
   envolvidos,
+  usuarioAtualId,
   onProgress,
 }: AplicarPessoasParams): Promise<AplicarPessoasResultado> {
   const erros: string[] = [];
+  const auditoria: any[] = [];
   let itensAlterados = 0;
   let atividadesAlteradas = 0;
 
