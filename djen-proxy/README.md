@@ -199,7 +199,7 @@ echo | openssl s_client -connect djen-google2.juriscontrol.adv.br:8443 \
 
 Rede de segurança no app: o monitor `verificar-saude-pool-djen` roda todo dia às
 8h BRT, grava `saude_status` / `cert_expira_em` em `djen_proxy_pool` e avisa por
-e-mail a 30, 15, 7 e 1 dia do vencimento — se alguma renovação falhar, você
+e-mail a 10, 5 e 1 dia do vencimento — se alguma renovação falhar, você
 descobre antes de o pool cair.
 
 ---

@@ -2,8 +2,12 @@
 // verificar-saude-pool-djen
 // Checa cada VPS do pool DJEN: responde? em quanto tempo? e quantos dias
 // faltam para o certificado TLS vencer. Grava o resultado em djen_proxy_pool
-// e envia e-mail aos administradores em 30/15/7/1 dias, no vencimento e
+// e envia e-mail aos administradores em 10/5/1 dia, no vencimento e
 // quando a VPS está fora do ar.
+//
+// Por que 10 dias e não 30: o certbot renova automaticamente quando faltam
+// ~30 dias. Alertar em 30 dias disparava e-mail em TODA renovação normal
+// (ex.: 28 dias restantes = certificado recém-renovado e saudável).
 // ============================================================================
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { lerNotAfter } from "./certTls.ts";
@@ -16,7 +20,9 @@ const corsHeaders = {
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const FROM = "JurisControl <alertas@juriscontrol.adv.br>";
 const TAG = "[verificar-saude-pool-djen]";
-const LIMIARES_DIAS = [30, 15, 7, 1];
+// Só avisa quando a renovação automática já deveria ter acontecido e não aconteceu.
+const LIMIARES_DIAS = [10, 5, 1];
+
 
 type Slot = {
   id: string;

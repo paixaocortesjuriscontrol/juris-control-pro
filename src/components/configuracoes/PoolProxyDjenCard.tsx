@@ -497,9 +497,11 @@ export default function PoolProxyDjenCard() {
         </p>
         <p className="text-xs text-muted-foreground">
           A checagem automática roda todos os dias às 8h (BRT) e envia e-mail aos
-          administradores quando um certificado está a 30, 15, 7 ou 1 dia do vencimento,
-          quando já venceu ou quando a VPS está fora do ar.
+          administradores quando um certificado está a 10, 5 ou 1 dia do vencimento,
+          quando já venceu ou quando a VPS está fora do ar. Certificados com ~28 dias
+          são normais: o certbot renova sozinho quando faltam 30 dias.
         </p>
+
       </CardContent>
     </Card>
   );
