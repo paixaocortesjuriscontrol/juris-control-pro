@@ -62,6 +62,8 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 UNIT
+sudo rm -rf /etc/systemd/system/djen-proxy.service.d
+sudo systemctl reset-failed djen-proxy >/dev/null 2>&1 || true
 sudo systemctl daemon-reload
 sudo systemctl enable djen-proxy
 sudo systemctl restart djen-proxy

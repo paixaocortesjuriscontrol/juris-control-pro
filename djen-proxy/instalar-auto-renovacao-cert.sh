@@ -91,6 +91,10 @@ NoNewPrivileges=true
 [Install]
 WantedBy=multi-user.target
 UNIT
+# Drop-ins antigos podem apontar para caminhos inexistentes (ex.: /root/djen-proxy)
+# e travam o serviço em "Failed to load environment files".
+rm -rf "/etc/systemd/system/$SERVICO.service.d"
+systemctl reset-failed "$SERVICO" >/dev/null 2>&1 || true
 systemctl daemon-reload
 systemctl enable "$SERVICO"
 # Remove o fluxo legado PM2 antes de assumir a mesma porta com systemd.
