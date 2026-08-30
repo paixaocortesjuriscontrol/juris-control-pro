@@ -109,12 +109,48 @@ rm -rf "/etc/systemd/system/$SERVICO.service.d"
 systemctl reset-failed "$SERVICO" >/dev/null 2>&1 || true
 systemctl daemon-reload
 systemctl enable "$SERVICO"
-# Remove o fluxo legado PM2 antes de assumir a mesma porta com systemd.
+# Para o serviço antes de liberar a porta; uma instância antiga pode ter sido
+# iniciada manualmente ou pelo PM2 de outro usuário.
+systemctl stop "$SERVICO" >/dev/null 2>&1 || true
+
+# Remove fluxos legados PM2 de todos os usuários que possuem uma instalação.
 if command -v pm2 >/dev/null 2>&1; then
-  sudo -u "$USUARIO_PROXY" pm2 stop "$SERVICO" >/dev/null 2>&1 || true
-  sudo -u "$USUARIO_PROXY" pm2 delete "$SERVICO" >/dev/null 2>&1 || true
-  sudo -u "$USUARIO_PROXY" pm2 save --force >/dev/null 2>&1 || true
+  for dir in /home/*/djen-proxy /root/djen-proxy; do
+    [ -d "$dir" ] || continue
+    usuario_dir="$(stat -c '%U' "$dir")"
+    [ "$usuario_dir" != "UNKNOWN" ] || continue
+    sudo -u "$usuario_dir" pm2 stop "$SERVICO" >/dev/null 2>&1 || true
+    sudo -u "$usuario_dir" pm2 delete "$SERVICO" >/dev/null 2>&1 || true
+    sudo -u "$usuario_dir" pm2 save --force >/dev/null 2>&1 || true
+  done
 fi
+
+# Encerra somente processos Node do DJEN Proxy que ainda ocupem a porta.
+# Não usa fuser -k indiscriminadamente para evitar matar outro serviço.
+PIDS_PORTA="$(ss -H -ltnp "sport = :$PORTA" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)"
+for pid in $PIDS_PORTA; do
+  cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  if [[ "$cmdline" == *node* && "$cmdline" == *djen-proxy/server.js* ]]; then
+    warn "encerrando proxy legado PID $pid que ocupava a porta $PORTA"
+    kill -TERM "$pid" 2>/dev/null || true
+  else
+    die "porta $PORTA ocupada pelo PID $pid ($cmdline); não encerrei por segurança"
+  fi
+done
+for tentativa in 1 2 3 4 5; do
+  ss -H -ltn "sport = :$PORTA" 2>/dev/null | grep -q . || break
+  sleep 1
+done
+PIDS_PORTA="$(ss -H -ltnp "sport = :$PORTA" 2>/dev/null | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u || true)"
+for pid in $PIDS_PORTA; do
+  cmdline="$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null || true)"
+  if [[ "$cmdline" == *node* && "$cmdline" == *djen-proxy/server.js* ]]; then
+    warn "proxy legado PID $pid não encerrou; aplicando SIGKILL"
+    kill -KILL "$pid" 2>/dev/null || true
+  else
+    die "porta $PORTA continua ocupada pelo PID $pid ($cmdline)"
+  fi
+done
 systemctl restart "$SERVICO"
 ok "$SERVICO.service instalado, habilitado no boot e reiniciado"
 
