@@ -50,6 +50,16 @@ if [ -z "$PORTA" ] && [ -f "$ENV_FILE" ]; then
 fi
 PORTA="${PORTA:-8089}"
 [[ "$PORTA" =~ ^[0-9]+$ ]] || die "porta inválida: $PORTA"
+
+# Em algumas VMs o próprio Node termina o TLS (443/8443); em outras ele fica atrás
+# do Nginx em HTTP. O health local precisa usar o esquema correto.
+if [ "$PORTA" = 443 ] || [ "$PORTA" = 8443 ]; then
+  HEALTH_URL="https://127.0.0.1:$PORTA/health"
+  CURL_FLAGS="-kfsS"
+else
+  HEALTH_URL="http://127.0.0.1:$PORTA/health"
+  CURL_FLAGS="-fsS"
+fi
 ok "domínio=$DOMINIO app=$APP_DIR usuário=$USUARIO_PROXY porta_local=$PORTA"
 
 log "[2/8] Recuperando configuração e instalando serviço systemd..."
