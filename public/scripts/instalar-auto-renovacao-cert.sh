@@ -138,7 +138,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
+ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl $CURL_FLAGS --max-time 10 $HEALTH_URL >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl $CURL_FLAGS --max-time 10 $HEALTH_URL >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
 UNIT
 cat > "/etc/systemd/system/$SERVICO-health.timer" <<UNIT
 [Unit]
@@ -186,7 +186,7 @@ if systemctl cat nginx.service >/dev/null 2>&1; then
 fi
 if systemctl restart "$SERVICO"; then
   sleep 2
-  curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null \
+  curl $CURL_FLAGS --max-time 10 "$HEALTH_URL" >/dev/null \
     && registra "$SERVICO reiniciado e saudável" \
     || registra "FALHA: $SERVICO reiniciou sem responder ao health"
 else
@@ -200,7 +200,7 @@ ok "hook instalado em $HOOK_FILE"
 
 log "[6/8] Testando proxy local..."
 for tentativa in 1 2 3 4 5; do
-  if curl -fsS --max-time 10 "http://127.0.0.1:$PORTA/health" >/dev/null; then break; fi
+  if curl $CURL_FLAGS --max-time 10 "$HEALTH_URL" >/dev/null; then break; fi
   [ "$tentativa" -lt 5 ] || { systemctl status "$SERVICO" --no-pager -l || true; journalctl -u "$SERVICO" -n 30 --no-pager || true; die "proxy local não respondeu"; }
   sleep 2
 done
