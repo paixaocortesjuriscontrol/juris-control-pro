@@ -1,191 +1,220 @@
 #!/usr/bin/env bash
-# ============================================================================
-# DJEN Proxy — instalador de AUTO-RENOVAÇÃO de certificado TLS
-#
-# Rode UMA VEZ em cada VM do pool (vm01, vm02, vm09), como root:
-#   sudo bash instalar-auto-renovacao-cert.sh
-#
-# Opcional (o script detecta sozinho, mas dá para forçar):
-#   sudo DOMINIO=djen-google2.juriscontrol.adv.br PORTA=8443 SERVICO=djen-proxy \
-#        bash instalar-auto-renovacao-cert.sh
-#
-# O que ele garante:
-#  1) timer do certbot ativo (renovação automática 2x/dia)
-#  2) hook de deploy que reinicia o proxy APÓS cada renovação
-#  3) permissões de leitura dos certificados para o usuário do proxy
-#  4) validação imediata com `certbot renew --dry-run`
-#
-# Idempotente: pode rodar quantas vezes quiser.
-# ============================================================================
-set -euo pipefail
+# DJEN Proxy — reparo, supervisão e renovação automática de TLS.
+# Uso: curl -fsSL https://juriscontrol.adv.br/scripts/instalar-auto-renovacao-cert.sh | sudo bash
+# Valores opcionais: DOMINIO=... PORTA=... SERVICO=djen-proxy APP_DIR=/home/.../djen-proxy
+set -Eeuo pipefail
 
-HOOK_DIR="/etc/letsencrypt/renewal-hooks/deploy"
+HOOK_DIR=/etc/letsencrypt/renewal-hooks/deploy
 HOOK_FILE="$HOOK_DIR/99-reload-djen-proxy.sh"
-LOG_FILE="/var/log/djen-cert-renew.log"
-GRUPO_CERT="letsencrypt"
+LOG_FILE=/var/log/djen-cert-renew.log
+GRUPO_CERT=letsencrypt
+SERVICO="${SERVICO:-djen-proxy}"
 
-log()  { echo -e "\033[1;36m==>\033[0m $*"; }
-ok()   { echo -e "    \033[1;32m✓\033[0m $*"; }
-warn() { echo -e "    \033[1;33m!\033[0m $*"; }
-die()  { echo -e "\033[1;31mERRO:\033[0m $*" >&2; exit 1; }
+log()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
+ok()   { printf '    \033[1;32m✓\033[0m %s\n' "$*"; }
+warn() { printf '    \033[1;33m!\033[0m %s\n' "$*"; }
+die()  { printf '\033[1;31mERRO:\033[0m %s\n' "$*" >&2; exit 1; }
+trap 'printf "\nERRO na linha %s. Consulte /var/log/letsencrypt/letsencrypt.log e journalctl -u djen-proxy.\n" "$LINENO" >&2' ERR
 
-[ "$(id -u)" -eq 0 ] || die "rode com sudo: sudo bash $0"
-command -v certbot >/dev/null 2>&1 || die "certbot não encontrado (sudo apt install -y certbot)"
+[ "$(id -u)" -eq 0 ] || die "rode como root (curl ... | sudo bash)"
+command -v systemctl >/dev/null || die "systemd não encontrado"
+command -v certbot >/dev/null || die "certbot não encontrado (apt install -y certbot)"
+command -v openssl >/dev/null || die "openssl não encontrado"
 
-# ---------------------------------------------------------------------------
-# [1/6] Detecta ambiente
-# ---------------------------------------------------------------------------
-log "[1/6] Detectando ambiente..."
+log "[1/8] Detectando domínio, aplicação e porta..."
+DOMINIO="${DOMINIO:-$(certbot certificates 2>/dev/null | awk '/Certificate Name:/ {print $3}' | grep -i 'juriscontrol' | head -1 || true)}"
+[ -n "$DOMINIO" ] || die "certificado não encontrado; rode novamente com DOMINIO=djen-googleN.juriscontrol.adv.br"
+LIVE_DIR="/etc/letsencrypt/live/$DOMINIO"
+[ -r "$LIVE_DIR/fullchain.pem" ] || die "certificado ausente em $LIVE_DIR"
 
-SERVICO="${SERVICO:-}"
-if [ -z "$SERVICO" ]; then
-  for cand in djen-proxy djen-vps-proxy; do
-    if systemctl list-unit-files "${cand}.service" >/dev/null 2>&1 \
-       && systemctl cat "${cand}.service" >/dev/null 2>&1; then
-      SERVICO="$cand"; break
-    fi
+APP_DIR="${APP_DIR:-}"
+if [ -z "$APP_DIR" ]; then
+  UNIT_DIR="$(systemctl show -p WorkingDirectory --value "$SERVICO" 2>/dev/null || true)"
+  [ -f "$UNIT_DIR/server.js" ] && APP_DIR="$UNIT_DIR"
+fi
+if [ -z "$APP_DIR" ]; then
+  for cand in /home/*/djen-proxy /root/djen-proxy; do
+    if [ -f "$cand/server.js" ]; then APP_DIR="$cand"; break; fi
   done
 fi
-if [ -n "$SERVICO" ]; then
-  ok "serviço do proxy: ${SERVICO}.service"
-else
-  warn "nenhum serviço systemd do proxy encontrado — o hook só recarregará o Nginx"
-fi
+[ -n "$APP_DIR" ] && [ -f "$APP_DIR/server.js" ] || die "server.js não encontrado; informe APP_DIR=/caminho/djen-proxy"
 
-DOMINIO="${DOMINIO:-}"
-if [ -z "$DOMINIO" ]; then
-  HOST_CURTO="$(hostname -s || true)"
-  # tenta casar o número da VM (vm01 -> djen-google, vm02 -> djen-google2, vm09 -> djen-google9)
-  DOMINIO="$(certbot certificates 2>/dev/null \
-    | awk '/Certificate Name:/ {print $3}' | grep -i 'juriscontrol' | head -1 || true)"
-fi
-[ -n "$DOMINIO" ] || die "não consegui detectar o domínio. Rode com DOMINIO=seu.dominio sudo bash $0"
-ok "domínio do certificado: $DOMINIO"
-
-LIVE_DIR="/etc/letsencrypt/live/$DOMINIO"
-[ -d "$LIVE_DIR" ] || die "não existe $LIVE_DIR — emita o certificado antes (certbot certonly)"
+USUARIO_PROXY="${USUARIO_PROXY:-$(stat -c '%U' "$APP_DIR/server.js")}"
+[ "$USUARIO_PROXY" != "UNKNOWN" ] || USUARIO_PROXY=root
+ENV_FILE="$APP_DIR/.env"
+TOKEN_FILE="$APP_DIR/.token"
 
 PORTA="${PORTA:-}"
-if [ -z "$PORTA" ] && [ -n "$SERVICO" ]; then
-  EXEC_DIR="$(systemctl show -p WorkingDirectory --value "$SERVICO" 2>/dev/null || true)"
-  if [ -n "$EXEC_DIR" ] && [ -f "$EXEC_DIR/.env" ]; then
-    PORTA="$(grep -oP '^PORT=\K[0-9]+' "$EXEC_DIR/.env" 2>/dev/null | head -1 || true)"
-  fi
+if [ -z "$PORTA" ] && [ -f "$ENV_FILE" ]; then
+  PORTA="$(sed -n 's/^PORT=\([0-9][0-9]*\).*$/\1/p' "$ENV_FILE" | head -1)"
 fi
-PORTA="${PORTA:-443}"
-ok "porta do proxy: $PORTA"
+PORTA="${PORTA:-8089}"
+[[ "$PORTA" =~ ^[0-9]+$ ]] || die "porta inválida: $PORTA"
+ok "domínio=$DOMINIO app=$APP_DIR usuário=$USUARIO_PROXY porta_local=$PORTA"
 
-USUARIO_PROXY="${USUARIO_PROXY:-}"
-if [ -z "$USUARIO_PROXY" ] && [ -n "$SERVICO" ]; then
-  USUARIO_PROXY="$(systemctl show -p User --value "$SERVICO" 2>/dev/null || true)"
-fi
-[ -n "${USUARIO_PROXY:-}" ] || USUARIO_PROXY="root"
-ok "usuário do proxy: $USUARIO_PROXY"
+log "[2/8] Recuperando configuração e instalando serviço systemd..."
+TOKEN=""
+if [ -f "$ENV_FILE" ]; then TOKEN="$(sed -n 's/^PROXY_TOKEN=//p' "$ENV_FILE" | head -1)"; fi
+if [ -z "$TOKEN" ] && [ -f "$TOKEN_FILE" ]; then TOKEN="$(cat "$TOKEN_FILE")"; fi
+[ -n "$TOKEN" ] || die "PROXY_TOKEN não encontrado em $ENV_FILE nem $TOKEN_FILE; não gere outro, pois deve coincidir com o pool"
+NODE_BIN="$(command -v node || true)"
+[ -n "$NODE_BIN" ] || die "Node.js não encontrado"
+NODE_MAJOR="$(node -v | sed -E 's/^v([0-9]+).*/\1/')"
+[ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18+ é obrigatório"
+printf 'PROXY_TOKEN=%s\nPORT=%s\n' "$TOKEN" "$PORTA" > "$ENV_FILE"
+chown "$USUARIO_PROXY":"$(id -gn "$USUARIO_PROXY")" "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 
-# ---------------------------------------------------------------------------
-# [2/6] Timer do certbot
-# ---------------------------------------------------------------------------
-log "[2/6] Garantindo timer de renovação automática do certbot..."
-if systemctl list-unit-files certbot.timer >/dev/null 2>&1 \
-   && systemctl cat certbot.timer >/dev/null 2>&1; then
-  systemctl enable --now certbot.timer
-  ok "certbot.timer ativo"
-  systemctl list-timers certbot.timer --no-pager | sed -n '1,3p' || true
-elif systemctl cat snap.certbot.renew.timer >/dev/null 2>&1; then
-  systemctl enable --now snap.certbot.renew.timer
-  ok "snap.certbot.renew.timer ativo"
-else
-  warn "nenhum timer do certbot encontrado — criando cron diário de segurança"
-  cat > /etc/cron.d/djen-certbot-renew <<'CRON'
-# Renovação de certificado do proxy DJEN (rede de segurança quando não há timer systemd)
-17 3,15 * * * root certbot renew --quiet
-CRON
-  chmod 644 /etc/cron.d/djen-certbot-renew
-  ok "cron criado em /etc/cron.d/djen-certbot-renew (03:17 e 15:17)"
-fi
-
-# ---------------------------------------------------------------------------
-# [3/6] Permissões dos certificados
-# ---------------------------------------------------------------------------
-log "[3/6] Ajustando permissões de leitura dos certificados..."
 groupadd -f "$GRUPO_CERT"
-if [ "$USUARIO_PROXY" != "root" ]; then
-  usermod -aG "$GRUPO_CERT" "$USUARIO_PROXY"
-  ok "usuário $USUARIO_PROXY adicionado ao grupo $GRUPO_CERT"
-fi
+[ "$USUARIO_PROXY" = root ] || usermod -aG "$GRUPO_CERT" "$USUARIO_PROXY"
 chgrp -R "$GRUPO_CERT" /etc/letsencrypt/live /etc/letsencrypt/archive
 chmod -R g+rX /etc/letsencrypt/live /etc/letsencrypt/archive
-ok "live/ e archive/ legíveis pelo grupo $GRUPO_CERT"
 
-# ---------------------------------------------------------------------------
-# [4/6] Hook de deploy (reinicia o proxy após cada renovação)
-# ---------------------------------------------------------------------------
-log "[4/6] Instalando hook de deploy do Let's Encrypt..."
+cat > "/etc/systemd/system/$SERVICO.service" <<UNIT
+[Unit]
+Description=DJEN Comunica Proxy
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=$USUARIO_PROXY
+WorkingDirectory=$APP_DIR
+EnvironmentFile=$ENV_FILE
+ExecStart=$NODE_BIN $APP_DIR/server.js
+Restart=always
+RestartSec=5
+SupplementaryGroups=$GRUPO_CERT
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable "$SERVICO"
+# Remove o fluxo legado PM2 antes de assumir a mesma porta com systemd.
+if command -v pm2 >/dev/null 2>&1; then
+  sudo -u "$USUARIO_PROXY" pm2 stop "$SERVICO" >/dev/null 2>&1 || true
+  sudo -u "$USUARIO_PROXY" pm2 delete "$SERVICO" >/dev/null 2>&1 || true
+  sudo -u "$USUARIO_PROXY" pm2 save --force >/dev/null 2>&1 || true
+fi
+systemctl restart "$SERVICO"
+ok "$SERVICO.service instalado, habilitado no boot e reiniciado"
+
+# Nas VMs em que o TLS público termina no Nginx, conexão recusada em 443 pode
+# significar que o proxy local está vivo, mas o Nginx ficou parado.
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  if nginx -t; then
+    systemctl enable nginx
+    systemctl restart nginx
+    ok "nginx validado, habilitado no boot e reiniciado"
+  else
+    warn "configuração do nginx inválida; proxy local foi recuperado, mas o HTTPS externo exige correção do nginx"
+  fi
+fi
+
+log "[3/8] Instalando autorrecuperação a cada 5 minutos..."
+cat > "/etc/systemd/system/$SERVICO-health.service" <<UNIT
+[Unit]
+Description=Health check e recuperação do DJEN Proxy
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
+UNIT
+cat > "/etc/systemd/system/$SERVICO-health.timer" <<UNIT
+[Unit]
+Description=Executa health check do DJEN Proxy a cada 5 minutos
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now "$SERVICO-health.timer"
+ok "watchdog ativo: $SERVICO-health.timer"
+
+log "[4/8] Garantindo agendamento do Certbot..."
+if systemctl cat certbot.timer >/dev/null 2>&1; then
+  systemctl enable --now certbot.timer
+  TIMER_CERT=certbot.timer
+elif systemctl cat snap.certbot.renew.timer >/dev/null 2>&1; then
+  systemctl enable --now snap.certbot.renew.timer
+  TIMER_CERT=snap.certbot.renew.timer
+else
+  cat > /etc/cron.d/djen-certbot-renew <<'CRON'
+17 3,15 * * * root certbot renew --quiet >> /var/log/djen-cert-renew.log 2>&1
+CRON
+  chmod 644 /etc/cron.d/djen-certbot-renew
+  TIMER_CERT=cron
+fi
+ok "renovação agendada por $TIMER_CERT"
+
+log "[5/8] Instalando hook pós-renovação..."
 mkdir -p "$HOOK_DIR"
 cat > "$HOOK_FILE" <<HOOK
 #!/usr/bin/env bash
-# Gerado por instalar-auto-renovacao-cert.sh — reinicia o proxy DJEN após cada
-# renovação de certificado. NÃO renova nada: só recarrega quem usa o certificado.
 set -uo pipefail
-
 LOG="$LOG_FILE"
-GRUPO="$GRUPO_CERT"
-SERVICO="${SERVICO:-}"
-
 registra() { echo "\$(date '+%Y-%m-%d %H:%M:%S%z') [\${RENEWED_DOMAINS:-?}] \$*" >> "\$LOG"; }
-
-# 1) reaplica permissões (certbot recria os arquivos em archive/ como root)
-groupadd -f "\$GRUPO" 2>/dev/null || true
-chgrp -R "\$GRUPO" /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
+chgrp -R "$GRUPO_CERT" /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
 chmod -R g+rX /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
-registra "permissoes reaplicadas"
-
-# 2) Nginx, se ativo
-if systemctl is-active --quiet nginx; then
-  if nginx -t 2>/dev/null; then
-    systemctl reload nginx && registra "nginx recarregado" || registra "FALHA ao recarregar nginx"
-  else
-    registra "FALHA: nginx -t invalido, reload abortado"
-  fi
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  nginx -t >/dev/null 2>&1 && systemctl restart nginx && registra "nginx reiniciado" || registra "FALHA ao reiniciar nginx"
 fi
-
-# 3) proxy DJEN
-if [ -n "\$SERVICO" ] && systemctl cat "\$SERVICO.service" >/dev/null 2>&1; then
-  if systemctl restart "\$SERVICO"; then
-    registra "\$SERVICO reiniciado"
-  else
-    registra "FALHA ao reiniciar \$SERVICO"
-  fi
+if systemctl restart "$SERVICO"; then
+  sleep 2
+  curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null \
+    && registra "$SERVICO reiniciado e saudável" \
+    || registra "FALHA: $SERVICO reiniciou sem responder ao health"
+else
+  registra "FALHA ao reiniciar $SERVICO"
 fi
 HOOK
-chmod +x "$HOOK_FILE"
-touch "$LOG_FILE"; chmod 640 "$LOG_FILE"
-ok "hook criado: $HOOK_FILE"
-ok "log de renovações: $LOG_FILE"
+chmod 750 "$HOOK_FILE"
+touch "$LOG_FILE"
+chmod 640 "$LOG_FILE"
+ok "hook instalado em $HOOK_FILE"
 
-# ---------------------------------------------------------------------------
-# [5/6] Simulação de renovação
-# ---------------------------------------------------------------------------
-log "[5/6] Simulando renovação (certbot renew --dry-run)..."
-if certbot renew --dry-run --cert-name "$DOMINIO" 2>&1 | tail -20; then
-  ok "dry-run passou — a renovação automática vai funcionar"
+log "[6/8] Testando proxy local..."
+for tentativa in 1 2 3 4 5; do
+  if curl -fsS --max-time 10 "http://127.0.0.1:$PORTA/health" >/dev/null; then break; fi
+  [ "$tentativa" -lt 5 ] || { systemctl status "$SERVICO" --no-pager -l || true; journalctl -u "$SERVICO" -n 30 --no-pager || true; die "proxy local não respondeu"; }
+  sleep 2
+done
+ok "health local respondeu"
+
+log "[7/8] Simulando renovação real..."
+DRY_LOG="$(mktemp)"
+if certbot renew --dry-run --cert-name "$DOMINIO" >"$DRY_LOG" 2>&1; then
+  tail -20 "$DRY_LOG"
+  ok "dry-run passou"
 else
-  die "dry-run FALHOU. Corrija antes de confiar na renovação automática (veja /var/log/letsencrypt/letsencrypt.log)"
+  tail -40 "$DRY_LOG"
+  rm -f "$DRY_LOG"
+  die "dry-run falhou"
 fi
+rm -f "$DRY_LOG"
 
-# ---------------------------------------------------------------------------
-# [6/6] Estado atual
-# ---------------------------------------------------------------------------
-log "[6/6] Estado atual do certificado e do serviço..."
-echo | openssl s_client -connect "127.0.0.1:$PORTA" -servername "$DOMINIO" 2>/dev/null \
-  | openssl x509 -noout -dates 2>/dev/null || warn "não consegui ler o certificado na porta $PORTA"
-
-if [ -n "$SERVICO" ]; then
-  systemctl is-enabled "$SERVICO" >/dev/null 2>&1 || warn "$SERVICO não está habilitado no boot (sudo systemctl enable $SERVICO)"
-  systemctl status "$SERVICO" --no-pager -l | sed -n '1,6p' || true
+log "[8/8] Validando serviço e TLS externo..."
+systemctl is-active --quiet "$SERVICO" || die "$SERVICO não está ativo"
+systemctl is-enabled --quiet "$SERVICO" || die "$SERVICO não está habilitado no boot"
+systemctl is-active --quiet "$SERVICO-health.timer" || die "watchdog não está ativo"
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  systemctl is-enabled --quiet nginx || die "nginx não está habilitado no boot"
+  systemctl is-active --quiet nginx || die "nginx não está ativo"
 fi
-
+echo | openssl s_client -connect "$DOMINIO:443" -servername "$DOMINIO" 2>/dev/null \
+  | openssl x509 -noout -dates 2>/dev/null || warn "TLS externo na porta 443 não respondeu; confira Nginx e firewall"
 echo
-ok "AUTO-RENOVAÇÃO CONFIGURADA em $DOMINIO"
-echo "    Conferir depois:  sudo systemctl list-timers | grep -i certbot"
-echo "    Log de renovações: sudo tail -20 $LOG_FILE"
+ok "PROXY REPARADO E AUTO-RENOVAÇÃO VALIDADA"
+echo "    Serviço: systemctl status $SERVICO --no-pager"
+echo "    Watchdog: systemctl list-timers $SERVICO-health.timer --no-pager"
+echo "    Certbot:  systemctl list-timers | grep -i certbot"
+echo "    Log:      tail -30 $LOG_FILE"

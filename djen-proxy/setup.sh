@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# DJEN Comunica Proxy — setup idempotente para Hostinger (ou qualquer VPS Ubuntu/Debian)
+# DJEN Comunica Proxy — instalador legado PM2.
+# DEPRECADO: use instalar-djen-proxy-systemd.sh e depois
+# instalar-auto-renovacao-cert.sh. Este arquivo permanece apenas para VMs antigas.
 # Uso:
 #   bash setup.sh                  # primeira vez (gera token novo)
 #   PROXY_TOKEN=xxx bash setup.sh  # reaproveita token já existente
@@ -21,6 +23,7 @@ APP_PORT="${PORT:-8089}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "==> [1/6] Verificando Node.js..."
+echo "AVISO: fluxo PM2 legado; para instalações novas, use o instalador systemd."
 if ! command -v node >/dev/null 2>&1; then
   echo "Node.js não encontrado. Instale antes de rodar este script (sudo apt install -y nodejs npm) ou use o Node já provisionado da Hostinger."
   exit 1
