@@ -93,6 +93,12 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
 systemctl enable "$SERVICO"
+# Remove o fluxo legado PM2 antes de assumir a mesma porta com systemd.
+if command -v pm2 >/dev/null 2>&1; then
+  sudo -u "$USUARIO_PROXY" pm2 stop "$SERVICO" >/dev/null 2>&1 || true
+  sudo -u "$USUARIO_PROXY" pm2 delete "$SERVICO" >/dev/null 2>&1 || true
+  sudo -u "$USUARIO_PROXY" pm2 save --force >/dev/null 2>&1 || true
+fi
 systemctl restart "$SERVICO"
 ok "$SERVICO.service instalado, habilitado no boot e reiniciado"
 
@@ -116,7 +122,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'if ! /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; fi'
+ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
 UNIT
 cat > "/etc/systemd/system/$SERVICO-health.timer" <<UNIT
 [Unit]
@@ -159,8 +165,8 @@ LOG="$LOG_FILE"
 registra() { echo "\$(date '+%Y-%m-%d %H:%M:%S%z') [\${RENEWED_DOMAINS:-?}] \$*" >> "\$LOG"; }
 chgrp -R "$GRUPO_CERT" /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
 chmod -R g+rX /etc/letsencrypt/live /etc/letsencrypt/archive 2>/dev/null || true
-if systemctl is-active --quiet nginx; then
-  nginx -t >/dev/null 2>&1 && systemctl reload nginx && registra "nginx recarregado" || registra "FALHA no reload do nginx"
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  nginx -t >/dev/null 2>&1 && systemctl restart nginx && registra "nginx reiniciado" || registra "FALHA ao reiniciar nginx"
 fi
 if systemctl restart "$SERVICO"; then
   sleep 2
@@ -200,6 +206,10 @@ log "[8/8] Validando serviço e TLS externo..."
 systemctl is-active --quiet "$SERVICO" || die "$SERVICO não está ativo"
 systemctl is-enabled --quiet "$SERVICO" || die "$SERVICO não está habilitado no boot"
 systemctl is-active --quiet "$SERVICO-health.timer" || die "watchdog não está ativo"
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  systemctl is-enabled --quiet nginx || die "nginx não está habilitado no boot"
+  systemctl is-active --quiet nginx || die "nginx não está ativo"
+fi
 echo | openssl s_client -connect "$DOMINIO:443" -servername "$DOMINIO" 2>/dev/null \
   | openssl x509 -noout -dates 2>/dev/null || warn "TLS externo na porta 443 não respondeu; confira Nginx e firewall"
 echo
