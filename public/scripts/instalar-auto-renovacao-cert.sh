@@ -96,6 +96,8 @@ ExecStart=$NODE_BIN $APP_DIR/server.js
 Restart=always
 RestartSec=5
 SupplementaryGroups=$GRUPO_CERT
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 
 [Install]
