@@ -176,14 +176,19 @@ sudo DOMINIO=djen-google2.juriscontrol.adv.br PORTA=8443 SERVICO=djen-proxy \
 
 O que ele faz:
 
-1. Ativa o timer do certbot (`certbot.timer`); se não existir, cria um cron de segurança.
-2. Ajusta grupo `letsencrypt` + permissões em `live/` e `archive/`, para o proxy
+1. Localiza a instalação existente e transforma o proxy em um serviço `systemd`
+   com reinício automático e inicialização no boot, preservando o `PROXY_TOKEN` atual.
+2. Cria um watchdog a cada 5 minutos: se `/health` local falhar, reinicia o proxy
+   e valida novamente.
+3. Valida, habilita e reinicia o Nginx quando ele existe na VM.
+4. Ativa o timer do certbot (`certbot.timer`); se não existir, cria um cron de segurança.
+5. Ajusta grupo `letsencrypt` + permissões em `live/` e `archive/`, para o proxy
    não-root conseguir ler a chave nova.
-3. Instala o hook `/etc/letsencrypt/renewal-hooks/deploy/99-reload-djen-proxy.sh`,
+6. Instala o hook `/etc/letsencrypt/renewal-hooks/deploy/99-reload-djen-proxy.sh`,
    que após cada renovação reaplica permissões, recarrega o Nginx (se ativo) e
-   reinicia `djen-proxy.service`.
-4. Roda `certbot renew --dry-run` e **falha ruidosamente** se a simulação não passar.
-5. Mostra `notBefore`/`notAfter` servidos na porta do proxy e o status do serviço.
+   reinicia e testa `djen-proxy.service`.
+7. Roda `certbot renew --dry-run` e **falha ruidosamente** se a simulação não passar.
+8. Testa o `/health` local, o serviço, o watchdog e o certificado servido externamente.
 
 É idempotente — pode rodar de novo sem duplicar nada.
 
@@ -191,6 +196,7 @@ Conferências depois:
 
 ```bash
 sudo systemctl list-timers | grep -i certbot   # renovação agendada
+sudo systemctl list-timers djen-proxy-health.timer # watchdog do proxy
 sudo tail -20 /var/log/djen-cert-renew.log     # histórico de reloads
 echo | openssl s_client -connect djen-google2.juriscontrol.adv.br:8443 \
   -servername djen-google2.juriscontrol.adv.br 2>/dev/null \

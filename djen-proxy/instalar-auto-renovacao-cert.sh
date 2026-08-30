@@ -75,6 +75,7 @@ cat > "/etc/systemd/system/$SERVICO.service" <<UNIT
 Description=DJEN Comunica Proxy
 Wants=network-online.target
 After=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
@@ -84,7 +85,6 @@ EnvironmentFile=$ENV_FILE
 ExecStart=$NODE_BIN $APP_DIR/server.js
 Restart=always
 RestartSec=5
-StartLimitIntervalSec=0
 SupplementaryGroups=$GRUPO_CERT
 NoNewPrivileges=true
 
@@ -95,6 +95,18 @@ systemctl daemon-reload
 systemctl enable "$SERVICO"
 systemctl restart "$SERVICO"
 ok "$SERVICO.service instalado, habilitado no boot e reiniciado"
+
+# Nas VMs em que o TLS público termina no Nginx, conexão recusada em 443 pode
+# significar que o proxy local está vivo, mas o Nginx ficou parado.
+if systemctl cat nginx.service >/dev/null 2>&1; then
+  if nginx -t; then
+    systemctl enable nginx
+    systemctl restart nginx
+    ok "nginx validado, habilitado no boot e reiniciado"
+  else
+    warn "configuração do nginx inválida; proxy local foi recuperado, mas o HTTPS externo exige correção do nginx"
+  fi
+fi
 
 log "[3/8] Instalando autorrecuperação a cada 5 minutos..."
 cat > "/etc/systemd/system/$SERVICO-health.service" <<UNIT
