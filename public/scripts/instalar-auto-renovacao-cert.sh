@@ -54,8 +54,10 @@ PORTA="${PORTA:-8089}"
 # Em algumas VMs o próprio Node termina o TLS (443/8443); em outras ele fica atrás
 # do Nginx em HTTP. O health local precisa usar o esquema correto.
 if [ "$PORTA" = 443 ] || [ "$PORTA" = 8443 ]; then
-  HEALTH_URL="https://127.0.0.1:$PORTA/health"
-  CURL_FLAGS="-kfsS"
+  # Alguns proxies só respondem com SNI válido; conectar por IP devolve resposta
+  # vazia. Usar --resolve mantém o TLS local, mas com o hostname correto.
+  HEALTH_URL="https://$DOMINIO:$PORTA/health"
+  CURL_FLAGS="-kfsS --resolve $DOMINIO:$PORTA:127.0.0.1"
 else
   HEALTH_URL="http://127.0.0.1:$PORTA/health"
   CURL_FLAGS="-fsS"
