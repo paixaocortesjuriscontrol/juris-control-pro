@@ -50,6 +50,16 @@ if [ -z "$PORTA" ] && [ -f "$ENV_FILE" ]; then
 fi
 PORTA="${PORTA:-8089}"
 [[ "$PORTA" =~ ^[0-9]+$ ]] || die "porta inválida: $PORTA"
+
+# Em algumas VMs o próprio Node termina o TLS (443/8443); em outras ele fica atrás
+# do Nginx em HTTP. O health local precisa usar o esquema correto.
+if [ "$PORTA" = 443 ] || [ "$PORTA" = 8443 ]; then
+  HEALTH_URL="https://127.0.0.1:$PORTA/health"
+  CURL_FLAGS="-kfsS"
+else
+  HEALTH_URL="http://127.0.0.1:$PORTA/health"
+  CURL_FLAGS="-fsS"
+fi
 ok "domínio=$DOMINIO app=$APP_DIR usuário=$USUARIO_PROXY porta_local=$PORTA"
 
 log "[2/8] Recuperando configuração e instalando serviço systemd..."
@@ -86,6 +96,8 @@ ExecStart=$NODE_BIN $APP_DIR/server.js
 Restart=always
 RestartSec=5
 SupplementaryGroups=$GRUPO_CERT
+AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 NoNewPrivileges=true
 
 [Install]
@@ -126,7 +138,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
+ExecStart=/bin/bash -c 'set -e; if ! /usr/bin/curl $CURL_FLAGS --max-time 10 $HEALTH_URL >/dev/null; then /usr/bin/systemctl restart $SERVICO; sleep 3; /usr/bin/curl $CURL_FLAGS --max-time 10 $HEALTH_URL >/dev/null; fi; if systemctl cat nginx.service >/dev/null 2>&1; then if ! systemctl is-active --quiet nginx || ! /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; then nginx -t && systemctl restart nginx; sleep 3; /usr/bin/curl -kfsS --resolve $DOMINIO:443:127.0.0.1 --max-time 10 https://$DOMINIO/health >/dev/null; fi; fi'
 UNIT
 cat > "/etc/systemd/system/$SERVICO-health.timer" <<UNIT
 [Unit]
@@ -174,7 +186,7 @@ if systemctl cat nginx.service >/dev/null 2>&1; then
 fi
 if systemctl restart "$SERVICO"; then
   sleep 2
-  curl -fsS --max-time 10 http://127.0.0.1:$PORTA/health >/dev/null \
+  curl $CURL_FLAGS --max-time 10 "$HEALTH_URL" >/dev/null \
     && registra "$SERVICO reiniciado e saudável" \
     || registra "FALHA: $SERVICO reiniciou sem responder ao health"
 else
@@ -188,7 +200,7 @@ ok "hook instalado em $HOOK_FILE"
 
 log "[6/8] Testando proxy local..."
 for tentativa in 1 2 3 4 5; do
-  if curl -fsS --max-time 10 "http://127.0.0.1:$PORTA/health" >/dev/null; then break; fi
+  if curl $CURL_FLAGS --max-time 10 "$HEALTH_URL" >/dev/null; then break; fi
   [ "$tentativa" -lt 5 ] || { systemctl status "$SERVICO" --no-pager -l || true; journalctl -u "$SERVICO" -n 30 --no-pager || true; die "proxy local não respondeu"; }
   sleep 2
 done
