@@ -38,6 +38,9 @@ import {
   aplicarPlaceholders,
 } from "@/hooks/useConfiguracoesCargaBenner";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
+import { useTagsForRemessas, useTagsForDados } from "@/hooks/useProcessoTags";
+
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 
