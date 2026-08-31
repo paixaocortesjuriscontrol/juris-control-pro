@@ -59,20 +59,44 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
 
       const processo = { id: processoId, numero: processoNumero };
       const lista: ItemAgendaUnificado[] = [];
+      const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
 
       for (const t of ((tarefasRes.data as any[]) || [])) {
-        lista.push({
+        const base = {
           ...t,
-          id: String(t.id),
           origem: "tarefa",
           tipo: tipoDaTarefa(t),
           titulo: t.titulo || t.tipo_tarefa || "Sem título",
           data_inicio: t.data_fatal || t.data_vencimento || t.data_prevista || t.created_at,
           processo,
-        } as ItemAgendaUnificado);
+        };
+        if (!t.recorrencia_tipo) {
+          lista.push({ ...base, id: String(t.id) } as ItemAgendaUnificado);
+          continue;
+        }
+        // Tarefas recorrentes ficam em um único registro: expandir ocorrências
+        // (inclui as futuras) igual à agenda unificada.
+        const ocorrencias = expandirOcorrencias(
+          base.data_inicio,
+          {
+            tipo: t.recorrencia_tipo,
+            intervalo: t.recorrencia_intervalo,
+            fim: t.recorrencia_fim,
+          },
+          windowStart,
+          windowEnd
+        );
+        for (const occ of ocorrencias) {
+          lista.push({
+            ...base,
+            id: `${t.id}::${occ.toISOString().slice(0, 10)}`,
+            data_inicio: occ.toISOString(),
+            recorrencia_pai_id: t.id,
+          } as ItemAgendaUnificado);
+        }
       }
 
-      const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
+
       for (const e of ((eventosRes.data as any[]) || [])) {
         const base = {
           ...e,
