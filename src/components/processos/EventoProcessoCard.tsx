@@ -122,6 +122,11 @@ export function EventoProcessoCard({ evento, pessoas, onClick }: Props) {
           <p className="text-sm font-medium leading-snug break-words">{tituloExibido}</p>
 
           <div className="flex items-center gap-1 shrink-0">
+            {evento.origem === "astrea" && (
+              <Badge variant="outline" className="text-[10px] whitespace-nowrap border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400">
+                Veio do Astrea
+              </Badge>
+            )}
             {atrasado && (
               <Badge variant="destructive" className="text-[10px]">
                 Atrasado
