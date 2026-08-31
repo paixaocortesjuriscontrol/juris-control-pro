@@ -1470,12 +1470,28 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         }
       };
 
-      // Processa cada origem em chunks separados, em paralelo (concorrência limitada)
-      const rpcTasks = [
-        ...chunk(termos, RPC_CHUNK).map((c) => () => callRpc(c, null, null)),
-        ...chunk(processos, RPC_CHUNK).map((c) => () => callRpc(null, c, null)),
-        ...chunk(descartadas, RPC_CHUNK).map((c) => () => callRpc(null, null, c)),
-      ];
+      // Processa cada origem em chunks separados, em paralelo (concorrência limitada).
+      // Em "Lida (só esta)" NÃO usamos a RPC por dedup (ela expande para as irmãs no
+      // servidor): atualizamos a flag global apenas do registro clicado.
+      const updateFlagDireto = async (tabela: string, ids: string[]) => {
+        try {
+          await (supabase as any).from(tabela).update({ lida: true }).in('id', ids);
+        } catch (e: any) {
+          console.warn('[DJEN] Update direto de lida falhou (best-effort):', e?.message || e);
+        }
+      };
+      const rpcTasks = somenteEsta
+        ? [
+            ...chunk(termos, RPC_CHUNK).map((c) => () => updateFlagDireto('publicacoes_djen', c)),
+            ...chunk(processos, RPC_CHUNK).map((c) => () => updateFlagDireto('publicacoes_djen_processos', c)),
+            ...chunk(descartadas, RPC_CHUNK).map((c) => () => updateFlagDireto('publicacoes_djen_descartadas', c)),
+          ]
+        : [
+            ...chunk(termos, RPC_CHUNK).map((c) => () => callRpc(c, null, null)),
+            ...chunk(processos, RPC_CHUNK).map((c) => () => callRpc(null, c, null)),
+            ...chunk(descartadas, RPC_CHUNK).map((c) => () => callRpc(null, null, c)),
+          ];
+
 
       // Per-user tracking: insert into leituras table
       // Get user's name from profiles
