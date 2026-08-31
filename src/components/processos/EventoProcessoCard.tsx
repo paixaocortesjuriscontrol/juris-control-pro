@@ -104,11 +104,23 @@ export function EventoProcessoCard({ evento, pessoas, onClick }: Props) {
     .filter(Boolean)
     .join(" · ");
 
+  // Padroniza o título: remove prefixo de data já embutido (importações Astrea)
+  // e recoloca sempre a data da ocorrência na frente.
+  const tituloLimpo = String(evento.titulo || "Sem título")
+    .replace(/^\s*\d{2}\/\d{2}\/\d{4}\s*[-–—:]\s*/, "")
+    .trim();
+  const tituloExibido = inicio
+    ? `${format(inicio, "dd/MM/yyyy", { locale: ptBR })} - ${tituloLimpo || "Sem título"}`
+    : tituloLimpo || "Sem título";
+
+  const fimRecorrencia = parseData(evento.recorrencia_fim) || (evento.recorrente ? fim : null);
+
   return (
     <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={onClick}>
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium leading-snug break-words">{evento.titulo || "Sem título"}</p>
+          <p className="text-sm font-medium leading-snug break-words">{tituloExibido}</p>
+
           <div className="flex items-center gap-1 shrink-0">
             {atrasado && (
               <Badge variant="destructive" className="text-[10px]">
