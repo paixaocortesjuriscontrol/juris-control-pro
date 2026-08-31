@@ -1582,7 +1582,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const sel = result.totalSelecionado || 0;
       const exp = result.totalExpandido || sel;
       if (exp > sel) {
-        toast.success(`${sel} publicação(ões) marcada(s) como lida(s) (${exp} registros incluindo duplicatas)`);
+        toast.success(
+          sel === 1
+            ? `1 publicação marcada como lida (mais ${exp - 1} cópia(s) idêntica(s) do mesmo processo/data)`
+            : `${sel} publicações marcadas como lidas (${exp} registros incluindo duplicatas)`
+        );
       } else {
         toast.success(`${sel} publicação(ões) marcada(s) como lida(s)`);
       }
