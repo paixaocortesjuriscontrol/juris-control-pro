@@ -433,14 +433,27 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     // Validação mínima para criação
     if (isNovo) {
       const numeroRaw = String(form.numero || "").trim();
-      if (!modoCaso && (!numeroRaw || numeroRaw.replace(/\D/g, "").length < 5)) {
-        if (!silent) toast.error("Informe o número do processo antes de salvar.");
+      const tipoAtual = String(form.tipo_processo || "judicial");
+      // Em "Outro" (e administrativo) o identificador é livre: qualquer texto serve.
+      const numeroLivre = tipoAtual === "outro" || tipoAtual === "administrativo";
+      const numeroValido = numeroLivre
+        ? numeroRaw.length >= 3
+        : numeroRaw.replace(/\D/g, "").length >= 5;
+      if (!modoCaso && (!numeroRaw || !numeroValido)) {
+        if (!silent) {
+          toast.error(
+            numeroLivre
+              ? "Informe um identificador com pelo menos 3 caracteres."
+              : "Informe o número do processo antes de salvar.",
+          );
+        }
         return;
       }
-      if (modoCaso && numeroRaw && numeroRaw.replace(/\D/g, "").length < 5) {
+      if (modoCaso && numeroRaw && !numeroValido) {
         if (!silent) toast.error("O número informado é inválido. Deixe em branco para incluir depois.");
         return;
       }
+
       if (!String(form.area || "").trim()) {
         if (!silent) toast.error("Selecione a área do processo antes de salvar.");
         return;
