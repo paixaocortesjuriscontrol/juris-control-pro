@@ -65,8 +65,10 @@ import {
   RANKING_METRICA_LABELS,
   isRankingMetrica,
   passaMetricaRanking,
+  justificativaPrazoPerdido,
   type RankingMetrica,
 } from "@/utils/rankingDrilldown";
+
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
