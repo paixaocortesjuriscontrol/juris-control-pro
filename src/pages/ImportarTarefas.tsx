@@ -1570,11 +1570,18 @@ export default function ImportarTarefas() {
     });
     setTarefasAstrea([...updatedTarefas]);
 
+    // Linhas de categoria "Evento" no Astrea entram na agenda de eventos,
+    // não na lista de tarefas/prazos.
+    const isEventoRow = (t: TarefaAstreaImport) => mapAstreaTipoToTarefa(t.tipo) === "Evento";
+    const preparedEventos = prepared.filter(p => isEventoRow(p.t));
+    const preparedTarefas = prepared.filter(p => !isEventoRow(p.t));
+
     // ===== Phase 2: bulk insert tarefas in batches of 200 =====
     const BATCH = 200;
-    for (let i = 0; i < prepared.length; i += BATCH) {
+    for (let i = 0; i < preparedTarefas.length; i += BATCH) {
       if (astreaCancelledRef.current) { toast({ title: "Importação cancelada" }); break; }
-      const slice = prepared.slice(i, i + BATCH);
+      const slice = preparedTarefas.slice(i, i + BATCH);
+
       const buildRow = ({ t, processoId, responsavelId }: Prepared) => {
         const dataVencimento = parseDate(t.data);
         const statusFinal = mapStatus(t.statusOrigem);
