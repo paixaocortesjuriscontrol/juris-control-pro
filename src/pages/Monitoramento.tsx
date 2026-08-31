@@ -346,6 +346,17 @@ export default function Monitoramento() {
       map.set(ev.processo_id, g);
     }
 
+    // Ordena os eventos de cada processo pelos mais novos primeiro (step_date
+    // = data real do andamento; fallback para criado_em). Sem isso, a lista do
+    // painel direito ficava na ordem de criação no banco, misturando datas.
+    for (const g of map.values()) {
+      g.eventos.sort((a, b) => {
+        const da = a.step_date || a.criado_em || "";
+        const db = b.step_date || b.criado_em || "";
+        return db.localeCompare(da);
+      });
+    }
+
     const termo = busca.trim().toLowerCase();
     const somenteDigitos = termo.replace(/\D/g, "");
 
