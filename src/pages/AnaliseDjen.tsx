@@ -3168,6 +3168,7 @@ const AnaliseDjen = () => {
     const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) { toast.error("Nenhuma publicação para classificar"); return; }
     setGerandoDocsTST(true);
+    setDocsTstArquivos([]);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
       type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "INTIMACOES" | "PRAZOS";
