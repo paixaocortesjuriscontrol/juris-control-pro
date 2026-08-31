@@ -99,6 +99,8 @@ const TIME_ZONE = "America/Sao_Paulo";
 
 import { TIPOS_TAREFA, TIPOS_TAREFA_LABELS } from "@/constants/tiposTarefa";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { useItensComComentarios } from "@/hooks/useItensComComentarios";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 
 const TIPO_CORES: Record<string, string> = {
@@ -522,6 +524,7 @@ export default function MinhaAgenda() {
     return result;
   }, [itensAgenda, search, statusFiltro, prioridadeFiltro, tipoTarefaFiltro, ordenacao]);
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensFiltrados);
+  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itensFiltrados);
 
   // Handlers
   const clearAllFilters = () => {
@@ -754,6 +757,7 @@ export default function MinhaAgenda() {
               )}>
                 {item.titulo || "Sem título"}
                 {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px] shrink-0" />}
+                {itensComComentarios.has(getItemRawId(item.id)) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px] shrink-0" />}
               </h3>
             </div>
             

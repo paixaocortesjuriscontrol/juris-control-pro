@@ -87,6 +87,8 @@ import { Sparkles } from "lucide-react";
 import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { useItensComComentarios } from "@/hooks/useItensComComentarios";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
@@ -1634,6 +1636,9 @@ export default function PainelControle() {
   // Itens materializados por Workflow (indicador verde "W")
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgenda);
 
+  // Itens que possuem comentários (indicador âmbar "C")
+  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itensAgenda);
+
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
   };
@@ -2547,6 +2552,7 @@ export default function PainelControle() {
                                 const isCancelado = isItemCancelado(item);
                                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
+                                const temComentario = itensComComentarios.has(getItemRawId(item.id));
                                 return (
                                 <div
                                   key={item.id}
@@ -2577,6 +2583,9 @@ export default function PainelControle() {
                                   )}
                                   {veioDeWorkflow && (
                                     <WorkflowBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                  )}
+                                  {temComentario && (
+                                    <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
                                   )}
                                 </div>
                               )})}
