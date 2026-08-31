@@ -8,9 +8,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
+import { useItensComComentarios } from "@/hooks/useItensComComentarios";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const TIPO_TEXTO: Record<string, string> = {
@@ -118,12 +120,14 @@ export function AgendaItemRow({
   onSelect,
   temAtividade,
   veioDeWorkflow,
+  temComentario,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
   onSelect: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
+  temComentario?: boolean;
 }) {
   const concluido = isItemTratado(item);
   const riscado = isItemRiscado(item);
@@ -163,6 +167,7 @@ export function AgendaItemRow({
           {hora ? `: ${hora}` : ""}
           {temAtividade && <AtividadeBadge />}
           {veioDeWorkflow && <WorkflowBadge />}
+          {temComentario && <ComentarioBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
@@ -227,6 +232,7 @@ export function DiaAgendaLateral({
   }, [atividades]);
 
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
+  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -258,6 +264,7 @@ export function DiaAgendaLateral({
               onSelect={onSelectItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
+              temComentario={itensComComentarios.has(getItemRawId(item.id))}
             />
           ))}
           {atividades.map((a: any) => {
