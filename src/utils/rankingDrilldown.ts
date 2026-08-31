@@ -119,8 +119,30 @@ export function passaMetricaRanking(
     if (cancelado) return false;
     // Itens vindos de importações não são contados como prazo perdido.
     if (itemImportado(item)) return false;
-    if (concluido) return !!concl && concl > prazo;
+    // Concluído (mesmo com atraso) NÃO é prazo perdido — conta em "Atraso".
+    if (concluido) return false;
     return prazo < hojeStr;
   }
   return true;
 }
+
+/** Explica, em texto, por que o item está contabilizado como prazo perdido. */
+export function justificativaPrazoPerdido(item: any, hojeStr: string): string {
+  const prazo = prazoDoItem(item);
+  const campo = dia(item?.data_fatal)
+    ? "data fatal"
+    : dia(item?.data_vencimento)
+      ? "data de vencimento"
+      : "data prevista";
+  const br = (d: string) => (d ? d.split("-").reverse().join("/") : "—");
+  const dias = prazo
+    ? Math.max(
+        0,
+        Math.round((new Date(hojeStr + "T00:00:00").getTime() - new Date(prazo + "T00:00:00").getTime()) / 86400000),
+      )
+    : 0;
+  return `Prazo em aberto: a ${campo} (${br(prazo)}) venceu há ${dias} dia(s) e a situação continua "${
+    item?.status ?? "pendente"
+  }" (sem cumprimento/tratamento registrado).`;
+}
+
