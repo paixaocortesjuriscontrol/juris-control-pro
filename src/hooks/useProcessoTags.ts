@@ -251,3 +251,82 @@ export async function fetchDadoIdsByTag(tagId: string): Promise<string[]> {
   }
   return Array.from(new Set(all));
 }
+/* ------------------------------------------------------------------ *
+ * TAGs em Remessas Carga Benner (mesmo catálogo dos processos)        *
+ * ------------------------------------------------------------------ */
+
+/** Carrega o mapa { remessa_id => tagIds[] } para uma lista de remessas. */
+export function useTagsForRemessas(remessaIds: string[]) {
+  const key = JSON.stringify([...remessaIds].sort());
+  return useQuery({
+    queryKey: ["remessas-benner-tags", key],
+    enabled: remessaIds.length > 0,
+    queryFn: async () => {
+      const map = new Map<string, string[]>();
+      if (remessaIds.length === 0) return map;
+      const CHUNK = 500;
+      for (let i = 0; i < remessaIds.length; i += CHUNK) {
+        const slice = remessaIds.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from("remessas_benner_tags" as any)
+          .select("remessa_id, tag_id")
+          .in("remessa_id", slice);
+        if (error) throw error;
+        for (const r of (data as any[]) || []) {
+          const arr = map.get(r.remessa_id) || [];
+          arr.push(r.tag_id);
+          map.set(r.remessa_id, arr);
+        }
+      }
+      return map;
+    },
+  });
+}
+
+export function useToggleTagInRemessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      remessaId,
+      tagId,
+      checked,
+    }: { remessaId: string; tagId: string; checked: boolean }) => {
+      if (checked) {
+        const { data: userData } = await supabase.auth.getUser();
+        const { error } = await supabase
+          .from("remessas_benner_tags" as any)
+          .insert({ remessa_id: remessaId, tag_id: tagId, created_by: userData.user?.id } as any);
+        if (error && !String(error.message).includes("duplicate")) throw error;
+      } else {
+        const { error } = await supabase
+          .from("remessas_benner_tags" as any)
+          .delete()
+          .eq("remessa_id", remessaId)
+          .eq("tag_id", tagId);
+        if (error) throw error;
+      }
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["remessas-benner-tags"] });
+    },
+    onError: (err: any) => toast.error("Erro ao atualizar tag: " + (err?.message || "")),
+  });
+}
+
+export function useRemoverTodasTagsDaRemessa() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (remessaId: string) => {
+      const { error } = await supabase
+        .from("remessas_benner_tags" as any)
+        .delete()
+        .eq("remessa_id", remessaId);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["remessas-benner-tags"] });
+      toast.success("Todas as TAGs removidas");
+    },
+    onError: (err: any) => toast.error("Erro ao remover TAGs: " + (err?.message || "")),
+  });
+}
