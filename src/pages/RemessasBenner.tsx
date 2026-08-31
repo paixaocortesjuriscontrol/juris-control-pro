@@ -143,7 +143,17 @@ export default function RemessasBenner() {
                     <TableCell className="text-right font-mono text-green-700">{r.quantidade_aceitos}</TableCell>
                     <TableCell className="text-right font-mono text-red-700">{r.quantidade_rejeitados}</TableCell>
                     <TableCell className="text-right font-mono text-amber-700">{r.quantidade_pendentes}</TableCell>
+                    <TableCell className="max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                      <ProcessoTagPicker
+                        entidade="remessa"
+                        dadoId={r.id}
+                        tagIds={tagsMap?.get(r.id) || []}
+                        readOnly={!isAdminOrCoordinator}
+                        compact
+                      />
+                    </TableCell>
                     <TableCell className="text-xs max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+
                       {r.arquivo_path ? (
                         <button
                           type="button"
