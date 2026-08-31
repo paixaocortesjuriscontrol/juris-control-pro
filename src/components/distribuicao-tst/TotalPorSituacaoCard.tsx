@@ -70,12 +70,13 @@ async function calcularResultadoChunked(filters: DistribuicaoTstFilters): Promis
       const dataBase = row.data_distribuicao_real || row.data_distribuicao_planilha || null;
       if (dataBase && (!periodoInicio || dataBase < periodoInicio)) periodoInicio = dataBase;
       if (dataBase && (!periodoFim || dataBase > periodoFim)) periodoFim = dataBase;
-      if (status === "pronto_envio") prontosEnvio += 1;
+      const concluido = status === "pronto_envio" || status === "planilhado" || status === "enviado";
+      if (concluido) prontosEnvio += 1;
       if (
         row.transito_julgado !== true &&
         row.processo_outro_escritorio !== true &&
         row.segredo_justica !== true &&
-        status !== "pronto_envio"
+        !concluido
       ) aFazer += 1;
       if (row.transito_julgado === true) transito += 1;
       if (row.processo_outro_escritorio === true) outroEscritorio += 1;

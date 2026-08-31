@@ -656,7 +656,7 @@ export default function DistribuicaoTst() {
     if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
-    if (filtroStatus === "pronto_envio" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
+    if (filtroStatus === "concluidos" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
     if (filtroEquipe === "sim") return "comEquipe" as const;
     if (filtroEquipe === "nao") return "semEquipe" as const;
     if (filtroSituacaoProcesso === "todos" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroStatus === "todos" && !filtroSemTurma && filtroProblemaJudit === "todos" && filtroEquipe === "todos" && !filtroDataInicio && !filtroDataFim) return "total" as const;
@@ -719,9 +719,9 @@ export default function DistribuicaoTst() {
         setFiltroDataFim("");
         setFiltroMesAno("todos");
         break;
-      case "prontoEnvio": setFiltroStatus("pronto_envio"); break;
+      case "prontoEnvio": setFiltroStatus("concluidos"); break;
       case "prontoSemPendencia":
-        setFiltroStatus("pronto_envio");
+        setFiltroStatus("concluidos");
         setFiltroSemPendencia(true);
         break;
       case "semResponsavel":
@@ -1778,7 +1778,7 @@ export default function DistribuicaoTst() {
               setSelectedIds(new Set());
               // Filtra por meu usuário + apenas Prontos
               setFiltroResponsavelIds([user.id]);
-              setFiltroStatus("pronto_envio");
+              setFiltroStatus("concluidos");
             }}
           />
         )}
@@ -2237,6 +2237,7 @@ export default function DistribuicaoTst() {
                   <SelectContent>
                     <SelectItem value="todos">Todos</SelectItem>
                     <SelectItem value="rascunho">Rascunho</SelectItem>
+                    <SelectItem value="concluidos">Concluídos (pronto/planilhado/enviado)</SelectItem>
                     <SelectItem value="pronto_envio">Pronto para Enviar</SelectItem>
                     <SelectItem value="enviado">Enviado</SelectItem>
                     <SelectItem value="planilhado">Planilhado</SelectItem>

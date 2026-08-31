@@ -62,7 +62,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .select(cols)
-            .eq("status", "pronto_envio")
+            .in("status", ["pronto_envio", "planilhado", "enviado"])
             .order("id", { ascending: true })
             .range(from, from + PAGE - 1);
           if (error) throw error;

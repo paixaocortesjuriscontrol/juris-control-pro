@@ -52,6 +52,8 @@ interface CardDef {
   value: number;
   className: string;
   textClass: string;
+  /** Texto opcional exibido no tooltip do card. */
+  hint?: string;
 }
 
 export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia }: Props) {
@@ -63,7 +65,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "aFazer", label: "A fazer", value: stats.aFazer, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-300 dark:border-indigo-700", textClass: "text-indigo-700 dark:text-indigo-300" },
     { key: "naoPrecisaFazer", label: "Não precisa fazer", value: stats.naoPrecisaFazer, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-300 dark:border-slate-700", textClass: "text-slate-700 dark:text-slate-300" },
     { key: "bennerSim", label: "Benner Enviado / Não", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
-    { key: "prontoEnvio", label: "Prontos para Enviar (geral)", value: stats.prontoEnvio, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
+    { key: "prontoEnvio", label: "Concluídos (prontos/planilhados)", value: stats.prontoEnvio, hint: `${stats.prontoEnvioPuro.toLocaleString("pt-BR")} prontos, ${stats.planilhado.toLocaleString("pt-BR")} planilhados, ${stats.enviado.toLocaleString("pt-BR")} enviados`, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
     ...(prontoSemPendencia
       ? [{
           key: "prontoSemPendencia" as StatsCardKey,
@@ -254,10 +256,10 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
               clickable && "cursor-pointer hover:shadow-md hover:scale-[1.02]",
               isActive && "ring-2 ring-primary ring-offset-1"
             )}
-            title={clickable ? "Clique para filtrar" : undefined}
+            title={c.hint ? (clickable ? `${c.hint} — clique para filtrar` : c.hint) : clickable ? "Clique para filtrar" : undefined}
           >
             <CardContent className="p-2">
-              <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.label}>{c.label}</p>
+              <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.hint || c.label}>{c.label}</p>
               <p className={cn("text-sm md:text-base font-bold mt-0.5 leading-tight", c.textClass)}>
                 {(c.key === "prontoSemPendencia" ? (prontoSemPendencia?.loading ?? false) : loading)
                   ? <Loader2 className="w-3 h-3 animate-spin inline" />

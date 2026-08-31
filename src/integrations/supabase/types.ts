@@ -10422,16 +10422,19 @@ export type Database = {
           dossies_invalidos: number
           dossies_nao_preenchidos: number
           dossies_validos: number
+          enviado: number
           judit_nao_preenchido: number
           judit_preenchido: number
           nao_precisa_fazer: number
           outros_situacao: number
+          planilhado: number
           problema_judit: number
           processos_ativos: number
           processos_invalidos: number
           processos_unicos: number
           processos_validos: number
           pronto_envio: number
+          pronto_envio_puro: number
           sem_equipe: number
           sem_responsavel: number
           sem_turma: number

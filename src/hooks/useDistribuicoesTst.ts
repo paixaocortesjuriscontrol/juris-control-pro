@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/** Status que indicam trabalho concluído (não contam mais como "A fazer"). */
+export const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"] as const;
+
 /**
  * Retorna os IDs de TODAS as linhas cujo processo aparece mais de uma vez.
  * Não depende de `ic_duplicado`, porque esse marcador pode estar errado ou
@@ -250,7 +253,7 @@ export interface DistribuicaoTstFilters {
   dataFim?: string;
   responsavelIds?: string[];
   semTurma?: boolean;
-  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
+  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado" | "concluidos";
   emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
   acordo?: "todos" | "sim" | "nao";
@@ -552,7 +555,7 @@ export async function fetchAllDistribuicaoTstIds(
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.neq.pronto_envio");
+        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
     } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
         "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
@@ -582,7 +585,7 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
     if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
+    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (filters.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
@@ -784,7 +787,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.neq.pronto_envio");
+        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
     } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
         "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
@@ -814,7 +817,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
     if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (filters.status && filters.status !== "todos") query = query.eq("status", filters.status);
+    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (filters.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
@@ -1232,7 +1235,7 @@ export async function fetchMesesDataRealFiltered(
         .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
         .or("segredo_justica.is.null,segredo_justica.eq.false")
         .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.neq.pronto_envio");
+        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
     } else if (f.situacaoProcesso === "nao_precisa_fazer") {
       query = query.or(
         "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
@@ -1254,7 +1257,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.dataInicio) query = applyDataEfetivaGte(query, f.dataInicio);
     if (f.dataFim) query = applyDataEfetivaLte(query, f.dataFim);
     if (f.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (f.status && f.status !== "todos") query = query.eq("status", f.status);
+    if (f.status && f.status !== "todos") query = f.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", f.status);
     if (f.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (f.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");

@@ -22,6 +22,9 @@ export interface DistribuicaoTstStats {
   ate2025: number;
   de2026: number;
   prontoEnvio: number;
+  prontoEnvioPuro: number;
+  planilhado: number;
+  enviado: number;
   semResponsavel: number;
   comEquipe: number;
   semEquipe: number;
@@ -49,6 +52,9 @@ const ZERO: DistribuicaoTstStats = {
   ate2025: 0,
   de2026: 0,
   prontoEnvio: 0,
+  prontoEnvioPuro: 0,
+  planilhado: 0,
+  enviado: 0,
   semResponsavel: 0,
   comEquipe: 0,
   semEquipe: 0,
@@ -125,7 +131,12 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     if (row.problema_judit === true) stats.problemaJudit += 1;
     if (dataEfetiva && dataEfetiva <= "2025-12-31") stats.ate2025 += 1;
     if (dataEfetiva && dataEfetiva >= "2026-01-01") stats.de2026 += 1;
-    if (String(row.status || "") === "pronto_envio") stats.prontoEnvio += 1;
+    const st = String(row.status || "");
+    const concluido = st === "pronto_envio" || st === "planilhado" || st === "enviado";
+    if (concluido) stats.prontoEnvio += 1;
+    if (st === "pronto_envio") stats.prontoEnvioPuro += 1;
+    if (st === "planilhado") stats.planilhado += 1;
+    if (st === "enviado") stats.enviado += 1;
     if (row.tem_responsavel !== true) stats.semResponsavel += 1;
     if (equipe) stats.comEquipe += 1;
     else stats.semEquipe += 1;
@@ -134,7 +145,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
       row.processo_outro_escritorio !== true &&
       row.segredo_justica !== true &&
       row.cejusc !== true &&
-      String(row.status || "") !== "pronto_envio"
+      !concluido
     ) {
       stats.aFazer += 1;
     }
@@ -208,6 +219,9 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         ate2025: Number(row.ate_2025) || 0,
         de2026: Number(row.de_2026) || 0,
         prontoEnvio: Number(row.pronto_envio) || 0,
+        prontoEnvioPuro: Number(row.pronto_envio_puro) || 0,
+        planilhado: Number(row.planilhado) || 0,
+        enviado: Number(row.enviado) || 0,
         semResponsavel: Number(row.sem_responsavel) || 0,
         comEquipe: Number(row.com_equipe) || 0,
         semEquipe: Number(row.sem_equipe) || 0,
