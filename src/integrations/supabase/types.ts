@@ -8804,6 +8804,45 @@ export type Database = {
           },
         ]
       }
+      remessas_benner_tags: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          remessa_id: string
+          tag_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          remessa_id: string
+          tag_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          remessa_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "remessas_benner_tags_remessa_id_fkey"
+            columns: ["remessa_id"]
+            isOneToOne: false
+            referencedRelation: "remessas_benner"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "remessas_benner_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "processo_tags_catalogo"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       repositorio_conversas: {
         Row: {
           created_at: string

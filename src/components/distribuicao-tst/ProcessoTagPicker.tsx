@@ -9,10 +9,12 @@ import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useToggleTagInDado,
+  useToggleTagInRemessa,
   useAtualizarCorTag,
   useRenomearTag,
   useAtualizarVisibilidadeTag,
   useRemoverTodasTagsDoDado,
+  useRemoverTodasTagsDaRemessa,
   TAG_COLOR_PALETTE,
   ProcessoTag,
 } from "@/hooks/useProcessoTags";
@@ -20,22 +22,29 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { ColorPalettePicker } from "./ColorPalettePicker";
 
 interface Props {
+  /** Id do registro que recebe as TAGs (dados_benner ou remessa). */
   dadoId: string;
   tagIds: string[];
   /** Quando true, mostra apenas as tags como leitura (sem botão de editar). */
   readOnly?: boolean;
   compact?: boolean;
+  /** Entidade alvo das TAGs. Padrão: processo (dados_benner). */
+  entidade?: "dado" | "remessa";
 }
 
-export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) {
+export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact, entidade = "dado" }: Props) {
+  const isRemessa = entidade === "remessa";
   const { data: catalogo = [], isLoading } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
-  const toggle = useToggleTagInDado();
+  const toggleDado = useToggleTagInDado();
+  const toggleRemessa = useToggleTagInRemessa();
   const atualizarCor = useAtualizarCorTag();
   const renomear = useRenomearTag();
   const visibilidade = useAtualizarVisibilidadeTag();
   const { isAdmin } = useUserRole();
-  const removerTodas = useRemoverTodasTagsDoDado();
+  const removerTodasDado = useRemoverTodasTagsDoDado();
+  const removerTodasRemessa = useRemoverTodasTagsDaRemessa();
+  const removerTodas = isRemessa ? removerTodasRemessa : removerTodasDado;
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
   const [open, setOpen] = useState(false);
@@ -48,9 +57,15 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
     return catalogo.filter((t) => s.has(t.id));
   }, [catalogo, tagIds]);
 
-  const handleToggle = (tagId: string, checked: boolean) => {
-    toggle.mutate({ dadoId, tagId, checked });
+  const toggleTag = (tagId: string, checked: boolean) => {
+    if (isRemessa) toggleRemessa.mutate({ remessaId: dadoId, tagId, checked });
+    else toggleDado.mutate({ dadoId, tagId, checked });
   };
+
+  const handleToggle = (tagId: string, checked: boolean) => {
+    toggleTag(tagId, checked);
+  };
+
 
   const handleCriar = async () => {
     const nome = novoNome.trim();
@@ -58,7 +73,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
     const tag = await criar.mutateAsync({ nome, cor: novaCor });
     setNovoNome("");
     if (tag?.id) {
-      toggle.mutate({ dadoId, tagId: tag.id, checked: true });
+      toggleTag(tag.id, true);
     }
   };
 
@@ -113,7 +128,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
       </PopoverTrigger>
       <PopoverContent className="w-96 p-2" onClick={(e) => e.stopPropagation()} align="start">
         <div className="flex items-center justify-between mb-1">
-          <div className="text-xs font-semibold">TAGs do processo</div>
+          <div className="text-xs font-semibold">{isRemessa ? "TAGs da remessa" : "TAGs do processo"}</div>
           {tagsAplicadas.length > 0 && (
             <button
               type="button"

@@ -38,6 +38,9 @@ import {
   aplicarPlaceholders,
 } from "@/hooks/useConfiguracoesCargaBenner";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
+import { useTagsForRemessas, useTagsForDados } from "@/hooks/useProcessoTags";
+
 import { useNavigate } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 
@@ -62,6 +65,11 @@ export default function RemessasBenner() {
     if (filterStatus === "todos") return remessas;
     return remessas.filter((r) => r.status === filterStatus);
   }, [remessas, filterStatus]);
+
+  // TAGs (mesmo catálogo da Distribuição TST) aplicadas a cada remessa.
+  const remessaIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
+  const { data: tagsMap } = useTagsForRemessas(remessaIds);
+
 
   return (
     <MainLayout
@@ -119,7 +127,9 @@ export default function RemessasBenner() {
                   <TableHead className="text-right">Aceitos</TableHead>
                   <TableHead className="text-right">Rejeitados</TableHead>
                   <TableHead className="text-right">Pendentes</TableHead>
+                  <TableHead>TAGs</TableHead>
                   <TableHead>Arquivo</TableHead>
+
                   {isAdminOrCoordinator && <TableHead className="w-12 text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
@@ -136,7 +146,17 @@ export default function RemessasBenner() {
                     <TableCell className="text-right font-mono text-green-700">{r.quantidade_aceitos}</TableCell>
                     <TableCell className="text-right font-mono text-red-700">{r.quantidade_rejeitados}</TableCell>
                     <TableCell className="text-right font-mono text-amber-700">{r.quantidade_pendentes}</TableCell>
+                    <TableCell className="max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                      <ProcessoTagPicker
+                        entidade="remessa"
+                        dadoId={r.id}
+                        tagIds={tagsMap?.get(r.id) || []}
+                        readOnly={!isAdminOrCoordinator}
+                        compact
+                      />
+                    </TableCell>
                     <TableCell className="text-xs max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+
                       {r.arquivo_path ? (
                         <button
                           type="button"
@@ -220,6 +240,15 @@ export default function RemessasBenner() {
 
 function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onClose: () => void }) {
   const { data: itens = [] } = useRemessaItens(remessa.id);
+  const { isAdminOrCoordinator } = useUserRole();
+  const podeEditarTags = isAdminOrCoordinator;
+
+  const dadoIds = useMemo(
+    () => itens.map((i) => i.dado_benner_id).filter(Boolean) as string[],
+    [itens],
+  );
+  const { data: tagsItensMap } = useTagsForDados(dadoIds);
+
   const marcarEnviada = useMarcarRemessaEnviada();
   const cancelar = useCancelarRemessa();
   const conciliar = useConciliarRetorno();
@@ -295,6 +324,7 @@ function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onC
                   <TableRow>
                     <TableHead>Dossiê</TableHead>
                     <TableHead>Processo</TableHead>
+                    <TableHead>TAGs</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -304,11 +334,24 @@ function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onC
                       <TableCell className="font-mono text-xs">{it.dossie}</TableCell>
                       <TableCell className="font-mono text-xs">{it.processo}</TableCell>
                       <TableCell>
+                        {it.dado_benner_id ? (
+                          <ProcessoTagPicker
+                            dadoId={it.dado_benner_id}
+                            tagIds={tagsItensMap?.get(it.dado_benner_id) || []}
+                            readOnly={!podeEditarTags}
+                            compact
+                          />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline" className={
                           it.status_retorno === "aceito" ? "border-green-600 text-green-700" :
                           it.status_retorno === "rejeitado" ? "border-red-600 text-red-700" :
                           "border-amber-600 text-amber-700"
                         }>{it.status_retorno}</Badge>
+
                       </TableCell>
                     </TableRow>
                   ))}
