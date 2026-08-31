@@ -1817,24 +1817,12 @@ export function ProcessoDetalhesCompletos({
                   {eventosDoProcesso.length > 0 ? (
                     <div className="space-y-2">
                       {eventosDoProcesso.map((evento: any) => (
-                        <Card
+                        <EventoProcessoCard
                           key={evento.id}
-                          className="hover:shadow-md transition-shadow cursor-pointer"
+                          evento={evento}
+                          pessoas={eventosPessoas[evento.id]}
                           onClick={() => abrirNovoItem("evento", evento)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="space-y-1">
-                              <p className="text-sm font-medium">{evento.titulo}</p>
-                              <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="w-3 h-3" />
-                                {formatDateTime(evento.data_inicio)}
-                              </p>
-                              {evento.descricao && (
-                                <p className="text-xs text-muted-foreground line-clamp-2">{evento.descricao}</p>
-                              )}
-                            </div>
-                          </CardContent>
-                        </Card>
+                        />
                       ))}
                     </div>
                   ) : (
