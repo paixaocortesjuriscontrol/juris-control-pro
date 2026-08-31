@@ -1333,17 +1333,17 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
 
   // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
-    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
+    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud'; somenteEsta?: boolean }[]) => {
       // ============================================================
-      // EXPANSÃO POR DEDUP (server-side):
+      // EXPANSÃO POR DEDUP (server-side) — usada em marcações em LOTE.
       // A tela exibe publicações DEDUPLICADAS por coordenação + processo +
-      // data + cabeçalho do conteúdo. Quando o usuário marca "1 linha"
-      // como lida, precisamos marcar TODAS as irmãs no banco; caso
-      // contrário o próximo dedup pode escolher uma irmã ainda não-lida
-      // e a publicação reaparece. A expansão acontece dentro da RPC
-      // get_publicacoes_relacionadas_por_dedup, usando os índices de
-      // dedup já existentes — bem mais rápido que vários SELECT no client.
+      // data + cabeçalho do conteúdo; ao marcar em lote precisamos marcar
+      // as irmãs para que o dedup não traga de volta uma cópia não-lida.
+      //
+      // "Lida (só esta)" passa somenteEsta: true — nesse caso NENHUMA
+      // expansão acontece: marcamos exatamente o registro clicado.
       // ============================================================
+      const somenteEsta = items.length > 0 && items.every(i => i.somenteEsta);
       const seedTermos = items.filter(i => i.tipo_origem === 'termo').map(i => i.id);
       const seedProcessos = items.filter(i => i.tipo_origem === 'processo').map(i => i.id);
       const seedDescartadas = items.filter(i => i.tipo_origem === 'descartada').map(i => i.id);
@@ -1359,6 +1359,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           expandedMap.set(i.id, i.tipo_origem);
         }
       });
+
 
       // Helper local: chunk genérico
       const chunkArr = <T,>(arr: T[], size: number): T[][] => {
