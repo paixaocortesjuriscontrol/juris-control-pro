@@ -297,6 +297,9 @@ export function ProcessoDetalhesCompletos({
   const [itemParaEditar, setItemParaEditar] = useState<any | null>(null);
   const [audienciaSelecionada, setAudienciaSelecionada] = useState<any | null>(null);
   const eventosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() !== "parcelamento");
+  const { data: eventosPessoas = {} } = useEventosPessoas(
+    eventosAgenda.map((e: any) => String(e.id)).filter(Boolean)
+  );
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
   const processoPreSelecionado = processo
     ? { id: processo.id, numero: processo.numero || "", coordenacao_id: (processo as any).coordenacao_id ?? null }
