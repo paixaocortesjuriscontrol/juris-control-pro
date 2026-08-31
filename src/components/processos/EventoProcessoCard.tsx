@@ -151,11 +151,10 @@ export function EventoProcessoCard({ evento, pessoas, onClick }: Props) {
             <span className="flex items-center gap-1">
               <Repeat className="w-3 h-3" />
               {RECORRENCIA_LABELS[String(evento.recorrencia_tipo || "").toLowerCase()] || "Recorrente"}
-              {evento.recorrencia_fim
-                ? ` até ${format(parseData(evento.recorrencia_fim)!, "dd/MM/yyyy", { locale: ptBR })}`
-                : ""}
+              {fimRecorrencia ? ` até ${format(fimRecorrencia, "dd/MM/yyyy", { locale: ptBR })}` : ""}
             </span>
           )}
+
           {evento.local && (
             <span className="flex items-center gap-1">
               <MapPin className="w-3 h-3" />
