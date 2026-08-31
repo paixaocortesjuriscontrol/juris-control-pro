@@ -1242,7 +1242,9 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
 
   // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
-    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
+    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud'; somenteEsta?: boolean }[]) => {
+      const somenteEsta = items.length > 0 && items.every(i => i.somenteEsta);
+
       // ============================================================
       // EXPANSÃO POR DEDUP (server-side):
       // A tela exibe publicações DEDUPLICADAS por coordenação + processo +
