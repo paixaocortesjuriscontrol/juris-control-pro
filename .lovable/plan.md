@@ -23,6 +23,17 @@ Os 5 processos citados:
 
 São **os 4 processos da diferença** relatada. Nenhuma publicação foi perdida na captura, e o conteúdo integral (com a conclusão/decisão) está gravado em todos eles.
 
+### Conferência dos dois arquivos (feita agora)
+
+Comparando o arquivo manual `PAUTA_28.08.26.docx` com o gerado pelo sistema usando **disponibilização = 28/08** (`JURISCONTROL_PAUTA_31.08.26.docx`):
+
+- Manual: **41 processos**.
+- Sistema: **41 processos**.
+- Faltando no sistema: **nenhum**. Sobrando no sistema: **nenhum**. Os conjuntos são idênticos, processo a processo.
+
+Conclusão: com o filtro de disponibilização, o arquivo do sistema bate 100% com a leitura manual. A divergência anterior era só do campo de data usado no filtro.
+
+
 ## O que será feito
 
 1. **Deixar a data do Diário explícita e ser o padrão**
