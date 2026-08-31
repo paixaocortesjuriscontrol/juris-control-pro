@@ -11,6 +11,7 @@ import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { dataInicioAudiencia } from "@/utils/date";
+import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const soData = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
@@ -68,15 +69,39 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
         } as ItemAgendaUnificado);
       }
 
+      const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
       for (const e of ((eventosRes.data as any[]) || [])) {
-        lista.push({
+        const base = {
           ...e,
-          id: String(e.id),
           origem: "evento",
           tipo: e.tipo || "evento",
           titulo: e.titulo || e.tipo || "Evento",
           processo,
-        } as ItemAgendaUnificado);
+        };
+        const isRecorrente = !!e.recorrencia_tipo && !e.grupo_parcelas;
+        if (!isRecorrente) {
+          lista.push({ ...base, id: String(e.id) } as ItemAgendaUnificado);
+          continue;
+        }
+        const ocorrencias = expandirOcorrencias(
+          e.data_inicio,
+          {
+            tipo: e.recorrencia_tipo,
+            intervalo: e.recorrencia_intervalo,
+            fim: e.recorrencia_fim,
+            diasSemana: e.recorrencia_dias_semana,
+          },
+          windowStart,
+          windowEnd
+        );
+        for (const occ of ocorrencias) {
+          lista.push({
+            ...base,
+            id: `${e.id}::${occ.toISOString().slice(0, 10)}`,
+            data_inicio: occ.toISOString(),
+            recorrencia_pai_id: e.id,
+          } as ItemAgendaUnificado);
+        }
       }
 
       for (const a of ((audienciasRes.data as any[]) || [])) {
