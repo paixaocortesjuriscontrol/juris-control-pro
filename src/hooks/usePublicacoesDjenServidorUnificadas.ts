@@ -1363,10 +1363,25 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         }
       };
 
-      // Processa cada origem em chunks separados
-      for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
-      for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
-      for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
+      // Processa cada origem em chunks separados. Em "Lida (só esta)" a RPC por dedup
+      // não pode ser usada (expande para as irmãs): atualizamos só o registro clicado.
+      const updateFlagDireto = async (tabela: string, ids: string[]) => {
+        try {
+          await (supabase as any).from(tabela).update({ lida: true }).in('id', ids);
+        } catch (e: any) {
+          console.warn('[DJEN] Update direto de lida falhou (best-effort):', e?.message || e);
+        }
+      };
+      if (somenteEsta) {
+        for (const c of chunk(termos, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen', c);
+        for (const c of chunk(processos, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen_processos', c);
+        for (const c of chunk(descartadas, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen_descartadas', c);
+      } else {
+        for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
+        for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
+        for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
+      }
+
 
       // Per-user tracking: insert into leituras table
       // Get user's name from profiles
