@@ -128,7 +128,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact, entidade 
       </PopoverTrigger>
       <PopoverContent className="w-96 p-2" onClick={(e) => e.stopPropagation()} align="start">
         <div className="flex items-center justify-between mb-1">
-          <div className="text-xs font-semibold">TAGs do processo</div>
+          <div className="text-xs font-semibold">{isRemessa ? "TAGs da remessa" : "TAGs do processo"}</div>
           {tagsAplicadas.length > 0 && (
             <button
               type="button"
