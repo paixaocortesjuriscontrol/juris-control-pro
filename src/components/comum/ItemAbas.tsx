@@ -5,6 +5,7 @@ import { ItemComentarios } from "./ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle, type ItemAnexosTipo } from "./ItemAnexos";
 import { ItemHistorico } from "./ItemHistorico";
 import { TabErrorBoundary } from "./TabErrorBoundary";
+import { useContagemComentarios } from "@/hooks/useItensComComentarios";
 
 interface ItemAbasProps {
   /** Tipo do item (usado em atividades e histórico) */
@@ -25,6 +26,7 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
   ({ tipo, tipoComentario, itemId, processoId, mostrarAnexos = true }, anexosRef) => {
     const { data: atividades = [] } = useSubatividades(tipo, itemId);
     const concluidas = atividades.filter((a) => a.situacao === "concluida").length;
+    const { data: totalComentarios = 0 } = useContagemComentarios(tipoComentario, itemId);
 
     return (
       <Tabs defaultValue="atividades" className="w-full border-t pt-3">
@@ -32,7 +34,9 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
           <TabsTrigger value="atividades">
             Atividades{atividades.length > 0 ? ` ${concluidas}/${atividades.length}` : ""}
           </TabsTrigger>
-          <TabsTrigger value="comentarios">Comentários</TabsTrigger>
+          <TabsTrigger value="comentarios">
+            Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
+          </TabsTrigger>
           {mostrarAnexos && <TabsTrigger value="anexos">Anexos</TabsTrigger>}
           <TabsTrigger value="historico">Histórico de alterações</TabsTrigger>
         </TabsList>

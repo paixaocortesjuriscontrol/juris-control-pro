@@ -120,3 +120,31 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
     },
   });
 }
+
+/**
+ * Contagem de comentários de um item específico (para exibir na aba "Comentários").
+ */
+export function useContagemComentarios(
+  tipo: "tarefa" | "evento" | "audiencia",
+  itemId: string | null | undefined,
+) {
+  const cfg = {
+    tarefa: { table: "comentarios_tarefas", fk: "tarefa_id" },
+    evento: { table: "comentarios_eventos", fk: "evento_id" },
+    audiencia: { table: "comentarios_audiencias", fk: "audiencia_id" },
+  }[tipo];
+
+  return useQuery({
+    queryKey: ["contagem-comentarios", tipo, itemId],
+    enabled: !!itemId,
+    staleTime: 15 * 1000,
+    queryFn: async () => {
+      const { count, error } = await (supabase as any)
+        .from(cfg.table)
+        .select("id", { count: "exact", head: true })
+        .eq(cfg.fk, itemId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+}
