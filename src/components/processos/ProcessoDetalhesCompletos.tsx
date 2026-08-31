@@ -59,6 +59,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
+import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
