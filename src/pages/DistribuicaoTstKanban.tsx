@@ -41,7 +41,9 @@ function getDias(prazo: string | null): number | null {
 
 type ColKey = "delegada" | "pronto" | "pronto_sem_pendencia" | "faltam";
 
-const isPronto = (c: Card) => c.status === "pronto_envio";
+// Concluído = pronto para enviar, já planilhado na carga ou enviado ao Benner.
+const isPronto = (c: Card) =>
+  c.status === "pronto_envio" || c.status === "planilhado" || c.status === "enviado";
 
 const columns: { key: ColKey; label: string; color: string; bg: string; match: (c: Card) => boolean }[] = [
   { key: "delegada", label: "Delegada", color: "text-blue-600", bg: "bg-blue-500/10 border-blue-500/30",
