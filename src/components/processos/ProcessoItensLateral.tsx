@@ -10,6 +10,7 @@ import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInlin
 import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
+import { useItensComComentarios } from "@/hooks/useItensComComentarios";
 import { dataInicioAudiencia } from "@/utils/date";
 import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
@@ -159,6 +160,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
   });
 
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
+  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
 
   if (selectedItem) {
     return (
@@ -223,6 +225,7 @@ export function ProcessoItensLateral({ processoId, processoNumero, onClose, onNa
                 userId={user?.id}
                 onSelect={setSelectedItem}
                 temAtividade={itensComAtividades.has(getItemRawId(item.id))}
+                temComentario={itensComComentarios.has(getItemRawId(item.id))}
               />
             ))}
         </div>
