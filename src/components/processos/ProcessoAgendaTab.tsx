@@ -76,7 +76,12 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
   const { isAdmin, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
-  const coordenacoesIds = coordenacoesUsuario.map((c) => c.id);
+  const coordenacoesUsuarioIds = coordenacoesUsuario.map((c) => c.id);
+  const { data: coordenacoesDoProcesso } = useCoordenacoesDoProcesso(processoId);
+  const coordenacoesIds = ampliarEscopoComProcesso(
+    coordenacoesUsuarioIds,
+    coordenacoesDoProcesso
+  );
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
