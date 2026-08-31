@@ -253,7 +253,7 @@ export interface DistribuicaoTstFilters {
   dataFim?: string;
   responsavelIds?: string[];
   semTurma?: boolean;
-  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado";
+  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado" | "concluidos";
   emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
   acordo?: "todos" | "sim" | "nao";
