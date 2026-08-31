@@ -136,9 +136,22 @@ export default function RemessasBenner() {
                     <TableCell className="text-right font-mono text-green-700">{r.quantidade_aceitos}</TableCell>
                     <TableCell className="text-right font-mono text-red-700">{r.quantidade_rejeitados}</TableCell>
                     <TableCell className="text-right font-mono text-amber-700">{r.quantidade_pendentes}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground truncate max-w-[200px]">
-                      {r.arquivo_nome || "—"}
+                    <TableCell className="text-xs max-w-[220px]" onClick={(e) => e.stopPropagation()}>
+                      {r.arquivo_path ? (
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-primary hover:underline truncate max-w-full"
+                          title={`Baixar ${r.arquivo_nome || "planilha de carga"}`}
+                          onClick={() => baixarArquivoRemessa(r.arquivo_path!, r.arquivo_nome || `remessa-${r.numero_sequencial}.xlsx`)}
+                        >
+                          <Download className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{r.arquivo_nome || "Baixar planilha"}</span>
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
+
                     {isAdminOrCoordinator && (
                       <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                         <DropdownMenu>
@@ -148,7 +161,18 @@ export default function RemessasBenner() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
+                            {r.arquivo_path && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => baixarArquivoRemessa(r.arquivo_path!, r.arquivo_nome || `remessa-${r.numero_sequencial}.xlsx`)}
+                                >
+                                  <Download className="w-4 h-4 mr-2" /> Baixar planilha de carga
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuLabel>Alterar status</DropdownMenuLabel>
+
                             {(["gerada","enviada","retornada","conciliada","cancelada"] as const)
                               .filter((s) => s !== r.status)
                               .map((s) => (
