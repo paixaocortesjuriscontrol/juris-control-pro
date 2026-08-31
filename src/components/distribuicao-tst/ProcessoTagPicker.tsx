@@ -73,7 +73,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact, entidade 
     const tag = await criar.mutateAsync({ nome, cor: novaCor });
     setNovoNome("");
     if (tag?.id) {
-      toggle.mutate({ dadoId, tagId: tag.id, checked: true });
+      toggleTag(tag.id, true);
     }
   };
 
