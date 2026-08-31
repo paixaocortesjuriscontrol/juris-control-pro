@@ -23,6 +23,17 @@ Os 5 processos citados:
 
 São **os 4 processos da diferença** relatada. Nenhuma publicação foi perdida na captura, e o conteúdo integral (com a conclusão/decisão) está gravado em todos eles.
 
+### Conferência dos dois arquivos (feita agora)
+
+Comparando o arquivo manual `PAUTA_28.08.26.docx` com o gerado pelo sistema usando **disponibilização = 28/08** (`JURISCONTROL_PAUTA_31.08.26.docx`):
+
+- Manual: **41 processos**.
+- Sistema: **41 processos**.
+- Faltando no sistema: **nenhum**. Sobrando no sistema: **nenhum**. Os conjuntos são idênticos, processo a processo.
+
+Conclusão: com o filtro de disponibilização, o arquivo do sistema bate 100% com a leitura manual. A divergência anterior era só do campo de data usado no filtro.
+
+
 ## O que será feito
 
 1. **Deixar a data do Diário explícita e ser o padrão**
@@ -30,7 +41,8 @@ São **os 4 processos da diferença** relatada. Nenhuma publicação foi perdida
    - Ao usar "Data de publicação", exibir um aviso na tela informando qual Diário aquele recorte representa e sugerindo o filtro por disponibilização para conferência de Diário.
 
 2. **Docs TST identificado pelo Diário correto**
-   - Nomear os arquivos e o cabeçalho interno pela **data do Diário do recorte** (disponibilização), não pela data de hoje — hoje os arquivos saem como `JURISCONTROL_PAUTA_31.08.26` mesmo quando o conteúdo é do Diário de 28/08.
+   - Nomear os arquivos e o cabeçalho interno pela **data do Diário do recorte** (disponibilização) — hoje o arquivo do Diário de 28/08 sai como `JURISCONTROL_PAUTA_31.08.26`, o que já causou confusão na conferência.
+
    - No cabeçalho de cada documento, imprimir o recorte usado: campo de data, período e coordenação.
 
 3. **Rodapé de conferência por categoria**
