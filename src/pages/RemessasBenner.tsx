@@ -161,7 +161,18 @@ export default function RemessasBenner() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-52">
+                            {r.arquivo_path && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => baixarArquivoRemessa(r.arquivo_path!, r.arquivo_nome || `remessa-${r.numero_sequencial}.xlsx`)}
+                                >
+                                  <Download className="w-4 h-4 mr-2" /> Baixar planilha de carga
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                              </>
+                            )}
                             <DropdownMenuLabel>Alterar status</DropdownMenuLabel>
+
                             {(["gerada","enviada","retornada","conciliada","cancelada"] as const)
                               .filter((s) => s !== r.status)
                               .map((s) => (
