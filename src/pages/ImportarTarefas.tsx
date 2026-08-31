@@ -1744,9 +1744,155 @@ export default function ImportarTarefas() {
         }
       }
 
-      setAstreaImportProgress(30 + Math.round(((i + slice.length) / prepared.length) * 70));
+      setAstreaImportProgress(30 + Math.round(((i + slice.length) / Math.max(1, prepared.length)) * 60));
       setTarefasAstrea([...updatedTarefas]);
     }
+
+    // ===== Phase 3: eventos (categoria "Evento" do Astrea) na agenda =====
+    const horaValida = (v?: string | null) => (v && /^\d{1,2}:\d{2}$/.test(v.trim()) ? v.trim().padStart(5, "0") : null);
+    for (let i = 0; i < preparedEventos.length; i += BATCH) {
+      if (astreaCancelledRef.current) { toast({ title: "Importação cancelada" }); break; }
+      const slice = preparedEventos.slice(i, i + BATCH);
+
+      const buildEvento = ({ t, processoId, responsavelId }: Prepared) => {
+        const dataBase = parseDate(t.data);
+        const partes = (t.hora || "").split("-");
+        const hIni = horaValida(partes[0]);
+        const hFim = horaValida(partes[1]);
+        const statusFinal = mapStatus(t.statusOrigem);
+        const descParts: string[] = [];
+        if (t.tituloProcesso) descParts.push(t.tituloProcesso);
+        if (t.observacao) descParts.push(t.observacao);
+        if (t.etiquetas) descParts.push(`Etiquetas: ${t.etiquetas}`);
+        if (t.envolvidos) descParts.push(`Envolvidos: ${t.envolvidos}`);
+        return {
+          identificador_externo: t.identificador,
+          origem: "astrea",
+          tipo: "evento",
+          titulo: t.titulo,
+          descricao: descParts.length ? descParts.join("\n") : null,
+          data_inicio: dataBase ? new Date(`${dataBase}T${hIni || "12:00"}:00`).toISOString() : new Date().toISOString(),
+          data_fim: dataBase && hFim ? new Date(`${dataBase}T${hFim}:00`).toISOString() : null,
+          dia_inteiro: !hIni,
+          local: t.juizo || null,
+          processo_id: processoId,
+          coordenacao_id: astreaCoordenacao || null,
+          criado_por: user?.id || responsavelId,
+          status: statusFinal === "cumprido" ? "concluido" : statusFinal === "cancelado" ? "cancelado" : "pendente",
+          concluido_em: statusFinal === "cumprido" ? parseDateTimeBR(t.dataConclusao) : null,
+        };
+      };
+
+      // Reimportação da mesma linha substitui o evento anterior (evita duplicados)
+      const idents = slice.map(s => s.t.identificador);
+      if (idents.length) {
+        await (supabase.from("eventos_agenda") as any).delete().in("identificador_externo", idents);
+      }
+
+      const rows = slice.map(buildEvento);
+      const rowErrors = new Map<string, string>();
+      let inserted: any[] = [];
+
+      const bulk = await (supabase.from("eventos_agenda") as any)
+        .insert(rows)
+        .select("id, identificador_externo");
+
+      if (bulk.error || !bulk.data) {
+        for (const row of rows) {
+          if (astreaCancelledRef.current) break;
+          const one = await (supabase.from("eventos_agenda") as any)
+            .insert([row])
+            .select("id, identificador_externo");
+          if (one.error || !one.data?.length) {
+            rowErrors.set(row.identificador_externo, one.error?.message || "Erro ao criar evento");
+          } else {
+            inserted.push(one.data[0]);
+          }
+        }
+      } else {
+        inserted = bulk.data as any[];
+      }
+
+      rowErrors.forEach((msg, ident) => {
+        const idx = updatedTarefas.findIndex(ut => ut.identificador === ident);
+        if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: msg };
+        errorCount++;
+      });
+
+      const idByIdent = new Map<string, string>();
+      inserted.forEach((r: any) => idByIdent.set(r.identificador_externo, r.id));
+
+      const respRows: { evento_id: string; usuario_id: string }[] = [];
+      const envRows: { evento_id: string; usuario_id: string }[] = [];
+      const procRows: { evento_id: string; processo_id: string }[] = [];
+      const procRespPairs: { processoId: string; usuarioId: string }[] = [];
+
+      slice.forEach(({ t, processoId, responsavelId, envolvidosIds }) => {
+        const eventoId = idByIdent.get(t.identificador);
+        if (!eventoId) {
+          if (!rowErrors.has(t.identificador)) {
+            const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+            if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "erro", erroImport: "Evento criado mas id não retornado" };
+            errorCount++;
+          }
+          return;
+        }
+        const idx = updatedTarefas.findIndex(ut => ut.identificador === t.identificador);
+        if (idx >= 0) updatedTarefas[idx] = { ...updatedTarefas[idx], status: "sucesso" };
+        successCount++;
+
+        if (responsavelId) {
+          respRows.push({ evento_id: eventoId, usuario_id: responsavelId });
+          if (processoId) procRespPairs.push({ processoId, usuarioId: responsavelId });
+        }
+        envolvidosIds.forEach(uid => {
+          envRows.push({ evento_id: eventoId, usuario_id: uid });
+          if (processoId) procRespPairs.push({ processoId, usuarioId: uid });
+        });
+        if (processoId) procRows.push({ evento_id: eventoId, processo_id: processoId });
+      });
+
+      for (let j = 0; j < respRows.length; j += 500) {
+        const chunk = respRows.slice(j, j + 500);
+        if (chunk.length) await (supabase.from("evento_responsaveis") as any).insert(chunk);
+      }
+      for (let j = 0; j < envRows.length; j += 500) {
+        const chunk = envRows.slice(j, j + 500);
+        if (chunk.length) await (supabase.from("evento_envolvidos") as any).insert(chunk);
+      }
+      for (let j = 0; j < procRows.length; j += 500) {
+        const chunk = procRows.slice(j, j + 500);
+        if (chunk.length) await (supabase.from("evento_processos") as any).upsert(chunk, { ignoreDuplicates: true });
+      }
+
+      const seenPairEv = new Set<string>();
+      const procRespRowsEv = procRespPairs
+        .filter(p => {
+          const k = `${p.processoId}::${p.usuarioId}`;
+          if (seenPairEv.has(k)) return false;
+          seenPairEv.add(k);
+          return true;
+        })
+        .map(p => ({
+          processo_id: p.processoId,
+          usuario_id: p.usuarioId,
+          coordenacao_id: astreaCoordenacao || null,
+          papel: "Responsável",
+          ativo: true,
+        }));
+      for (let j = 0; j < procRespRowsEv.length; j += 500) {
+        const chunk = procRespRowsEv.slice(j, j + 500);
+        if (chunk.length) {
+          await (supabase.from("processos_responsaveis") as any)
+            .upsert(chunk, { onConflict: "processo_id,usuario_id", ignoreDuplicates: true });
+        }
+      }
+
+      setAstreaImportProgress(90 + Math.round(((i + slice.length) / Math.max(1, preparedEventos.length)) * 10));
+      setTarefasAstrea([...updatedTarefas]);
+    }
+
+
 
     setAstreaImporting(false);
     await Promise.all([
