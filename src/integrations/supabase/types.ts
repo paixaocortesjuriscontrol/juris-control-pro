@@ -4508,9 +4508,11 @@ export type Database = {
           enviar_whatsapp: boolean
           grupo_parcelas: string | null
           id: string
+          identificador_externo: string | null
           local: string | null
           modalidade: string | null
           numero_parcela: number | null
+          origem: string | null
           processo_id: string | null
           recorrencia_ate: string | null
           recorrencia_dias_semana: number[] | null
@@ -4538,9 +4540,11 @@ export type Database = {
           enviar_whatsapp?: boolean
           grupo_parcelas?: string | null
           id?: string
+          identificador_externo?: string | null
           local?: string | null
           modalidade?: string | null
           numero_parcela?: number | null
+          origem?: string | null
           processo_id?: string | null
           recorrencia_ate?: string | null
           recorrencia_dias_semana?: number[] | null
@@ -4568,9 +4572,11 @@ export type Database = {
           enviar_whatsapp?: boolean
           grupo_parcelas?: string | null
           id?: string
+          identificador_externo?: string | null
           local?: string | null
           modalidade?: string | null
           numero_parcela?: number | null
+          origem?: string | null
           processo_id?: string | null
           recorrencia_ate?: string | null
           recorrencia_dias_semana?: number[] | null
