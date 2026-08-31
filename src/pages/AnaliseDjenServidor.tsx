@@ -4227,7 +4227,7 @@ const AnaliseDjenServidor = () => {
                                            size="sm"
                                            onClick={(e) => {
                                              e.stopPropagation();
-                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem, somenteEsta: true }]);
                                            }}
                                            disabled={marcarComoLida.isPending}
                                            title="Marcar SOMENTE esta publicação como lida"
@@ -4324,7 +4324,7 @@ const AnaliseDjenServidor = () => {
                                           size="sm"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem, somenteEsta: true }]);
                                           }}
                                           disabled={marcarComoLida.isPending}
                                           title="Marcar SOMENTE esta publicação como lida"
