@@ -9,10 +9,12 @@ import {
   useProcessoTagsCatalogo,
   useCriarTag,
   useToggleTagInDado,
+  useToggleTagInRemessa,
   useAtualizarCorTag,
   useRenomearTag,
   useAtualizarVisibilidadeTag,
   useRemoverTodasTagsDoDado,
+  useRemoverTodasTagsDaRemessa,
   TAG_COLOR_PALETTE,
   ProcessoTag,
 } from "@/hooks/useProcessoTags";
@@ -20,22 +22,29 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { ColorPalettePicker } from "./ColorPalettePicker";
 
 interface Props {
+  /** Id do registro que recebe as TAGs (dados_benner ou remessa). */
   dadoId: string;
   tagIds: string[];
   /** Quando true, mostra apenas as tags como leitura (sem botão de editar). */
   readOnly?: boolean;
   compact?: boolean;
+  /** Entidade alvo das TAGs. Padrão: processo (dados_benner). */
+  entidade?: "dado" | "remessa";
 }
 
-export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) {
+export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact, entidade = "dado" }: Props) {
+  const isRemessa = entidade === "remessa";
   const { data: catalogo = [], isLoading } = useProcessoTagsCatalogo();
   const criar = useCriarTag();
-  const toggle = useToggleTagInDado();
+  const toggleDado = useToggleTagInDado();
+  const toggleRemessa = useToggleTagInRemessa();
   const atualizarCor = useAtualizarCorTag();
   const renomear = useRenomearTag();
   const visibilidade = useAtualizarVisibilidadeTag();
   const { isAdmin } = useUserRole();
-  const removerTodas = useRemoverTodasTagsDoDado();
+  const removerTodasDado = useRemoverTodasTagsDoDado();
+  const removerTodasRemessa = useRemoverTodasTagsDaRemessa();
+  const removerTodas = isRemessa ? removerTodasRemessa : removerTodasDado;
   const [novoNome, setNovoNome] = useState("");
   const [novaCor, setNovaCor] = useState<string>(TAG_COLOR_PALETTE[10]);
   const [open, setOpen] = useState(false);
@@ -48,9 +57,15 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact }: Props) 
     return catalogo.filter((t) => s.has(t.id));
   }, [catalogo, tagIds]);
 
-  const handleToggle = (tagId: string, checked: boolean) => {
-    toggle.mutate({ dadoId, tagId, checked });
+  const toggleTag = (tagId: string, checked: boolean) => {
+    if (isRemessa) toggleRemessa.mutate({ remessaId: dadoId, tagId, checked });
+    else toggleDado.mutate({ dadoId, tagId, checked });
   };
+
+  const handleToggle = (tagId: string, checked: boolean) => {
+    toggleTag(tagId, checked);
+  };
+
 
   const handleCriar = async () => {
     const nome = novoNome.trim();
