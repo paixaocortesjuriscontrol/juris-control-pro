@@ -41,7 +41,8 @@ Conclusão: com o filtro de disponibilização, o arquivo do sistema bate 100% c
    - Ao usar "Data de publicação", exibir um aviso na tela informando qual Diário aquele recorte representa e sugerindo o filtro por disponibilização para conferência de Diário.
 
 2. **Docs TST identificado pelo Diário correto**
-   - Nomear os arquivos e o cabeçalho interno pela **data do Diário do recorte** (disponibilização), não pela data de hoje — hoje os arquivos saem como `JURISCONTROL_PAUTA_31.08.26` mesmo quando o conteúdo é do Diário de 28/08.
+   - Nomear os arquivos e o cabeçalho interno pela **data do Diário do recorte** (disponibilização) — hoje o arquivo do Diário de 28/08 sai como `JURISCONTROL_PAUTA_31.08.26`, o que já causou confusão na conferência.
+
    - No cabeçalho de cada documento, imprimir o recorte usado: campo de data, período e coordenação.
 
 3. **Rodapé de conferência por categoria**
