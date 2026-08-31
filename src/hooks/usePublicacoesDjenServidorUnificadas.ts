@@ -1305,9 +1305,12 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           console.warn('[DJEN] Exceção ao expandir irmãs via RPC (best-effort):', e?.message || e);
         }
       };
-      for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
-      for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
-      for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
+      if (!somenteEsta) {
+        for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
+        for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
+        for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
+      }
+
 
       const expanded = Array.from(expandedMap.entries()).map(([id, tipo_origem]) => ({ id, tipo_origem }));
       const totalExpandido = expanded.length;
