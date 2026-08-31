@@ -329,29 +329,15 @@ export function ProcessoDetalhesCompletos({
   const audienciaSelecionadaAtual = audienciaSelecionada
     ? audiencias.find((aud: any) => aud.id === audienciaSelecionada.id) ?? audienciaSelecionada
     : null;
-  // Agrupa itens idênticos criados uma vez por responsável (mesmo título/data/tipo)
-  // exibindo um único card com todos os responsáveis listados.
-  const agruparDuplicados = (lista: any[]) => {
-    const mapa = new Map<string, any>();
-    for (const item of lista) {
-      const chave = [
-        (item.titulo || "").trim().toLowerCase(),
-        item.data_vencimento || "",
-        item.tipo_tarefa || "",
-        item.status || "",
-      ].join("|");
-      const existente = mapa.get(chave);
-      const nome = item.responsavel?.nome;
-      if (!existente) {
-        mapa.set(chave, { ...item, _responsaveisNomes: nome ? [nome] : [] });
-      } else if (nome && !existente._responsaveisNomes.includes(nome)) {
-        existente._responsaveisNomes.push(nome);
-      }
-    }
-    return Array.from(mapa.values());
-  };
-  const tarefasSemPrazo = agruparDuplicados(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
-  const prazosDoProcesso = agruparDuplicados(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
+  // Sem agrupamento por conteúdo: cada registro do banco aparece uma vez.
+  // A advogada precisa ver todos os itens que criou, mesmo que iguais (título/data/responsável).
+  const anexarResponsaveis = (lista: any[]) =>
+    lista.map((item) => ({
+      ...item,
+      _responsaveisNomes: item.responsavel?.nome ? [item.responsavel.nome] : [],
+    }));
+  const tarefasSemPrazo = anexarResponsaveis(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
+  const prazosDoProcesso = anexarResponsaveis(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
 
   // Contagem de atividades (subatividades) vinculadas aos itens do processo,
   // para exibir nas abas laterais (Tarefa, Prazo, Evento, Audiência).
