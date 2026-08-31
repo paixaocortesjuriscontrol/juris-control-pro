@@ -5335,7 +5335,7 @@ const AnaliseDjen = () => {
                                              e.stopPropagation();
                                              // Marca apenas a publicação clicada (mais suas
                                              // duplicatas exatas), nunca a seleção da tela.
-                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                             marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem, somenteEsta: true }]);
                                              registrarAcaoSessao({
                                                tipo: "leitura",
                                                label: "Marcar 1 publicação como lida",
@@ -5437,7 +5437,7 @@ const AnaliseDjen = () => {
                                           size="sm"
                                           onClick={(e) => {
                                             e.stopPropagation();
-                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+                                            marcarComoLida.mutate([{ id: pub.id, tipo_origem: pub.tipo_origem, somenteEsta: true }]);
                                           }}
                                           disabled={false}
                                           title="Marcar como lida"
