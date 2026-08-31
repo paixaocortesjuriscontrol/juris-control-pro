@@ -81,7 +81,11 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       if (error) throw error;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({ queryKey: ["contagem-comentarios"] }),
+        queryClient.invalidateQueries({ queryKey: ["itens-com-comentarios"], refetchType: "all" }),
+      ]);
       setNovo("");
       setMencionados([]);
     },
@@ -95,7 +99,11 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       if (error) throw error;
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({ queryKey: ["contagem-comentarios"] }),
+        queryClient.invalidateQueries({ queryKey: ["itens-com-comentarios"], refetchType: "all" }),
+      ]);
       toast({ title: "Comentário excluído" });
     },
     onError: (e: any) =>

@@ -48,6 +48,8 @@ import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { useItensComComentarios } from "@/hooks/useItensComComentarios";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
@@ -450,6 +452,7 @@ export default function ListaAtividadesView({
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(rows.map(tarefaToAgendaItem));
+  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(rows.map(tarefaToAgendaItem));
   const total = usingExternalItems
     ? (etiquetaIdsSet
         ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
@@ -1026,6 +1029,7 @@ export default function ListaAtividadesView({
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo || "(sem título)"}</span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
+                                {itensComComentarios.has(getItemRawId(r.id)) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
                               </div>
                               <div data-stop>
                                 <EtiquetaPicker
