@@ -311,6 +311,7 @@ const AnaliseDjen = () => {
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
+  const [docsTstArquivos, setDocsTstArquivos] = useState<DocTstArquivo[]>([]);
   const [gerandoExcel, setGerandoExcel] = useState<string | null>(null);
 
 
