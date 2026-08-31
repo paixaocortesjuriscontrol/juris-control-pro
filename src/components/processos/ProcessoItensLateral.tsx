@@ -18,7 +18,7 @@ const soData = (v?: string | null) => (v ? String(v).slice(0, 10) : null);
 
 const tipoDaTarefa = (t: any): string => {
   const texto = String(t.tipo_tarefa ?? t.tipo_registro ?? "").toUpperCase().trim();
-  if (texto.includes("PARCELAMENTO")) return "parcelamento";
+  // Atenção: não mapear "parcelamento" aqui — isso é uma tarefa, não evento-pai.
   if (texto.includes("PRAZO")) return "prazo";
   if (texto.includes("AUDI")) return "audiencia";
   if (texto.includes("EVENTO")) return "evento";
