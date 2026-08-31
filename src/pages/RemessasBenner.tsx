@@ -324,6 +324,7 @@ function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onC
                   <TableRow>
                     <TableHead>Dossiê</TableHead>
                     <TableHead>Processo</TableHead>
+                    <TableHead>TAGs</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -333,11 +334,24 @@ function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onC
                       <TableCell className="font-mono text-xs">{it.dossie}</TableCell>
                       <TableCell className="font-mono text-xs">{it.processo}</TableCell>
                       <TableCell>
+                        {it.dado_benner_id ? (
+                          <ProcessoTagPicker
+                            dadoId={it.dado_benner_id}
+                            tagIds={tagsItensMap?.get(it.dado_benner_id) || []}
+                            readOnly={!podeEditarTags}
+                            compact
+                          />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
                         <Badge variant="outline" className={
                           it.status_retorno === "aceito" ? "border-green-600 text-green-700" :
                           it.status_retorno === "rejeitado" ? "border-red-600 text-red-700" :
                           "border-amber-600 text-amber-700"
                         }>{it.status_retorno}</Badge>
+
                       </TableCell>
                     </TableRow>
                   ))}
