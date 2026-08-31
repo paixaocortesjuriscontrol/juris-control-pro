@@ -124,7 +124,9 @@ export default function RemessasBenner() {
                   <TableHead className="text-right">Aceitos</TableHead>
                   <TableHead className="text-right">Rejeitados</TableHead>
                   <TableHead className="text-right">Pendentes</TableHead>
+                  <TableHead>TAGs</TableHead>
                   <TableHead>Arquivo</TableHead>
+
                   {isAdminOrCoordinator && <TableHead className="w-12 text-right">Ações</TableHead>}
                 </TableRow>
               </TableHeader>
