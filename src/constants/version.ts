@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.0.8";
+export const APP_VERSION = "5.0.9";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -49,4 +49,5 @@ export const VERSION_HISTORY = [
   { version: "5.0.6", date: "2026-08-28", notes: "Atualização de versão" },
   { version: "5.0.7", date: "2026-08-28", notes: "Atualização de versão" },
   { version: "5.0.8", date: "2026-08-28", notes: "Atualização de versão" },
+  { version: "5.0.9", date: "2026-08-31", notes: "Análise DJEN: 'Lida (só esta)' marca estritamente a publicação clicada, sem expansão por dedup" },
 ];
