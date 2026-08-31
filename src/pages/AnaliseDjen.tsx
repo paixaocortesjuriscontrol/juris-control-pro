@@ -3323,12 +3323,24 @@ const AnaliseDjen = () => {
       }
 
       const resumoCats = arquivos.map((a) => `${a.label}: ${a.total}`).join(", ");
+      const vazias = [
+        ["Temas IRR", pubsTemasIrr.length],
+        ["Pauta", pubsPauta.length],
+        ["CEJUSC", pubsCejusc.length],
+        ["Lista de Distribuição", pubsDistribuicoes.length],
+        ["Intimações", pubsIntimacoes.length],
+        ["Prazos", pubsPrazos.length],
+      ].filter(([, n]) => (n as number) === 0).map(([l]) => l as string);
+      const semNada = vazias.length > 0
+        ? ` Sem resultado nas filtragens atuais: ${vazias.join(", ")} (confira o período e os filtros da tela).`
+        : "";
       toast.success(
-        arquivos.length === 1
-          ? `1 documento gerado! (${resumoCats})`
-          : `${arquivos.length} documentos gerados em 1 arquivo .zip! (${resumoCats})`,
-        { id: toastId },
+        (arquivos.length === 1
+          ? `1 documento gerado! (${resumoCats}).`
+          : `${arquivos.length} documentos gerados em 1 arquivo .zip! (${resumoCats}).`) + semNada,
+        { id: toastId, duration: 8000 },
       );
+
 
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
