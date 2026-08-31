@@ -115,11 +115,40 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
           .select("evento_id, usuario_id")
           .in("evento_id", eventIds);
 
-        const eventsWithParticipants = visiveis.map((evento) => ({
+        const comParticipantes = visiveis.map((evento) => ({
           ...evento,
           participantes:
             participantes?.filter((p) => p.evento_id === evento.id) || [],
         }));
+
+        // Recorrências ficam gravadas em um único registro: expandir as
+        // ocorrências para que apareçam todas na pasta do processo.
+        const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
+        const eventsWithParticipants = comParticipantes.flatMap((evento: any) => {
+          const isRecorrente = !!evento.recorrencia_tipo && !evento.grupo_parcelas;
+          if (!isRecorrente) return [{ ...evento, _occId: evento.id }];
+          const duracaoMs = evento.data_fim
+            ? new Date(evento.data_fim).getTime() - new Date(evento.data_inicio).getTime()
+            : 0;
+          const ocorrencias = expandirOcorrencias(
+            evento.data_inicio,
+            {
+              tipo: evento.recorrencia_tipo,
+              intervalo: evento.recorrencia_intervalo,
+              fim: evento.recorrencia_fim,
+              diasSemana: evento.recorrencia_dias_semana,
+            },
+            windowStart,
+            windowEnd
+          );
+          return ocorrencias.map((occ) => ({
+            ...evento,
+            _occId: `${evento.id}::${occ.toISOString().slice(0, 10)}`,
+            data_inicio: occ.toISOString(),
+            data_fim: duracaoMs > 0 ? new Date(occ.getTime() + duracaoMs).toISOString() : evento.data_fim,
+          }));
+        });
+
 
         // Ordenar: futuros primeiro, passados depois
         const now = new Date();
