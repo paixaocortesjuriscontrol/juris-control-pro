@@ -115,6 +115,28 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
+/** Arquivo .docx gerado pelo botão "Docs TST" (mantido em memória para rebaixar). */
+type DocTstArquivo = { label: string; filename: string; blob: Blob; total: number };
+
+/**
+ * Download seguro de um Blob: o link precisa estar no DOM e a URL só pode ser
+ * liberada depois do clique — caso contrário o navegador cancela o download
+ * (o que fazia apenas o primeiro arquivo dos Docs TST chegar ao usuário).
+ */
+const baixarBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 2000);
+};
+
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
 // Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
 const shortenTurma = (value: string | null | undefined): string => {
