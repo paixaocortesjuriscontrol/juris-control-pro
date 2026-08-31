@@ -1047,13 +1047,16 @@ const AnaliseDjen = () => {
     return result;
   }, [tipoOrigem, publicacoes, datajudAsPublicacoes, descartadasDedupData, deveRestringirPorCoordenacao, userCoordenacaoIds, focusFromErrata, dataPublicacaoDebounced]);
 
-  // Loading considera tanto o carregamento inicial da coordenação quanto das publicações
-  // Também considera `isFetching` para evitar mostrar "Nenhuma publicação encontrada"
-  // enquanto a query ainda está buscando dados (ex.: 7k+ linhas do dia demoram).
+  // Loading considera o carregamento inicial da coordenação e das publicações.
+  // IMPORTANTE: um refetch em background (isFetching) NÃO deve trocar a lista
+  // pelo skeleton — isso fazia a tela "piscar"/recarregar inteira ao marcar
+  // uma única publicação como lida. Só mostramos o skeleton quando ainda não
+  // existe nenhuma linha para exibir (evita o texto "Nenhuma publicação").
+  const semLinhasParaExibir = mergedPublicacoes.length === 0;
   const isLoading = loadingUserCoord || coordenacaoId === null
     || (tipoOrigem === 'descartada'
-        ? (isLoadingDescartadasDedup || isFetchingDescartadasDedup)
-        : (isLoadingPublicacoes || isFetchingPublicacoes))
+        ? (isLoadingDescartadasDedup || (isFetchingDescartadasDedup && semLinhasParaExibir))
+        : (isLoadingPublicacoes || (isFetchingPublicacoes && semLinhasParaExibir)))
     || (tipoOrigem === 'datajud' && isLoadingDatajud);
 
 
