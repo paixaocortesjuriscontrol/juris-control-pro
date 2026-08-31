@@ -240,8 +240,9 @@ export default function RemessasBenner() {
 
 function RemessaDetailDrawer({ remessa, onClose }: { remessa: RemessaBenner; onClose: () => void }) {
   const { data: itens = [] } = useRemessaItens(remessa.id);
-  const { isAdmin, isCoordinator } = useUserRole();
-  const podeEditarTags = isAdmin || isCoordinator;
+  const { isAdminOrCoordinator } = useUserRole();
+  const podeEditarTags = isAdminOrCoordinator;
+
   const dadoIds = useMemo(
     () => itens.map((i) => i.dado_benner_id).filter(Boolean) as string[],
     [itens],
