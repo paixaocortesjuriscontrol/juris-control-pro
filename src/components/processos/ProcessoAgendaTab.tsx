@@ -47,6 +47,7 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
+import { useCoordenacoesDoProcesso, ampliarEscopoComProcesso } from "@/hooks/useCoordenacoesDoProcesso";
 import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 
 interface ProcessoAgendaTabProps {
@@ -76,7 +77,12 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
   const updateEvento = useUpdateEvento();
   const deleteEvento = useDeleteEvento();
   const { isAdmin, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
-  const coordenacoesIds = coordenacoesUsuario.map((c) => c.id);
+  const coordenacoesUsuarioIds = coordenacoesUsuario.map((c) => c.id);
+  const { data: coordenacoesDoProcesso } = useCoordenacoesDoProcesso(processoId);
+  const coordenacoesIds = ampliarEscopoComProcesso(
+    coordenacoesUsuarioIds,
+    coordenacoesDoProcesso
+  );
   const { user } = useAuth();
   const userId = user?.id ?? null;
 

@@ -115,6 +115,7 @@ import { ptBR } from "date-fns/locale";
 import { useState, useEffect, useRef } from "react";
 import { Database } from "@/integrations/supabase/types";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useCoordenacoesDoProcesso, ampliarEscopoComProcesso } from "@/hooks/useCoordenacoesDoProcesso";
 import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
@@ -180,10 +181,20 @@ export default function ProcessoDetalhes() {
   // Modo "novo processo": a rota estática /processos/novo não fornece `id`
   // via useParams, então a detecção precisa considerar também o pathname.
   const isNovo = id === "novo" || location.pathname === "/processos/novo";
-  // Itens de agenda são privados por coordenação (processo é compartilhado)
+  // Itens de agenda são privados por coordenação (processo é compartilhado),
+  // mas dentro da pasta do processo o escopo é ampliado para todas as
+  // coordenações responsáveis pelo processo — assim nenhum prazo agendado por
+  // outra equipe responsável fica invisível para quem participa do processo.
   const { isAdmin: isAdminEscopo, coordenacoes: coordenacoesUsuarioEscopo } =
     useCoordenacoesDoUsuario();
-  const coordenacoesEscopo = coordenacoesUsuarioEscopo.map((c) => c.id);
+  const coordenacoesUsuarioIds = coordenacoesUsuarioEscopo.map((c) => c.id);
+  const { data: coordenacoesDoProcesso } = useCoordenacoesDoProcesso(
+    id && id !== "novo" ? id : null
+  );
+  const coordenacoesEscopo = ampliarEscopoComProcesso(
+    coordenacoesUsuarioIds,
+    coordenacoesDoProcesso
+  );
   const { user: usuarioLogadoEscopo } = useAuth();
   const userIdEscopo = usuarioLogadoEscopo?.id ?? null;
   const navigate = useNavigate();
