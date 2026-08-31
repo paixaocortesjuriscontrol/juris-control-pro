@@ -63,6 +63,11 @@ export default function RemessasBenner() {
     return remessas.filter((r) => r.status === filterStatus);
   }, [remessas, filterStatus]);
 
+  // TAGs (mesmo catálogo da Distribuição TST) aplicadas a cada remessa.
+  const remessaIds = useMemo(() => filtered.map((r) => r.id), [filtered]);
+  const { data: tagsMap } = useTagsForRemessas(remessaIds);
+
+
   return (
     <MainLayout
       title="Remessas Benner"
