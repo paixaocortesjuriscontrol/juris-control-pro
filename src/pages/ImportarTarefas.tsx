@@ -1898,6 +1898,9 @@ export default function ImportarTarefas() {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["prazos"] }),
       queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+      queryClient.invalidateQueries({ queryKey: ["eventos"] }),
+      queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
+      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
       queryClient.invalidateQueries({ queryKey: ["profiles-import"] }),
       queryClient.invalidateQueries({ queryKey: ["processos"] }),
       queryClient.invalidateQueries({ queryKey: ["processos-map-import"] }),
@@ -1910,7 +1913,8 @@ export default function ImportarTarefas() {
       refetchProcessos();
     }
 
-    const descParts = [`${successCount} tarefa(s) importada(s)`];
+    const descParts = [`${successCount} registro(s) importado(s) (tarefas + eventos da agenda)`];
+
     if (errorCount > 0) descParts.push(`${errorCount} erro(s)/duplicada(s)`);
     if (astreaUsuariosCriados.length > 0) descParts.push(`${astreaUsuariosCriados.length} usuário(s) criado(s)`);
     if (astreaProcessosCriados.length > 0) descParts.push(`${astreaProcessosCriados.length} processo(s) criado(s)`);
