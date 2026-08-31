@@ -3264,15 +3264,48 @@ const AnaliseDjen = () => {
         return ch;
       };
       const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
-      const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
-      let dg = 0;
-      if (pubsTemasIrr.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsTemasIrr, `Temas IRR - ${dataStr}`, "integral")), `JURISCONTROL_TEMAS_IRR_${dataStr}.docx`); dg++; }
-      if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral")), `JURISCONTROL_PAUTA_${dataStr}.docx`); dg++; }
-      if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`, "integral")), `JURISCONTROL_CEJUSC_${dataStr}.docx`); dg++; }
-      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo")), `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsIntimacoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsIntimacoes, `Intimações - ${dataStr}`, "integral")), `JURISCONTROL_INTIMACOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo")), `JURISCONTROL_PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Intimações: ${pubsIntimacoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+
+      // Monta todos os arquivos primeiro (sem baixar), para poder entregar num
+      // único .zip. Downloads sequenciais de vários .docx são bloqueados
+      // silenciosamente pelo navegador (só o primeiro chega ao usuário).
+      const arquivos: DocTstArquivo[] = [];
+      const add = async (label: string, pubs: PubComClass[], titulo: string, modo: "integral" | "resumo", filename: string) => {
+        if (pubs.length === 0) return;
+        const blob = await Packer.toBlob(mkDoc(buildTSTDocChildren(pubs, titulo, modo)));
+        arquivos.push({ label, filename, blob, total: pubs.length });
+      };
+      await add("Temas IRR", pubsTemasIrr, `Temas IRR - ${dataStr}`, "integral", `JURISCONTROL_TEMAS_IRR_${dataStr}.docx`);
+      await add("Pauta de Julgamento", pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral", `JURISCONTROL_PAUTA_${dataStr}.docx`);
+      await add("CEJUSC", pubsCejusc, `CEJUSC - ${dataStr}`, "integral", `JURISCONTROL_CEJUSC_${dataStr}.docx`);
+      await add("Lista de Distribuição", pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo", `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`);
+      await add("Intimações", pubsIntimacoes, `Intimações - ${dataStr}`, "integral", `JURISCONTROL_INTIMACOES_${dataStr}.docx`);
+      await add("Prazos Gerais", pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo", `JURISCONTROL_PRAZOS_${dataStr}.docx`);
+
+      setDocsTstArquivos(arquivos);
+
+      if (arquivos.length === 0) {
+        toast.error("Nenhum documento gerado com os filtros atuais", { id: toastId });
+        return;
+      }
+
+      if (arquivos.length === 1) {
+        baixarBlob(arquivos[0].blob, arquivos[0].filename);
+      } else {
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        arquivos.forEach((a) => zip.file(a.filename, a.blob));
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        baixarBlob(zipBlob, `JURISCONTROL_DOCS_TST_${dataStr}.zip`);
+      }
+
+      const resumoCats = arquivos.map((a) => `${a.label}: ${a.total}`).join(", ");
+      toast.success(
+        arquivos.length === 1
+          ? `1 documento gerado! (${resumoCats})`
+          : `${arquivos.length} documentos gerados em 1 arquivo .zip! (${resumoCats})`,
+        { id: toastId },
+      );
+
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
