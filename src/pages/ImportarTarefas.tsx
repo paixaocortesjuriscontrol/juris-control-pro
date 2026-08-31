@@ -1484,17 +1484,20 @@ export default function ImportarTarefas() {
       return iso;
     };
 
-    // Skip duplicates already in DB
+    // Skip duplicates already in DB (tarefas e eventos da agenda)
     const allIds = toImport.map(t => t.identificador);
     const existingSet = new Set<string>();
     const LOOKUP = 500;
     for (let i = 0; i < allIds.length; i += LOOKUP) {
-      const { data } = await supabase
-        .from("tarefas")
-        .select("identificador_projuris")
-        .in("identificador_projuris", allIds.slice(i, i + LOOKUP));
-      (data || []).forEach((r: any) => existingSet.add(r.identificador_projuris));
+      const chunk = allIds.slice(i, i + LOOKUP);
+      const [tarefasExist, eventosExist] = await Promise.all([
+        supabase.from("tarefas").select("identificador_projuris").in("identificador_projuris", chunk),
+        (supabase.from("eventos_agenda") as any).select("identificador_externo").in("identificador_externo", chunk),
+      ]);
+      (tarefasExist.data || []).forEach((r: any) => existingSet.add(r.identificador_projuris));
+      (eventosExist.data || []).forEach((r: any) => existingSet.add(r.identificador_externo));
     }
+
 
     // ===== Phase 1: pre-resolve processo / responsavel / envolvidos IDs =====
     type Prepared = {
