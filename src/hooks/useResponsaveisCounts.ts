@@ -11,6 +11,9 @@ export interface ResponsavelCount {
 
 const LARGE_IDS_THRESHOLD = 1000;
 
+/** Status que representam processo concluído (contam como "prontos"). */
+const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
+
 async function fetchChunkedResponsaveisCounts(filters: DistribuicaoTstFilters): Promise<ResponsavelCount[]> {
   const ids = await fetchAllDistribuicaoTstIds(filters);
   if (ids.length === 0) return [];
@@ -46,7 +49,7 @@ async function fetchChunkedResponsaveisCounts(filters: DistribuicaoTstFilters): 
       hasResp.add(row.dados_benner_id);
       const cur = countByUser.get(row.usuario_id) || { id: row.usuario_id, count: 0, pronto: 0 };
       cur.count += 1;
-      if (statusById.get(row.dados_benner_id) === "pronto_envio") cur.pronto += 1;
+      if (STATUS_CONCLUIDOS.includes(String(statusById.get(row.dados_benner_id) || ""))) cur.pronto += 1;
       countByUser.set(row.usuario_id, cur);
     }
   }
@@ -56,7 +59,7 @@ async function fetchChunkedResponsaveisCounts(filters: DistribuicaoTstFilters): 
   for (const [id, status] of statusById.entries()) {
     if (hasResp.has(id)) continue;
     semCount += 1;
-    if (status === "pronto_envio") semPronto += 1;
+    if (STATUS_CONCLUIDOS.includes(String(status || ""))) semPronto += 1;
   }
 
   const userIds = Array.from(countByUser.keys());
