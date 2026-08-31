@@ -1242,7 +1242,9 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
 
   // Marcar como lida - per-user tracking + legacy global flag via RPC
   const marcarComoLida = useMutation({
-    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud' }[]) => {
+    mutationFn: async (items: { id: string; tipo_origem: 'termo' | 'processo' | 'descartada' | 'datajud'; somenteEsta?: boolean }[]) => {
+      const somenteEsta = items.length > 0 && items.every(i => i.somenteEsta);
+
       // ============================================================
       // EXPANSÃO POR DEDUP (server-side):
       // A tela exibe publicações DEDUPLICADAS por coordenação + processo +
@@ -1303,9 +1305,12 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           console.warn('[DJEN] Exceção ao expandir irmãs via RPC (best-effort):', e?.message || e);
         }
       };
-      for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
-      for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
-      for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
+      if (!somenteEsta) {
+        for (const c of chunkArr(seedTermos, SEED_CHUNK)) await expandSeeds(c, null, null);
+        for (const c of chunkArr(seedProcessos, SEED_CHUNK)) await expandSeeds(null, c, null);
+        for (const c of chunkArr(seedDescartadas, SEED_CHUNK)) await expandSeeds(null, null, c);
+      }
+
 
       const expanded = Array.from(expandedMap.entries()).map(([id, tipo_origem]) => ({ id, tipo_origem }));
       const totalExpandido = expanded.length;
@@ -1358,10 +1363,25 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
         }
       };
 
-      // Processa cada origem em chunks separados
-      for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
-      for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
-      for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
+      // Processa cada origem em chunks separados. Em "Lida (só esta)" a RPC por dedup
+      // não pode ser usada (expande para as irmãs): atualizamos só o registro clicado.
+      const updateFlagDireto = async (tabela: string, ids: string[]) => {
+        try {
+          await (supabase as any).from(tabela).update({ lida: true }).in('id', ids);
+        } catch (e: any) {
+          console.warn('[DJEN] Update direto de lida falhou (best-effort):', e?.message || e);
+        }
+      };
+      if (somenteEsta) {
+        for (const c of chunk(termos, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen', c);
+        for (const c of chunk(processos, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen_processos', c);
+        for (const c of chunk(descartadas, RPC_CHUNK)) await updateFlagDireto('publicacoes_djen_descartadas', c);
+      } else {
+        for (const c of chunk(termos, RPC_CHUNK)) await callRpc(c, null, null);
+        for (const c of chunk(processos, RPC_CHUNK)) await callRpc(null, c, null);
+        for (const c of chunk(descartadas, RPC_CHUNK)) await callRpc(null, null, c);
+      }
+
 
       // Per-user tracking: insert into leituras table
       // Get user's name from profiles
