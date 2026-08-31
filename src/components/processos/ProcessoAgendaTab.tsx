@@ -47,6 +47,7 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
+import { useCoordenacoesDoProcesso, ampliarEscopoComProcesso } from "@/hooks/useCoordenacoesDoProcesso";
 import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 
 interface ProcessoAgendaTabProps {
