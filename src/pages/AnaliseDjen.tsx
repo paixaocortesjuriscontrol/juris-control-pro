@@ -115,6 +115,28 @@ type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
 type FiltroDiaDjen = 'hoje' | 'todos';
 
+/** Arquivo .docx gerado pelo botão "Docs TST" (mantido em memória para rebaixar). */
+type DocTstArquivo = { label: string; filename: string; blob: Blob; total: number };
+
+/**
+ * Download seguro de um Blob: o link precisa estar no DOM e a URL só pode ser
+ * liberada depois do clique — caso contrário o navegador cancela o download
+ * (o que fazia apenas o primeiro arquivo dos Docs TST chegar ao usuário).
+ */
+const baixarBlob = (blob: Blob, filename: string) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.style.display = "none";
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 2000);
+};
+
 // Encurta nomes de turma/órgão como "5ª Turma do Tribunal Superior do Trabalho" → "5ª Turma".
 // Mantém o valor original quando não casar com o padrão "Nª Turma" / "N Turma".
 const shortenTurma = (value: string | null | undefined): string => {
@@ -311,6 +333,7 @@ const AnaliseDjen = () => {
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
   const [gerandoDocsTST, setGerandoDocsTST] = useState(false);
+  const [docsTstArquivos, setDocsTstArquivos] = useState<DocTstArquivo[]>([]);
   const [gerandoExcel, setGerandoExcel] = useState<string | null>(null);
 
 
@@ -3145,6 +3168,7 @@ const AnaliseDjen = () => {
     const allPublicacoes = getPubsParaGerar();
     if (allPublicacoes.length === 0) { toast.error("Nenhuma publicação para classificar"); return; }
     setGerandoDocsTST(true);
+    setDocsTstArquivos([]);
     const toastId = toast.loading(`Classificando ${allPublicacoes.length} publicações...`);
     try {
       type Categoria = "TEMAS_IRR" | "PAUTA" | "CEJUSC" | "DISTRIBUICOES" | "INTIMACOES" | "PRAZOS";
@@ -3264,15 +3288,60 @@ const AnaliseDjen = () => {
         return ch;
       };
       const mkDoc = (ch: Paragraph[]) => new Document({ styles: { default: { document: { run: { font: docFont, size: docFontSize } } } }, sections: [{ properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } }, children: ch }] });
-      const dl = async (d: Document, fn: string) => { const b = await Packer.toBlob(d); const u = URL.createObjectURL(b); const a = document.createElement("a"); a.href = u; a.download = fn; a.click(); URL.revokeObjectURL(u); };
-      let dg = 0;
-      if (pubsTemasIrr.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsTemasIrr, `Temas IRR - ${dataStr}`, "integral")), `JURISCONTROL_TEMAS_IRR_${dataStr}.docx`); dg++; }
-      if (pubsPauta.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral")), `JURISCONTROL_PAUTA_${dataStr}.docx`); dg++; }
-      if (pubsCejusc.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsCejusc, `CEJUSC - ${dataStr}`, "integral")), `JURISCONTROL_CEJUSC_${dataStr}.docx`); dg++; }
-      if (pubsDistribuicoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo")), `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`); dg++; }
-      if (pubsIntimacoes.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsIntimacoes, `Intimações - ${dataStr}`, "integral")), `JURISCONTROL_INTIMACOES_${dataStr}.docx`); dg++; }
-      if (pubsPrazos.length > 0) { await dl(mkDoc(buildTSTDocChildren(pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo")), `JURISCONTROL_PRAZOS_${dataStr}.docx`); dg++; }
-      toast.success(`${dg} documento(s) gerado(s)! (Temas IRR: ${pubsTemasIrr.length}, Pauta: ${pubsPauta.length}, CEJUSC: ${pubsCejusc.length}, Distrib: ${pubsDistribuicoes.length}, Intimações: ${pubsIntimacoes.length}, Prazos: ${pubsPrazos.length})`, { id: toastId });
+
+      // Monta todos os arquivos primeiro (sem baixar), para poder entregar num
+      // único .zip. Downloads sequenciais de vários .docx são bloqueados
+      // silenciosamente pelo navegador (só o primeiro chega ao usuário).
+      const arquivos: DocTstArquivo[] = [];
+      const add = async (label: string, pubs: PubComClass[], titulo: string, modo: "integral" | "resumo", filename: string) => {
+        if (pubs.length === 0) return;
+        const blob = await Packer.toBlob(mkDoc(buildTSTDocChildren(pubs, titulo, modo)));
+        arquivos.push({ label, filename, blob, total: pubs.length });
+      };
+      await add("Temas IRR", pubsTemasIrr, `Temas IRR - ${dataStr}`, "integral", `JURISCONTROL_TEMAS_IRR_${dataStr}.docx`);
+      await add("Pauta de Julgamento", pubsPauta, `Pauta de Julgamento - ${dataStr}`, "integral", `JURISCONTROL_PAUTA_${dataStr}.docx`);
+      await add("CEJUSC", pubsCejusc, `CEJUSC - ${dataStr}`, "integral", `JURISCONTROL_CEJUSC_${dataStr}.docx`);
+      await add("Lista de Distribuição", pubsDistribuicoes, `Lista de Distribuição - ${dataStr}`, "resumo", `JURISCONTROL_DISTRIBUICOES_${dataStr}.docx`);
+      await add("Intimações", pubsIntimacoes, `Intimações - ${dataStr}`, "integral", `JURISCONTROL_INTIMACOES_${dataStr}.docx`);
+      await add("Prazos Gerais", pubsPrazos, `Prazos Gerais - ${dataStr}`, "resumo", `JURISCONTROL_PRAZOS_${dataStr}.docx`);
+
+      setDocsTstArquivos(arquivos);
+
+      if (arquivos.length === 0) {
+        toast.error("Nenhum documento gerado com os filtros atuais", { id: toastId });
+        return;
+      }
+
+      if (arquivos.length === 1) {
+        baixarBlob(arquivos[0].blob, arquivos[0].filename);
+      } else {
+        const JSZip = (await import("jszip")).default;
+        const zip = new JSZip();
+        arquivos.forEach((a) => zip.file(a.filename, a.blob));
+        const zipBlob = await zip.generateAsync({ type: "blob" });
+        baixarBlob(zipBlob, `JURISCONTROL_DOCS_TST_${dataStr}.zip`);
+      }
+
+      const resumoCats = arquivos.map((a) => `${a.label}: ${a.total}`).join(", ");
+      const vazias = [
+        ["Temas IRR", pubsTemasIrr.length],
+        ["Pauta", pubsPauta.length],
+        ["CEJUSC", pubsCejusc.length],
+        ["Lista de Distribuição", pubsDistribuicoes.length],
+        ["Intimações", pubsIntimacoes.length],
+        ["Prazos", pubsPrazos.length],
+      ].filter(([, n]) => (n as number) === 0).map(([l]) => l as string);
+      const semNada = vazias.length > 0
+        ? ` Sem resultado nas filtragens atuais: ${vazias.join(", ")} (confira o período e os filtros da tela).`
+        : "";
+      toast.success(
+        (arquivos.length === 1
+          ? `1 documento gerado! (${resumoCats}).`
+          : `${arquivos.length} documentos gerados em 1 arquivo .zip! (${resumoCats}).`) + semNada,
+        { id: toastId, duration: 8000 },
+      );
+
+
     } catch (error) {
       console.error("Erro ao gerar Docs TST:", error);
       toast.error(`Erro ao gerar Docs TST: ${error instanceof Error ? error.message : "Erro desconhecido"}`, { id: toastId });
@@ -4892,6 +4961,49 @@ const AnaliseDjen = () => {
               <span className="hidden sm:inline">{gerandoDocsTST ? "Classificando..." : "Docs TST"}</span>
               <span className="sm:hidden">{gerandoDocsTST ? "..." : "TST"}</span>
           </Button>
+
+          {docsTstArquivos.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                >
+                  <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+                  <span className="hidden sm:inline">Baixar Docs TST ({docsTstArquivos.length})</span>
+                  <span className="sm:hidden">Docs ({docsTstArquivos.length})</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                {docsTstArquivos.map((a) => (
+                  <DropdownMenuItem
+                    key={a.filename}
+                    onSelect={() => setTimeout(() => baixarBlob(a.blob, a.filename), 0)}
+                  >
+                    {a.label} ({a.total})
+                  </DropdownMenuItem>
+                ))}
+                {docsTstArquivos.length > 1 && (
+                  <DropdownMenuItem
+                    onSelect={() =>
+                      setTimeout(async () => {
+                        const JSZip = (await import("jszip")).default;
+                        const zip = new JSZip();
+                        docsTstArquivos.forEach((a) => zip.file(a.filename, a.blob));
+                        const blob = await zip.generateAsync({ type: "blob" });
+                        baixarBlob(blob, `JURISCONTROL_DOCS_TST_${format(new Date(), "dd.MM.yy")}.zip`);
+                      }, 0)
+                    }
+                  >
+                    Baixar todos (.zip)
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+
 
           <Button
             variant={expandedPublicacoes.size > 0 ? "default" : "outline"}
