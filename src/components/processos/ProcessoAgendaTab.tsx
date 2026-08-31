@@ -47,6 +47,7 @@ import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEventosAgenda";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
+import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 
 interface ProcessoAgendaTabProps {
   processoId: string;
@@ -256,7 +257,7 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
     return (
       <div
-        key={evento.id}
+        key={(evento as any)._occId || evento.id}
         className={cn(
           "flex flex-col p-4 border rounded-lg bg-card transition-all hover:shadow-md",
           evento.status === "concluido" && "opacity-60",
