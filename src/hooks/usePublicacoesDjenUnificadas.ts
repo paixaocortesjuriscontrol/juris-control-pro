@@ -1557,10 +1557,16 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       return { previousData };
     },
     onSuccess: (result) => {
-      // Recarrega a lista principal: ao marcar um lote grande (ex.: 500) com o filtro
-      // "Não lidas", as linhas saem da tela e as próximas não lidas precisam entrar
-      // sem exigir F5 do usuário.
-      queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] });
+      // Marcação INDIVIDUAL ("Lida (só esta)"): o optimistic update já ajustou a
+      // linha na tela. Refazer o fetch da lista inteira aqui fazia a tela piscar
+      // (skeleton + reordenação) e dava a impressão de que "todas" foram marcadas.
+      // Então apenas invalidamos SEM refetch — a lista é revalidada no próximo
+      // acesso/refresh manual.
+      const isIndividual = (result.totalSelecionado || 0) <= 1;
+      queryClient.invalidateQueries({
+        queryKey: ['publicacoes-unificadas'],
+        refetchType: isIndividual ? 'none' : 'active',
+      });
       // Contadores/estatísticas SIM devem refletir a mudança imediatamente.
       queryClient.invalidateQueries({ queryKey: ['descartadas-count'] });
       queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] });
@@ -1576,7 +1582,11 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       const sel = result.totalSelecionado || 0;
       const exp = result.totalExpandido || sel;
       if (exp > sel) {
-        toast.success(`${sel} publicação(ões) marcada(s) como lida(s) (${exp} registros incluindo duplicatas)`);
+        toast.success(
+          sel === 1
+            ? `1 publicação marcada como lida (mais ${exp - 1} cópia(s) idêntica(s) do mesmo processo/data)`
+            : `${sel} publicações marcadas como lidas (${exp} registros incluindo duplicatas)`
+        );
       } else {
         toast.success(`${sel} publicação(ões) marcada(s) como lida(s)`);
       }
