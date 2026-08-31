@@ -2332,6 +2332,32 @@ export default function PainelControle() {
                 </Button>
               </div>
             )}
+            {drill?.metrica === "perdidos" && (
+              <div className="mx-4 mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs space-y-2">
+                <p className="text-muted-foreground">
+                  Regra: conta como <strong>prazo perdido</strong> apenas o item cujo prazo (data fatal, vencimento ou
+                  prevista) venceu e continua <strong>em aberto</strong>. Itens concluídos após o prazo entram em
+                  "Atraso", e itens vindos de importações não são contabilizados.
+                </p>
+                {itensListaEquipe.length === 0 ? (
+                  <p className="font-medium text-emerald-700 dark:text-emerald-300">
+                    Nenhum prazo perdido no período — nada a justificar.
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {itensListaEquipe.map((item: any) => (
+                      <li key={`${item.origem}:${item.id}`} className="border-t border-border/50 pt-1">
+                        <span className="font-medium text-foreground">{item.titulo}</span>
+                        <span className="block text-muted-foreground">
+                          {justificativaPrazoPerdido(item, hoje_str)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
