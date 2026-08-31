@@ -1402,9 +1402,16 @@ export function ProcessoDetalhesCompletos({
                                       )}
                                     </div>
                                   </div>
-                                  <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
-                                    {tarefa.status}
-                                  </Badge>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {tarefa.n === 'astrea' && (
+                                      <Badge variant="outline" className="text-[10px] whitespace-nowrap border-amber-400 text-amber-600 bg-amber-50 dark:bg-amber-950/30 dark:text-amber-400">
+                                        Veio do Astrea
+                                      </Badge>
+                                    )}
+                                    <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
+                                      {tarefa.status}
+                                    </Badge>
+                                  </div>
                                 </div>
                               </CardContent>
                             </Card>
