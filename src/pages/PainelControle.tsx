@@ -2268,7 +2268,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("agenda")}
                   title="Visão em agenda"
                 >
-                  Em Agenda
+                  Agenda
                 </Button>
                 <Button
                   size="sm"
@@ -2277,7 +2277,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("lista")}
                   title="Visão em lista"
                 >
-                  Em Lista
+                  Lista
                 </Button>
                 <Button
                   size="sm"
