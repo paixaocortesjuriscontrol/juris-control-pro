@@ -213,8 +213,8 @@ function getValuesFromDado(d: DadoBenner): string[] {
   const materiasAnalise: Array<any> = [
     ...(Array.isArray((d as any).materias_analise_reclamante) ? (d as any).materias_analise_reclamante : []),
     ...(Array.isArray((d as any).materias_analise_banco) ? (d as any).materias_analise_banco : []),
-    // "Outra Matéria" é neutra e vai normalmente para a planilha.
-  ].filter((i) => i && i.materia);
+    // "Outra Matéria" nunca vai para a planilha de carga.
+  ].filter((i) => i && i.materia && !isOutraMateria(i.materia));
   const norm = (s: any) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
   const joinUnique = (items: any[]) => {
     const seen = new Set<string>();

@@ -652,9 +652,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return out.join(",");
         };
-        // "Outra Matéria" é neutra: vai normalmente para a planilha de carga.
-        // As demais matérias só podem ser exportadas se constarem na lista
-        // oficial de pedidos do Santander (`materias_pedidos_oficiais`).
+        // "Outra Matéria" NÃO pode ir para a planilha de carga: é descartada
+        // como matéria fora da lista oficial. As demais matérias só podem ser
+        // exportadas se constarem na lista oficial de pedidos do Santander
+        // (`materias_pedidos_oficiais`).
         let materiasSelecionadasCount = 0;
         let materiasForaListaCount = 0;
         const filtrarMateriasExportaveis = (arr: any[]) => {
@@ -664,11 +665,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           materiasSelecionadasCount += itens.length;
           const validas: any[] = [];
           for (const it of itens) {
-            if (isOutraMateria(it.materia)) {
-              validas.push(it);
-              continue;
-            }
-            if (!isMateriaOficial(it.materia)) {
+            if (isOutraMateria(it.materia) || !isMateriaOficial(it.materia)) {
               materiasForaListaCount++;
               continue;
             }
