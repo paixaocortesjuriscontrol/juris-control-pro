@@ -2036,6 +2036,17 @@ export default function PainelControle() {
                 <Download className="w-3.5 h-3.5" />
                 Exportar
               </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "notificacoes" ? "default" : "destructive"}
+                className="h-7 px-2 text-xs gap-1"
+                onClick={() => setViewMode("notificacoes")}
+                title="Central de notificações (mantém menu e filtros)"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
+              </Button>
+
               <ExportarAtividadesDialog
                 open={exportOpen}
                 onOpenChange={setExportOpen}
