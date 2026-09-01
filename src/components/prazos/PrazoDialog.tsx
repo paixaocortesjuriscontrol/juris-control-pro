@@ -739,15 +739,17 @@ export function PrazoDialog({
             </Select>
             </>
             )}
-            <Button
-              type="submit"
-              form="prazo-form-content"
-              size="sm"
-              disabled={isLoading}
-            >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar
-            </Button>
+            {!ocultarSituacao && (
+              <Button
+                type="submit"
+                form="prazo-form-content"
+                size="sm"
+                disabled={isLoading}
+              >
+                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar
+              </Button>
+            )}
           {hasPublicacao ? (
             <BotaoPreencherIA
               conteudo={publicacaoEfetiva?.conteudo}
@@ -1266,14 +1268,16 @@ export function PrazoDialog({
             Reabrir
           </Button>
         )}
-        <Button
-          type="submit"
-          disabled={isLoading}
-          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
-        >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {ocultarSituacao ? "Salvar (toda a série)" : "Salvar"}
-        </Button>
+        {!ocultarSituacao && (
+          <Button
+            type="submit"
+            disabled={isLoading}
+            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Salvar
+          </Button>
+        )}
         {secondarySave && !prazo?.id && (
           <Button
             type="submit"
