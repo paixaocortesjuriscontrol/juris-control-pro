@@ -1288,6 +1288,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         </div>
       )}
 
+      {processosUnicos !== null && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-500/40 bg-blue-500/10 p-4 text-blue-700 dark:text-blue-400">
+          <FileSpreadsheet className="h-5 w-5 flex-shrink-0" />
+          <div>
+            <p className="text-2xl font-bold leading-none">{processosUnicos}</p>
+            <p className="text-sm mt-1">processo(s) único(s) na planilha de carga</p>
+          </div>
+        </div>
+      )}
+
+
+
       {/* Stats Dashboard */}
       {stats && (
         <>
