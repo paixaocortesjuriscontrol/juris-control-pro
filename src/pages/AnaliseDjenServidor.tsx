@@ -1931,24 +1931,27 @@ const AnaliseDjenServidor = () => {
       || /valida[çc][ãa]o\s+confirmada\s+com\s+a\s+chave/i.test(p)
       || /Resolu[çc][ãa]o\s*n?[º°]?\s*455\s*\/\s*2018/i.test(p)
       || /pje\.[a-z.]+jus\.br\/(consultaprocessual|pjekz)/i.test(p);
-    // Remove o boilerplate FRASE A FRASE. Antes o parágrafo inteiro era descartado,
-    // e como o DJEN costuma emendar "Ante o exposto... ISTO POSTO ACORDAM... Ministro
-    // Relator" no mesmo bloco do texto padrão do PJe, o dispositivo era apagado junto.
-    const removerBoilerplateInline = (p: string): string => {
+    // Corta o rodapé padrão do PJe DENTRO do parágrafo. Antes o parágrafo inteiro era
+    // descartado e, como o DJEN emenda "Ante o exposto... ISTO POSTO ACORDAM... Ministro
+    // Relator" no mesmo bloco do rodapé, o dispositivo ia embora junto.
+    const INICIO_BOILERPLATE_PJE: RegExp[] = [
+      /(?:[OA]\s+)?documento\s+(?:est[áa]|tamb[ée]m)\s+(?:disponibilizado|pode)/i,
+      /Conforme\s+o\s+inciso\s+[IVX]+\s*,?\s*art\.?\s*\d+\s*,?\s*da\s+Resolu[çc][ãa]o/i,
+      /Resolu[çc][ãa]o\s*n?[º°]?\s*455\s*\/\s*2018/i,
+      /valida[çc][ãa]o\s+confirmada\s+com\s+a\s+chave/i,
+      /https?:\/\/pje\.[a-z.]+jus\.br\/(?:consultaprocessual|pjekz)/i,
+    ];
+    const cortarBoilerplatePje = (p: string): string => {
       if (!ehBoilerplatePje(p)) return p;
-      const frases = p.split(/(?<=[\.\?!])\s+/);
-      const mantidas: string[] = [];
-      let apagou = false;
-      for (const f of frases) {
-        const t = f.trim();
-        if (!t) continue;
-        if (ehBoilerplatePje(t)) { apagou = true; continue; }
-        if (apagou && t.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(t)) continue;
-        apagou = false;
-        mantidas.push(t);
+      let idx = -1;
+      for (const re of INICIO_BOILERPLATE_PJE) {
+        const m = p.match(re);
+        if (m && m.index !== undefined && (idx < 0 || m.index < idx)) idx = m.index;
       }
-      return mantidas.join(" ").trim();
+      if (idx < 0) return "";
+      return p.slice(0, idx).replace(/[\s,;:\-–]+$/, "").trim();
     };
+
     {
       const limpos: string[] = [];
       let apagouBoiler = false;
