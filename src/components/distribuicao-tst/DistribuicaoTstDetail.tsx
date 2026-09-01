@@ -61,6 +61,21 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const { isAdminOrCoordinator, isAdmin } = useUserRole();
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "analisar-ia" | "centralizadores" | "partes">(initialTab);
+
+  // Blindagem: algumas abas não existem para todos os usuários (Centralizadores,
+  // Log Judit, Auditoria são por papel/e-mail) e "benner" não tem mais conteúdo
+  // próprio. Se o `tab` atual não tem TabsContent renderizado, o formulário
+  // aparece em branco (era o caso relatado: abrir o detalhe pela ação "Dados
+  // Benner" sem permissão/abas correspondentes). Cai sempre para "distribuicao".
+  useEffect(() => {
+    const restritas: Record<string, boolean> = {
+      benner: false,
+      centralizadores: isAdminOrCoordinator,
+      "log-judit": podeVerLogJudit,
+      auditoria: isAdmin,
+    };
+    if (tab in restritas && !restritas[tab]) setTab("distribuicao");
+  }, [tab, isAdminOrCoordinator, isAdmin, podeVerLogJudit]);
   const [anexos, setAnexos] = useState<any[] | null>(null);
   const [buscandoJudit, setBuscandoJudit] = useState(false);
   const [comAnexos, setComAnexos] = useState(false);
