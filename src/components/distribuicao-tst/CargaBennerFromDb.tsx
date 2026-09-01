@@ -338,6 +338,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
   const [alerts, setAlerts] = useState<{ level: "error" | "warning" | "info" | "success"; message: string }[]>([]);
+  const [processosUnicos, setProcessosUnicos] = useState<number | null>(null);
+
 
   const pushAlert = (level: "error" | "warning" | "info" | "success", message: string) => {
     if (level === "error") toast.error(message);
