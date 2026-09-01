@@ -602,7 +602,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   onClick={() => { secondaryClickedRef.current = false; }}
                 >
                   {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {isEditing ? "Salvar" : "Criar evento"}
+                  {isEditing ? (ocultarSituacao ? "Salvar (toda a série)" : "Salvar") : "Criar evento"}
                 </Button>
               {hasPublicacao && (
                 <BotaoPreencherIA
@@ -1088,7 +1088,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
               >
                 {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {isEditing ? "Salvar" : "Criar evento"}
+                {isEditing ? (ocultarSituacao ? "Salvar (toda a série)" : "Salvar") : "Criar evento"}
               </Button>
               {secondarySave && !isEditing && (
                 <Button

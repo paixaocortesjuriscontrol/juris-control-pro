@@ -1272,7 +1272,7 @@ export function PrazoDialog({
           onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
         >
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Salvar
+          {ocultarSituacao ? "Salvar (toda a série)" : "Salvar"}
         </Button>
         {secondarySave && !prazo?.id && (
           <Button
