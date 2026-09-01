@@ -2624,9 +2624,15 @@ export default function DistribuicaoTst() {
                           (d as any).segredo_justica === true;
                         let color = "";
                         let label = "";
-                        if (status === "pronto_envio") {
+                        if (status === "pronto_envio" || status === "planilhado" || status === "enviado") {
                           color = "bg-emerald-500";
-                          label = "Pronto para enviar";
+                          label =
+                            status === "planilhado"
+                              ? "Concluído — pronto e já planilhado na carga"
+                              : status === "enviado"
+                                ? "Concluído — enviado ao Benner"
+                                : "Pronto para enviar";
+                        } else if (emAnalise) {
                         } else if (emAnalise) {
                           color = "bg-amber-400";
                           label = "Em análise";
