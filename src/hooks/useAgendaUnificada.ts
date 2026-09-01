@@ -23,6 +23,8 @@ export interface ItemAgendaUnificado {
   recorrencia_tipo: string | null;
   recorrencia_pai_id?: string | null;
   tarefa_pai_id?: string | null;
+  /** true quando a situação exibida veio da baixa individual da ocorrência */
+  baixa_individual?: boolean;
   status: string;
   prioridade?: string;
   concluido_em: string | null;
