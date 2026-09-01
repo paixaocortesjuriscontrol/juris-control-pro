@@ -2025,113 +2025,6 @@ export default function PainelControle() {
               </div>
             )}
             <div className="md:ml-auto flex items-center gap-1.5 flex-wrap min-w-0">
-              <div className="flex flex-wrap gap-1 mr-1">
-                <Button
-                  size="sm"
-                  variant={viewMode === "agenda" ? "default" : "outline"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("agenda")}
-                  title="Visão em agenda"
-                >
-                  Em Agenda
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "lista" ? "default" : "outline"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("lista")}
-                  title="Visão em lista"
-                >
-                  Em Lista
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "kanban" ? "default" : "outline"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("kanban")}
-                  title="Visão em Kanban (obedece os filtros)"
-                >
-                  Kanban
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "equipe" ? "default" : "outline"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("equipe")}
-                  title="Painel da Equipe (obedece os filtros)"
-                >
-                  Equipe
-                </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "notificacoes" ? "default" : "destructive"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("notificacoes")}
-                  title="Central de notificações (mantém menu e filtros)"
-                >
-                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
-                </Button>
-                {([
-                  { key: "prazo",         label: "Prazos" },
-                  { key: "audiencia",     label: "Audiências" },
-                  { key: "tarefa",        label: "Tarefas" },
-                  { key: "evento",        label: "Eventos" },
-                  { key: "parcelamento",  label: "Parcelamentos" },
-                ] as const).map((f) => {
-                  const active =
-                    painelFiltros.classificacoes.length === 1 &&
-                    painelFiltros.classificacoes[0] === f.key;
-                  return (
-                    <Button
-                      key={f.key}
-                      size="sm"
-                      variant={active ? "default" : "outline"}
-                      className="h-7 px-2 text-[11px]"
-                      onClick={() =>
-                        setPainelFiltros((s) => ({
-                          ...s,
-                          classificacoes: active ? [] : [f.key],
-                        }))
-                      }
-                      title={`Somente ${f.label}`}
-                    >
-                      {f.label}
-                    </Button>
-                  );
-                })}
-                <Button
-                  size="sm"
-                  variant={painelFiltros.classificacoes.length === 0 ? "default" : "outline"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() =>
-                    setPainelFiltros((s) => ({ ...s, classificacoes: [] }))
-                  }
-                  title="Todos os tipos"
-                >
-                  Tudo
-                </Button>
-              </div>
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={buscaProcesso}
-                  onChange={(e) => setBuscaProcesso(e.target.value)}
-                  placeholder="Buscar processo..."
-                  title="Digite o número do processo para ver apenas as tarefas e atividades dele"
-                  className="h-7 w-[190px] pl-7 pr-7 text-xs font-mono"
-                />
-                {buscaProcesso && (
-                  <button
-                    type="button"
-                    onClick={() => setBuscaProcesso("")}
-                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    title="Limpar busca"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
 
               <Button
                 size="sm"
@@ -2362,6 +2255,119 @@ export default function PainelControle() {
               </Card>
             </div>
           )}
+        </div>
+
+        {/* Barra de visões, tipos e busca */}
+        <div className="flex-shrink-0 px-3 md:px-6 py-2 border-b border-border bg-card">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <div className="flex flex-wrap gap-1 mr-1">
+                <Button
+                  size="sm"
+                  variant={viewMode === "agenda" ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("agenda")}
+                  title="Visão em agenda"
+                >
+                  Em Agenda
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "lista" ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("lista")}
+                  title="Visão em lista"
+                >
+                  Em Lista
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "kanban" ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("kanban")}
+                  title="Visão em Kanban (obedece os filtros)"
+                >
+                  Kanban
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "equipe" ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("equipe")}
+                  title="Painel da Equipe (obedece os filtros)"
+                >
+                  Equipe
+                </Button>
+                <Button
+                  size="sm"
+                  variant={viewMode === "notificacoes" ? "default" : "destructive"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("notificacoes")}
+                  title="Central de notificações (mantém menu e filtros)"
+                >
+                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
+                </Button>
+                {([
+                  { key: "prazo",         label: "Prazos" },
+                  { key: "audiencia",     label: "Audiências" },
+                  { key: "tarefa",        label: "Tarefas" },
+                  { key: "evento",        label: "Eventos" },
+                  { key: "parcelamento",  label: "Parcelamentos" },
+                ] as const).map((f) => {
+                  const active =
+                    painelFiltros.classificacoes.length === 1 &&
+                    painelFiltros.classificacoes[0] === f.key;
+                  return (
+                    <Button
+                      key={f.key}
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() =>
+                        setPainelFiltros((s) => ({
+                          ...s,
+                          classificacoes: active ? [] : [f.key],
+                        }))
+                      }
+                      title={`Somente ${f.label}`}
+                    >
+                      {f.label}
+                    </Button>
+                  );
+                })}
+                <Button
+                  size="sm"
+                  variant={painelFiltros.classificacoes.length === 0 ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() =>
+                    setPainelFiltros((s) => ({ ...s, classificacoes: [] }))
+                  }
+                  title="Todos os tipos"
+                >
+                  Tudo
+                </Button>
+              </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={buscaProcesso}
+                  onChange={(e) => setBuscaProcesso(e.target.value)}
+                  placeholder="Buscar processo..."
+                  title="Digite o número do processo para ver apenas as tarefas e atividades dele"
+                  className="h-7 w-[190px] pl-7 pr-7 text-xs font-mono"
+                />
+                {buscaProcesso && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaProcesso("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Limpar busca"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+          </div>
         </div>
 
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
