@@ -1931,18 +1931,38 @@ const AnaliseDjenServidor = () => {
       || /valida[çc][ãa]o\s+confirmada\s+com\s+a\s+chave/i.test(p)
       || /Resolu[çc][ãa]o\s*n?[º°]?\s*455\s*\/\s*2018/i.test(p)
       || /pje\.[a-z.]+jus\.br\/(consultaprocessual|pjekz)/i.test(p);
+    // Remove o boilerplate FRASE A FRASE. Antes o parágrafo inteiro era descartado,
+    // e como o DJEN costuma emendar "Ante o exposto... ISTO POSTO ACORDAM... Ministro
+    // Relator" no mesmo bloco do texto padrão do PJe, o dispositivo era apagado junto.
+    const removerBoilerplateInline = (p: string): string => {
+      if (!ehBoilerplatePje(p)) return p;
+      const frases = p.split(/(?<=[\.\?!])\s+/);
+      const mantidas: string[] = [];
+      let apagou = false;
+      for (const f of frases) {
+        const t = f.trim();
+        if (!t) continue;
+        if (ehBoilerplatePje(t)) { apagou = true; continue; }
+        if (apagou && t.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(t)) continue;
+        apagou = false;
+        mantidas.push(t);
+      }
+      return mantidas.join(" ").trim();
+    };
     {
       const limpos: string[] = [];
       let apagouBoiler = false;
       for (const p of paragrafos) {
-        if (ehBoilerplatePje(p)) { apagouBoiler = true; continue; }
+        const limpo = removerBoilerplateInline(p);
+        if (!limpo) { apagouBoiler = true; continue; }
         // Nome em CAIXA-ALTA do servidor que assinou, imediatamente após o boilerplate
-        if (apagouBoiler && p.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(p)) continue;
+        if (apagouBoiler && limpo.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(limpo)) continue;
         apagouBoiler = false;
-        limpos.push(p);
+        limpos.push(limpo);
       }
       if (limpos.length > 0) paragrafos = limpos;
     }
+
 
     const ehAssinaturaForte = (p: string) => !!p && p.length <= 240
       && /\b(Relator|Relatora|Ministro|Ministra|Desembargador|Desembargadora|Juiz|Juíza|Ju[ií]z[ao] do Trabalho|Presidente|Secret[áa]ri[ao])\b/i.test(p);
