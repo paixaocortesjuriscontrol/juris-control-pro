@@ -45,16 +45,40 @@ function classificarItem(item: ItemAgendaUnificado): {
  * Para parcelas, o ID cru é o da própria parcela, mas o comentário é buscado
  * no evento-pai — então mapeamos o ID cru da parcela para o ID do pai.
  */
+/**
+ * Chave usada no Set retornado por useItensComComentarios.
+ * Ocorrências de séries recorrentes usam o id completo (com "::data"), pois o
+ * comentário é gravado no registro-pai e só deve aparecer no dia em que foi
+ * escrito — sem isso o badge "C" apareceria em todas as ocorrências do mês.
+ */
+function chaveComentario(item: ItemAgendaUnificado): string {
+  const id = String(item.id);
+  return id.includes("::") ? id : getItemRawId(id);
+}
+
+/** Data (yyyy-MM-dd) da ocorrência de um item recorrente, se houver. */
+function dataOcorrenciaItem(item: ItemAgendaUnificado): string | null {
+  const id = String(item.id);
+  if (!id.includes("::")) return null;
+  return id.split("::")[1]?.slice(0, 10) ?? null;
+}
+
 export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined) {
-  // Mapa: rawId do item -> { tipo, idReferencia (na tabela de comentários) }
+  // Mapa: chave do item -> { tipo, ref, dataOcorrencia }
   const lookup = useMemo(() => {
-    const map = new Map<string, { tipo: "tarefa" | "evento" | "audiencia"; ref: string }>();
+    const map = new Map<
+      string,
+      { tipo: "tarefa" | "evento" | "audiencia"; ref: string; dataOcorrencia: string | null }
+    >();
     (items || []).forEach((item) => {
       if (!item?.id) return;
-      const rawId = getItemRawId(item.id);
       const classif = classificarItem(item);
       if (!classif) return;
-      map.set(rawId, { tipo: classif.tipo, ref: classif.id });
+      map.set(chaveComentario(item), {
+        tipo: classif.tipo,
+        ref: classif.id,
+        dataOcorrencia: dataOcorrenciaItem(item),
+      });
     });
     return map;
   }, [items]);
@@ -80,7 +104,7 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
     enabled: lookup.size > 0,
     staleTime: 30 * 1000,
     queryFn: async () => {
-      const result = new Set<string>(); // rawIds com comentário
+      const result = new Set<string>();
 
       const consultar = async (
         tabela: "comentarios_tarefas" | "comentarios_eventos" | "comentarios_audiencias",
@@ -91,22 +115,40 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
         if (ids.length === 0) return;
         const chunks: string[][] = [];
         for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
-        const comIds = new Set<string>();
+        // ref -> datas (yyyy-MM-dd) em que existem comentários
+        const datasPorRef = new Map<string, Set<string>>();
         await Promise.all(
           chunks.map(async (chunk) => {
             const { data, error } = await (supabase as any)
               .from(tabela)
-              .select(fk)
+              .select(`${fk}, created_at`)
               .in(fk, chunk);
             if (error) throw error;
             (data || []).forEach((row: any) => {
-              if (row[fk]) comIds.add(row[fk]);
+              const ref = row[fk];
+              if (!ref) return;
+              if (!datasPorRef.has(ref)) datasPorRef.set(ref, new Set<string>());
+              if (row.created_at) {
+                const d = new Date(row.created_at);
+                const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+                  d.getDate()
+                ).padStart(2, "0")}`;
+                datasPorRef.get(ref)!.add(dia);
+              }
             });
           })
         );
-        // Mapear de volta para os rawIds do lookup
-        lookup.forEach((info, rawId) => {
-          if (info.tipo === tipo && comIds.has(info.ref)) result.add(rawId);
+        lookup.forEach((info, chave) => {
+          if (info.tipo !== tipo) return;
+          const datas = datasPorRef.get(info.ref);
+          if (!datas) return;
+          // Item simples: basta existir comentário.
+          if (!info.dataOcorrencia) {
+            result.add(chave);
+            return;
+          }
+          // Ocorrência de série: só marca no dia em que o comentário foi escrito.
+          if (datas.has(info.dataOcorrencia)) result.add(chave);
         });
       };
 
@@ -119,6 +161,18 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
       return result;
     },
   });
+}
+
+/**
+ * Verifica o badge "C" de um item da agenda, respeitando ocorrências recorrentes.
+ */
+export function temComentarioItem(
+  set: Set<string> | undefined,
+  item: ItemAgendaUnificado | { id: string }
+): boolean {
+  if (!set || !item?.id) return false;
+  const id = String(item.id);
+  return id.includes("::") ? set.has(id) : set.has(getItemRawId(id));
 }
 
 /**

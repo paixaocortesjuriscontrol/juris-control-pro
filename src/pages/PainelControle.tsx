@@ -91,7 +91,7 @@ import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
-import { useItensComComentarios } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
@@ -2637,7 +2637,7 @@ export default function PainelControle() {
                                 const isCancelado = isItemCancelado(item);
                                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
-                                const temComentario = itensComComentarios.has(getItemRawId(item.id));
+                                const temComentario = temComentarioItem(itensComComentarios, item);
                                 return (
                                 <div
                                   key={item.id}

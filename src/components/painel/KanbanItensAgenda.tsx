@@ -8,7 +8,7 @@ import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividad
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
-import { useItensComComentarios } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -104,7 +104,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                       <p className="text-xs font-medium line-clamp-2 flex-1">{item.titulo || "(sem título)"}</p>
                       {temAtividade && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
-                      {itensComComentarios.has(getItemRawId(item.id)) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
+                      {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
                     </div>
                     {item.processo?.numero && (
                       <p className="text-[10px] font-mono text-muted-foreground mt-1 truncate">

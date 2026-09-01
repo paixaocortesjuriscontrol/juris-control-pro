@@ -17,7 +17,7 @@ import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
-import { useItensComComentarios } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -492,7 +492,7 @@ export function EquipeItensAgenda({
                         <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
-                        {itensComComentarios.has(getItemRawId(item.id)) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
+                        {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
                       </div>
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
