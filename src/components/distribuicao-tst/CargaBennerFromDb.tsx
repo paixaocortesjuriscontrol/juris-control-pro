@@ -338,6 +338,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
   const [alerts, setAlerts] = useState<{ level: "error" | "warning" | "info" | "success"; message: string }[]>([]);
+  const [processosUnicos, setProcessosUnicos] = useState<number | null>(null);
+
 
   const pushAlert = (level: "error" | "warning" | "info" | "success", message: string) => {
     if (level === "error") toast.error(message);
@@ -370,6 +372,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     setRejectedData([]);
     setConferenciaData(null);
     setAlerts([]);
+    setProcessosUnicos(null);
+
 
 
     try {
@@ -880,6 +884,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         novosAlertas.push({ level: "info", message: msg });
       }
       setAlerts(novosAlertas);
+      const unicos = new Set(
+        outputFinal
+          .map((row) => String((row as any)["__numProcesso"] ?? "").replace(/\D/g, ""))
+          .filter((v) => v.length > 0)
+      );
+      setProcessosUnicos(unicos.size);
+
     } catch (err: any) {
       const msgErro = "Erro: " + (err?.message || String(err));
       toast.error(msgErro);
@@ -1276,6 +1287,18 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           ))}
         </div>
       )}
+
+      {processosUnicos !== null && (
+        <div className="flex items-center gap-3 rounded-lg border border-blue-500/40 bg-blue-500/10 p-4 text-blue-700 dark:text-blue-400">
+          <FileSpreadsheet className="h-5 w-5 flex-shrink-0" />
+          <div>
+            <p className="text-2xl font-bold leading-none">{processosUnicos}</p>
+            <p className="text-sm mt-1">processo(s) único(s) na planilha de carga</p>
+          </div>
+        </div>
+      )}
+
+
 
       {/* Stats Dashboard */}
       {stats && (
