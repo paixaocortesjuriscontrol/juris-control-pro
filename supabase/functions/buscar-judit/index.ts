@@ -1026,11 +1026,11 @@ serve(async (req) => {
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
     const classeRaw = extrairClasse(rdSelecionada);
     const classe = expandirSiglaRecurso(classeRaw, foiTst);
-    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST).
-    // Com apenas a 1ª instância, a classe da capa (ex.: "Ação Trabalhista",
-    // "Agravo de Instrumento" de execução) NÃO é tipo de recurso do TST e não
-    // pode ser aplicada nos campos de recurso.
-    const classeRecursal = foiTst ? classe : null;
+    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST)
+    // E a classe é efetivamente um recurso. Classes de ação originária,
+    // cumprimento de sentença ou execução NUNCA viram tipo de recurso.
+    const classeNaoRecursal = ehClasseNaoRecursal(classeRaw) || ehClasseNaoRecursal(classe);
+    const classeRecursal = foiTst && !classeNaoRecursal ? classe : null;
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
     // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
