@@ -101,6 +101,12 @@ type PrazoDialogProps = {
    * onde a publicação já é exibida em um painel lateral fixo à esquerda.
    */
   hidePublicacaoCollapsible?: boolean;
+  /**
+   * Item recorrente: a situação é gerenciada pela barra "Somente esta / Toda a
+   * série", então o campo Situação é ocultado e o salvar não altera o status
+   * do registro-pai da recorrência.
+   */
+  ocultarSituacao?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
