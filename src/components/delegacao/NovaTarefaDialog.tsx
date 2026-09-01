@@ -1586,7 +1586,7 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {tarefaParaEditar?.id && tarefaParaEditar.status !== "pendente" && (
+          {tarefaParaEditar?.id && !ocultarSituacao && tarefaParaEditar.status !== "pendente" && (
             <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={loading} className="w-full sm:w-auto">
               Reabrir
             </Button>
