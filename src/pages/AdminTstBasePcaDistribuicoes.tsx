@@ -812,6 +812,10 @@ export default function AdminTstBasePcaDistribuicoes() {
                 )}
                 Escolher planilha (.xlsx)
               </Button>
+              <Button variant="outline" onClick={baixarPlanilhaModelo}>
+                <Download className="w-4 h-4 mr-2" />
+                Baixar planilha modelo
+              </Button>
               {fileName && <span className="text-xs text-muted-foreground">{fileName}</span>}
             </div>
 
