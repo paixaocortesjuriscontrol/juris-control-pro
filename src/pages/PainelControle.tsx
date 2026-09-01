@@ -1177,6 +1177,7 @@ export default function PainelControle() {
         .filter((it) => passaFiltrosPainel(it, true));
     }
 
+    const recorrentesVistos = new Set<string>();
     const itensExport = baseItens.filter((it: any) => {
       if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
       if (inicio || fim) {
@@ -1185,8 +1186,17 @@ export default function PainelControle() {
           !!d && (!inicio || d >= inicio) && (!fim || d <= fim);
         if (!dentro(prev) && !dentro(fatal)) return false;
       }
+      // Itens recorrentes (ex.: "conferir diariamente") aparecem uma vez por dia na
+      // agenda. Na exportação, uma linha por item basta — evita repetir todo o mês.
+      const baseId = String(it.id).split("::")[0];
+      const ehOcorrencia = String(it.id).includes("::") || !!it.recorrencia_pai_id;
+      if (ehOcorrencia) {
+        if (recorrentesVistos.has(baseId)) return false;
+        recorrentesVistos.add(baseId);
+      }
       return true;
     });
+
 
     // Coletar IDs por origem para buscar responsáveis/envolvidos (N:N)
     const tarefaIds: string[] = [];
