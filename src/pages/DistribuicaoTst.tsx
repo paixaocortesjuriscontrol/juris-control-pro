@@ -2415,42 +2415,6 @@ export default function DistribuicaoTst() {
           </div>
         )}
 
-        {/* Alerta: processos preenchidos com "Outra Matéria" (não vai para a Carga Benner) */}
-        {mostrarPendencias && processosComOutraMateria.length > 0 && (
-          <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-50 dark:bg-amber-950/20 space-y-1">
-            <p className="text-sm font-medium text-amber-800 dark:text-amber-400">
-              {processosComOutraMateria.length} processo(s) desta página preenchido(s) com "Outra Matéria"
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-300/80">
-              "Outra Matéria" não é exportada para a planilha de Carga Benner. Substitua por uma matéria da lista do Santander.
-            </p>
-            <ul className="text-xs text-amber-800 dark:text-amber-300 list-disc pl-4 max-h-32 overflow-auto">
-              {processosComOutraMateria.map((p) => {
-                const dado = dados.find((d: any) => d.id === p.id);
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (dado) {
-                          setDetailInitialTab("distribuicao");
-                          setEditando(dado);
-                        }
-                      }}
-                      className="font-mono text-amber-900 dark:text-amber-200 hover:underline cursor-pointer disabled:opacity-50 disabled:cursor-default"
-                      disabled={!dado}
-                      title={dado ? "Abrir formulário de detalhe do processo" : "Registro não disponível"}
-                    >
-                      {formatProcessoNumero(p.processo_numero || "") || p.dossie || p.id}
-                    </button>
-                    {p.partes.length > 0 && <span className="opacity-70"> — {p.partes.join(", ")}</span>}
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        )}
-
         {/* Alerta: matérias selecionadas fora da lista oficial de pedidos */}
         {mostrarPendencias && processosComMateriaForaDaLista.length > 0 && (
           <div className="border border-red-500/40 rounded-lg p-3 bg-red-50 dark:bg-red-950/20 space-y-1">
