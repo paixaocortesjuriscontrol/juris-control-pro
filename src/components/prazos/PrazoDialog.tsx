@@ -136,6 +136,7 @@ export function PrazoDialog({
   publicacao,
   inline = false,
   embedded = false,
+  ocultarSituacao = false,
   hidePublicacaoCollapsible = false,
   secondarySave,
   tertiarySave,
