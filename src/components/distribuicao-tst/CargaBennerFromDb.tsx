@@ -16,6 +16,7 @@ import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoVa
 import { isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { getMotivoRecursoForaLista, MOTIVO_RECURSO_FORA_LISTA } from "@/utils/tipoRecursoOficial";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
 // --- Types ---
@@ -154,6 +155,10 @@ function getMotivoBloqueioCarga(d: any): string | null {
   if (isFlagOn(d?.segredo_justica)) return "Segredo de justiça";
   // "Problema Judit" NÃO é motivo de rejeição na Carga Benner.
   if (isFlagOn(d?.cejusc)) return "CEJUSC";
+  // Tipo de recurso preenchido com valor fora da lista de seleção oficial
+  // (típico de preenchimento automático inventado pela Judit).
+  const motivoRecurso = getMotivoRecursoForaLista(d);
+  if (motivoRecurso) return motivoRecurso;
   if (isFlagOn(d?.acordo)) return "Acordo";
   // "Recurso de terceiro" NÃO é motivo de rejeição na Carga Benner.
   const pend = getPendencias(d);
@@ -842,6 +847,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         ? `, ${warningsTotal} aviso(s)`
         : "";
       toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
+      const rejRecursoForaLista = rejected.filter(r => String(r["Motivo"] ?? "").startsWith(MOTIVO_RECURSO_FORA_LISTA)).length;
+      if (rejRecursoForaLista > 0) {
+        toast.error(
+          `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`,
+          { duration: 12000 },
+        );
+      }
       const rejForaLista = rejByType["Matérias fora da lista oficial de pedidos"] || 0;
       if (rejForaLista > 0) {
         toast.warning(
