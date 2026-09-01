@@ -880,6 +880,13 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         novosAlertas.push({ level: "info", message: msg });
       }
       setAlerts(novosAlertas);
+      const unicos = new Set(
+        outputFinal
+          .map((row) => String((row as any)["__numProcesso"] ?? "").replace(/\D/g, ""))
+          .filter((v) => v.length > 0)
+      );
+      setProcessosUnicos(unicos.size);
+
     } catch (err: any) {
       const msgErro = "Erro: " + (err?.message || String(err));
       toast.error(msgErro);
