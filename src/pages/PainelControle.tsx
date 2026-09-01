@@ -2297,16 +2297,8 @@ export default function PainelControle() {
                 >
                   Equipe
                 </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "notificacoes" ? "default" : "destructive"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("notificacoes")}
-                  title="Central de notificações (mantém menu e filtros)"
-                >
-                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
-                </Button>
                 {([
+
                   { key: "prazo",         label: "Prazos" },
                   { key: "audiencia",     label: "Audiências" },
                   { key: "tarefa",        label: "Tarefas" },
