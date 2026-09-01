@@ -862,16 +862,41 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         ? `, ${warningsTotal} aviso(s)`
         : "";
       const novosAlertas: { level: "error" | "warning" | "info" | "success"; message: string }[] = [];
-      const msgSucesso = `Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`;
+
+      // Contagens por PROCESSO ÚNICO (as listas acima são por LINHA: um mesmo
+      // processo pode gerar várias linhas — uma por parte recorrente — e várias
+      // linhas de rejeição — uma por motivo).
+      const digits = (v: any) => String(v ?? "").replace(/\D/g, "");
+      const uniqOf = (arr: any[], key: string) =>
+        new Set(arr.map((r) => digits(r[key])).filter((v) => v.length > 0));
+      const unicosExportados = uniqOf(outputFinal, "__numProcesso");
+      const unicosTransito = uniqOf(transitoFiltered, "__numProcesso");
+      const unicosRejeitados = uniqOf(rejected, "Número do Processo");
+
+      const msgSucesso = `Layout gerado com ${outputFinal.length} linha(s) de ${unicosExportados.size} processo(s), ${transitoFiltered.length} linha(s) de trânsito em julgado (${unicosTransito.size} processo(s)) e ${rejected.length} rejeição(ões) de ${unicosRejeitados.size} processo(s)${warningSuffix}.`;
       toast.success(msgSucesso);
       novosAlertas.push({ level: "success", message: msgSucesso });
-      const rejRecursoForaLista = rejected.filter(r => String(r["Motivo"] ?? "").startsWith(MOTIVO_RECURSO_FORA_LISTA)).length;
+
+      novosAlertas.push({
+        level: "info",
+        message: `Conciliação: ${allDist.length} registro(s) recebido(s) = ${unicosExportados.size} exportado(s) + ${unicosRejeitados.size} rejeitado(s) + ${unicosTransito.size} em trânsito em julgado. Obs.: as quantidades de linhas diferem das de processos porque cada processo gera uma linha por parte recorrente e uma linha de rejeição por motivo.`,
+      });
+
+      const rejUnicosPorMotivo = (pred: (motivo: string) => boolean) =>
+        new Set(
+          rejected
+            .filter((r) => pred(String(r["Motivo"] ?? "")))
+            .map((r) => digits(r["Número do Processo"]))
+            .filter((v) => v.length > 0)
+        ).size;
+
+      const rejRecursoForaLista = rejUnicosPorMotivo((m) => m.startsWith(MOTIVO_RECURSO_FORA_LISTA));
       if (rejRecursoForaLista > 0) {
         const msg = `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`;
         toast.error(msg, { duration: 12000 });
         novosAlertas.push({ level: "error", message: msg });
       }
-      const rejForaLista = rejByType["Matérias fora da lista oficial de pedidos"] || 0;
+      const rejForaLista = rejUnicosPorMotivo((m) => m === "Matérias fora da lista oficial de pedidos");
       if (rejForaLista > 0) {
         const msg = `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`;
         toast.warning(msg, { duration: 10000 });
@@ -884,12 +909,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         novosAlertas.push({ level: "info", message: msg });
       }
       setAlerts(novosAlertas);
-      const unicos = new Set(
-        outputFinal
-          .map((row) => String((row as any)["__numProcesso"] ?? "").replace(/\D/g, ""))
-          .filter((v) => v.length > 0)
-      );
-      setProcessosUnicos(unicos.size);
+      setProcessosUnicos(unicosExportados.size);
+
 
     } catch (err: any) {
       const msgErro = "Erro: " + (err?.message || String(err));
