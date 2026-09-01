@@ -218,7 +218,6 @@ export const COLUNAS_SELECT_PRONTO_SEM_PENDENCIA = Array.from(
     // Sem estas duas colunas o card ignorava as pendências de "Análise
     // Terceiro" (Aparelhamento / Chance Turma / Chance Relator / Êxito) que
     // a lista exibe — gerando divergência entre o contador e a listagem.
-    "materias_analise_terceiro",
     "materias_recurso_terceiro",
     ...COLUNAS_SELECT_PENDENCIAS,
   ]),
