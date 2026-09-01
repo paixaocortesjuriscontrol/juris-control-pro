@@ -673,27 +673,6 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return validas;
         };
-        let materiasSelecionadasCount = 0;
-        let materiasForaListaCount = 0;
-        const filtrarMateriasExportaveis = (arr: any[]) => {
-          const itens = (Array.isArray(arr) ? arr : []).filter(
-            (it: any) => it && it.materia && String(it.materia).trim(),
-          );
-          materiasSelecionadasCount += itens.length;
-          const validas: any[] = [];
-          for (const it of itens) {
-            if (isOutraMateria(it.materia)) {
-              validas.push(it);
-              continue;
-            }
-            if (!isMateriaOficial(it.materia)) {
-              materiasForaListaCount++;
-              continue;
-            }
-            validas.push(it);
-          }
-          return validas;
-        };
         const materiasPorParte: Record<string, any[]> = {
           reclamante: filtrarMateriasExportaveis((d as any).materias_analise_reclamante),
           banco: filtrarMateriasExportaveis((d as any).materias_analise_banco),
