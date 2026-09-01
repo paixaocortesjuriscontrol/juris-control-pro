@@ -220,7 +220,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         const eventoId = ((item as any).recorrencia_pai_id as string | undefined) ?? rawId.split("::")[0];
         const { data } = await supabase
           .from("eventos_agenda")
-          .select("*")
+          .select("*, processo:processos!eventos_agenda_processo_id_fkey(id,numero,polo_ativo,polo_passivo)")
           .eq("id", eventoId)
           .maybeSingle();
         if (!cancelled) setEvento(data);
