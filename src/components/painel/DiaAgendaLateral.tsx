@@ -12,7 +12,7 @@ import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
-import { useItensComComentarios } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 const TIPO_TEXTO: Record<string, string> = {
@@ -264,7 +264,7 @@ export function DiaAgendaLateral({
               onSelect={onSelectItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
-              temComentario={itensComComentarios.has(getItemRawId(item.id))}
+              temComentario={temComentarioItem(itensComComentarios, item)}
             />
           ))}
           {atividades.map((a: any) => {
