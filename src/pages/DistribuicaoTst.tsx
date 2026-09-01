@@ -61,7 +61,7 @@ import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import {
   getPendencias,
   pendenciasResumo,
-  COLUNAS_SELECT_PENDENCIAS,
+  COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
 } from "@/utils/distribuicaoTstPendencias";
 import {
   AlertDialog,
@@ -1075,7 +1075,7 @@ export default function DistribuicaoTst() {
       const colsExtras = Array.from(
         new Set([
           "id",
-          ...COLUNAS_SELECT_PENDENCIAS,
+          ...COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
         ]),
       );
       const selectCols = colsExtras.join(", ");
