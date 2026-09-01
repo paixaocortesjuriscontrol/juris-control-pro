@@ -170,6 +170,7 @@ export function NovaTarefaDialog({
   embedded = false,
   publicacao = null,
   onCreated,
+  ocultarSituacao = false,
   secondarySave,
   tertiarySave,
   onAfterCreate,
