@@ -2586,7 +2586,9 @@ export default function DistribuicaoTst() {
                       ? "text-destructive font-semibold"
                       : "";
                 const responsaveis = responsaveisMap.get(d.id) || [];
-                const isPronto = ((d as any).status || "") === "pronto_envio";
+                const statusAtual = String((d as any).status || "");
+                // Concluído = pronto, já planilhado na carga ou enviado ao Benner.
+                const isPronto = ["pronto_envio", "planilhado", "enviado"].includes(statusAtual);
                 const hasProvasDigitais = String((d as any).provas_digitais || "").trim().toLowerCase() === "s";
                 const isSubidaMassa = !!(d as any).subida_em_massa || /subida\s+em\s+massa/i.test(d.relator || "");
                 const isOutroEscritorio = (d as any).processo_outro_escritorio === true;
