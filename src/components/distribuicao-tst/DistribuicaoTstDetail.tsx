@@ -390,7 +390,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         // Trânsito em Julgado, Segredo de Justiça e Processo de outro escritório
         // são incompatíveis com "Pronto para Enviar".
         const bloqueado = transitoJulgado || segredoJustica || outroEscritorio;
-        const desiredStatus = prontoEnviar && !bloqueado ? "pronto_envio" : "rascunho";
+        // Marcado: mantém planilhado/enviado como estão (já foram para a carga);
+        // se estava rascunho, vira pronto_envio. Desmarcado: sempre volta a rascunho.
+        const desiredStatus = prontoEnviar && !bloqueado
+          ? (currentStatus === "planilhado" || currentStatus === "enviado" ? currentStatus : "pronto_envio")
+          : "rascunho";
         if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
