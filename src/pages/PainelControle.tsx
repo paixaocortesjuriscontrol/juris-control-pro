@@ -265,6 +265,12 @@ export default function PainelControle() {
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  // Busca por número de processo: mantém no calendário só os itens do processo
+  const [buscaProcesso, setBuscaProcesso] = useState("");
+  const buscaProcessoDigits = useMemo(
+    () => buscaProcesso.replace(/\D/g, ""),
+    [buscaProcesso],
+  );
   // Aplica os filtros do drill-down do ranking na primeira renderização
   const drillAplicadoRef = useRef(false);
   useEffect(() => {
