@@ -6241,6 +6241,45 @@ export type Database = {
         }
         Relationships: []
       }
+      ocorrencias_recorrentes_status: {
+        Row: {
+          alterado_por: string | null
+          concluido_em: string | null
+          created_at: string
+          data_ocorrencia: string
+          id: string
+          item_id: string
+          observacao: string | null
+          origem: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          alterado_por?: string | null
+          concluido_em?: string | null
+          created_at?: string
+          data_ocorrencia: string
+          id?: string
+          item_id: string
+          observacao?: string | null
+          origem: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          alterado_por?: string | null
+          concluido_em?: string | null
+          created_at?: string
+          data_ocorrencia?: string
+          id?: string
+          item_id?: string
+          observacao?: string | null
+          origem?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       parametros_monitoramento_djen: {
         Row: {
           ativo: boolean

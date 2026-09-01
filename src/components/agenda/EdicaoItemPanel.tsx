@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
+import { BaixaOcorrenciaBar } from "@/components/agenda/BaixaOcorrenciaBar";
+import { isOcorrenciaRecorrente } from "@/lib/baixaOcorrencia";
 
 function PrazoFatalReadOnlyPanel({
   processo,
@@ -251,6 +253,9 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
           <X className="h-4 w-4" />
         </Button>
       </div>
+      {isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento && (
+        <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isPrazoFatalTst ? (
           evento && (
