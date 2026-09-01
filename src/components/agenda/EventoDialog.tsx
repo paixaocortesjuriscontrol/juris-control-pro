@@ -1076,7 +1076,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
-              {isEditing && evento?.status !== "pendente" && (
+              {isEditing && !ocultarSituacao && evento?.status !== "pendente" && (
                 <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isPending} className="w-full sm:w-auto">
                   Reabrir
                 </Button>
