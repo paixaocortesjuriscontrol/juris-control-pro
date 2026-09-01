@@ -376,16 +376,25 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       // logo abaixo.
       // Persiste o switch "Pronto para Enviar" diretamente em dados_benner se alterado
       // (independente da aba ativa), para que o estado fique consistente em qualquer aba.
-      // Só mexe no status se ele estiver em um dos estados controlados pelo switch
-      // "Pronto para Enviar" (rascunho ⇄ pronto_envio). Qualquer outro status
-      // (em_analise, planilhado, enviado, etc.) é preservado.
+      // Estados controlados pelo switch "Pronto para Enviar": rascunho ⇄ pronto_envio.
+      // `planilhado`/`enviado` também contam como "pronto" na tela, então o advogado
+      // pode desmarcar e o registro volta para `rascunho`. Outros status
+      // (em_analise, etc.) são preservados.
       const currentStatus = (bennerDado as any)?.status;
-      const switchControlado = currentStatus === "rascunho" || currentStatus === "pronto_envio";
+      const switchControlado =
+        currentStatus === "rascunho" ||
+        currentStatus === "pronto_envio" ||
+        currentStatus === "planilhado" ||
+        currentStatus === "enviado";
       if (switchControlado) {
         // Trânsito em Julgado, Segredo de Justiça e Processo de outro escritório
         // são incompatíveis com "Pronto para Enviar".
         const bloqueado = transitoJulgado || segredoJustica || outroEscritorio;
-        const desiredStatus = prontoEnviar && !bloqueado ? "pronto_envio" : "rascunho";
+        // Marcado: mantém planilhado/enviado como estão (já foram para a carga);
+        // se estava rascunho, vira pronto_envio. Desmarcado: sempre volta a rascunho.
+        const desiredStatus = prontoEnviar && !bloqueado
+          ? (currentStatus === "planilhado" || currentStatus === "enviado" ? currentStatus : "pronto_envio")
+          : "rascunho";
         if (currentStatus !== desiredStatus && (bennerDado as any)?.id) {
           await supabase
             .from("dados_benner" as any)
@@ -694,7 +703,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                     }
                     setProntoEnviar(v);
                   }}
-                  disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado || segredoJustica || outroEscritorio}
+                  disabled={transitoJulgado || segredoJustica || outroEscritorio}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
