@@ -641,6 +641,115 @@ function stepIsReativacao(s: any): boolean {
       /(interpost|protocol|distribu)/i.test(t)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Classes que NUNCA são tipo de recurso (ação originária, cumprimento de
+// sentença, execução...). A Judit devolve a classe da capa da instância lida e,
+// quando ela cai na origem, o valor virava "recurso" no formulário — foi o que
+// gerou registros com "AÇÃO TRABALHISTA - RITO ORDINÁRIO" no campo de recurso.
+// ---------------------------------------------------------------------------
+const CLASSES_NAO_RECURSAIS: RegExp[] = [
+  /a[çc][ãa]o\s+trabalhista/i,
+  /^at\s*ord$/i,
+  /^atord$/i,
+  /^at\s*sum$/i,
+  /^atsum$/i,
+  /rito\s+(ordin[áa]rio|sumar[íi]ssimo|sum[áa]rio)/i,
+  /cumprimento\s+(provis[óo]rio\s+)?de\s+senten[çc]a/i,
+  /^cumprse$/i,
+  /^cumsen$/i,
+  /^cumpr\s*se$/i,
+  /execu[çc][ãa]o\s+(de\s+)?(t[íi]tulo|fiscal|provis[óo]ria|definitiva)/i,
+  /^exec/i,
+  /^ap$/i,
+  /carta\s+precat[óo]ria/i,
+  /inqu[ée]rito/i,
+  /tutela\s+cautelar\s+antecedente/i,
+  /^pet$/i,
+  /peti[çc][ãa]o\s+(inicial|diversa)/i,
+];
+
+function ehClasseNaoRecursal(txt: string | null | undefined): boolean {
+  const t = String(txt || "").trim();
+  if (!t) return false;
+  return CLASSES_NAO_RECURSAIS.some((re) => re.test(t));
+}
+
+// ---------------------------------------------------------------------------
+// Interposição de recurso confirmada nos andamentos.
+// Tipo de recurso só pode ser atribuído a uma parte quando existe movimento
+// Judit de interposição/recebimento/protocolo de recurso. Quando o andamento
+// nomeia o autor ("RECEBIDO O RECURSO ORDINÁRIO DE MARCELA LAZARO"), o lado é
+// decidido cruzando o nome com os polos; intimações vizinhas nunca invertem.
+// ---------------------------------------------------------------------------
+const RECURSO_NOMES =
+  /(recurso\s+de\s+revista|recurso\s+ordin[áa]rio|recurso\s+extraordin[áa]rio|recurso\s+especial|recurso\s+adesivo|agravo\s+de\s+instrumento|agravo\s+interno|agravo\s+regimental|agravo\s+em\s+recurso|embargos\s+de\s+declara[çc][ãa]o|embargos\s+[àa]\s+execu[çc][ãa]o|\bairr\b|\barr\b|\brrag\b|\brr\b|\bed-?rr\b|\bag-?airr\b)/i;
+const VERBO_INTERPOSICAO =
+  /(interpo|protocol|recebid[oa]\s+o?\s*(recurso|agravo|embargos)|apresentad[oa]\s+(recurso|agravo|embargos)|juntad[oa]\s+(petiç[ãa]o\s+de\s+)?(recurso|agravo|embargos)|distribu[íi]d[oa])/i;
+
+function normalizarNomeParte(nome: any): string {
+  return String(nome || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, " ")
+    .trim()
+    .toUpperCase();
+}
+
+/** Tokens significativos (>=4 letras) do nome, para casar em texto livre. */
+function tokensNome(nome: string): string[] {
+  return normalizarNomeParte(nome)
+    .split(" ")
+    .filter((t) => t.length >= 4 && !/^(DOS|DAS|LTDA|S\/?A|BANCO)$/.test(t));
+}
+
+type RecursosPorParte = {
+  reclamante: boolean;
+  banco: boolean;
+  terceiro: boolean;
+  algumConfirmado: boolean;
+};
+
+function extrairRecursosPorParte(
+  rds: any[],
+  nomesAtivo: string[],
+  nomesPassivo: string[],
+  santanderNomes: string[],
+): RecursosPorParte {
+  const out: RecursosPorParte = {
+    reclamante: false,
+    banco: false,
+    terceiro: false,
+    algumConfirmado: false,
+  };
+  const casa = (alvo: string, lista: string[]) =>
+    lista.some((n) => {
+      const toks = tokensNome(n);
+      if (!toks.length) return false;
+      return toks.filter((t) => alvo.includes(t)).length >= Math.min(2, toks.length);
+    });
+
+  for (const rd of rds) {
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
+    for (const s of steps) {
+      const texto = `${s?.title ?? ""} ${s?.content ?? ""} ${s?.description ?? ""}`;
+      if (!RECURSO_NOMES.test(texto) || !VERBO_INTERPOSICAO.test(texto)) continue;
+      out.algumConfirmado = true;
+      // Autor explícito: "... RECURSO/AGRAVO/EMBARGOS ... DE <NOME>"
+      const m = texto.match(
+        /(?:recurso|agravo|embargos)[^.;\n]{0,60}?\bde\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s.&'\-]{5,80})/i,
+      );
+      if (!m) continue;
+      const autor = normalizarNomeParte(m[1]);
+      if (!autor) continue;
+      if (casa(autor, santanderNomes)) out.banco = true;
+      else if (casa(autor, nomesPassivo)) out.terceiro = true;
+      else if (casa(autor, nomesAtivo)) out.reclamante = true;
+    }
+  }
+  return out;
+}
+
 /** O processo está arquivado/baixado em alguma das instâncias devolvidas? */
 function rdsIndicamEncerramento(rds: any[]): boolean {
   return rds.some((rd) => {
