@@ -1261,7 +1261,7 @@ export function PrazoDialog({
         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
           Cancelar
         </Button>
-        {prazo?.id && prazo.status !== "pendente" && (
+        {prazo?.id && !ocultarSituacao && prazo.status !== "pendente" && (
           <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isLoading}>
             Reabrir
           </Button>
