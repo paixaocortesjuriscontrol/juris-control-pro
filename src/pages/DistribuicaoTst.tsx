@@ -2633,7 +2633,6 @@ export default function DistribuicaoTst() {
                                 ? "Concluído — enviado ao Benner"
                                 : "Pronto para enviar";
                         } else if (emAnalise) {
-                        } else if (emAnalise) {
                           color = "bg-amber-400";
                           label = "Em análise";
                         } else if (naoPrecisaFazer) {
