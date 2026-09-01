@@ -57,9 +57,9 @@ export function reconcileMateriasAnalise(
   materias: string | null,
   current: MateriaAnaliseItem[] | null | undefined,
 ): MateriaAnaliseItem[] {
-  // "Outra Matéria" só é ignorada quando há outra matéria real selecionada;
-  // se for a única, gera linha de análise e é cobrada normalmente.
-  const list = aplicarRegraOutraMateria(parseMateriasString(materias), (n) => n);
+  // "Outra Matéria" é neutra: sempre gera linha de análise (para preenchimento
+  // opcional), sem nunca gerar pendência ou aviso.
+  const list = parseMateriasString(materias);
   const byKey = new Map<string, MateriaAnaliseItem>();
   for (const it of current || []) {
     if (!it || typeof it !== "object") continue;
