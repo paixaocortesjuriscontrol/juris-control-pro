@@ -129,6 +129,12 @@ interface NovaTarefaDialogProps {
   publicacao?: PublicacaoUnificada | null;
   onCreated?: (tarefaId: string) => void | Promise<void>;
   /**
+   * Item recorrente: a situação é gerenciada pela barra "Somente esta / Toda a
+   * série", então o campo Situação é ocultado e o salvar não altera o status
+   * do registro-pai da recorrência.
+   */
+  ocultarSituacao?: boolean;
+  /**
    * Botão extra ao lado de "Salvar". Se definido, exibe um segundo botão
    * (ex.: "Salvar e ler") que dispara o mesmo submit e, em caso de sucesso,
    * chama `onAfterSuccess` antes de fechar o diálogo.
