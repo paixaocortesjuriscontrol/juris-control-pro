@@ -2059,11 +2059,51 @@ const AnaliseDjenServidor = () => {
         if (cabecalho.join("\n\n").length >= 1200) break;
       }
       if (cabecalho.length > 0) {
-        return [...cabecalho, ...ultimos.filter(p => !cabecalho.includes(p)), ...trailing].join("\n\n").trim();
+        return garantirConclusao(
+          [...cabecalho, ...ultimos.filter(p => !cabecalho.includes(p)), ...trailing].join("\n\n").trim(),
+          normalizado,
+        );
       }
     }
 
-    return [...ultimos, ...trailing].join("\n\n").trim();
+    return garantirConclusao([...ultimos, ...trailing].join("\n\n").trim(), normalizado);
+  };
+
+  /**
+   * Rede de segurança: a conclusão do acórdão ("ISTO POSTO ACORDAM..." /
+   * "Ante o exposto, NEGO PROVIMENTO...") nunca pode faltar no resumo.
+   */
+  const garantirConclusao = (resumo: string, textoOriginal: string): string => {
+    if (!textoOriginal) return resumo;
+    const reConclusao = /(ISTO\s+POSTO\s+ACORDAM|ISSO\s+POSTO\s+ACORDAM|ACORDAM\s+os\s+Ministros|Ante\s+o\s+exposto|Pelo\s+exposto|Diante\s+do\s+exposto)/gi;
+    let idx = -1;
+    for (let m = reConclusao.exec(textoOriginal); m; m = reConclusao.exec(textoOriginal)) idx = m.index;
+    if (idx < 0) return resumo;
+    let trecho = textoOriginal.slice(idx);
+    const cortes = [
+      /(?:[OA]\s+)?documento\s+(?:est[áa]|tamb[ée]m)\s+(?:disponibilizado|pode)/i,
+      /Conforme\s+o\s+inciso\s+[IVX]+\s*,?\s*art\.?\s*\d+\s*,?\s*da\s+Resolu[çc][ãa]o/i,
+      /Resolu[çc][ãa]o\s*n?[º°]?\s*455\s*\/\s*2018/i,
+      /valida[çc][ãa]o\s+confirmada\s+com\s+a\s+chave/i,
+      /https?:\/\/pje\./i,
+      /Intimad[oa]\(s\)\s*\/\s*Citad[oa]\(s\)/i,
+    ];
+    let fim = trecho.length;
+    for (const re of cortes) {
+      const m = trecho.match(re);
+      if (m && m.index !== undefined && m.index < fim) fim = m.index;
+    }
+    trecho = trecho.slice(0, fim).replace(/\s+/g, " ").trim();
+    if (!trecho || trecho.length > 2000) return resumo;
+    const norm = (s: string) => s.replace(/\s+/g, " ").trim();
+    if (norm(resumo).includes(trecho)) return resumo;
+    const linhas = resumo.split(/\n\s*\n/);
+    const iIntim = linhas.findIndex((p) => /Intimad[oa]\(s\)\s*\/\s*Citad[oa]\(s\)/i.test(p));
+    if (iIntim >= 0) {
+      linhas.splice(iIntim, 0, trecho);
+      return linhas.join("\n\n").trim();
+    }
+    return [resumo, trecho].filter(Boolean).join("\n\n").trim();
   };
 
   // allExpanded computed below after allPublicacoes is defined
