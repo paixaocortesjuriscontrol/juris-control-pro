@@ -75,6 +75,12 @@ interface EventoDialogProps {
    * onde a publicação já é exibida em um painel lateral fixo à esquerda.
    */
   hidePublicacaoCollapsible?: boolean;
+  /**
+   * Item recorrente: a situação é gerenciada pela barra "Somente esta / Toda a
+   * série", então o campo Situação do formulário é ocultado e o salvar não
+   * altera o status do registro-pai.
+   */
+  ocultarSituacao?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
@@ -115,7 +121,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, ocultarSituacao = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
@@ -427,8 +433,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
       tipo: "evento",
-      status: situacao,
-      concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
+      // Item recorrente: a situação vem da barra de baixa por ocorrência —
+      // nunca sobrescrever o status da série ao salvar o formulário.
+      ...(ocultarSituacao
+        ? {}
+        : {
+            status: situacao,
+            concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
+          }),
       data_inicio: inicioISO,
       data_fim: fimISO,
       dia_inteiro: diaInteiro,
@@ -567,17 +579,21 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
 
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Situação</Label>
-                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-                  <SelectTrigger className="h-9 w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!ocultarSituacao && (
+                  <>
+                    <Label className="text-xs text-muted-foreground">Situação</Label>
+                    <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                      <SelectTrigger className="h-9 w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
                 <Button
                   type="submit"
                   form="evento-form-content"
@@ -611,7 +627,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             </div>
             <ScrollAreaOrDiv embedded={embedded}>
               <form onSubmit={handleSubmit} className="space-y-5 pb-6" id="evento-form-content">
-            {situacao !== situacaoInicial && (
+            {!ocultarSituacao && situacao !== situacaoInicial && (
               <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
                 <Label className="text-xs font-semibold">
                   Comentário da mudança de situação{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
@@ -1060,7 +1076,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
-              {isEditing && evento?.status !== "pendente" && (
+              {isEditing && !ocultarSituacao && evento?.status !== "pendente" && (
                 <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isPending} className="w-full sm:w-auto">
                   Reabrir
                 </Button>

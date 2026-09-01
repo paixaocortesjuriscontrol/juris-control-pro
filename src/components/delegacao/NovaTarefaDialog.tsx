@@ -129,6 +129,12 @@ interface NovaTarefaDialogProps {
   publicacao?: PublicacaoUnificada | null;
   onCreated?: (tarefaId: string) => void | Promise<void>;
   /**
+   * Item recorrente: a situação é gerenciada pela barra "Somente esta / Toda a
+   * série", então o campo Situação é ocultado e o salvar não altera o status
+   * do registro-pai da recorrência.
+   */
+  ocultarSituacao?: boolean;
+  /**
    * Botão extra ao lado de "Salvar". Se definido, exibe um segundo botão
    * (ex.: "Salvar e ler") que dispara o mesmo submit e, em caso de sucesso,
    * chama `onAfterSuccess` antes de fechar o diálogo.
@@ -164,6 +170,7 @@ export function NovaTarefaDialog({
   embedded = false,
   publicacao = null,
   onCreated,
+  ocultarSituacao = false,
   secondarySave,
   tertiarySave,
   onAfterCreate,
@@ -598,8 +605,13 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
-          status: situacao as any,
-          data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+          // Recorrente: situação é dada pela barra de baixa por ocorrência
+          ...(ocultarSituacao
+            ? {}
+            : {
+                status: situacao as any,
+                data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+              }),
           recorrente: recorrenciaTipo !== "nenhuma",
           recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
           recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
@@ -892,15 +904,19 @@ export function NovaTarefaDialog({
               }}
             />
           )}
-          <span className="text-xs text-muted-foreground">Situação</span>
-          <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-            <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
-                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!ocultarSituacao && (
+            <>
+              <span className="text-xs text-muted-foreground">Situação</span>
+              <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
+                    <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </>
+          )}
           <Button
             type="submit"
             form="nova-tarefa-form"
@@ -919,15 +935,19 @@ export function NovaTarefaDialog({
             Tarefa
           </DialogTitle>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Situação</span>
-            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!ocultarSituacao && (
+              <>
+                <span className="text-xs text-muted-foreground">Situação</span>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
             <Button
               type="submit"
               form="nova-tarefa-form"
@@ -1566,7 +1586,7 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {tarefaParaEditar?.id && tarefaParaEditar.status !== "pendente" && (
+          {tarefaParaEditar?.id && !ocultarSituacao && tarefaParaEditar.status !== "pendente" && (
             <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={loading} className="w-full sm:w-auto">
               Reabrir
             </Button>
