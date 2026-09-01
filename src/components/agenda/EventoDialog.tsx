@@ -242,6 +242,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     },
     enabled: !!processoId,
   });
+  // O painel lateral já recebe o processo no join da agenda. Mantê-lo como
+  // fallback evita ocultar o vínculo caso a consulta isolada seja restringida
+  // pela visibilidade do usuário ou ainda esteja carregando.
+  const processoDoEvento = (evento as any)?.processo as
+    | { id: string; numero: string; polo_ativo?: string | null; polo_passivo?: string | null }
+    | null
+    | undefined;
+  const processoExibido = processoSelecionado ?? processoDoEvento;
 
   // Carregar alertas existentes
   const { data: alertasEvento } = useQuery({
@@ -541,18 +549,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
                   Evento
                 </h3>
-                {processoSelecionado && (
+                {processoExibido && (
                   <a
-                    href={`/processos/${processoSelecionado.id}`}
+                    href={`/processos/${processoExibido.id}`}
                     target="_blank"
                     rel="noreferrer"
                     className="mt-0.5 flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
-                    title={`${processoSelecionado.numero} — ${processoSelecionado.polo_ativo ?? ""} x ${processoSelecionado.polo_passivo ?? ""}`}
+                    title={`${processoExibido.numero} — ${processoExibido.polo_ativo ?? ""} x ${processoExibido.polo_passivo ?? ""}`}
                   >
                     <FileText className="w-3.5 h-3.5 shrink-0" />
-                    <span className="font-medium">{processoSelecionado.numero}</span>
+                    <span className="font-medium">{processoExibido.numero}</span>
                     <span className="text-muted-foreground truncate">
-                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                      {processoExibido.polo_ativo} x {processoExibido.polo_passivo}
                     </span>
                   </a>
                 )}
@@ -883,20 +891,20 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 <FileText className="w-4 h-4" />
                 Vincular processo (opcional)
               </Label>
-              {processoSelecionado ? (
+              {processoExibido ? (
                 <div className="p-2 bg-muted/50 rounded space-y-1">
                   <div className="flex items-start justify-between gap-2">
                     <div className="text-sm min-w-0">
-                      <span className="font-medium">{processoSelecionado.numero}</span>
+                      <span className="font-medium">{processoExibido.numero}</span>
                       <span className="text-muted-foreground ml-2">
-                        {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                        {processoExibido.polo_ativo} x {processoExibido.polo_passivo}
                       </span>
                     </div>
                     <Button type="button" variant="ghost" size="sm" onClick={() => setProcessoId("")}>
                       <X className="w-4 h-4" />
                     </Button>
                   </div>
-                  <ProcessoResumoInline processoId={String(processoSelecionado.id)} />
+                  <ProcessoResumoInline processoId={String(processoExibido.id)} />
                 </div>
               ) : (
                 <>
