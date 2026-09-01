@@ -1,41 +1,28 @@
-# Matéria do recurso da reclamada rejeitada na Carga Benner
+# Relatório de matérias fora da lista com sugestão de saneamento
 
-## O que aconteceu (verificado no banco)
+Gerar uma nova versão da planilha de análise (`Materias_Fora_Lista_Prontos.xlsx`) acrescentando, para cada matéria fora da lista oficial, uma coluna com a **sugestão de matéria oficial** correspondente.
 
-Processo `0020242-65.2024.5.04.0304` (dossiê `07.02.951.0003900445/24`):
+## O que muda na planilha
 
-- Recorrente: **Reclamante e Reclamada**
-- Matéria do recurso da reclamada (banco): **"Horas extras intervalo intrajornada"**
-- Matérias do recurso do reclamante: "Enquadramento como bancário" e "Responsabilidade solidária - grupo econômico"
+Aba "Fora da Lista" — mesmas colunas de hoje (coordenação, processo, dossiê, status, parte recorrente, matérias fora separadas por Reclamante / Reclamada (Banco) / Terceiro) mais:
 
-Na tabela oficial `materias_pedidos_oficiais`:
+- **Sugestão de saneamento** — nome oficial sugerido para cada matéria fora da lista, na mesma ordem.
+- **Confiança** — Alta / Média / Sem sugestão.
 
-- "Enquadramento como bancário" — existe
-- "Responsabilidade solidária - grupo econômico" — existe
-- "Horas extras intervalo intrajornada" — **não existe**. O nome oficial é **"Horas extras intrajornada"** (a palavra "intervalo" sobra)
+Aba "Resumo por Matéria" — passa a ter, por matéria fora da lista: quantidade de processos, sugestão oficial e confiança. Assim dá para aprovar o de-para em bloco.
 
-Por isso a matéria da reclamada foi descartada como fora da lista oficial e a planilha saiu só com as matérias do reclamante. A advogada está certa: a matéria não foi para a planilha — e o motivo é a divergência de um único termo no nome.
+Nova aba **"De-Para Sugerido"** — uma linha por matéria fora da lista distinta: matéria atual, sugestão oficial, confiança, nº de ocorrências. É a folha de aprovação para um eventual saneamento futuro.
 
-## Correção proposta
+## Como a sugestão é calculada
 
-1. **Dicionário de sinônimos de matérias**
-   Nova tabela `materias_pedidos_sinonimos` (`sinonimo` normalizado -> `materia_oficial`). Antes de rejeitar uma matéria, o sistema procura o sinônimo e converte para o nome oficial, que é o que vai para a planilha.
-   Sinônimos iniciais a cadastrar (a partir dos casos já vistos):
-   - "Horas extras intervalo intrajornada" -> "Horas extras intrajornada"
+Comparação de cada matéria fora da lista contra as 249 matérias ativas de `materias_pedidos_oficiais`, com normalização (sem acentos, minúsculas, espaços colapsados) e:
 
-2. **Sugestão automática por semelhança**
-   Quando a matéria não bate exata nem por sinônimo, o sistema calcula a matéria oficial mais parecida e mostra na tela de Distribuição TST / mensagens da Carga Benner: "Matéria X fora da lista — você quis dizer Y?", com botão para corrigir o registro e (opcionalmente) gravar o sinônimo. Nada é convertido em silêncio sem confirmação.
+1. Correspondência exata após remover palavras de ligação/ruído (ex.: "Horas extras intervalo intrajornada" -> "Horas extras intrajornada") — confiança Alta.
+2. Similaridade por tokens + distância de edição, aceitando apenas acima de um limiar seguro — confiança Média.
+3. Sem candidato acima do limiar — "Sem sugestão" (célula em vermelho), para tratamento manual.
 
-3. **Relatório de matérias fora da lista**
-   Painel na Carga Benner listando todas as matérias não oficiais em uso hoje, com contagem de processos e a sugestão oficial correspondente, para limpeza em lote.
+Matérias claramente inexistentes na lista oficial (ex.: teses/decisões, "Outra Matéria") ficam como "Sem sugestão" em vez de receber um encaixe forçado.
 
-4. **Correção deste processo**
-   Ajustar a matéria do recurso da reclamada deste processo para o nome oficial "Horas extras intrajornada", para que ele entre corretamente na próxima geração da Carga Benner.
+## Escopo
 
-## Detalhes técnicos
-
-- Nova tabela `public.materias_pedidos_sinonimos` (id, sinonimo_normalizado único, materia_oficial, criado_por, created_at), com GRANTs para `authenticated`/`service_role` e RLS (leitura para autenticados, escrita para admin/coordenador).
-- `src/utils/materiasOficiais` (mesma normalização atual: sem acentos, minúsculas, espaços colapsados) ganha resolução em duas etapas: exata -> sinônimo. Fallback de sugestão por distância de Levenshtein/trigrama apenas para exibição.
-- `CargaBennerFromDb.tsx`: as mensagens fixas passam a incluir a sugestão oficial ao lado de cada matéria rejeitada; o arquivo de rejeições ganha a coluna "Sugestão".
-- `gerarPlanilhaBenner.ts` exporta sempre o nome oficial resolvido.
-- `MateriasAnaliseList.tsx` sinaliza em amarelo matérias fora da lista com a sugestão inline.
+Somente geração do arquivo Excel para análise. Nenhuma alteração no sistema, no banco ou na regra de rejeição da Carga Benner.
