@@ -2223,9 +2223,15 @@ const AnaliseDjen = () => {
       metaItems.push(new TextRun({ text: "Turma: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
       metaItems.push(new TextRun({ text: sanitizeForXml(turma) + "   ", size: docFontSize, font: docFont, color: "555555" }));
     }
+    // Disponibilização e publicação são datas diferentes (o DJEN publica no dia
+    // útil seguinte). Mostrar as duas evita a dúvida do tipo "não saiu no dia 28".
     if (pub.data_disponibilizacao) {
-      metaItems.push(new TextRun({ text: "Data: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: "Disponibilização: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
       metaItems.push(new TextRun({ text: formatDateOnlyFull(pub.data_disponibilizacao) + "   ", size: docFontSize, font: docFont, color: "555555" }));
+    }
+    if (pub.data_publicacao) {
+      metaItems.push(new TextRun({ text: "Publicação: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
+      metaItems.push(new TextRun({ text: formatDateOnlyFull(pub.data_publicacao) + "   ", size: docFontSize, font: docFont, color: "555555" }));
     }
     metaItems.push(new TextRun({ text: "Tipo: ", bold: true, size: docFontSize, font: docFont, color: "333333" }));
     metaItems.push(new TextRun({ text: sanitizeForXml(pub.tipo_comunicacao) || "Intimação", size: docFontSize, font: docFont, color: "555555" }));
