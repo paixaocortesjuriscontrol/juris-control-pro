@@ -390,20 +390,9 @@ export default function DistribuicaoTst() {
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
-  // Processos preenchidos com "Outra Matéria": alerta ao "Verificar Pendências",
-  // pois esse rótulo nunca é exportado para a planilha de Carga Benner.
-  const processosComOutraMateria = useMemo(() => {
-    const temOutra = (s: any) => parseMateriasString(s).some((n) => isOutraMateria(n));
-    return (dados || [])
-      .map((d: any) => {
-        const partes: string[] = [];
-        if (temOutra(d.materias_recurso_reclamante)) partes.push("Reclamante");
-        if (temOutra(d.materias_recurso_banco)) partes.push("Banco");
-        if (temOutra(d.materias_recurso_terceiro)) partes.push("Terceiro");
-        return { id: d.id, processo_numero: d.processo_numero, dossie: d.dossie, partes };
-      })
-      .filter((p) => p.partes.length > 0);
-  }, [dados]);
+  // "Outra Matéria" é neutra: não gera alerta, pendência nem rejeição.
+
+
 
   // Processos com matéria selecionada FORA da lista oficial de pedidos
   // (tabela materias_pedidos_oficiais — coluna Pedido da planilha Santander).
