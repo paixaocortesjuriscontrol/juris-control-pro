@@ -1401,9 +1401,13 @@ serve(async (req) => {
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
-        fonte_tipo_recurso: classeRecursal
-          ? "classe_instancia_tst"
-          : (classe ? "classe_nao_recursal_ignorada" : "nenhuma"),
+        fonte_tipo_recurso: (tipoRecursoReclamante || tipoRecursoBanco || tipoRecursoTerceiro)
+          ? "interposicao_confirmada_tst"
+          : (classeNaoRecursal
+            ? "classe_nao_recursal_ignorada"
+            : (classeRecursal && !interposicaoConfirmada ? "sem_interposicao_confirmada" : "nenhuma")),
+        interposicao_confirmada: interposicaoConfirmada,
+        classe_nao_recursal: classeNaoRecursal,
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
