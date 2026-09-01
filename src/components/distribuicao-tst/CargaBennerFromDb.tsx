@@ -8,7 +8,7 @@ import JSZip from "jszip";
 import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import * as XLSX from "xlsx";
 import {
-  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
+  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail, X,
 } from "lucide-react";
 import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
@@ -337,6 +337,15 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
+  const [alerts, setAlerts] = useState<{ level: "error" | "warning" | "info" | "success"; message: string }[]>([]);
+
+  const pushAlert = (level: "error" | "warning" | "info" | "success", message: string) => {
+    if (level === "error") toast.error(message);
+    else if (level === "warning") toast.warning(message);
+    else if (level === "info") toast.info(message);
+    else toast.success(message);
+    setAlerts((prev) => [...prev.filter((a) => a.message !== message), { level, message }]);
+  };
   const criarRemessa = useCriarRemessa();
   const navigate = useNavigate();
 
@@ -360,6 +369,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     setOutputData(null);
     setRejectedData([]);
     setConferenciaData(null);
+    setAlerts([]);
+
 
     try {
       // Phase 0: lista oficial de pedidos (Santander). Somente matérias
@@ -846,30 +857,33 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const warningSuffix = warningsTotal > 0
         ? `, ${warningsTotal} aviso(s)`
         : "";
-      toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
+      const novosAlertas: { level: "error" | "warning" | "info" | "success"; message: string }[] = [];
+      const msgSucesso = `Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`;
+      toast.success(msgSucesso);
+      novosAlertas.push({ level: "success", message: msgSucesso });
       const rejRecursoForaLista = rejected.filter(r => String(r["Motivo"] ?? "").startsWith(MOTIVO_RECURSO_FORA_LISTA)).length;
       if (rejRecursoForaLista > 0) {
-        toast.error(
-          `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`,
-          { duration: 12000 },
-        );
+        const msg = `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`;
+        toast.error(msg, { duration: 12000 });
+        novosAlertas.push({ level: "error", message: msg });
       }
       const rejForaLista = rejByType["Matérias fora da lista oficial de pedidos"] || 0;
       if (rejForaLista > 0) {
-        toast.warning(
-          `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`,
-          { duration: 10000 },
-        );
+        const msg = `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`;
+        toast.warning(msg, { duration: 10000 });
+        novosAlertas.push({ level: "warning", message: msg });
       }
       const avisoParcial = warningsByType["Matérias descartadas fora da lista oficial"] || 0;
       if (avisoParcial > 0) {
-        toast.info(
-          `${avisoParcial} processo(s) exportado(s) com matérias descartadas por não constarem na lista oficial de pedidos.`,
-          { duration: 8000 },
-        );
+        const msg = `${avisoParcial} processo(s) exportado(s) com matérias descartadas por não constarem na lista oficial de pedidos.`;
+        toast.info(msg, { duration: 8000 });
+        novosAlertas.push({ level: "info", message: msg });
       }
+      setAlerts(novosAlertas);
     } catch (err: any) {
-      toast.error("Erro: " + (err?.message || String(err)));
+      const msgErro = "Erro: " + (err?.message || String(err));
+      toast.error(msgErro);
+      setAlerts((prev) => [...prev, { level: "error", message: msgErro }]);
       console.error("[CargaBennerFromDb] Error:", err);
     } finally {
       setProcessing(false);
@@ -979,7 +993,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       return { blob, filename: `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx` };
     } catch (err: any) {
-      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao gerar planilha: " + (err?.message || String(err)));
       return null;
     }
   };
@@ -1018,7 +1032,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       if (onClose) onClose();
       navigate("/remessas-benner");
     } catch (err: any) {
-      toast.error("Erro ao salvar remessa: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao salvar remessa: " + (err?.message || String(err)));
     }
   };
 
@@ -1040,7 +1054,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const downloadConferenciaXlsx = async () => {
     const data = conferenciaData ?? outputData;
     if (!data || data.length === 0) {
-      toast.error("Nenhum dado para gerar a conferência.");
+      pushAlert("error", "Nenhum dado para gerar a conferência.");
       return;
     }
     try {
@@ -1210,7 +1224,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       URL.revokeObjectURL(a.href);
       toast.success("Planilha de conferência baixada!");
     } catch (err: any) {
-      toast.error("Erro ao gerar conferência: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao gerar conferência: " + (err?.message || String(err)));
     }
   };
 
@@ -1230,6 +1244,37 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Mensagens fixas na tela (não desaparecem como o toast) */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, i) => (
+            <div
+              key={`${a.level}-${i}-${a.message.slice(0, 20)}`}
+              className={
+                "flex items-start gap-2 rounded-lg border p-3 text-sm " +
+                (a.level === "error"
+                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                  : a.level === "warning"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  : a.level === "info"
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400")
+              }
+            >
+              <span className="flex-1">{a.message}</span>
+              <button
+                type="button"
+                aria-label="Dispensar mensagem"
+                className="opacity-60 hover:opacity-100"
+                onClick={() => setAlerts((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Stats Dashboard */}
