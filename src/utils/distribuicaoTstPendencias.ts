@@ -32,26 +32,66 @@ const eq = (v: any, ...alvos: string[]) => {
 };
 
 /** Helpers de leitura case-insensitive para o campo "Parte Recorrente". */
-const parteRec = (row: any): string =>
-  String(row?.parte_recorrente ?? row?.recorrente ?? "").trim().toUpperCase();
+const parteRec = (row: any): string => {
+  const bruto = [row?.parte_recorrente, row?.recorrente].find(
+    (v) => v !== null && v !== undefined && String(v).trim() !== "",
+  );
+  return String(bruto ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toUpperCase();
+};
+
+export type ParteRecorrenteInfo = {
+  reclamante: boolean;
+  banco: boolean;
+  terceiro: boolean;
+  /** `true` quando a seleção identifica ao menos uma parte recorrente válida. */
+  valida: boolean;
+};
+
+/**
+ * Interpreta o campo "Parte Recorrente" e diz quais quadros de recurso ficam
+ * obrigatórios. Valores herdados de importações/Judit que não identificam a
+ * parte (ex.: "-----", "Ativo: BANCO SANTANDER ... Passivo: ...") são tratados
+ * como NÃO selecionados — a advogada precisa escolher a parte.
+ */
+export function parseParteRecorrente(row: any): ParteRecorrenteInfo {
+  const s = parteRec(row);
+  const vazio = { reclamante: false, banco: false, terceiro: false, valida: false };
+  if (!s || /^[-–—\s.]+$/.test(s)) return vazio;
+  // Texto de capa da Judit (lista de partes) não é seleção de parte recorrente.
+  if (/ATIVO\s*:|PASSIVO\s*:/.test(s) || s.length > 60) return vazio;
+  const ambos = /\bAMBOS\b/.test(s);
+  const reclamante = ambos || /\bRECLAMANTE\b/.test(s);
+  const banco = ambos || /RECLAMAD[AO]?\b/.test(s) || /\bBANCO\b/.test(s);
+  const terceiro = /\bTERCEIRO?S?\b/.test(s);
+  return { reclamante, banco, terceiro, valida: reclamante || banco || terceiro };
+}
 
 /** A parte recorrente envolve Reclamante? (também aceita "Reclamante e Reclamada") */
-export const recorrenteEnvolveReclamante = (row: any): boolean => {
-  const p = parteRec(row);
-  return p.includes("RECLAMANTE");
-};
+export const recorrenteEnvolveReclamante = (row: any): boolean =>
+  parseParteRecorrente(row).reclamante;
 
 /** A parte recorrente envolve Reclamada/Banco? */
-export const recorrenteEnvolveBanco = (row: any): boolean => {
-  const p = parteRec(row);
-  // "Reclamada" ou "Reclamante e Reclamada"
-  return /RECLAMAD/.test(p);
+export const recorrenteEnvolveBanco = (row: any): boolean =>
+  parseParteRecorrente(row).banco;
+
+/** A parte recorrente envolve Terceiro? */
+export const recorrenteEhTerceiro = (row: any): boolean =>
+  parseParteRecorrente(row).terceiro;
+
+/** Terceiro é a ÚNICA parte recorrente (isenta o preenchimento dos demais quadros). */
+export const recorrenteSomenteTerceiro = (row: any): boolean => {
+  const p = parseParteRecorrente(row);
+  return p.terceiro && !p.reclamante && !p.banco;
 };
 
-/** A parte recorrente é Terceiro? */
-export const recorrenteEhTerceiro = (row: any): boolean => {
-  return parteRec(row).includes("TERCEIRO");
-};
+/** A parte recorrente foi selecionada de forma válida? */
+export const parteRecorrenteSelecionada = (row: any): boolean =>
+  parseParteRecorrente(row).valida;
+
 
 /** Mídia Negativa marcada como SIM? */
 export const midiaNegativaSim = (row: any): boolean =>
@@ -281,7 +321,7 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
     row?.transito_julgado === true ||
-    recorrenteEhTerceiro(row)
+    recorrenteSomenteTerceiro(row)
   ) {
     return [];
   }
@@ -291,6 +331,16 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     const v = getValor(row, c);
     if (isEmpty(v)) out.push({ key: c.key, label: c.label, quadrinho: c.quadrinho });
   }
+  // "Parte Recorrente" é sempre obrigatória e precisa identificar a parte:
+  // valores herdados ("-----", lista de partes da Judit) não valem como seleção.
+  if (!parteRecorrenteSelecionada(row) && !out.some((p) => p.key === "recorrente")) {
+    out.push({
+      key: "recorrente",
+      label: "Parte Recorrente (AA)",
+      quadrinho: "II. Relator e Turma",
+    });
+  }
+
   // Pendências dinâmicas: para cada matéria selecionada nos quadros de recurso,
   // exigir Aparelhamento + Chance Turma + Chance Relator + Êxito.
   // Só cobrar sub-itens quando a parte figura como recorrente (mesma regra dos
