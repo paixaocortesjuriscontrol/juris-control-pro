@@ -337,6 +337,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const [outputData, setOutputData] = useState<Record<string, any>[] | null>(null);
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
+  const [alerts, setAlerts] = useState<{ level: "error" | "warning" | "info" | "success"; message: string }[]>([]);
   const criarRemessa = useCriarRemessa();
   const navigate = useNavigate();
 
