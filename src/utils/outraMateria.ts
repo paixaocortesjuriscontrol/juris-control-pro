@@ -2,12 +2,11 @@
  * "Outra Matéria" é um rótulo especial usado na Distribuição TST para indicar
  * que a matéria do recurso não está cadastrada no Santander.
  *
- * Regras (definidas pela advogada):
- *  - Quando há pelo menos uma matéria real selecionada, "Outra Matéria" é
- *    ignorada: não gera linha de análise nem pendência.
- *  - Quando é a ÚNICA matéria selecionada, ela gera linha de análise e é
- *    cobrada normalmente (Aparelhamento, Chance Turma, Chance Relator, Êxito).
- *  - Em qualquer caso, NUNCA é exportada nas planilhas de Carga Benner.
+ * Regra atual (definida pela advogada):
+ *  - É totalmente NEUTRA: nunca gera pendência nem aviso, e nunca rejeita o
+ *    processo na Carga Benner.
+ *  - Aparece como linha na tabela de Análise por Matéria (preenchimento
+ *    opcional) e é exportada normalmente nas planilhas de Carga Benner.
  */
 
 export const OUTRA_MATERIA_LABEL = "Outra Matéria";
