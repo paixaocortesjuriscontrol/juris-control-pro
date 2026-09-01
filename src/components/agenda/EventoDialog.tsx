@@ -433,8 +433,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       titulo: titulo.trim(),
       descricao: observacoes || undefined,
       tipo: "evento",
-      status: situacao,
-      concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
+      // Item recorrente: a situação vem da barra de baixa por ocorrência —
+      // nunca sobrescrever o status da série ao salvar o formulário.
+      ...(ocultarSituacao
+        ? {}
+        : {
+            status: situacao,
+            concluido_em: situacao === "concluido" ? new Date().toISOString() : null,
+          }),
       data_inicio: inicioISO,
       data_fim: fimISO,
       dia_inteiro: diaInteiro,
