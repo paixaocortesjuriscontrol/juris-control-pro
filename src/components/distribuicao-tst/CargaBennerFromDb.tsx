@@ -372,6 +372,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     setRejectedData([]);
     setConferenciaData(null);
     setAlerts([]);
+    setProcessosUnicos(null);
+
 
 
     try {
