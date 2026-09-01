@@ -694,7 +694,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                     }
                     setProntoEnviar(v);
                   }}
-                  disabled={(bennerDado as any)?.status === "planilhado" || (bennerDado as any)?.status === "enviado" || transitoJulgado || segredoJustica || outroEscritorio}
+                  disabled={transitoJulgado || segredoJustica || outroEscritorio}
                 />
               </div>
               <div className="flex items-center justify-between gap-2">
