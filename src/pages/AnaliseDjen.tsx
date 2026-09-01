@@ -2019,7 +2019,7 @@ const AnaliseDjen = () => {
       const limpos: string[] = [];
       let apagouBoiler = false;
       for (const p of paragrafos) {
-        const limpo = removerBoilerplateInline(p);
+        const limpo = cortarBoilerplatePje(p);
         if (!limpo) { apagouBoiler = true; continue; }
         // Nome em CAIXA-ALTA do servidor que assinou, imediatamente após o boilerplate
         if (apagouBoiler && limpo.length <= 120 && /^[A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ \-\.&'/()]+$/.test(limpo)) continue;
