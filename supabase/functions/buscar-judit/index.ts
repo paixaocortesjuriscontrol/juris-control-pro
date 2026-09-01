@@ -641,6 +641,115 @@ function stepIsReativacao(s: any): boolean {
       /(interpost|protocol|distribu)/i.test(t)
   );
 }
+
+// ---------------------------------------------------------------------------
+// Classes que NUNCA são tipo de recurso (ação originária, cumprimento de
+// sentença, execução...). A Judit devolve a classe da capa da instância lida e,
+// quando ela cai na origem, o valor virava "recurso" no formulário — foi o que
+// gerou registros com "AÇÃO TRABALHISTA - RITO ORDINÁRIO" no campo de recurso.
+// ---------------------------------------------------------------------------
+const CLASSES_NAO_RECURSAIS: RegExp[] = [
+  /a[çc][ãa]o\s+trabalhista/i,
+  /^at\s*ord$/i,
+  /^atord$/i,
+  /^at\s*sum$/i,
+  /^atsum$/i,
+  /rito\s+(ordin[áa]rio|sumar[íi]ssimo|sum[áa]rio)/i,
+  /cumprimento\s+(provis[óo]rio\s+)?de\s+senten[çc]a/i,
+  /^cumprse$/i,
+  /^cumsen$/i,
+  /^cumpr\s*se$/i,
+  /execu[çc][ãa]o\s+(de\s+)?(t[íi]tulo|fiscal|provis[óo]ria|definitiva)/i,
+  /^exec/i,
+  /^ap$/i,
+  /carta\s+precat[óo]ria/i,
+  /inqu[ée]rito/i,
+  /tutela\s+cautelar\s+antecedente/i,
+  /^pet$/i,
+  /peti[çc][ãa]o\s+(inicial|diversa)/i,
+];
+
+function ehClasseNaoRecursal(txt: string | null | undefined): boolean {
+  const t = String(txt || "").trim();
+  if (!t) return false;
+  return CLASSES_NAO_RECURSAIS.some((re) => re.test(t));
+}
+
+// ---------------------------------------------------------------------------
+// Interposição de recurso confirmada nos andamentos.
+// Tipo de recurso só pode ser atribuído a uma parte quando existe movimento
+// Judit de interposição/recebimento/protocolo de recurso. Quando o andamento
+// nomeia o autor ("RECEBIDO O RECURSO ORDINÁRIO DE MARCELA LAZARO"), o lado é
+// decidido cruzando o nome com os polos; intimações vizinhas nunca invertem.
+// ---------------------------------------------------------------------------
+const RECURSO_NOMES =
+  /(recurso\s+de\s+revista|recurso\s+ordin[áa]rio|recurso\s+extraordin[áa]rio|recurso\s+especial|recurso\s+adesivo|agravo\s+de\s+instrumento|agravo\s+interno|agravo\s+regimental|agravo\s+em\s+recurso|embargos\s+de\s+declara[çc][ãa]o|embargos\s+[àa]\s+execu[çc][ãa]o|\bairr\b|\barr\b|\brrag\b|\brr\b|\bed-?rr\b|\bag-?airr\b)/i;
+const VERBO_INTERPOSICAO =
+  /(interpo|protocol|recebid[oa]\s+o?\s*(recurso|agravo|embargos)|apresentad[oa]\s+(recurso|agravo|embargos)|juntad[oa]\s+(petiç[ãa]o\s+de\s+)?(recurso|agravo|embargos)|distribu[íi]d[oa])/i;
+
+function normalizarNomeParte(nome: any): string {
+  return String(nome || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9]+/gi, " ")
+    .trim()
+    .toUpperCase();
+}
+
+/** Tokens significativos (>=4 letras) do nome, para casar em texto livre. */
+function tokensNome(nome: string): string[] {
+  return normalizarNomeParte(nome)
+    .split(" ")
+    .filter((t) => t.length >= 4 && !/^(DOS|DAS|LTDA|S\/?A|BANCO)$/.test(t));
+}
+
+type RecursosPorParte = {
+  reclamante: boolean;
+  banco: boolean;
+  terceiro: boolean;
+  algumConfirmado: boolean;
+};
+
+function extrairRecursosPorParte(
+  rds: any[],
+  nomesAtivo: string[],
+  nomesPassivo: string[],
+  santanderNomes: string[],
+): RecursosPorParte {
+  const out: RecursosPorParte = {
+    reclamante: false,
+    banco: false,
+    terceiro: false,
+    algumConfirmado: false,
+  };
+  const casa = (alvo: string, lista: string[]) =>
+    lista.some((n) => {
+      const toks = tokensNome(n);
+      if (!toks.length) return false;
+      return toks.filter((t) => alvo.includes(t)).length >= Math.min(2, toks.length);
+    });
+
+  for (const rd of rds) {
+    const steps = Array.isArray(rd?.steps) ? rd.steps : [];
+    for (const s of steps) {
+      const texto = `${s?.title ?? ""} ${s?.content ?? ""} ${s?.description ?? ""}`;
+      if (!RECURSO_NOMES.test(texto) || !VERBO_INTERPOSICAO.test(texto)) continue;
+      out.algumConfirmado = true;
+      // Autor explícito: "... RECURSO/AGRAVO/EMBARGOS ... DE <NOME>"
+      const m = texto.match(
+        /(?:recurso|agravo|embargos)[^.;\n]{0,60}?\bde\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s.&'\-]{5,80})/i,
+      );
+      if (!m) continue;
+      const autor = normalizarNomeParte(m[1]);
+      if (!autor) continue;
+      if (casa(autor, santanderNomes)) out.banco = true;
+      else if (casa(autor, nomesPassivo)) out.terceiro = true;
+      else if (casa(autor, nomesAtivo)) out.reclamante = true;
+    }
+  }
+  return out;
+}
+
 /** O processo está arquivado/baixado em alguma das instâncias devolvidas? */
 function rdsIndicamEncerramento(rds: any[]): boolean {
   return rds.some((rd) => {
@@ -917,11 +1026,11 @@ serve(async (req) => {
     const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
     const classeRaw = extrairClasse(rdSelecionada);
     const classe = expandirSiglaRecurso(classeRaw, foiTst);
-    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST).
-    // Com apenas a 1ª instância, a classe da capa (ex.: "Ação Trabalhista",
-    // "Agravo de Instrumento" de execução) NÃO é tipo de recurso do TST e não
-    // pode ser aplicada nos campos de recurso.
-    const classeRecursal = foiTst ? classe : null;
+    // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST)
+    // E a classe é efetivamente um recurso. Classes de ação originária,
+    // cumprimento de sentença ou execução NUNCA viram tipo de recurso.
+    const classeNaoRecursal = ehClasseNaoRecursal(classeRaw) || ehClasseNaoRecursal(classe);
+    const classeRecursal = foiTst && !classeNaoRecursal ? classe : null;
     const { orgao, relator, turma } = extrairOrgaoERelator(rdSelecionada);
     // Fallback: no TST a Judit costuma devolver "Gabinete do Ministro Fulano"
     // como nome do órgão, sem expor a Turma. Quando temos relator mas a turma
@@ -1137,7 +1246,22 @@ serve(async (req) => {
     let tipoRecursoReclamante: string | null = null;
     let tipoRecursoBanco: string | null = null;
     let tipoRecursoTerceiro: string | null = null;
-    if (classeRecursal) {
+    // Interposição confirmada nos andamentos: sem movimento de interposição /
+    // protocolo / recebimento de recurso, nenhum campo de recurso é preenchido
+    // (a classe da capa sozinha não prova que alguém recorreu).
+    const rdsParaSteps = [
+      rdSelecionada,
+      rawCollector.cache_lookup,
+      ...((rawCollector.crawler?.page_data || []).map((it: any) => it?.response_data)),
+    ].filter(Boolean);
+    const recursosConfirmados = extrairRecursosPorParte(
+      rdsParaSteps,
+      ativosLimpos,
+      passivosSemSantander,
+      santanderNomes,
+    );
+    const interposicaoConfirmada = recursosConfirmados.algumConfirmado;
+    if (classeRecursal && interposicaoConfirmada) {
       // Mapa documento/nome -> person_type original. Preferimos uma instância
       // que tenha RECLAMANTE/RECLAMADO explícito, porque cache/crawler podem
       // devolver TST como ACTIVE/RECORRENTE para todas as partes.
@@ -1197,11 +1321,22 @@ serve(async (req) => {
           tipoRecursoTerceiro = classeRecursal;
         }
       }
+      // AUTOR EXPLÍCITO TEM PRECEDÊNCIA: quando os andamentos nomeiam quem
+      // interpôs ("RECEBIDO O RECURSO ORDINÁRIO DE <NOME>"), só esses lados
+      // são preenchidos — o cruzamento por person_type é descartado.
+      const autorExplicito =
+        recursosConfirmados.reclamante || recursosConfirmados.banco || recursosConfirmados.terceiro;
+      if (autorExplicito) {
+        tipoRecursoReclamante = recursosConfirmados.reclamante ? classeRecursal : null;
+        tipoRecursoBanco = recursosConfirmados.banco ? classeRecursal : null;
+        tipoRecursoTerceiro = recursosConfirmados.terceiro ? classeRecursal : null;
+      }
       // NUNCA chutar o lado do recurso: se nenhuma parte recorrente foi
       // identificada, os três campos ficam vazios para preenchimento
       // manual/IA. Preencher "recurso do banco" por suposição gerava dados
       // errados (banco marcado como recorrente sem ter recorrido).
     }
+
 
     const result = {
       // Campos consumidos pelo DistribuicaoTstForm:
@@ -1266,9 +1401,13 @@ serve(async (req) => {
         santander_detectado: santanderNomes,
         origem_disponivel: !origemAusente,
         litisconsorcio_ativo_tst: litisconsorcio,
-        fonte_tipo_recurso: classeRecursal
-          ? "classe_instancia_tst"
-          : (classe ? "classe_nao_recursal_ignorada" : "nenhuma"),
+        fonte_tipo_recurso: (tipoRecursoReclamante || tipoRecursoBanco || tipoRecursoTerceiro)
+          ? "interposicao_confirmada_tst"
+          : (classeNaoRecursal
+            ? "classe_nao_recursal_ignorada"
+            : (classeRecursal && !interposicaoConfirmada ? "sem_interposicao_confirmada" : "nenhuma")),
+        interposicao_confirmada: interposicaoConfirmada,
+        classe_nao_recursal: classeNaoRecursal,
         requer_revisao_polo: requerRevisaoPolo,
         retentativa_tst: retentativaTst,
         retentativa_tst_trouxe_tst: retentativaTstTrouxeTst,
