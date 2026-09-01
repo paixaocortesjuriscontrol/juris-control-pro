@@ -1,14 +1,11 @@
 ---
-name: Outra Matéria neutra
-description: "Outra Matéria" na Distribuição TST não gera pendência/aviso, não rejeita e é exportada na Carga Benner
+name: Outra Matéria não vai para a Carga Benner
+description: "Outra Matéria" na Distribuição TST não gera pendência/aviso, mas é descartada e pode rejeitar o processo na Carga Benner
 type: feature
 ---
-Regra atual (2026-09): a opção "Outra Matéria" nas matérias dos recursos da Distribuição TST é **totalmente neutra**:
+Regra atual (2026-09-01, atualizada):
 
-- Nunca gera pendência nem aviso amarelo (tela de consulta, "Verificar Pendências", relatório, kanban).
-- Nunca rejeita o processo na Carga Benner (não conta como "matéria fora da lista oficial de pedidos").
-- É exportada literalmente ("Outra Matéria") nas colunas de matérias da planilha de carga.
-- Continua aparecendo como linha na tabela "Análise por Matéria" (preenchimento opcional).
-- Nenhum alerta na lista da Distribuição TST sobre processos com "Outra Matéria".
+- **Pendências**: "Outra Matéria" continua neutra — nunca gera pendência nem aviso amarelo (tela de consulta, "Verificar Pendências", relatório, kanban). Continua aparecendo como linha na tabela "Análise por Matéria" (preenchimento opcional).
+- **Carga Benner**: "Outra Matéria" NUNCA é exportada. É contada como matéria fora da lista oficial: se o processo tinha matérias selecionadas e nenhuma válida sobrou, é rejeitado com o motivo "Matérias fora da lista oficial de pedidos"; se sobrou alguma válida, exporta só as válidas e gera aviso de descarte.
 
-Matérias que não sejam "Outra Matéria" e estejam fora de `materias_pedidos_oficiais` continuam sendo descartadas/rejeitadas.
+Matérias fora de `materias_pedidos_oficiais` continuam sendo descartadas/rejeitadas.
