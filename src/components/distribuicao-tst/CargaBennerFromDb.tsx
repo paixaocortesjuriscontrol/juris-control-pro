@@ -8,7 +8,7 @@ import JSZip from "jszip";
 import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import * as XLSX from "xlsx";
 import {
-  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail,
+  Download, Loader2, CheckCircle2, AlertCircle, FileSpreadsheet, ArrowRight, Mail, X,
 } from "lucide-react";
 import { useCriarRemessa } from "@/hooks/useRemessasBenner";
 import { useNavigate } from "react-router-dom";
