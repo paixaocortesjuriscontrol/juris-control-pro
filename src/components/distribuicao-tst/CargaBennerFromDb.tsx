@@ -338,6 +338,14 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const [rejectedData, setRejectedData] = useState<RejeicaoRow[]>([]);
   const [conferenciaData, setConferenciaData] = useState<Record<string, any>[] | null>(null);
   const [alerts, setAlerts] = useState<{ level: "error" | "warning" | "info" | "success"; message: string }[]>([]);
+
+  const pushAlert = (level: "error" | "warning" | "info" | "success", message: string) => {
+    if (level === "error") toast.error(message);
+    else if (level === "warning") toast.warning(message);
+    else if (level === "info") toast.info(message);
+    else toast.success(message);
+    setAlerts((prev) => [...prev.filter((a) => a.message !== message), { level, message }]);
+  };
   const criarRemessa = useCriarRemessa();
   const navigate = useNavigate();
 
@@ -985,7 +993,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       return { blob, filename: `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx` };
     } catch (err: any) {
-      toast.error("Erro ao gerar planilha: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao gerar planilha: " + (err?.message || String(err)));
       return null;
     }
   };
@@ -1024,7 +1032,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       if (onClose) onClose();
       navigate("/remessas-benner");
     } catch (err: any) {
-      toast.error("Erro ao salvar remessa: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao salvar remessa: " + (err?.message || String(err)));
     }
   };
 
@@ -1046,7 +1054,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
   const downloadConferenciaXlsx = async () => {
     const data = conferenciaData ?? outputData;
     if (!data || data.length === 0) {
-      toast.error("Nenhum dado para gerar a conferência.");
+      pushAlert("error", "Nenhum dado para gerar a conferência.");
       return;
     }
     try {
@@ -1216,7 +1224,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       URL.revokeObjectURL(a.href);
       toast.success("Planilha de conferência baixada!");
     } catch (err: any) {
-      toast.error("Erro ao gerar conferência: " + (err?.message || String(err)));
+      pushAlert("error", "Erro ao gerar conferência: " + (err?.message || String(err)));
     }
   };
 
@@ -1236,6 +1244,37 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Mensagens fixas na tela (não desaparecem como o toast) */}
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          {alerts.map((a, i) => (
+            <div
+              key={`${a.level}-${i}-${a.message.slice(0, 20)}`}
+              className={
+                "flex items-start gap-2 rounded-lg border p-3 text-sm " +
+                (a.level === "error"
+                  ? "border-destructive/40 bg-destructive/10 text-destructive"
+                  : a.level === "warning"
+                  ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                  : a.level === "info"
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-green-500/40 bg-green-500/10 text-green-700 dark:text-green-400")
+              }
+            >
+              <span className="flex-1">{a.message}</span>
+              <button
+                type="button"
+                aria-label="Dispensar mensagem"
+                className="opacity-60 hover:opacity-100"
+                onClick={() => setAlerts((prev) => prev.filter((_, idx) => idx !== i))}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* Stats Dashboard */}
