@@ -91,4 +91,4 @@ export async function buscarBaixaOcorrencia(params: {
   return data ?? null;
 }
 
-export { isItemTratado, isItemCancelado };
+
