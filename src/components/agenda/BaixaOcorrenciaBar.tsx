@@ -172,7 +172,10 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
       </div>
       <p className="text-[11px] text-muted-foreground">
         Escolha se a situação vale somente para este dia ou para todas as ocorrências da série.
+        Atenção: o campo <strong>Situação</strong> do formulário abaixo (botão Salvar) altera
+        <strong> toda a série</strong>.
       </p>
+
       <div className="flex flex-wrap items-end gap-2">
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground">Situação</Label>
