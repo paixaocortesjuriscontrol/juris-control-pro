@@ -266,16 +266,11 @@ function pendenciasMateriasAnalise(
   rotuloBloco: string,
   quadrinho: string,
 ): Pendencia[] {
-  const listaPersistidaBruta = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
-  // "Outra Matéria" só é cobrada quando é a ÚNICA matéria selecionada.
-  const listaPersistida = aplicarRegraOutraMateria(listaPersistidaBruta, (i: any) => i?.materia);
-  const materiasSelecionadas = aplicarRegraOutraMateria(
-    String(row?.[campoMaterias] || "")
-      .split(/;|\n/)
-      .map((materia) => materia.trim())
-      .filter(Boolean),
-    (n) => n,
-  );
+  const listaPersistida = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
+  const materiasSelecionadas = String(row?.[campoMaterias] || "")
+    .split(/;|\n/)
+    .map((materia) => materia.trim())
+    .filter(Boolean);
   const porMateria = new Map<string, any>();
   for (const item of listaPersistida) {
     if (!item || typeof item !== "object" || !item.materia) continue;
