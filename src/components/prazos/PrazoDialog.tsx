@@ -559,8 +559,13 @@ export function PrazoDialog({
       processo_id: processoIdParaSalvar,
       responsavel_id: responsavelPrincipal,
       observacoes: observacoes.trim() || undefined,
-      status: situacao as any,
-      data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+      // Recorrente: situação é dada pela barra de baixa por ocorrência
+      ...(ocultarSituacao
+        ? {}
+        : {
+            status: situacao as any,
+            data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+          }),
       // Preserva o tipo original quando estamos editando uma tarefa/prazo
       // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
       // diálogo. Isso impede que editar uma tarefa via TarefaDetalhesPanel
@@ -719,6 +724,8 @@ export function PrazoDialog({
             Prazo
           </h3>
           <div className="flex items-center gap-2">
+            {!ocultarSituacao && (
+            <>
             <Label className="text-xs text-muted-foreground">Situação</Label>
             <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
               <SelectTrigger className="h-9 w-[160px]">
@@ -730,6 +737,8 @@ export function PrazoDialog({
                 ))}
               </SelectContent>
             </Select>
+            </>
+            )}
             <Button
               type="submit"
               form="prazo-form-content"
@@ -770,7 +779,7 @@ export function PrazoDialog({
           </div>
         </div>
 
-        {situacao !== situacaoInicial && (
+        {!ocultarSituacao && situacao !== situacaoInicial && (
           <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
             {situacao === "reagendado" && (
               <div className="space-y-1.5 pb-2">
