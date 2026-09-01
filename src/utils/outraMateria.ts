@@ -26,14 +26,12 @@ export function isOutraMateria(nome: string | null | undefined): boolean {
 }
 
 /**
- * Aplica a regra acima a uma lista de matérias (strings ou objetos com
- * `materia`). Retorna a lista sem "Outra Matéria" quando existe alguma matéria
- * real; caso contrário devolve a lista original.
+ * Mantido por compatibilidade: "Outra Matéria" hoje é neutra, então a lista é
+ * devolvida intacta.
  */
 export function aplicarRegraOutraMateria<T>(
   itens: T[],
-  getNome: (item: T) => string | null | undefined,
+  _getNome: (item: T) => string | null | undefined,
 ): T[] {
-  const reais = itens.filter((i) => !isOutraMateria(getNome(i)));
-  return reais.length > 0 ? reais : itens;
+  return itens;
 }
