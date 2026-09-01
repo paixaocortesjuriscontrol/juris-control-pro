@@ -935,15 +935,19 @@ export function NovaTarefaDialog({
             Tarefa
           </DialogTitle>
           <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">Situação</span>
-            <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-              <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
-                  <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!ocultarSituacao && (
+              <>
+                <span className="text-xs text-muted-foreground">Situação</span>
+                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                  <SelectTrigger className="h-9 w-[170px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {situacoesDisponiveis("tarefa", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </>
+            )}
             <Button
               type="submit"
               form="nova-tarefa-form"
