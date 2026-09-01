@@ -605,8 +605,13 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
-          status: situacao as any,
-          data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+          // Recorrente: situação é dada pela barra de baixa por ocorrência
+          ...(ocultarSituacao
+            ? {}
+            : {
+                status: situacao as any,
+                data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
+              }),
           recorrente: recorrenciaTipo !== "nenhuma",
           recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
           recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
