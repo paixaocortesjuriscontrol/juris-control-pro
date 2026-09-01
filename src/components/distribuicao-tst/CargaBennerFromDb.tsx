@@ -849,30 +849,33 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const warningSuffix = warningsTotal > 0
         ? `, ${warningsTotal} aviso(s)`
         : "";
-      toast.success(`Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`);
+      const novosAlertas: { level: "error" | "warning" | "info" | "success"; message: string }[] = [];
+      const msgSucesso = `Layout gerado com ${outputFinal.length} linha(s), ${transitoFiltered.length} trânsito em julgado e ${rejected.length} rejeição(ões)${warningSuffix}.`;
+      toast.success(msgSucesso);
+      novosAlertas.push({ level: "success", message: msgSucesso });
       const rejRecursoForaLista = rejected.filter(r => String(r["Motivo"] ?? "").startsWith(MOTIVO_RECURSO_FORA_LISTA)).length;
       if (rejRecursoForaLista > 0) {
-        toast.error(
-          `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`,
-          { duration: 12000 },
-        );
+        const msg = `${rejRecursoForaLista} processo(s) rejeitado(s): tipo de recurso fora da lista oficial de seleção (preenchimento inválido/automático). Corrija na Distribuição TST — detalhes no arquivo de rejeições.`;
+        toast.error(msg, { duration: 12000 });
+        novosAlertas.push({ level: "error", message: msg });
       }
       const rejForaLista = rejByType["Matérias fora da lista oficial de pedidos"] || 0;
       if (rejForaLista > 0) {
-        toast.warning(
-          `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`,
-          { duration: 10000 },
-        );
+        const msg = `${rejForaLista} processo(s) rejeitado(s): todas as matérias estão fora da lista oficial de pedidos. Corrija as matérias na Distribuição TST.`;
+        toast.warning(msg, { duration: 10000 });
+        novosAlertas.push({ level: "warning", message: msg });
       }
       const avisoParcial = warningsByType["Matérias descartadas fora da lista oficial"] || 0;
       if (avisoParcial > 0) {
-        toast.info(
-          `${avisoParcial} processo(s) exportado(s) com matérias descartadas por não constarem na lista oficial de pedidos.`,
-          { duration: 8000 },
-        );
+        const msg = `${avisoParcial} processo(s) exportado(s) com matérias descartadas por não constarem na lista oficial de pedidos.`;
+        toast.info(msg, { duration: 8000 });
+        novosAlertas.push({ level: "info", message: msg });
       }
+      setAlerts(novosAlertas);
     } catch (err: any) {
-      toast.error("Erro: " + (err?.message || String(err)));
+      const msgErro = "Erro: " + (err?.message || String(err));
+      toast.error(msgErro);
+      setAlerts((prev) => [...prev, { level: "error", message: msgErro }]);
       console.error("[CargaBennerFromDb] Error:", err);
     } finally {
       setProcessing(false);
