@@ -254,7 +254,9 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
         </Button>
       </div>
       {isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento && (
-        <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
+        <div className="flex-shrink-0">
+          <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
+        </div>
       )}
       <div className="flex-1 min-h-0 overflow-hidden">
         {isPrazoFatalTst ? (
