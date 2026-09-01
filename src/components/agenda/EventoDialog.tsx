@@ -75,6 +75,12 @@ interface EventoDialogProps {
    * onde a publicação já é exibida em um painel lateral fixo à esquerda.
    */
   hidePublicacaoCollapsible?: boolean;
+  /**
+   * Item recorrente: a situação é gerenciada pela barra "Somente esta / Toda a
+   * série", então o campo Situação do formulário é ocultado e o salvar não
+   * altera o status do registro-pai.
+   */
+  ocultarSituacao?: boolean;
   secondarySave?: {
     label: string;
     onAfterSuccess: () => Promise<void> | void;
