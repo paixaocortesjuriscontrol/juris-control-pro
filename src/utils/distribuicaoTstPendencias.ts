@@ -284,18 +284,15 @@ function pendenciasMateriasAnalise(
     : listaPersistida;
   if (lista.length === 0) return [];
   const out: Pendencia[] = [];
-  // "Outra Matéria" como única matéria do recurso: os sub-itens da análise
-  // viram apenas AVISO (amarelo), nunca pendência.
-  const somenteOutraMateria =
-    lista.length > 0 && lista.every((i: any) => isOutraMateria(i?.materia));
   for (const item of lista) {
     if (!item || typeof item !== "object" || !item.materia) continue;
+    // "Outra Matéria" é neutra: nunca gera pendência nem aviso.
+    if (isOutraMateria(item.materia)) continue;
     const m = String(item.materia).trim();
-    const aviso = somenteOutraMateria || undefined;
-    if (isEmpty(item.aparelhamento)) out.push({ key: `${campoJsonb}.aparelhamento.${m}`, label: `${rotuloBloco} • "${m}": Aparelhamento`, quadrinho, aviso });
-    if (isEmpty(item.chance_turma)) out.push({ key: `${campoJsonb}.chance_turma.${m}`, label: `${rotuloBloco} • "${m}": Chance Turma`, quadrinho, aviso });
-    if (isEmpty(item.chance_relator)) out.push({ key: `${campoJsonb}.chance_relator.${m}`, label: `${rotuloBloco} • "${m}": Chance Relator`, quadrinho, aviso });
-    if (isEmpty(item.chance_exito)) out.push({ key: `${campoJsonb}.chance_exito.${m}`, label: `${rotuloBloco} • "${m}": Êxito`, quadrinho, aviso });
+    if (isEmpty(item.aparelhamento)) out.push({ key: `${campoJsonb}.aparelhamento.${m}`, label: `${rotuloBloco} • "${m}": Aparelhamento`, quadrinho });
+    if (isEmpty(item.chance_turma)) out.push({ key: `${campoJsonb}.chance_turma.${m}`, label: `${rotuloBloco} • "${m}": Chance Turma`, quadrinho });
+    if (isEmpty(item.chance_relator)) out.push({ key: `${campoJsonb}.chance_relator.${m}`, label: `${rotuloBloco} • "${m}": Chance Relator`, quadrinho });
+    if (isEmpty(item.chance_exito)) out.push({ key: `${campoJsonb}.chance_exito.${m}`, label: `${rotuloBloco} • "${m}": Êxito`, quadrinho });
   }
   return out;
 }
