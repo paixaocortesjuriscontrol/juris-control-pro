@@ -32,7 +32,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
-import { Download, UsersRound } from "lucide-react";
+import { Download, UsersRound, Bell } from "lucide-react";
 import { PessoasEmLoteDialog } from "@/components/painel/PessoasEmLoteDialog";
 import {
   DropdownMenu,
@@ -2036,6 +2036,17 @@ export default function PainelControle() {
                 <Download className="w-3.5 h-3.5" />
                 Exportar
               </Button>
+              <Button
+                size="sm"
+                variant={viewMode === "notificacoes" ? "default" : "destructive"}
+                className="h-7 px-2 text-xs gap-1"
+                onClick={() => setViewMode("notificacoes")}
+                title="Central de notificações (mantém menu e filtros)"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
+              </Button>
+
               <ExportarAtividadesDialog
                 open={exportOpen}
                 onOpenChange={setExportOpen}
@@ -2268,7 +2279,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("agenda")}
                   title="Visão em agenda"
                 >
-                  Em Agenda
+                  Agenda
                 </Button>
                 <Button
                   size="sm"
@@ -2277,7 +2288,7 @@ export default function PainelControle() {
                   onClick={() => setViewMode("lista")}
                   title="Visão em lista"
                 >
-                  Em Lista
+                  Lista
                 </Button>
                 <Button
                   size="sm"
@@ -2297,16 +2308,8 @@ export default function PainelControle() {
                 >
                   Equipe
                 </Button>
-                <Button
-                  size="sm"
-                  variant={viewMode === "notificacoes" ? "default" : "destructive"}
-                  className="h-7 px-2 text-[11px]"
-                  onClick={() => setViewMode("notificacoes")}
-                  title="Central de notificações (mantém menu e filtros)"
-                >
-                  Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
-                </Button>
                 {([
+
                   { key: "prazo",         label: "Prazos" },
                   { key: "audiencia",     label: "Audiências" },
                   { key: "tarefa",        label: "Tarefas" },
