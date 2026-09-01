@@ -324,8 +324,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const bennerDisabled = !processoNumero;
 
   // Sincroniza o switch "Pronto para Enviar" do header com o status atual do registro Benner.
+  // `planilhado`/`enviado` também são estados concluídos (o processo já foi para a carga),
+  // então o switch continua ligado (apenas travado) em vez de parecer "não pronto".
   useEffect(() => {
-    setProntoEnviar((bennerDado as any)?.status === "pronto_envio");
+    const st = String((bennerDado as any)?.status || "");
+    setProntoEnviar(st === "pronto_envio" || st === "planilhado" || st === "enviado");
   }, [bennerDado]);
 
   // Sincroniza o switch "Problema Judit" com o registro Benner.
