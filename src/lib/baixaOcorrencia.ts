@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { isItemTratado, isItemCancelado } from "@/utils/executionProgress";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 
 export type OrigemOcorrencia = "tarefa" | "evento";
 
