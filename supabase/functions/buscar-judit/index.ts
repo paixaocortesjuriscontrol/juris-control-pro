@@ -1246,7 +1246,22 @@ serve(async (req) => {
     let tipoRecursoReclamante: string | null = null;
     let tipoRecursoBanco: string | null = null;
     let tipoRecursoTerceiro: string | null = null;
-    if (classeRecursal) {
+    // Interposição confirmada nos andamentos: sem movimento de interposição /
+    // protocolo / recebimento de recurso, nenhum campo de recurso é preenchido
+    // (a classe da capa sozinha não prova que alguém recorreu).
+    const rdsParaSteps = [
+      rdSelecionada,
+      rawCollector.cache_lookup,
+      ...((rawCollector.crawler?.page_data || []).map((it: any) => it?.response_data)),
+    ].filter(Boolean);
+    const recursosConfirmados = extrairRecursosPorParte(
+      rdsParaSteps,
+      ativosLimpos,
+      passivosSemSantander,
+      santanderNomes,
+    );
+    const interposicaoConfirmada = recursosConfirmados.algumConfirmado;
+    if (classeRecursal && interposicaoConfirmada) {
       // Mapa documento/nome -> person_type original. Preferimos uma instância
       // que tenha RECLAMANTE/RECLAMADO explícito, porque cache/crawler podem
       // devolver TST como ACTIVE/RECORRENTE para todas as partes.
