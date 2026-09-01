@@ -361,6 +361,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     setOutputData(null);
     setRejectedData([]);
     setConferenciaData(null);
+    setAlerts([]);
+
 
     try {
       // Phase 0: lista oficial de pedidos (Santander). Somente matérias
