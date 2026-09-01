@@ -1321,11 +1321,22 @@ serve(async (req) => {
           tipoRecursoTerceiro = classeRecursal;
         }
       }
+      // AUTOR EXPLÍCITO TEM PRECEDÊNCIA: quando os andamentos nomeiam quem
+      // interpôs ("RECEBIDO O RECURSO ORDINÁRIO DE <NOME>"), só esses lados
+      // são preenchidos — o cruzamento por person_type é descartado.
+      const autorExplicito =
+        recursosConfirmados.reclamante || recursosConfirmados.banco || recursosConfirmados.terceiro;
+      if (autorExplicito) {
+        tipoRecursoReclamante = recursosConfirmados.reclamante ? classeRecursal : null;
+        tipoRecursoBanco = recursosConfirmados.banco ? classeRecursal : null;
+        tipoRecursoTerceiro = recursosConfirmados.terceiro ? classeRecursal : null;
+      }
       // NUNCA chutar o lado do recurso: se nenhuma parte recorrente foi
       // identificada, os três campos ficam vazios para preenchimento
       // manual/IA. Preencher "recurso do banco" por suposição gerava dados
       // errados (banco marcado como recorrente sem ter recorrido).
     }
+
 
     const result = {
       // Campos consumidos pelo DistribuicaoTstForm:
