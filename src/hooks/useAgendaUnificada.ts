@@ -1160,6 +1160,41 @@ export async function fetchAgendaPage(
         }
       }
 
+
+      // ===== Baixa INDIVIDUAL de ocorrências recorrentes =====
+      // Itens recorrentes são um único registro no banco. A situação gravada em
+      // `ocorrencias_recorrentes_status` vale só para aquela data, sobrepondo a
+      // situação da série (que continua no registro-pai).
+      const idsRecorrentes = Array.from(
+        new Set(
+          resultItems
+            .filter((i: any) => !!i.recorrencia_pai_id)
+            .map((i: any) => String(i.recorrencia_pai_id)),
+        ),
+      );
+      if (idsRecorrentes.length > 0) {
+        const { data: baixas } = await supabase
+          .from("ocorrencias_recorrentes_status")
+          .select("origem, item_id, data_ocorrencia, status, concluido_em")
+          .in("item_id", idsRecorrentes);
+        if (baixas && baixas.length > 0) {
+          const mapa = new Map<string, any>();
+          for (const b of baixas as any[]) {
+            mapa.set(`${b.origem}:${b.item_id}:${String(b.data_ocorrencia).slice(0, 10)}`, b);
+          }
+          for (const item of resultItems as any[]) {
+            if (!item.recorrencia_pai_id) continue;
+            const dia = String(item.id).split("::")[1]?.slice(0, 10)
+              ?? String(item.data_inicio ?? "").slice(0, 10);
+            const b = mapa.get(`${item.origem}:${item.recorrencia_pai_id}:${dia}`);
+            if (!b) continue;
+            item.status = b.status;
+            item.concluido_em = b.concluido_em ?? null;
+            item.baixa_individual = true;
+          }
+        }
+      }
+
       const dedupedItems: ItemAgendaUnificado[] = [];
       const seenKeys = new Set<string>();
       for (const item of resultItems) {
@@ -1168,6 +1203,7 @@ export async function fetchAgendaPage(
         seenKeys.add(key);
         dedupedItems.push(item);
       }
+
 
       const now = new Date();
       const futureItems = dedupedItems
