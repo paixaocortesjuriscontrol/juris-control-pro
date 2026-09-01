@@ -537,9 +537,27 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     <div className={embedded ? "flex w-full flex-col" : "flex flex-1 min-h-0 w-full overflow-hidden flex-col"}>
           <div className={embedded ? "flex flex-col w-full" : "flex flex-col min-h-0 w-full flex-1"}>
             <div className="flex items-center justify-between gap-3 px-6 pt-5 pb-2 shrink-0">
-              <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
-                Evento
-              </h3>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                  Evento
+                </h3>
+                {processoSelecionado && (
+                  <a
+                    href={`/processos/${processoSelecionado.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-0.5 flex items-center gap-1.5 text-xs text-primary hover:underline truncate"
+                    title={`${processoSelecionado.numero} — ${processoSelecionado.polo_ativo ?? ""} x ${processoSelecionado.polo_passivo ?? ""}`}
+                  >
+                    <FileText className="w-3.5 h-3.5 shrink-0" />
+                    <span className="font-medium">{processoSelecionado.numero}</span>
+                    <span className="text-muted-foreground truncate">
+                      {processoSelecionado.polo_ativo} x {processoSelecionado.polo_passivo}
+                    </span>
+                  </a>
+                )}
+              </div>
+
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-muted-foreground">Situação</Label>
                 <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
