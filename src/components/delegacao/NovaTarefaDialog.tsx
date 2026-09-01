@@ -1599,7 +1599,7 @@ export function NovaTarefaDialog({
             onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
           >
             {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
+            {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : ocultarSituacao ? "Salvar (toda a série)" : "Salvar"}
           </Button>
           {secondarySave && !tarefaParaEditar?.id && (
             <Button
