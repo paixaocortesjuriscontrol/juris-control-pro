@@ -579,17 +579,21 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </div>
 
               <div className="flex items-center gap-2">
-                <Label className="text-xs text-muted-foreground">Situação</Label>
-                <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
-                  <SelectTrigger className="h-9 w-[160px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {!ocultarSituacao && (
+                  <>
+                    <Label className="text-xs text-muted-foreground">Situação</Label>
+                    <Select value={situacao} onValueChange={(v) => setSituacao(v as any)}>
+                      <SelectTrigger className="h-9 w-[160px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {situacoesDisponiveis("evento", { podeGerenciar: podeCancelar, atual: situacao }).filter((s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value))).map((s) => (
+                          <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
                 <Button
                   type="submit"
                   form="evento-form-content"
