@@ -45,7 +45,8 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
-import { BarChart3 } from "lucide-react";
+import { BarChart3, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
@@ -265,6 +266,12 @@ export default function PainelControle() {
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  // Busca por número de processo: mantém no calendário só os itens do processo
+  const [buscaProcesso, setBuscaProcesso] = useState("");
+  const buscaProcessoDigits = useMemo(
+    () => buscaProcesso.replace(/\D/g, ""),
+    [buscaProcesso],
+  );
   // Aplica os filtros do drill-down do ranking na primeira renderização
   const drillAplicadoRef = useRef(false);
   useEffect(() => {
@@ -1093,9 +1100,22 @@ export default function PainelControle() {
         if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
 
+      // Busca por processo (só dígitos): mantém apenas itens daquele processo
+      if (buscaProcessoDigits.length >= 4) {
+        const numeros = [
+          item.processo?.numero,
+          (item as any).processo_numero,
+          (item as any).numero_processo,
+        ]
+          .filter(Boolean)
+          .map((n: string) => String(n).replace(/\D/g, ""));
+        if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
+      }
+
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter],
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits],
+
   );
 
   const itensPainelFiltrados = useMemo(
@@ -2091,7 +2111,28 @@ export default function PainelControle() {
                   Tudo
                 </Button>
               </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={buscaProcesso}
+                  onChange={(e) => setBuscaProcesso(e.target.value)}
+                  placeholder="Buscar processo..."
+                  title="Digite o número do processo para ver apenas as tarefas e atividades dele"
+                  className="h-7 w-[190px] pl-7 pr-7 text-xs font-mono"
+                />
+                {buscaProcesso && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaProcesso("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Limpar busca"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+
               <Button
                 size="sm"
                 variant="outline"
