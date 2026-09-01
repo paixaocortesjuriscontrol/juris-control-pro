@@ -321,7 +321,7 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
     row?.transito_julgado === true ||
-    recorrenteEhTerceiro(row)
+    recorrenteSomenteTerceiro(row)
   ) {
     return [];
   }
@@ -331,6 +331,16 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     const v = getValor(row, c);
     if (isEmpty(v)) out.push({ key: c.key, label: c.label, quadrinho: c.quadrinho });
   }
+  // "Parte Recorrente" é sempre obrigatória e precisa identificar a parte:
+  // valores herdados ("-----", lista de partes da Judit) não valem como seleção.
+  if (!parteRecorrenteSelecionada(row) && !out.some((p) => p.key === "recorrente")) {
+    out.push({
+      key: "recorrente",
+      label: "Parte Recorrente (AA)",
+      quadrinho: "II. Relator e Turma",
+    });
+  }
+
   // Pendências dinâmicas: para cada matéria selecionada nos quadros de recurso,
   // exigir Aparelhamento + Chance Turma + Chance Relator + Êxito.
   // Só cobrar sub-itens quando a parte figura como recorrente (mesma regra dos
