@@ -1099,9 +1099,22 @@ export default function PainelControle() {
         if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
 
+      // Busca por processo (só dígitos): mantém apenas itens daquele processo
+      if (buscaProcessoDigits.length >= 4) {
+        const numeros = [
+          item.processo?.numero,
+          (item as any).processo_numero,
+          (item as any).numero_processo,
+        ]
+          .filter(Boolean)
+          .map((n: string) => String(n).replace(/\D/g, ""));
+        if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
+      }
+
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter],
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits],
+
   );
 
   const itensPainelFiltrados = useMemo(
