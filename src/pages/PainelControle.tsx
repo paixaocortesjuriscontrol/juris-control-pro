@@ -2110,7 +2110,28 @@ export default function PainelControle() {
                   Tudo
                 </Button>
               </div>
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={buscaProcesso}
+                  onChange={(e) => setBuscaProcesso(e.target.value)}
+                  placeholder="Buscar processo..."
+                  title="Digite o número do processo para ver apenas as tarefas e atividades dele"
+                  className="h-7 w-[190px] pl-7 pr-7 text-xs font-mono"
+                />
+                {buscaProcesso && (
+                  <button
+                    type="button"
+                    onClick={() => setBuscaProcesso("")}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    title="Limpar busca"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+
               <Button
                 size="sm"
                 variant="outline"
