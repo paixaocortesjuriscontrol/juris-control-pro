@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseMateriasString } from "./MateriasMultiSelect";
-import { aplicarRegraOutraMateria } from "@/utils/outraMateria";
+
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
