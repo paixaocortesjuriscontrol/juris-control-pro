@@ -55,4 +55,5 @@ export const VERSION_HISTORY = [
   { version: "5.1.2", date: "2026-09-01", notes: "Outra Matéria neutra, conclusão preservada e datas no cabeçalho DJEN" },
   { version: "5.2.0", date: "2026-09-01", notes: "Painel de Controle: visões, tipos e busca por processo abaixo dos totalizadores; Exportar, Pessoas em lote e Adicionar na linha das coordenações" },
   { version: "5.3.0", date: "2026-09-01", notes: "Distribuição TST: cards por responsável com total/prontos/sem pendência/com pendências/faltam, clique nos números para filtrar; remoção de frase descritiva" },
+  { version: "5.4.0", date: "2026-09-02", notes: "Distribuição TST: chance de êxito restrita a SIM/NÃO (matérias, terceiro e geral); descarte de publicações avisa sobre audiências/tarefas vinculadas e preserva vínculo" },
 ];
