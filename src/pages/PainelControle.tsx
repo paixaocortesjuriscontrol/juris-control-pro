@@ -476,11 +476,23 @@ export default function PainelControle() {
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
-    const dateRange = { dataInicio, dataFim };
+    const dateRange = modoProtocoladosBaixados
+      ? {
+          dataInicio: painelFiltros.periodoInicio
+            ? new Date(`${painelFiltros.periodoInicio}T00:00:00`)
+            : subMonths(dataInicio, 24),
+          dataFim: painelFiltros.periodoFim
+            ? new Date(`${painelFiltros.periodoFim}T23:59:59`)
+            : dataFim,
+        }
+      : { dataInicio, dataFim };
+    const responsavelIdsSelecionados = modoProtocoladosBaixados && painelFiltros.responsavelIds.length > 0
+      ? painelFiltros.responsavelIds
+      : undefined;
 
     if (tabMode === "pessoal") {
       return {
-        responsavelIds: user?.id ? [user.id] : undefined,
+        responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined),
         fetchAll: false,
         pessoal: true,
         ...dateRange,
@@ -509,12 +521,12 @@ export default function PainelControle() {
     }
 
     if (coordLoading || membrosLoading) {
-      return { responsavelIds: user?.id ? [user.id] : undefined, fetchAll: false, pessoal: false, ...dateRange };
+      return { responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined), fetchAll: false, pessoal: false, ...dateRange };
     }
 
     if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
       return {
-        responsavelIds: membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined,
+        responsavelIds: responsavelIdsSelecionados ?? (membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined),
         coordenacaoIds: coordenacoesUsuario,
         fetchAll: false,
         ...dateRange,
@@ -523,18 +535,18 @@ export default function PainelControle() {
 
     if (membrosDasCoordenacoes.length > 0) {
       return {
-        responsavelIds: membrosDasCoordenacoes,
+        responsavelIds: responsavelIdsSelecionados ?? membrosDasCoordenacoes,
         fetchAll: false,
         ...dateRange,
       };
     }
 
     return {
-      responsavelIds: user?.id ? [user.id] : undefined,
+      responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined),
       fetchAll: false,
       ...dateRange,
     };
-  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
@@ -1093,12 +1105,10 @@ export default function PainelControle() {
       // Responsável(is) selecionado(s)
       if (painelFiltros.responsavelIds.length > 0) {
         const rid = item.responsavel_id;
-        const cid = item.criado_por;
         const envolvido = item.participantes?.some((p) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
       }
@@ -1180,7 +1190,7 @@ export default function PainelControle() {
     }
     if (vencidosAtivo) {
       const anteriores = (vencidosQuery.data ?? []).filter(
-        (item) => (drill ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
+        (item) => (drill || modoProtocoladosBaixados ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
       );
       if (anteriores.length > 0) {
         const vistos = new Set(base.map((i) => `${i.origem}:${i.id}`));
@@ -1188,7 +1198,7 @@ export default function PainelControle() {
       }
     }
     return base;
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str]);
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
@@ -1567,12 +1577,10 @@ export default function PainelControle() {
       }
       if (painelFiltros.responsavelIds.length > 0) {
         const rid = item.responsavel_id;
-        const cid = item.criado_por;
         const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
       }
