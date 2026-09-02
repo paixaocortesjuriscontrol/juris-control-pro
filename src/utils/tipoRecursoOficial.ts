@@ -1,4 +1,4 @@
-import { OPCOES_RECURSO_NORM } from "@/lib/juditDistribuicaoTst";
+import { OPCOES_RECURSO_NORM, ALTERACOES_LEGADAS, SIGLAS_RECURSO } from "@/lib/juditDistribuicaoTst";
 import { splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 
 /** Prefixo fixo do motivo de rejeição (usado para agrupar/contar na tela). */
@@ -18,11 +18,17 @@ const OFICIAIS = new Set(OPCOES_RECURSO_NORM.map(norm));
 export function isTipoRecursoOficial(valor: unknown): boolean {
   const n = norm(valor);
   if (!n) return true;
-  return OFICIAIS.has(n);
+  if (OFICIAIS.has(n)) return true;
+  // Valores legados com equivalência oficial conhecida (planilha "alterações")
+  // e siglas de recurso são convertidos na geração, logo não rejeitam a linha.
+  if (ALTERACOES_LEGADAS[n]) return true;
+  if (SIGLAS_RECURSO[n.replace(/[^a-z]/g, "")]) return true;
+  return false;
 }
 
+// Apenas os campos editáveis no formulário (por parte). O campo legado
+// `tipo_recurso` não é exibido nem exportado, então não gera pendência.
 const CAMPOS_RECURSO: { key: string; label: string }[] = [
-  { key: "tipo_recurso", label: "Tipo de Recurso" },
   { key: "tipo_recurso_reclamante", label: "Recurso do Reclamante" },
   { key: "tipo_recurso_banco", label: "Recurso do Banco" },
   { key: "tipo_recurso_terceiro", label: "Recurso de Terceiro" },
