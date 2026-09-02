@@ -19,6 +19,7 @@ const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
+import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
@@ -504,6 +505,7 @@ export default function DistribuicaoTst() {
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
+  const { map: semMateriaDossiePorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -516,9 +518,10 @@ export default function DistribuicaoTst() {
         ...c,
         faltam: Math.max(0, c.count - (c.pronto || 0)),
         semPendencia: semPendenciaPorResp[c.id] || 0,
+        semMateriaDossie: semMateriaDossiePorResp[c.id] || 0,
       }))
       .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
-  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp]);
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp]);
 
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
@@ -1787,7 +1790,7 @@ export default function DistribuicaoTst() {
                           ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
                           : "border-border bg-card text-foreground"
                     }`}
-                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Faltam: ${faltam}`}
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Prontos sem matéria do dossiê: ${c.semMateriaDossie} • Faltam: ${faltam}`}
                   >
                     <button
                       type="button"
@@ -1829,6 +1832,16 @@ export default function DistribuicaoTst() {
                       >
                         {comPendencia}
                       </button>
+                      <span
+                        className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                          c.semMateriaDossie > 0
+                            ? "bg-purple-500/15 text-purple-700 dark:text-purple-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        title="Prontos sem NENHUMA matéria da lista do dossiê (nenhuma verde)"
+                      >
+                        {c.semMateriaDossie}
+                      </span>
                       <span
                         className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
                           faltam > 0
