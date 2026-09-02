@@ -46,6 +46,8 @@ interface Props {
   /** Contagem de processos "Pronto para Enviar" sem pendências (computado no
    *  cliente, respeita todos os filtros/cards ativos). */
   prontoSemPendencia?: { count: number; loading: boolean } | null;
+  /** Contagem de processos marcados como prontos que AINDA têm pendências. */
+  prontoComPendencia?: { count: number; loading: boolean } | null;
 }
 
 interface CardDef {
@@ -58,7 +60,8 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia }: Props) {
+
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
