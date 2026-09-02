@@ -660,11 +660,28 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           }
           return validas;
         };
-        const materiasPorParte: Record<string, any[]> = {
-          reclamante: filtrarMateriasExportaveis((d as any).materias_analise_reclamante),
-          banco: filtrarMateriasExportaveis((d as any).materias_analise_banco),
-          terceiro: filtrarMateriasExportaveis((d as any).materias_analise_terceiro),
+        // Escopo por parte recorrente: matérias gravadas no quadro de uma parte
+        // que NÃO é recorrente são ignoradas (não exportam nem rejeitam).
+        const pr = normalizeText((d as any).parte_recorrente);
+        const scopeAtivo = (p: "reclamante" | "banco" | "terceiro") => {
+          if (!pr || pr.length > 60 || /ativo\s*:|passivo\s*:/.test(pr)) return true;
+          if (/ambos/.test(pr)) return p !== "terceiro";
+          if (p === "reclamante") return /reclamante/.test(pr);
+          if (p === "banco") return /reclamad[ao]/.test(pr);
+          return /terceiro/.test(pr);
         };
+        const materiasPorParte: Record<string, any[]> = {
+          reclamante: scopeAtivo("reclamante")
+            ? filtrarMateriasExportaveis((d as any).materias_analise_reclamante)
+            : [],
+          banco: scopeAtivo("banco")
+            ? filtrarMateriasExportaveis((d as any).materias_analise_banco)
+            : [],
+          terceiro: scopeAtivo("terceiro")
+            ? filtrarMateriasExportaveis((d as any).materias_analise_terceiro)
+            : [],
+        };
+
         const materiasValidasCount =
           materiasPorParte.reclamante.length +
           materiasPorParte.banco.length +
