@@ -28,11 +28,30 @@ export function isTipoRecursoOficial(valor: unknown): boolean {
 
 // Apenas os campos editáveis no formulário (por parte). O campo legado
 // `tipo_recurso` não é exibido nem exportado, então não gera pendência.
-const CAMPOS_RECURSO: { key: string; label: string }[] = [
-  { key: "tipo_recurso_reclamante", label: "Recurso do Reclamante" },
-  { key: "tipo_recurso_banco", label: "Recurso do Banco" },
-  { key: "tipo_recurso_terceiro", label: "Recurso de Terceiro" },
+const CAMPOS_RECURSO: { key: string; label: string; parte: "reclamante" | "banco" | "terceiro" }[] = [
+  { key: "tipo_recurso_reclamante", label: "Recurso do Reclamante", parte: "reclamante" },
+  { key: "tipo_recurso_banco", label: "Recurso do Banco", parte: "banco" },
+  { key: "tipo_recurso_terceiro", label: "Recurso de Terceiro", parte: "terceiro" },
 ];
+
+/**
+ * Partes que a advogada marcou em "Parte Recorrente". Somente os quadros
+ * dessas partes são validados/exportados — um valor legado gravado no quadro
+ * de uma parte que NÃO é recorrente é ignorado (mesma regra da geração da
+ * Carga Benner). Quando "Parte Recorrente" está vazio/ilegível, validamos
+ * todos os quadros (não há como saber a parte).
+ */
+function partesRecorrentesDe(d: any): Set<"reclamante" | "banco" | "terceiro"> | null {
+  const s = norm(d?.parte_recorrente);
+  if (!s || /^[-–—\s.]+$/.test(s)) return null;
+  if (/ativo\s*:|passivo\s*:/.test(s) || s.length > 60) return null;
+  const set = new Set<"reclamante" | "banco" | "terceiro">();
+  const ambos = /\bambos\b/.test(s);
+  if (ambos || /\breclamante\b/.test(s)) set.add("reclamante");
+  if (ambos || /reclamad[ao]?\b/.test(s) || /\bbanco\b/.test(s)) set.add("banco");
+  if (/\bterceiros?\b/.test(s)) set.add("terceiro");
+  return set.size > 0 ? set : null;
+}
 
 /**
  * Valores gravados nos campos de recurso que não constam na lista de seleção
@@ -41,7 +60,9 @@ const CAMPOS_RECURSO: { key: string; label: string }[] = [
  */
 export function getRecursosForaDaLista(d: any): { campo: string; valor: string }[] {
   const out: { campo: string; valor: string }[] = [];
-  for (const { key, label } of CAMPOS_RECURSO) {
+  const partes = partesRecorrentesDe(d);
+  for (const { key, label, parte } of CAMPOS_RECURSO) {
+    if (partes && !partes.has(parte)) continue;
     for (const valor of splitRecursoValues(d?.[key])) {
       if (/^[-–—_\s]+$/.test(valor)) continue;
       if (!isTipoRecursoOficial(valor)) out.push({ campo: label, valor });
@@ -49,6 +70,7 @@ export function getRecursosForaDaLista(d: any): { campo: string; valor: string }
   }
   return out;
 }
+
 
 /** Motivo de rejeição pronto (ou null quando todos os valores são válidos). */
 export function getMotivoRecursoForaLista(d: any): string | null {
