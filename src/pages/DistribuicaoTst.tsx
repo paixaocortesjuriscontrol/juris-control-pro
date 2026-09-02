@@ -1651,19 +1651,7 @@ export default function DistribuicaoTst() {
       }
     >
       <div className="space-y-4">
-        <div className="flex gap-2 flex-wrap justify-between items-center">
-          {/* Busca rápida por processo */}
-          <div className="relative">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Buscar por Processo"
-              value={filtroProcesso}
-              onChange={e => setFiltroProcesso(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))}
-              className="h-9 pl-8 w-52"
-            />
-          </div>
-
-          <div className="flex gap-2 flex-wrap items-center">
+        <div className="flex gap-2 flex-wrap justify-end items-center">
             {/* Acesso Rápido */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1771,7 +1759,6 @@ export default function DistribuicaoTst() {
                 </Button>
               </>
             )}
-          </div>
         </div>
 
         {/* Card "Total por Situação" (respeita filtros) */}
