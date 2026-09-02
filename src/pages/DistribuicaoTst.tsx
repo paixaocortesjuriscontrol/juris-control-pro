@@ -307,6 +307,8 @@ export default function DistribuicaoTst() {
   // Ativo quando o card "Pronto sem pendência" está selecionado.
   // Complementa filtroStatus="pronto_envio" restringindo aos IDs sem pendências.
   const [filtroSemPendencia, setFiltroSemPendencia] = useState<boolean>(false);
+  // IDs do totalizador "prontos sem nenhuma matéria da lista do dossiê".
+  const [semMateriaDossieIds, setSemMateriaDossieIds] = useState<string[] | null>(null);
   // Inverso do "pronto sem pendência": tudo que ainda tem alguma pendência.
   const [filtroComPendencia, setFiltroComPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
@@ -414,6 +416,12 @@ export default function DistribuicaoTst() {
         : prontoSemPendenciaIds;
       f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
+    if (semMateriaDossieIds) {
+      const base = f.idsAllowed && f.idsAllowed.length > 0
+        ? semMateriaDossieIds.filter((id) => f.idsAllowed!.includes(id))
+        : semMateriaDossieIds;
+      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+    }
     if (filtroComPendencia) {
       // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
       const semSet = new Set(prontoSemPendenciaIds);
@@ -423,7 +431,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados)]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -505,7 +513,7 @@ export default function DistribuicaoTst() {
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
-  const { map: semMateriaDossiePorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
+  const { map: semMateriaDossiePorResp, idsPorUsuario: semMateriaDossieIdsPorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -653,6 +661,7 @@ export default function DistribuicaoTst() {
     setFiltroAcordo("todos");
     setFiltroSemPendencia(false);
     setFiltroComPendencia(false);
+    setSemMateriaDossieIds(null);
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
@@ -667,6 +676,7 @@ export default function DistribuicaoTst() {
     setFiltroProblemaJudit("todos");
     setFiltroEquipe("todos");
     setFiltroMultiResp(false);
+    setSemMateriaDossieIds(null);
     setSelectedIds(new Set());
   };
 
@@ -1771,12 +1781,23 @@ export default function DistribuicaoTst() {
                 // Cada número aplica o filtro do responsável + o recorte
                 // correspondente; os cards gerais recalculam automaticamente
                 // porque usam os mesmos `listFilters`.
-                const aplicar = (modo: "total" | "pronto" | "semPend" | "comPend") => {
+                const aplicar = (
+                  modo: "total" | "pronto" | "semPend" | "comPend" | "semMatDossie" | "faltam",
+                ) => {
                   setSelectedIds(new Set());
                   setFiltroResponsavelIds([filterValue]);
-                  setFiltroStatus(modo === "pronto" || modo === "comPend" ? "concluidos" : "todos");
+                  setFiltroStatus(
+                    modo === "pronto" || modo === "comPend" || modo === "semMatDossie"
+                      ? "concluidos"
+                      : modo === "faltam"
+                        ? "pendentes"
+                        : "todos",
+                  );
                   setFiltroSemPendencia(modo === "semPend");
                   setFiltroComPendencia(modo === "comPend");
+                  setSemMateriaDossieIds(
+                    modo === "semMatDossie" ? (semMateriaDossieIdsPorResp[c.id] || []) : null,
+                  );
                 };
                 const badge =
                   "rounded-sm px-1.5 py-0.5 font-bold tabular-nums transition-colors hover:ring-1 hover:ring-primary/50";
@@ -1832,26 +1853,30 @@ export default function DistribuicaoTst() {
                       >
                         {comPendencia}
                       </button>
-                      <span
-                        className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                      <button
+                        type="button"
+                        className={`${badge} ${
                           c.semMateriaDossie > 0
                             ? "bg-purple-500/15 text-purple-700 dark:text-purple-400"
                             : "bg-muted text-muted-foreground"
                         }`}
-                        title="Prontos sem NENHUMA matéria da lista do dossiê (nenhuma verde)"
+                        title="Prontos sem NENHUMA matéria da lista do dossiê (nenhuma verde) — clique para filtrar"
+                        onClick={() => aplicar("semMatDossie")}
                       >
                         {c.semMateriaDossie}
-                      </span>
-                      <span
-                        className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                      </button>
+                      <button
+                        type="button"
+                        className={`${badge} ${
                           faltam > 0
                             ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
                             : "bg-muted text-muted-foreground"
                         }`}
-                        title="Faltam"
+                        title="Faltam (ainda não marcados como prontos) — clique para filtrar"
+                        onClick={() => aplicar("faltam")}
                       >
                         {faltam}
-                      </span>
+                      </button>
                     </span>
                   </div>
                 );
