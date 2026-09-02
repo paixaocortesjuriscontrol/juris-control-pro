@@ -142,12 +142,15 @@ function getMotivoBloqueioCarga(d: any): string | null {
   if (motivoRecurso) return motivoRecurso;
   if (isFlagOn(d?.acordo)) return "Acordo";
   // "Recurso de terceiro" NÃO é motivo de rejeição na Carga Benner.
-  const pend = getPendencias(d);
+  // Pendências de dossiê têm motivo dedicado (avaliado depois), então não
+  // entram no resumo genérico de pendências.
+  const pend = getPendencias(d).filter((p) => p.key !== "dossie_formato_invalido");
   if (pend.length > 0) {
     const amostra = pend.slice(0, 3).map(p => p.label).join(", ");
     const resto = pend.length > 3 ? ` (+${pend.length - 3})` : "";
     return `Pendências: ${amostra}${resto}`;
   }
+
   return null;
 }
 
