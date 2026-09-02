@@ -51,6 +51,7 @@ async function carregarPedidosPorDossie(): Promise<Map<string, Set<string>>> {
  */
 export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilters) {
   const [map, setMap] = useState<Record<string, number>>({});
+  const [idsPorUsuario, setIdsPorUsuario] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const filtersKey = JSON.stringify(filters);
@@ -67,6 +68,7 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
         if (cancelled) return;
         if (!idsFiltrados || idsFiltrados.length === 0 || pedidosPorDossie.size === 0) {
           setMap({});
+          setIdsPorUsuario({});
           return;
         }
         const permitidos = new Set(idsFiltrados);
@@ -106,11 +108,15 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
         }
 
         if (alvo.length === 0) {
-          if (!cancelled) setMap({});
+          if (!cancelled) {
+            setMap({});
+            setIdsPorUsuario({});
+          }
           return;
         }
 
         const porUsuario: Record<string, number> = {};
+        const idsUsuario: Record<string, string[]> = {};
         const comResponsavel = new Set<string>();
         const BATCH = 500;
         for (let i = 0; i < alvo.length; i += BATCH) {
@@ -124,14 +130,24 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
             if (!row?.usuario_id || !row?.dados_benner_id) continue;
             comResponsavel.add(row.dados_benner_id);
             porUsuario[row.usuario_id] = (porUsuario[row.usuario_id] || 0) + 1;
+            (idsUsuario[row.usuario_id] = idsUsuario[row.usuario_id] || []).push(row.dados_benner_id);
           }
         }
-        const sem = alvo.filter((id) => !comResponsavel.has(id)).length;
-        if (sem > 0) porUsuario[SEM_RESPONSAVEL_ID] = sem;
-        if (!cancelled) setMap(porUsuario);
+        const semIds = alvo.filter((id) => !comResponsavel.has(id));
+        if (semIds.length > 0) {
+          porUsuario[SEM_RESPONSAVEL_ID] = semIds.length;
+          idsUsuario[SEM_RESPONSAVEL_ID] = semIds;
+        }
+        if (!cancelled) {
+          setMap(porUsuario);
+          setIdsPorUsuario(idsUsuario);
+        }
       } catch (e) {
         console.warn("[useSemMateriaDossiePorResponsavel] falhou:", e);
-        if (!cancelled) setMap({});
+        if (!cancelled) {
+          setMap({});
+          setIdsPorUsuario({});
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -142,5 +158,5 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, reloadTick]);
 
-  return { map, loading, refetch: () => setReloadTick((t) => t + 1) };
+  return { map, idsPorUsuario, loading, refetch: () => setReloadTick((t) => t + 1) };
 }
