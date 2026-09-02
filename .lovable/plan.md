@@ -8,6 +8,13 @@ Somente as matérias "verdes" (que constam na lista de pedidos do dossiê) podem
 - Na coluna de pendências, processos marcados como pronto (pronto_envio / planilhado / enviado) cujo dossiê tem pedidos cadastrados e **nenhuma** das matérias selecionadas consta nessa lista passam a exibir uma etiqueta vermelha **"Revisar lista de matérias"**.
 - A etiqueta aparece junto das demais pendências (ou sozinha, no lugar de "Sem pendências").
 - Processos cujo dossiê não tem pedidos cadastrados continuam como hoje (sem a marcação), já que não há lista para comparar.
+- Esses processos passam a contar como **pendentes**: deixam de aparecer como "Sem pendências"/concluídos nos totalizadores e filtros, para a lista não ficar desorganizada.
+
+### 1b. Card "Revisar Lista de matérias"
+- O card **Sem Responsável** sai dos totalizadores.
+- Entra no lugar o card **Revisar Lista de matérias**, com a contagem dos processos prontos sem nenhuma matéria da lista do dossiê.
+- Ao clicar, filtra a lista exatamente como os demais cards (e clicar de novo limpa o filtro).
+
 
 ### 2. Geração da Carga Benner
 - Ao montar cada linha, as matérias passam por um novo filtro: além da lista oficial do Santander, precisam constar na lista de pedidos **daquele dossiê**.
@@ -23,4 +30,7 @@ O resumo da geração passa a informar quantos processos foram rejeitados por n�
 - Extrair a paginação de `pedidos_por_dossie` hoje interna a `src/hooks/useSemMateriaDossiePorResponsavel.ts` para um utilitário compartilhado (`carregarMapaPedidosPorDossie(): Promise<Map<string, Set<string>>>`, chave = dossiê, valor = Set de `pedido_normalizado`), reutilizado pelo hook existente, pela lista e pela carga.
 - Novo hook `usePedidosPorDossieMapa()` (React Query, `staleTime` 10 min) consumido em `src/pages/DistribuicaoTst.tsx` para calcular a etiqueta por linha, usando `isMarcadoPronto(d)` de `src/utils/distribuicaoTstPendencias.ts` e `normalizeMateriaNome` de `src/utils/outraMateria.ts` sobre `materias_recurso_reclamante | _banco | _terceiro`.
 - Em `src/components/distribuicao-tst/CargaBennerFromDb.tsx`: carregar o mapa uma vez antes do loop; dentro de `filtrarMateriasExportaveis` adicionar a checagem `pedidosDoDossie.has(normalizeMateriaNome(it.materia))` quando o dossiê tiver lista; se após o filtro não sobrar nenhuma matéria e o processo não for de "Outra Matéria", enviar a linha para `rejected` com o novo motivo, em vez de para a planilha.
+- Card: em `src/pages/DistribuicaoTst.tsx` remover o card "Sem Responsável" e adicionar "Revisar Lista de matérias", alimentado pelos IDs de `useSemMateriaDossiePorResponsavel` (todos os responsáveis somados), aplicando o filtro por `idsAllowed` no mesmo padrão dos outros cards (`handleCardClick`).
+- Pendências: `pendenciasDe`/`isProntoSemPendencia` passam a receber o Set de pedidos do dossiê e acrescentam a pendência `revisar_lista_materias`, de modo que esses processos entrem nas contagens de pendentes.
 - Sem mudanças de banco de dados.
+
