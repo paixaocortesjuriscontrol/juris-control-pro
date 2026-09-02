@@ -36,7 +36,7 @@ interface Props {
 
 const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA", "BEM APARELHADO", "MAL APARELHADO"];
 const CHANCE_OPTS = ["FAVORÁVEL", "DESFAVORÁVEL"];
-const EXITO_OPTS = ["SIM", "NÃO", "PROVÁVEL", "POSSÍVEL", "REMOTA"];
+const EXITO_OPTS = ["SIM", "NÃO"];
 
 function normalize(s: string): string {
   return (s || "")

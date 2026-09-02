@@ -1663,9 +1663,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="__none__">Selecione</SelectItem>
-                <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
-                <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
-                <SelectItem value="REMOTA">REMOTA</SelectItem>
+                <SelectItem value="SIM">SIM</SelectItem>
+                <SelectItem value="NÃO">NÃO</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1983,9 +1982,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Selecione</SelectItem>
-                  <SelectItem value="PROVÁVEL">PROVÁVEL</SelectItem>
-                  <SelectItem value="POSSÍVEL">POSSÍVEL</SelectItem>
-                  <SelectItem value="REMOTA">REMOTA</SelectItem>
+                  <SelectItem value="SIM">SIM</SelectItem>
+                  <SelectItem value="NÃO">NÃO</SelectItem>
                 </SelectContent>
               </Select>
             </div>
