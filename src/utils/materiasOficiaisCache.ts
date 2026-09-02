@@ -18,6 +18,16 @@ export function materiasOficiaisCarregadas(): boolean {
   return cache !== null && cache.size > 0;
 }
 
+/**
+ * Limpa o cache para que a próxima chamada de `ensureMateriasOficiais`
+ * recarregue a lista do banco. Usado após importações que cadastram pedidos
+ * novos na lista oficial.
+ */
+export function resetMateriasOficiais(): void {
+  cache = null;
+  inflight = null;
+}
+
 /** Carrega (uma única vez) a lista oficial de matérias ativas. */
 export function ensureMateriasOficiais(): Promise<Set<string>> {
   if (cache && cache.size > 0) return Promise.resolve(cache);
