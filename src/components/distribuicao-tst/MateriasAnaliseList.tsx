@@ -79,10 +79,13 @@ export function reconcileMateriasAnalise(
   });
 }
 
-export function MateriasAnaliseList({ materias, value, onChange, title, fieldKey }: Props) {
+export function MateriasAnaliseList({ materias, value, onChange, title, fieldKey, pedidosDossie }: Props) {
   const rows = useMemo(() => reconcileMateriasAnalise(materias, value), [materias, value]);
   const pendKey = (col: string, materia: string) =>
     fieldKey ? `${fieldKey}.${col}.${String(materia).trim()}` : undefined;
+  const isDoDossie = (nome: string) =>
+    !!pedidosDossie && pedidosDossie.size > 0 && pedidosDossie.has(normalizeMateriaNome(nome));
+
 
   if (rows.length === 0) return null;
 
