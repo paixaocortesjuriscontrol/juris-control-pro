@@ -245,6 +245,9 @@ export default function DistribuicaoTst() {
   // Card "Total por Situação"
   const [totalSituacaoOpen, setTotalSituacaoOpen] = useState(false);
 
+  // Diálogo "Relatório Dossiês não localizados" (aberto pelo menu Relatórios)
+  const [dossiesOpen, setDossiesOpen] = useState(false);
+
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAllLoading, setSelectAllLoading] = useState(false);
