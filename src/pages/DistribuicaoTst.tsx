@@ -701,11 +701,13 @@ export default function DistribuicaoTst() {
     setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
-    // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
-    if (key === "prontoSemPendencia") setFiltroStatus("todos");
-    // Sempre desliga o filtro "sem pendência" ao alternar/limpar cards;
-    // será religado no switch abaixo se este for o card ativado.
+    // "Pronto sem/com pendência" reaproveitam o filtro de status = concluidos.
+    if (key === "prontoSemPendencia" || key === "prontoComPendencia") setFiltroStatus("todos");
+    // Sempre desliga os filtros de pendência ao alternar/limpar cards;
+    // serão religados no switch abaixo se este for o card ativado.
     setFiltroSemPendencia(false);
+    setFiltroComPendencia(false);
+
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
