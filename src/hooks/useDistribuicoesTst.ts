@@ -253,7 +253,7 @@ export interface DistribuicaoTstFilters {
   dataFim?: string;
   responsavelIds?: string[];
   semTurma?: boolean;
-  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado" | "concluidos";
+  status?: "todos" | "rascunho" | "pronto_envio" | "enviado" | "planilhado" | "concluidos" | "pendentes";
   emAnalise?: "todos" | "sim" | "nao" | "analisado";
   problemaJudit?: "todos" | "sim" | "nao";
   acordo?: "todos" | "sim" | "nao";
@@ -591,7 +591,7 @@ export async function fetchAllDistribuicaoTstIds(
     if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
     if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", filters.status);
+    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : filters.status === "pendentes" ? query.or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)") : query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (filters.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
@@ -825,7 +825,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.dataInicio) query = applyDataEfetivaGte(query, filters.dataInicio);
     if (filters.dataFim) query = applyDataEfetivaLte(query, filters.dataFim);
     if (filters.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", filters.status);
+    if (filters.status && filters.status !== "todos") query = filters.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : filters.status === "pendentes" ? query.or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)") : query.eq("status", filters.status);
     if (filters.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (filters.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
@@ -1265,7 +1265,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.dataInicio) query = applyDataEfetivaGte(query, f.dataInicio);
     if (f.dataFim) query = applyDataEfetivaLte(query, f.dataFim);
     if (f.semTurma) query = query.or("turma.is.null,turma.eq.");
-    if (f.status && f.status !== "todos") query = f.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : query.eq("status", f.status);
+    if (f.status && f.status !== "todos") query = f.status === "concluidos" ? query.in("status", STATUS_CONCLUIDOS) : f.status === "pendentes" ? query.or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)") : query.eq("status", f.status);
     if (f.emAnalise === "sim") query = query.eq("em_analise", true);
     else if (f.emAnalise === "nao") {
       query = query.or("em_analise.is.null,em_analise.eq.false").or("analisado.is.null,analisado.eq.false");
