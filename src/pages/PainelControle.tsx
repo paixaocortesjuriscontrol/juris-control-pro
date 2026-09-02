@@ -393,6 +393,10 @@ export default function PainelControle() {
     enabled: !!user?.id,
   });
 
+  // Atalho Protocolados/Baixados: só coordenação da Dra. Beatriz Costa (e admins)
+  const podeVerProtocoladosBaixados =
+    isAdmin || coordenacoesUsuario.includes(COORDENACAO_BEATRIZ_COSTA_ID);
+
   // Buscar IDs de todos os membros das coordenações do usuário (para modo escritório)
   // Inclui membros + coordenadores
   const { data: membrosDasCoordenacoes = [], isLoading: membrosLoading } = useQuery({
