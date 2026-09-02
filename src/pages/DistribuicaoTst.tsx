@@ -1823,7 +1823,7 @@ export default function DistribuicaoTst() {
                 const aplicar = (modo: "total" | "pronto" | "semPend" | "comPend") => {
                   setSelectedIds(new Set());
                   setFiltroResponsavelIds([filterValue]);
-                  setFiltroStatus(modo === "pronto" ? "concluidos" : "todos");
+                  setFiltroStatus(modo === "pronto" || modo === "comPend" ? "concluidos" : "todos");
                   setFiltroSemPendencia(modo === "semPend");
                   setFiltroComPendencia(modo === "comPend");
                 };
