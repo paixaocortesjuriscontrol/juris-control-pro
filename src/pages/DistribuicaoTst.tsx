@@ -17,6 +17,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
+import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
@@ -474,18 +475,23 @@ export default function DistribuicaoTst() {
   // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
+  const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
       .filter((p) => !byId.has(p.id))
       .map((p) => ({ id: p.id, nome: p.nome, count: 0, pronto: 0 }));
-    const semResp = responsavelCounts.filter((c) => c.id === SEM_RESPONSAVEL_UUID);
-    const reais = responsavelCounts.filter((c) => c.id !== SEM_RESPONSAVEL_UUID);
-    return [
-      ...semResp,
-      ...[...reais, ...extras].sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome)),
-    ];
-  }, [responsavelCounts, membrosCoordenacaoTst]);
+    // Ordena pelos que têm MENOS pendências (faltam) primeiro — assim os
+    // responsáveis mais adiantados aparecem à esquerda.
+    return [...responsavelCounts, ...extras]
+      .map((c) => ({
+        ...c,
+        faltam: Math.max(0, c.count - (c.pronto || 0)),
+        semPendencia: semPendenciaPorResp[c.id] || 0,
+      }))
+      .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp]);
+
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
@@ -1781,57 +1787,68 @@ export default function DistribuicaoTst() {
 
         {/* Totais por responsável — visível apenas para administradores. */}
         {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            <span className="text-[11px] font-medium text-muted-foreground self-center mr-1">
-              Por responsável:
+          <div className="space-y-1.5">
+            <span className="text-[11px] font-medium text-muted-foreground">
+              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • faltam:
             </span>
-            {responsavelCountsCompleto.map((c) => {
-              const isSemResp = c.id === "00000000-0000-0000-0000-000000000000";
-              const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
-              const active = filtroResponsavelIds.includes(filterValue);
-              const faltam = Math.max(0, c.count - (c.pronto || 0));
-              return (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => setFiltroResponsavelIds(active ? [] : [filterValue])}
-                  className={`flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
-                    active
-                      ? "border-primary bg-primary/10 text-primary"
-                      : isSemResp
-                        ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300"
-                        : "border-border bg-card text-foreground hover:bg-muted"
-                  }`}
-                  title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Faltam: ${faltam}`}
-                >
-                  <span className="truncate max-w-[160px]">{c.nome}</span>
-                  <span
-                    className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums"
-                    title="Total"
-                  >
-                    {c.count}
-                  </span>
-                  <span
-                    className="rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 font-bold tabular-nums"
-                    title="Pronto (finalizadas)"
-                  >
-                    {c.pronto}
-                  </span>
-                  <span
-                    className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
-                      faltam > 0
-                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
-                        : "bg-muted text-muted-foreground"
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+              {responsavelCountsCompleto.map((c) => {
+                const isSemResp = c.id === SEM_RESPONSAVEL_UUID;
+                const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
+                const active = filtroResponsavelIds.includes(filterValue);
+                const faltam = c.faltam;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setFiltroResponsavelIds(active ? [] : [filterValue])}
+                    className={`flex items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
+                      active
+                        ? "border-primary bg-primary/10 text-primary"
+                        : isSemResp
+                          ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300"
+                          : "border-border bg-card text-foreground hover:bg-muted"
                     }`}
-                    title="Faltam"
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Faltam: ${faltam}`}
                   >
-                    {faltam}
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="truncate">{c.nome}</span>
+                    <span className="flex items-center gap-1 shrink-0">
+                      <span
+                        className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums"
+                        title="Total"
+                      >
+                        {c.count}
+                      </span>
+                      <span
+                        className="rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 font-bold tabular-nums"
+                        title="Pronto (finalizadas)"
+                      >
+                        {c.pronto}
+                      </span>
+                      <span
+                        className="rounded-sm bg-sky-500/15 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 font-bold tabular-nums"
+                        title="Pronto SEM pendência"
+                      >
+                        {c.semPendencia}
+                      </span>
+                      <span
+                        className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                          faltam > 0
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        title="Faltam"
+                      >
+                        {faltam}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
+
 
         {/* Mês/Ano dropdown — apenas admin/coordenador */}
         {mesesAnos.length > 0 && (
