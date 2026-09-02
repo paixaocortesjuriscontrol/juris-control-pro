@@ -340,7 +340,7 @@ export default function PainelControle() {
       }));
       return true;
     });
-  }, []);
+  }, [isAdmin]);
 
   // Sair do modo ao trocar de visão
   useEffect(() => {
