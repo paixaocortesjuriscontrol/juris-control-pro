@@ -51,7 +51,7 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
   try {
     const db = supabase as any;
     const [{ data: membros }, { data: perfis }] = await Promise.all([
-      db.from("membros_coordenacao").select("user_id, coordenacao_id").in("user_id", ids),
+      db.from("membros_coordenacao").select("usuario_id, coordenacao_id").in("usuario_id", ids),
       db.from("profiles").select("id, coordenacao_padrao_id").in("id", ids),
     ]);
     const coordIds = Array.from(
@@ -70,9 +70,10 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
     (membros ?? []).forEach((m: any) => {
       const nome = nomes.get(m.coordenacao_id);
       if (!nome) return;
-      const atuais = map[m.user_id] ?? [];
-      if (!atuais.includes(nome)) map[m.user_id] = [...atuais, nome];
+      const atuais = map[m.usuario_id] ?? [];
+      if (!atuais.includes(nome)) map[m.usuario_id] = [...atuais, nome];
     });
+
     (perfis ?? []).forEach((p: any) => {
       const nome = p.coordenacao_padrao_id ? nomes.get(p.coordenacao_padrao_id) : null;
       if (!nome) return;
