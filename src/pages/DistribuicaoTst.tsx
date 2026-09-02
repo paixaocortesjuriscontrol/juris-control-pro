@@ -69,6 +69,7 @@ import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
+import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
   getPendencias,
   pendenciasResumo,
@@ -127,6 +128,7 @@ export default function DistribuicaoTst() {
   // matérias selecionadas estão fora da lista.
   useEffect(() => {
     ensureMateriasOficiais().catch(() => {});
+    ensurePedidosPorDossie().catch(() => {});
   }, []);
   const [showForm, setShowForm] = useState(false);
 
@@ -514,6 +516,14 @@ export default function DistribuicaoTst() {
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
   const { map: semMateriaDossiePorResp, idsPorUsuario: semMateriaDossieIdsPorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
+  // União dos IDs (todos os responsáveis) para o card "Revisar Lista de matérias".
+  const revisarListaMateriasIds = useMemo(() => {
+    const set = new Set<string>();
+    Object.values(semMateriaDossieIdsPorResp || {}).forEach((arr) =>
+      (arr || []).forEach((id) => set.add(id)),
+    );
+    return Array.from(set);
+  }, [semMateriaDossieIdsPorResp]);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -682,6 +692,7 @@ export default function DistribuicaoTst() {
 
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
+    if (semMateriaDossieIds) return "revisarListaMaterias" as const;
     if (filtroMultiResp) return "multiResp" as const;
     if (filtroComPendencia) return "prontoComPendencia" as const;
     if (filtroSemPendencia) return "prontoSemPendencia" as const;
@@ -731,6 +742,7 @@ export default function DistribuicaoTst() {
     // serão religados no switch abaixo se este for o card ativado.
     setFiltroSemPendencia(false);
     setFiltroComPendencia(false);
+    setSemMateriaDossieIds(null);
 
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
@@ -779,6 +791,10 @@ export default function DistribuicaoTst() {
 
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
+        break;
+      case "revisarListaMaterias":
+        setFiltroStatus("concluidos");
+        setSemMateriaDossieIds(revisarListaMateriasIds.length > 0 ? revisarListaMateriasIds : [TAG_FILTER_PENDING_ID]);
         break;
       case "comEquipe": setFiltroEquipe("sim"); break;
       case "semEquipe": setFiltroEquipe("nao"); break;
@@ -1724,6 +1740,10 @@ export default function DistribuicaoTst() {
                 ? (statsWithGeral?.prontoEnvio ?? 0)
                 : Math.max(0, (statsWithGeral?.prontoEnvio ?? 0) - prontoSemPendenciaCount),
               loading: prontoSemPendenciaLoading || statsLoading,
+            }}
+            revisarListaMaterias={{
+              count: revisarListaMateriasIds.length,
+              loading: false,
             }}
             multiRespCard={null}
 

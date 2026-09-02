@@ -19,6 +19,8 @@ import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { getMotivoRecursoForaLista, MOTIVO_RECURSO_FORA_LISTA } from "@/utils/tipoRecursoOficial";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 import { getMotivoRejeicaoDossie } from "@/utils/dossieBenner";
+import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+
 
 
 // --- Types ---
@@ -392,6 +394,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const isMateriaOficial = (nome: any) =>
         materiasOficiaisSet.has(normalizeMateriaNome(String(nome ?? "")));
 
+      // Lista de pedidos POR DOSSIÊ: só as matérias que constam na lista do
+      // dossiê ("verdes") podem ir para a planilha. Dossiê sem lista cadastrada
+      // mantém o comportamento anterior (valida só contra a lista oficial).
+      const pedidosPorDossie = await ensurePedidosPorDossie().catch(() => new Map<string, Set<string>>());
+      const isMateriaDoDossie = (dossie: string, nome: any) => {
+        const set = pedidosPorDossie.get(String(dossie || "").trim());
+        if (!set || set.size === 0) return true;
+        return set.has(normalizeMateriaNome(String(nome ?? "")));
+      };
+
+
       // Phase 1: Fetch distribuicoes_tst
       setPhase("Carregando distribuições do banco...");
       setProgress(10);
@@ -641,6 +654,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         // oficial de pedidos do Santander (`materias_pedidos_oficiais`).
         let materiasSelecionadasCount = 0;
         let materiasForaListaCount = 0;
+        let materiasForaDossieCount = 0;
         const filtrarMateriasExportaveis = (arr: any[]) => {
           const itens = (Array.isArray(arr) ? arr : []).filter(
             (it: any) => it && it.materia && String(it.materia).trim(),
@@ -656,10 +670,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
               materiasForaListaCount++;
               continue;
             }
+            // Só as matérias que constam na lista de pedidos do dossiê
+            // ("verdes") podem ser exportadas.
+            if (!isMateriaDoDossie(dossie, it.materia)) {
+              materiasForaDossieCount++;
+              continue;
+            }
             validas.push(it);
           }
           return validas;
         };
+
         // Escopo por parte recorrente: matérias gravadas no quadro de uma parte
         // que NÃO é recorrente são ignoradas (não exportam nem rejeitam).
         const pr = normalizeText((d as any).parte_recorrente);
@@ -688,6 +709,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           materiasPorParte.terceiro.length;
         const MOTIVO_MATERIAS_FORA_LISTA =
           "Matérias fora da lista oficial de pedidos";
+        const MOTIVO_MATERIAS_FORA_DOSSIE =
+          "Nenhuma matéria consta na lista de pedidos do dossiê — revisar lista de matérias";
         if (
           materiasSelecionadasCount > 0 &&
           materiasValidasCount === 0 &&
@@ -699,14 +722,25 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             "Data Distribuição": formatDateDDMMYYYY(getDataDistribuicaoReal(d)),
             "Turma": d.turma || "",
             "Relator": d.relator || "",
-            "Motivo": MOTIVO_MATERIAS_FORA_LISTA,
+            "Motivo":
+              materiasForaDossieCount > 0 && materiasForaListaCount === 0
+                ? MOTIVO_MATERIAS_FORA_DOSSIE
+                : MOTIVO_MATERIAS_FORA_LISTA,
           });
           isRejected = true;
-        } else if (materiasForaListaCount > 0) {
-          const label = "Matérias descartadas fora da lista oficial";
-          warningsByType[label] = (warningsByType[label] || 0) + 1;
-          warningsTotal++;
+        } else {
+          if (materiasForaListaCount > 0) {
+            const label = "Matérias descartadas fora da lista oficial";
+            warningsByType[label] = (warningsByType[label] || 0) + 1;
+            warningsTotal++;
+          }
+          if (materiasForaDossieCount > 0) {
+            const label = "Matérias descartadas fora da lista do dossiê";
+            warningsByType[label] = (warningsByType[label] || 0) + 1;
+            warningsTotal++;
+          }
         }
+
         // Detecta as partes recorrentes.
         // Regra: o campo `parte_recorrente` da aba Distribuição TST é a fonte
         // autoritativa. Quando ele está preenchido, respeitamos ESTRITAMENTE

@@ -10,8 +10,10 @@
 
 import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
 import { isMateriaOficialSync } from "./materiasOficiaisCache";
+import { pedidosDoDossieSync, isMateriaDoDossieSync } from "./pedidosPorDossieCache";
 import { getRecursosForaDaLista } from "./tipoRecursoOficial";
 import { getMotivoRejeicaoDossie } from "./dossieBenner";
+
 
 
 
@@ -489,6 +491,29 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
     });
   }
 
+  // Matérias que não constam na LISTA DE PEDIDOS DO DOSSIÊ ("verdes") não vão
+  // para a planilha. Se nenhuma matéria estiver na lista, a linha é rejeitada.
+  const dossieInfo = getMateriasForaDoDossie(row);
+  if (dossieInfo.temLista && dossieInfo.total > 0 && dossieInfo.validas === 0) {
+    out.push({
+      key: "revisar_lista_materias",
+      label:
+        "Revisar lista de matérias — nenhuma matéria consta na lista de pedidos do dossiê; NÃO irá para a planilha de Carga Benner",
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (dossieInfo.temLista && dossieInfo.total > 0) {
+    out.push({
+      key: "materias_fora_lista_dossie_parcial",
+      aviso: true,
+      label:
+        "Matérias fora da lista de pedidos do dossiê (não serão exportadas na Carga Benner): " +
+        dossieInfo.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  }
+
+
+
   // Dossiê fora do padrão também rejeita a linha.
   // (Dossiê vazio já é cobrado pelos campos obrigatórios.)
   const dossieRaw = String(row?.dossie ?? "").trim();
@@ -594,6 +619,63 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
   return res;
 }
 
+export type MateriasForaDoDossie = {
+  /** O dossiê possui lista de pedidos cadastrada? */
+  temLista: boolean;
+  /** Matérias selecionadas que NÃO estão na lista do dossiê. */
+  total: number;
+  /** Matérias selecionadas que estão na lista do dossiê ("verdes"). */
+  validas: number;
+  resumo: string;
+};
+
+/**
+ * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
+ * (`pedidos_por_dossie`). Mesmo critério da geração da Carga Benner: só as
+ * "verdes" podem ser exportadas. "Outra Matéria" continua neutra.
+ */
+export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
+  const res: MateriasForaDoDossie = { temLista: false, total: 0, validas: 0, resumo: "" };
+  const dossie = String(row?.dossie ?? "").trim();
+  if (!pedidosDoDossieSync(dossie)) return res;
+  res.temLista = true;
+
+  const blocos: Array<[string, string, string]> = [
+    ["reclamante", "materias_analise_reclamante", "Reclamante"],
+    ["banco", "materias_analise_banco", "Reclamada (Banco)"],
+    ["terceiro", "materias_analise_terceiro", "Terceiro"],
+  ];
+  const info = parseParteRecorrente(row);
+  const parteAtiva: Record<string, boolean> = info.valida
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
+    : { reclamante: true, banco: true, terceiro: true };
+  const partes: string[] = [];
+  for (const [chave, campoJsonb, rotulo] of blocos) {
+    if (!parteAtiva[chave]) continue;
+    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
+      (i: any) => i && i.materia && String(i.materia).trim(),
+    );
+    const foraBloco: string[] = [];
+    for (const i of itens) {
+      const nome = String(i.materia).trim();
+      if (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome)) res.validas++;
+      else foraBloco.push(nome);
+    }
+    res.total += foraBloco.length;
+    if (foraBloco.length > 0) partes.push(`${rotulo}: ${foraBloco.join(", ")}`);
+  }
+  res.resumo = partes.join(" | ");
+  return res;
+}
+
+/**
+ * `true` quando o processo tem matérias selecionadas e NENHUMA delas consta na
+ * lista de pedidos do dossiê → precisa "Revisar lista de matérias".
+ */
+export function precisaRevisarListaMaterias(row: any): boolean {
+  const info = getMateriasForaDoDossie(row);
+  return info.temLista && info.total > 0 && info.validas === 0;
+}
 
 
 /** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
