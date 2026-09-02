@@ -1806,7 +1806,7 @@ export default function DistribuicaoTst() {
         {/* Totais por responsável — visível apenas para administradores. */}
         {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="space-y-1.5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5">
               {responsavelCountsCompleto
                 .filter((c) => c.count > 0 || c.pronto > 0 || c.semPendencia > 0 || c.faltam > 0)
                 .map((c) => {
