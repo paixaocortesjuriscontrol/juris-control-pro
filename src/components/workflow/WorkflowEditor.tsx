@@ -32,6 +32,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { WorkflowEtapa, WorkflowItemType } from "@/lib/workflowExecutor";
+import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import type { TipoModelo } from "@/hooks/useModelosTitulo";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,6 +56,15 @@ const TIPOS: { value: WorkflowItemType; label: string }[] = [
   { value: "EVENTO", label: "Evento" },
   { value: "PARCELAMENTO", label: "Parcelamento" },
 ];
+
+/** Tipo de item da etapa -> tipo de modelo de título. */
+const TIPO_MODELO_POR_ITEM: Record<WorkflowItemType, TipoModelo> = {
+  PRAZO: "prazo",
+  TAREFA: "tarefa",
+  AUDIENCIA: "audiencia",
+  EVENTO: "evento",
+  PARCELAMENTO: "parcela",
+};
 
 const REGRAS_RESPONSAVEL = [
   { value: "predefinido", label: "Responsáveis predefinidos" },
@@ -230,7 +241,21 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="titulo">Título</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label htmlFor="titulo">Título</Label>
+                  <ModeloTituloPicker
+                    tipo={TIPO_MODELO_POR_ITEM[(form.tipo_item || "TAREFA") as WorkflowItemType]}
+                    coordenacaoId={coordEfetiva || null}
+                    onSelect={(m) =>
+                      setForm((prev: any) => ({
+                        ...prev,
+                        titulo: m.titulo,
+                        descricao: prev.descricao?.trim() ? prev.descricao : (m.descricao || ""),
+                        prioridade: m.prioridade || prev.prioridade,
+                      }))
+                    }
+                  />
+                </div>
                 <Input
                   id="titulo"
                   value={form.titulo || ""}
