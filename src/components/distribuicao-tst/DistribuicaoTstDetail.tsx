@@ -619,6 +619,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 );
               };
               for (const a of avisos) {
+                if (a.key.startsWith("materias_fora_lista_oficial")) continue;
+
                 if (a.key.includes(".")) {
                   const cell = root.querySelector<HTMLElement>(
                     `[data-pend-key="${a.key.replace(/"/g, '\\"')}"]`,
