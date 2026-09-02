@@ -58,8 +58,8 @@ import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPick
 import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
 import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
-import {
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
+import {
   getPendencias,
   pendenciasResumo,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
