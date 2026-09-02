@@ -87,7 +87,6 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "processosValidos", label: "Processos nº CNJ válidos", value: stats.processosValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "dossiesValidos", label: "Dossiês Válidos", value: stats.dossiesValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
-    { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
     ...(prontoComPendencia
       ? [{
           key: "prontoComPendencia" as StatsCardKey,
