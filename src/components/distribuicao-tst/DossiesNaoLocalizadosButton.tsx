@@ -36,10 +36,22 @@ import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 interface Props {
   filters: DistribuicaoTstFilters;
   selectedIds?: Set<string>;
+  /** Quando controlado externamente (ex.: item de menu), o botão próprio não é renderizado. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
-  const [open, setOpen] = useState(false);
+export function DossiesNaoLocalizadosButton({
+  filters,
+  selectedIds,
+  open: openProp,
+  onOpenChange,
+  hideTrigger,
+}: Props) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenInternal(v));
   const [usarJudit, setUsarJudit] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
