@@ -2425,6 +2425,62 @@ export default function PainelControle() {
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {modoProtocoladosBaixados && (
+              <div className="mx-4 mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex items-center gap-1.5 mr-1">
+                    <span className="text-xs font-semibold text-foreground">Protocolados/Baixados</span>
+                    <Badge variant="secondary">{itensListaEquipe.length} itens</Badge>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground">Data inicial</p>
+                    <Input
+                      type="date"
+                      value={painelFiltros.periodoInicio}
+                      onChange={(e) =>
+                        setPainelFiltros((s) => ({ ...s, periodoInicio: e.target.value }))
+                      }
+                      className="h-8 w-[150px] text-xs px-2"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground">Data final</p>
+                    <Input
+                      type="date"
+                      value={painelFiltros.periodoFim}
+                      onChange={(e) =>
+                        setPainelFiltros((s) => ({ ...s, periodoFim: e.target.value }))
+                      }
+                      className="h-8 w-[150px] text-xs px-2"
+                    />
+                  </div>
+                  <div className="min-w-[240px] flex-1">
+                    <p className="text-[10px] text-muted-foreground">Responsáveis</p>
+                    <PeoplePicker
+                      selectedIds={painelFiltros.responsavelIds}
+                      onChange={(ids) => setPainelFiltros((s) => ({ ...s, responsavelIds: ids }))}
+                      placeholder="Filtrar por responsável"
+                      emptyLabel="Todos os responsáveis"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() =>
+                      setPainelFiltros((s) => ({
+                        ...s,
+                        periodoInicio: "",
+                        periodoFim: "",
+                        responsavelIds: [],
+                      }))
+                    }
+                  >
+                    <X className="w-3 h-3 mr-1" /> Limpar
+                  </Button>
+                </div>
+              </div>
+            )}
             {drill && (
               <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
                 <span className="font-semibold text-foreground">Ranking:</span>
