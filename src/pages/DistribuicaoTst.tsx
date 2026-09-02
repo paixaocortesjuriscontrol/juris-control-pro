@@ -1760,11 +1760,12 @@ export default function DistribuicaoTst() {
               count: prontoSemPendenciaCount,
               loading: prontoSemPendenciaLoading,
             }}
-            multiRespCard={isAdmin ? {
-              count: multiRespIds.length,
-              active: filtroMultiResp,
-              onClick: () => handleCardClick("multiResp"),
-            } : null}
+            prontoComPendencia={{
+              count: Math.max(0, (statsWithGeral?.prontoEnvio ?? 0) - prontoSemPendenciaCount),
+              loading: prontoSemPendenciaLoading || statsLoading,
+            }}
+            multiRespCard={null}
+
             responsavelCard={(() => {
               // Quando há exatamente UM responsável selecionado no filtro,
               // o card reflete esse responsável (útil para o admin trocar e
