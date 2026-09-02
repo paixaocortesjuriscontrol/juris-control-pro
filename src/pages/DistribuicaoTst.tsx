@@ -394,9 +394,16 @@ export default function DistribuicaoTst() {
         : prontoSemPendenciaIds;
       f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
+    if (filtroComPendencia) {
+      // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
+      const semSet = new Set(prontoSemPendenciaIds);
+      const universo = f.idsAllowed && f.idsAllowed.length > 0 ? f.idsAllowed : todosIdsFiltrados;
+      const base = universo.filter((id) => !semSet.has(id));
+      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+    }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds)]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
