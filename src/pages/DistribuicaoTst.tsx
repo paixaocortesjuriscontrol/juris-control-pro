@@ -2096,8 +2096,8 @@ export default function DistribuicaoTst() {
         {/* Filters */}
         {mostrarFiltros && (
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-          <div className="flex flex-wrap items-end gap-2">
-            <div className="space-y-1 flex-1 min-w-[220px] max-w-xs">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 items-end">
+            <div className="space-y-1">
               <Label className="text-[10px] font-semibold text-muted-foreground">Responsáveis</Label>
               <ResponsaveisSelector
                 selectedIds={filtroResponsavelIds}
@@ -2107,16 +2107,18 @@ export default function DistribuicaoTst() {
                 includeUnassignedOption
               />
             </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] font-semibold text-muted-foreground">Data inicial</Label>
-              <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs w-[140px]" title="Data início" />
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-0.5">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Data inicial</Label>
+                <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs w-full" title="Data início" />
+              </div>
+              <div className="space-y-0.5">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Data final</Label>
+                <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs w-full" title="Data fim" />
+              </div>
             </div>
-            <div className="space-y-0.5">
-              <Label className="text-[10px] font-semibold text-muted-foreground">Data final</Label>
-              <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs w-[140px]" title="Data fim" />
-            </div>
-            <div className="ml-auto">
-              {hasFilters && (
+            {hasFilters && (
+              <div className="lg:col-start-4 flex justify-end">
                 <Button
                   variant="destructive"
                   size="sm"
@@ -2125,9 +2127,10 @@ export default function DistribuicaoTst() {
                 >
                   <X className="w-4 h-4 mr-1" /> Limpar Filtros
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
+
           {/* Busca por texto livre */}
           <div className="space-y-2">
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
