@@ -511,8 +511,14 @@ export async function fetchAllDistribuicaoTstIds(
           .order("updated_at", { ascending: false, nullsFirst: false })
           .order("processo", { ascending: true, nullsFirst: false });
       }
+      // Desempate por chave única: sem isso, linhas com o mesmo valor de
+      // ordenação podem pular/repetir entre páginas do .range().
+      query = query.order("id", { ascending: true });
     } else {
-      query = query.order("created_at", { ascending: false });
+      // Paginação estável: ordenar por chave única evita que registros
+      // sumam entre páginas (created_at repetido em importações em lote),
+      // o que fazia os cards mostrarem totais diferentes a cada filtro.
+      query = query.order("id", { ascending: true });
     }
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
