@@ -3680,13 +3680,16 @@ const AnaliseDjen = () => {
       return;
     }
 
+    const contagemDup = await contarItensDaPublicacao(paraDescartar as any);
     const confirmar = window.confirm(
       `Serão descartadas ${paraDescartar.length} duplicada(s), ` +
       `mantendo ${mantidas} publicação(ões) — a mais antiga de cada grupo. ` +
       (semPar > 0 ? `${semPar} selecionada(s) sem par NÃO serão descartadas. ` : '') +
-      `Confirmar?`
+      `Confirmar?` +
+      textoAvisoItens(contagemDup)
     );
     if (!confirmar) return;
+
 
     setDescartandoDupSelecionadas(true);
     try {
