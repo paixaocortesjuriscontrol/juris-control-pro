@@ -376,6 +376,12 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // mesmas situações rejeitam a linha na Carga Benner. Nesse caso precisam
   // aparecer como pendência na tela (regra: tudo que rejeita na planilha tem
   // que ser visível antes).
+  // Rejeições da geração da planilha de Carga Benner que independem da
+  // situação do processo ou da parte recorrente: a geração rejeita a linha
+  // por esses motivos SEMPRE, então a tela precisa acusar a pendência mesmo
+  // quando os demais campos são isentos (trânsito, acordo, somente terceiro…).
+  const rejeicoesCarga = getPendenciasRejeicaoCarga(row);
+
   const bloqueio = getSituacaoImpeditiva(row);
   if (bloqueio) {
     if (isMarcadoPronto(row)) {
@@ -386,11 +392,12 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
           alvoLabel: bloqueio,
           quadrinho: "I. Dados Básicos",
         },
+        ...rejeicoesCarga,
       ];
     }
-    return [];
+    return rejeicoesCarga;
   }
-  if (recorrenteSomenteTerceiro(row)) return [];
+  if (recorrenteSomenteTerceiro(row)) return rejeicoesCarga;
   const out: Pendencia[] = [];
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
@@ -421,31 +428,25 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   }
 
-  // Regra: se TODAS as matérias selecionadas (Reclamante / Reclamada / Terceiro)
-  // estiverem fora da lista oficial de pedidos, o processo tem pendência —
-  // é o mesmo critério que rejeita a linha na Carga Benner.
-  const fora = getMateriasForaDaLista(row);
-  if (fora.total > 0 && fora.validas === 0) {
-    out.push({
-      key: "materias_fora_lista_oficial",
-      label:
-        "Matérias fora da lista oficial de pedidos — NÃO irá para a planilha de Carga Benner: " +
-        fora.resumo,
-      quadrinho: "III. Recurso do Reclamante",
-    });
-  } else if (fora.total > 0) {
-    out.push({
-      key: "materias_fora_lista_oficial_parcial",
-      aviso: true,
-      label:
-        "Matérias fora da lista oficial (não serão exportadas na Carga Benner): " + fora.resumo,
-      quadrinho: "III. Recurso do Reclamante",
-    });
-  }
+  // Rejeições da Carga Benner (tipo de recurso fora da lista, matérias fora
+  // da lista oficial, dossiê inválido) — mesmos motivos avaliados na geração.
+  out.push(...rejeicoesCarga);
+  return out;
+}
 
-  // Regra: tipo de recurso preenchido com valor fora da lista oficial de
-  // seleção (típico de preenchimento automático inventado pela Judit) rejeita
-  // a linha na Carga Benner — então precisa aparecer como pendência na lista.
+/**
+ * Pendências que correspondem 1:1 aos motivos de REJEIÇÃO da geração da
+ * planilha de Carga Benner (CargaBennerFromDb): tipo de recurso fora da lista
+ * oficial de seleção, matérias fora da lista oficial de pedidos e dossiê fora
+ * do padrão. A geração rejeita a linha por esses motivos independentemente de
+ * situação impeditiva ou de a parte recorrente ser somente Terceiro — por isso
+ * esta lista é calculada antes dos retornos antecipados de `getPendencias`.
+ */
+export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
+  const out: Pendencia[] = [];
+
+  // Tipo de recurso preenchido com valor fora da lista oficial de seleção
+  // (típico de preenchimento automático inventado pela Judit) rejeita a linha.
   const recursosFora = getRecursosForaDaLista(row);
   if (recursosFora.length > 0) {
     const amostra = recursosFora
@@ -466,7 +467,29 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     });
   }
 
-  // Regra: dossiê fora do padrão também rejeita a linha na Carga Benner.
+  // Se TODAS as matérias selecionadas estiverem fora da lista oficial de
+  // pedidos, a linha é rejeitada; se apenas algumas, é apenas aviso (a geração
+  // descarta as matérias inválidas e exporta as demais).
+  const fora = getMateriasForaDaLista(row);
+  if (fora.total > 0 && fora.validas === 0) {
+    out.push({
+      key: "materias_fora_lista_oficial",
+      label:
+        "Matérias fora da lista oficial de pedidos — NÃO irá para a planilha de Carga Benner: " +
+        fora.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (fora.total > 0) {
+    out.push({
+      key: "materias_fora_lista_oficial_parcial",
+      aviso: true,
+      label:
+        "Matérias fora da lista oficial (não serão exportadas na Carga Benner): " + fora.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  }
+
+  // Dossiê fora do padrão também rejeita a linha.
   // (Dossiê vazio já é cobrado pelos campos obrigatórios.)
   const dossieRaw = String(row?.dossie ?? "").trim();
   if (dossieRaw) {
@@ -477,8 +500,7 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     if (motivoDossie) {
       out.push({
         key: "dossie_formato_invalido",
-        label:
-          `${motivoDossie} — NÃO irá para a planilha de Carga Benner`,
+        label: `${motivoDossie} — NÃO irá para a planilha de Carga Benner`,
         alvoLabel: "Dossiê (A)",
         quadrinho: "I. Dados Básicos",
       });
@@ -525,15 +547,17 @@ export type MateriasForaDaLista = {
 };
 
 /**
- * Matérias selecionadas que NÃO constam na lista oficial de pedidos
- * (inclui "Outra Matéria"), separadas por parte — mesmo critério aplicado
- * na geração da planilha de Carga Benner.
+ * Matérias selecionadas que NÃO constam na lista oficial de pedidos,
+ * separadas por parte — mesmo critério aplicado na geração da planilha de
+ * Carga Benner (`filtrarMateriasExportaveis`): lê apenas as listas JSONB
+ * `materias_analise_*` (fonte autoritativa da exportação) e considera
+ * "Outra Matéria" como válida (exportada com o nome em branco).
  */
 export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
-  const blocos: Array<[keyof MateriasForaDaLista, string, string, string]> = [
-    ["reclamante", "materias_analise_reclamante", "materias_recurso_reclamante", "Reclamante"],
-    ["banco", "materias_analise_banco", "materias_recurso_banco", "Reclamada (Banco)"],
-    ["terceiro", "materias_analise_terceiro", "materias_recurso_terceiro", "Terceiro"],
+  const blocos: Array<[keyof MateriasForaDaLista, string, string]> = [
+    ["reclamante", "materias_analise_reclamante", "Reclamante"],
+    ["banco", "materias_analise_banco", "Reclamada (Banco)"],
+    ["terceiro", "materias_analise_terceiro", "Terceiro"],
   ];
   const res: MateriasForaDaLista = {
     reclamante: [],
@@ -544,14 +568,14 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
     resumo: "",
   };
   const partes: string[] = [];
-  for (const [chave, campoJsonb, campoMaterias, rotulo] of blocos) {
-    const itens = materiasSelecionadasDe(row, campoJsonb, campoMaterias).filter(
+  for (const [chave, campoJsonb, rotulo] of blocos) {
+    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
       (i: any) => i && i.materia && String(i.materia).trim(),
     );
     const foraBloco: string[] = [];
     for (const i of itens) {
       const nome = String(i.materia).trim();
-      if (isMateriaOficialSync(nome)) res.validas++;
+      if (isOutraMateria(nome) || isMateriaOficialSync(nome)) res.validas++;
       else foraBloco.push(nome);
     }
     (res[chave] as string[]) = foraBloco;
