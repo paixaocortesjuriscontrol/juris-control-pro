@@ -9,7 +9,7 @@
  * evitar falso positivo.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeMateriaNome, isOutraMateria } from "./outraMateria";
+import { normalizeMateriaNome } from "./outraMateria";
 
 let cache: Set<string> | null = null;
 let inflight: Promise<Set<string>> | null = null;
