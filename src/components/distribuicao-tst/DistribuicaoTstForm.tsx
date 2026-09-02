@@ -353,6 +353,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     return out;
   };
   const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  const { pedidosSet: pedidosDossieSet } = usePedidosPorDossie(form.dossie);
+
   // Snapshot do estado original carregado de `bennerDado` — usado para
   // computar o diff no save (só envia campos que o usuário realmente alterou).
   const [bennerExtraInitial, setBennerExtraInitial] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
