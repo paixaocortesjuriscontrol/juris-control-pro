@@ -1759,7 +1759,6 @@ export default function DistribuicaoTst() {
                 </Button>
               </>
             )}
-          </div>
         </div>
 
         {/* Card "Total por Situação" (respeita filtros) */}
