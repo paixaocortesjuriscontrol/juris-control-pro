@@ -191,7 +191,12 @@ export function MateriasMultiSelect({
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span className="truncate">{m.nome}</span>
+                        <span className="truncate">
+                          {m.nome}
+                          {foraDaLista(m.nome) && (
+                            <span className="text-amber-600 text-xs"> (fora lista do Benner)</span>
+                          )}
+                        </span>
                         {!m.ativo && (
                           <Badge variant="secondary" className="ml-auto text-[10px]">
                             inativa
@@ -218,7 +223,12 @@ export function MateriasMultiSelect({
               variant="secondary"
               className="text-xs gap-1 pr-1"
             >
-              <span className="max-w-[260px] truncate">{nome}</span>
+              <span className="max-w-[260px] truncate">
+                {nome}
+                {foraDaLista(nome) && (
+                  <span className="text-amber-600"> (fora lista do Benner)</span>
+                )}
+              </span>
               {!disabled && (
                 <button
                   type="button"
