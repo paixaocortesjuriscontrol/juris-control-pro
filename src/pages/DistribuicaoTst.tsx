@@ -1806,7 +1806,7 @@ export default function DistribuicaoTst() {
         {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="space-y-1.5">
             <span className="text-[11px] font-medium text-muted-foreground">
-              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • faltam:
+              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • com pendências • faltam (clique nos números para filtrar):
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {responsavelCountsCompleto.map((c) => {
@@ -1814,40 +1814,71 @@ export default function DistribuicaoTst() {
                 const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
                 const active = filtroResponsavelIds.includes(filterValue);
                 const faltam = c.faltam;
+                const comPendencia = Math.max(0, c.count - c.semPendencia);
+                // Cada número aplica o filtro do responsável + o recorte
+                // correspondente; os cards gerais recalculam automaticamente
+                // porque usam os mesmos `listFilters`.
+                const aplicar = (modo: "total" | "pronto" | "semPend" | "comPend") => {
+                  setSelectedIds(new Set());
+                  setFiltroResponsavelIds([filterValue]);
+                  setFiltroStatus(modo === "pronto" ? "concluidos" : "todos");
+                  setFiltroSemPendencia(modo === "semPend");
+                  setFiltroComPendencia(modo === "comPend");
+                };
+                const badge =
+                  "rounded-sm px-1.5 py-0.5 font-bold tabular-nums transition-colors hover:ring-1 hover:ring-primary/50";
                 return (
-                  <button
+                  <div
                     key={c.id}
-                    type="button"
-                    onClick={() => setFiltroResponsavelIds(active ? [] : [filterValue])}
                     className={`flex items-center justify-between gap-1.5 rounded-md border px-2 py-1 text-xs transition-all hover:shadow-sm ${
                       active
                         ? "border-primary bg-primary/10 text-primary"
                         : isSemResp
-                          ? "border-amber-400 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300"
-                          : "border-border bg-card text-foreground hover:bg-muted"
+                          ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
+                          : "border-border bg-card text-foreground"
                     }`}
-                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Faltam: ${faltam}`}
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Com pendências: ${comPendencia} • Faltam: ${faltam}`}
                   >
-                    <span className="truncate">{c.nome}</span>
+                    <button
+                      type="button"
+                      className="truncate text-left hover:underline"
+                      onClick={() => setFiltroResponsavelIds(active ? [] : [filterValue])}
+                    >
+                      {c.nome}
+                    </button>
                     <span className="flex items-center gap-1 shrink-0">
-                      <span
-                        className="rounded-sm bg-muted px-1.5 py-0.5 font-bold tabular-nums"
-                        title="Total"
+                      <button
+                        type="button"
+                        className={`${badge} bg-muted`}
+                        title="Total (clique para filtrar)"
+                        onClick={() => aplicar("total")}
                       >
                         {c.count}
-                      </span>
-                      <span
-                        className="rounded-sm bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 font-bold tabular-nums"
-                        title="Pronto (finalizadas)"
+                      </button>
+                      <button
+                        type="button"
+                        className={`${badge} bg-emerald-500/15 text-emerald-700 dark:text-emerald-400`}
+                        title="Pronto (finalizadas) — clique para filtrar"
+                        onClick={() => aplicar("pronto")}
                       >
                         {c.pronto}
-                      </span>
-                      <span
-                        className="rounded-sm bg-sky-500/15 text-sky-700 dark:text-sky-400 px-1.5 py-0.5 font-bold tabular-nums"
-                        title="Pronto SEM pendência"
+                      </button>
+                      <button
+                        type="button"
+                        className={`${badge} bg-sky-500/15 text-sky-700 dark:text-sky-400`}
+                        title="Pronto SEM pendência — clique para filtrar"
+                        onClick={() => aplicar("semPend")}
                       >
                         {c.semPendencia}
-                      </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`${badge} bg-red-500/15 text-red-700 dark:text-red-400`}
+                        title="Com pendências — clique para filtrar"
+                        onClick={() => aplicar("comPend")}
+                      >
+                        {comPendencia}
+                      </button>
                       <span
                         className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
                           faltam > 0
@@ -1859,7 +1890,7 @@ export default function DistribuicaoTst() {
                         {faltam}
                       </span>
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
