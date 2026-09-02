@@ -12,6 +12,10 @@ import { ListChecks, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeMateriaNome } from "@/utils/outraMateria";
+import {
+  ensureMateriasOficiais,
+  resetMateriasOficiais,
+} from "@/utils/materiasOficiaisCache";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Resultado {
