@@ -32,7 +32,14 @@ import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/Distribuica
 // foram movidas para Admin TST → Importações Distribuição TST.
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
-import { AjustarChanceDialog } from "@/components/distribuicao-tst/AjustarChanceDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { Link, useLocation, useNavigate } from "react-router-dom";
