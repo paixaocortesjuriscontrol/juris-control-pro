@@ -130,11 +130,21 @@ export function MateriasAnaliseList({ materias, value, onChange, title, fieldKey
       {rows.map((row, idx) => (
         <div
           key={`${row.materia}-${idx}`}
-          className="grid grid-cols-12 gap-2 items-center bg-background rounded-md p-2 border border-border/60"
+          className={cn(
+            "grid grid-cols-12 gap-2 items-center bg-background rounded-md p-2 border border-border/60",
+            isDoDossie(row.materia) && "bg-emerald-50 border-emerald-300",
+          )}
         >
-          <div className="col-span-12 md:col-span-4 text-sm break-words pr-2">
+          <div
+            className={cn(
+              "col-span-12 md:col-span-4 text-sm break-words pr-2",
+              isDoDossie(row.materia) && "text-emerald-700 font-medium",
+            )}
+            title={isDoDossie(row.materia) ? "Pedido cadastrado para este dossiê" : undefined}
+          >
             {row.materia}
           </div>
+
           <div className="col-span-4 md:col-span-3" data-pend-key={pendKey("aparelhamento", row.materia)}>
             <Select
               value={row.aparelhamento || "__none__"}
