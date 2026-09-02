@@ -49,10 +49,11 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
   const map: Record<string, string[]> = {};
   if (ids.length === 0) return map;
   try {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("membros_coordenacao")
       .select("user_id, coordenacoes(nome)")
       .in("user_id", ids);
+
     (data ?? []).forEach((m: any) => {
       const nome = m?.coordenacoes?.nome;
       if (!nome) return;
