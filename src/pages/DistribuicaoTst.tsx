@@ -1815,7 +1815,8 @@ export default function DistribuicaoTst() {
                 const filterValue = isSemResp ? "__sem_responsavel__" : c.id;
                 const active = filtroResponsavelIds.includes(filterValue);
                 const faltam = c.faltam;
-                const comPendencia = Math.max(0, c.count - c.semPendencia);
+                // Marcados como prontos (concluídos) que AINDA têm pendências.
+                const comPendencia = Math.max(0, c.pronto - c.semPendencia);
                 // Cada número aplica o filtro do responsável + o recorte
                 // correspondente; os cards gerais recalculam automaticamente
                 // porque usam os mesmos `listFilters`.
