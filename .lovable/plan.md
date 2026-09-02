@@ -8,6 +8,13 @@ Somente as matérias "verdes" (que constam na lista de pedidos do dossiê) podem
 - Na coluna de pendências, processos marcados como pronto (pronto_envio / planilhado / enviado) cujo dossiê tem pedidos cadastrados e **nenhuma** das matérias selecionadas consta nessa lista passam a exibir uma etiqueta vermelha **"Revisar lista de matérias"**.
 - A etiqueta aparece junto das demais pendências (ou sozinha, no lugar de "Sem pendências").
 - Processos cujo dossiê não tem pedidos cadastrados continuam como hoje (sem a marcação), já que não há lista para comparar.
+- Esses processos passam a contar como **pendentes**: deixam de aparecer como "Sem pendências"/concluídos nos totalizadores e filtros, para a lista não ficar desorganizada.
+
+### 1b. Card "Revisar Lista de matérias"
+- O card **Sem Responsável** sai dos totalizadores.
+- Entra no lugar o card **Revisar Lista de matérias**, com a contagem dos processos prontos sem nenhuma matéria da lista do dossiê.
+- Ao clicar, filtra a lista exatamente como os demais cards (e clicar de novo limpa o filtro).
+
 
 ### 2. Geração da Carga Benner
 - Ao montar cada linha, as matérias passam por um novo filtro: além da lista oficial do Santander, precisam constar na lista de pedidos **daquele dossiê**.
