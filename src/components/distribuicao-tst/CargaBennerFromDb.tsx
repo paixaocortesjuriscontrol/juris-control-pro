@@ -392,6 +392,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       const isMateriaOficial = (nome: any) =>
         materiasOficiaisSet.has(normalizeMateriaNome(String(nome ?? "")));
 
+      // Lista de pedidos POR DOSSIÊ: só as matérias que constam na lista do
+      // dossiê ("verdes") podem ir para a planilha. Dossiê sem lista cadastrada
+      // mantém o comportamento anterior (valida só contra a lista oficial).
+      const pedidosPorDossie = await ensurePedidosPorDossie().catch(() => new Map<string, Set<string>>());
+      const isMateriaDoDossie = (dossie: string, nome: any) => {
+        const set = pedidosPorDossie.get(String(dossie || "").trim());
+        if (!set || set.size === 0) return true;
+        return set.has(normalizeMateriaNome(String(nome ?? "")));
+      };
+
+
       // Phase 1: Fetch distribuicoes_tst
       setPhase("Carregando distribuições do banco...");
       setProgress(10);
