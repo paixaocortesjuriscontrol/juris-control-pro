@@ -10,6 +10,9 @@
 
 import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
 import { isMateriaOficialSync } from "./materiasOficiaisCache";
+import { getRecursosForaDaLista } from "./tipoRecursoOficial";
+import { getMotivoRejeicaoDossie } from "./dossieBenner";
+
 
 
 export type CampoObrigatorio = {
