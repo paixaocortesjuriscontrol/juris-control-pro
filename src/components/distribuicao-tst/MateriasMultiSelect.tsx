@@ -110,15 +110,30 @@ export function MateriasMultiSelect({
     onChange(joinMaterias(next));
   };
 
+  /** Matéria consta na lista de pedidos do dossiê deste processo. */
+  const isDoDossie = (nome: string) =>
+    !!pedidosDossie && pedidosDossie.size > 0 && pedidosDossie.has(normalizeMateriaNome(nome));
+
   const filtrados = useMemo(() => {
     const q = normalize(busca);
-    if (!q) return dados;
-    return dados.filter(
-      (m) =>
-        normalize(m.nome).includes(q) ||
-        normalize(m.descricao || "").includes(q),
-    );
-  }, [dados, busca]);
+    const base = !q
+      ? dados
+      : dados.filter(
+          (m) =>
+            normalize(m.nome).includes(q) ||
+            normalize(m.descricao || "").includes(q),
+        );
+    if (!pedidosDossie || pedidosDossie.size === 0) return base;
+    const doDossie = base.filter((m) => pedidosDossie.has(normalizeMateriaNome(m.nome)));
+    const outros = base.filter((m) => !pedidosDossie.has(normalizeMateriaNome(m.nome)));
+    return [...doDossie, ...outros];
+  }, [dados, busca, pedidosDossie]);
+
+  const qtdDoDossie = useMemo(
+    () => filtrados.filter((m) => isDoDossie(m.nome)).length,
+    [filtrados, pedidosDossie],
+  );
+
 
   const mostrarOutra = !normalize(busca) || normalize(OUTRA_MATERIA_LABEL).includes(normalize(busca));
   const outraSelecionada = selectedSet.has(OUTRA_MATERIA_LABEL.toLowerCase());
