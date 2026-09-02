@@ -1790,7 +1790,7 @@ export default function DistribuicaoTst() {
                           ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
                           : "border-border bg-card text-foreground"
                     }`}
-                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Faltam: ${faltam}`}
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Prontos sem matéria do dossiê: ${c.semMateriaDossie} • Faltam: ${faltam}`}
                   >
                     <button
                       type="button"
