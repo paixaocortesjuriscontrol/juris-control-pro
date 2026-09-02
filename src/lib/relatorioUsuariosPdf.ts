@@ -153,7 +153,7 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       ["Distribuição por coordenação", coordenacoesResumo || "—"],
     ],
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 150 } },
-    margin: { left: 40, right: 40 },
+    margin: { left: 30, right: 30 },
   });
 
 
@@ -161,7 +161,7 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Relação de usuários", 40, afterResumo + 24);
+  doc.text("Relação de usuários", 30, afterResumo + 24);
 
   // ---- Tabela principal
   const body = usuarios.map((u, i) => [
