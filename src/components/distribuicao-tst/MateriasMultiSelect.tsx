@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronsUpDown, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
 import { OUTRA_MATERIA_LABEL, isOutraMateria } from "@/utils/outraMateria";
+import {
+  ensureMateriasOficiais,
+  isMateriaOficialSync,
+  materiasOficiaisCarregadas,
+} from "@/utils/materiasOficiaisCache";
 
 const SEPARATOR = "; ";
 
@@ -57,6 +62,24 @@ export function MateriasMultiSelect({
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
   const { dados, loading } = useMateriasBenner();
+  const [oficiaisProntas, setOficiaisProntas] = useState(materiasOficiaisCarregadas());
+
+  useEffect(() => {
+    if (oficiaisProntas) return;
+    let alive = true;
+    ensureMateriasOficiais()
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setOficiaisProntas(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [oficiaisProntas]);
+
+  /** Matéria fora da lista oficial do Benner (nunca marca "Outra Matéria"). */
+  const foraDaLista = (nome: string) =>
+    oficiaisProntas && !isOutraMateria(nome) && !isMateriaOficialSync(nome);
 
   const selected = useMemo(() => parseMateriasString(value), [value]);
   const selectedSet = useMemo(
@@ -168,7 +191,12 @@ export function MateriasMultiSelect({
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span className="truncate">{m.nome}</span>
+                        <span className="truncate">
+                          {m.nome}
+                          {foraDaLista(m.nome) && (
+                            <span className="text-amber-600 text-xs"> (fora lista do Benner)</span>
+                          )}
+                        </span>
                         {!m.ativo && (
                           <Badge variant="secondary" className="ml-auto text-[10px]">
                             inativa
@@ -195,7 +223,12 @@ export function MateriasMultiSelect({
               variant="secondary"
               className="text-xs gap-1 pr-1"
             >
-              <span className="max-w-[260px] truncate">{nome}</span>
+              <span className="max-w-[260px] truncate">
+                {nome}
+                {foraDaLista(nome) && (
+                  <span className="text-amber-600"> (fora lista do Benner)</span>
+                )}
+              </span>
               {!disabled && (
                 <button
                   type="button"
