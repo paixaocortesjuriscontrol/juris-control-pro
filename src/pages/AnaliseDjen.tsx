@@ -100,6 +100,8 @@ import { EtiquetarLoteDialog } from "@/components/etiquetas/EtiquetarLoteDialog"
 import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
+import { contarItensDaPublicacao, textoAvisoItens } from "@/lib/contarItensDaPublicacao";
+
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
