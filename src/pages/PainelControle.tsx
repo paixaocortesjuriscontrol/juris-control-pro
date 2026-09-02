@@ -1093,12 +1093,10 @@ export default function PainelControle() {
       // Responsável(is) selecionado(s)
       if (painelFiltros.responsavelIds.length > 0) {
         const rid = item.responsavel_id;
-        const cid = item.criado_por;
         const envolvido = item.participantes?.some((p) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
       }
@@ -1567,12 +1565,10 @@ export default function PainelControle() {
       }
       if (painelFiltros.responsavelIds.length > 0) {
         const rid = item.responsavel_id;
-        const cid = item.criado_por;
         const envolvido = item.participantes?.some((p: any) => painelFiltros.responsavelIds.includes(p.usuario_id));
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          (cid && painelFiltros.responsavelIds.includes(cid)) ||
           envolvido;
         if (!isMatch) return false;
       }
