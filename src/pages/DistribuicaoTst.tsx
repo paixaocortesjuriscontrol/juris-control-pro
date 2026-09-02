@@ -748,6 +748,11 @@ export default function DistribuicaoTst() {
         setFiltroStatus("concluidos");
         setFiltroSemPendencia(true);
         break;
+      case "prontoComPendencia":
+        setFiltroStatus("concluidos");
+        setFiltroComPendencia(true);
+        break;
+
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
