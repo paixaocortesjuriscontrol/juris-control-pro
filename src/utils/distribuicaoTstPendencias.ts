@@ -559,6 +559,12 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
     ["banco", "materias_analise_banco", "Reclamada (Banco)"],
     ["terceiro", "materias_analise_terceiro", "Terceiro"],
   ];
+  // Só os quadros das partes efetivamente marcadas em "Parte Recorrente" são
+  // avaliados (valores legados de outras partes não vão para a planilha).
+  const info = parseParteRecorrente(row);
+  const parteAtiva: Record<string, boolean> = info.valida
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
+    : { reclamante: true, banco: true, terceiro: true };
   const res: MateriasForaDaLista = {
     reclamante: [],
     banco: [],
@@ -569,6 +575,8 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
   };
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
+    if (!parteAtiva[chave as string]) continue;
+
     const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
       (i: any) => i && i.materia && String(i.materia).trim(),
     );
