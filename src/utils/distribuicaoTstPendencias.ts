@@ -337,16 +337,25 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // processos com o formulário em branco.
   // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
   // reportar Sem pendências mesmo que existam campos vazios.
-  if (
-    row?.acordo === true ||
-    row?.cejusc === true ||
-    row?.processo_outro_escritorio === true ||
-    row?.segredo_justica === true ||
-    row?.transito_julgado === true ||
-    recorrenteSomenteTerceiro(row)
-  ) {
+  // Exceção: quando o processo já está marcado como PRONTO PARA ENVIAR, essas
+  // mesmas situações rejeitam a linha na Carga Benner. Nesse caso precisam
+  // aparecer como pendência na tela (regra: tudo que rejeita na planilha tem
+  // que ser visível antes).
+  const bloqueio = getSituacaoImpeditiva(row);
+  if (bloqueio) {
+    if (isMarcadoPronto(row)) {
+      return [
+        {
+          key: "situacao_impeditiva",
+          label: `${bloqueio} — NÃO irá para a planilha de Carga Benner`,
+          alvoLabel: bloqueio,
+          quadrinho: "I. Dados Básicos",
+        },
+      ];
+    }
     return [];
   }
+  if (recorrenteSomenteTerceiro(row)) return [];
   const out: Pendencia[] = [];
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
