@@ -1773,7 +1773,7 @@ export type Database = {
           comentario: string
           created_at: string
           id: string
-          publicacao_id: string
+          publicacao_id: string | null
           updated_at: string
           user_id: string
         }
@@ -1781,7 +1781,7 @@ export type Database = {
           comentario: string
           created_at?: string
           id?: string
-          publicacao_id: string
+          publicacao_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -1789,7 +1789,7 @@ export type Database = {
           comentario?: string
           created_at?: string
           id?: string
-          publicacao_id?: string
+          publicacao_id?: string | null
           updated_at?: string
           user_id?: string
         }
