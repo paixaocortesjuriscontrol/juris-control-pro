@@ -19,7 +19,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, KeyRound, Sparkles, Coins, Scale, LayoutDashboard, FileSpreadsheet } from "lucide-react";
+import { Loader2, ShieldCheck, Users, UserPlus, Pencil, Filter, Clock, History, CalendarIcon, X, Server, BarChart3, Radar, Settings, Upload, FileText, KeyRound, Sparkles, Coins, Scale, LayoutDashboard, FileSpreadsheet } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,6 +32,7 @@ import { toZonedTime } from "date-fns-tz";
 import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 import { InfoSistemaTab } from "@/components/admin/InfoSistemaTab";
+import { gerarRelatorioUsuariosPdf } from "@/lib/relatorioUsuariosPdf";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -87,6 +88,7 @@ const Administracao = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [filialFilter, setFilialFilter] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("usuarios");
+  const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
   const [historyUserFilter, setHistoryUserFilter] = useState<string>("todos");
@@ -132,6 +134,35 @@ const Administracao = () => {
       fetchLoginHistory();
     }
   }, [activeTab, historyStartDate, historyEndDate, historyUserFilter, users]);
+
+  async function handleGerarRelatorioUsuarios() {
+    setGerandoRelatorio(true);
+    try {
+      await gerarRelatorioUsuariosPdf({
+        filtroFilial: filialFilter,
+        usuarios: filteredUsers.map((u) => ({
+          id: u.id,
+          nome: u.nome,
+          email: u.email,
+          telefone: (u as any).telefone ?? null,
+          oab: u.oab ?? null,
+          filial: (u as any).filial ?? null,
+          area_principal: (u as any).area_principal ?? null,
+          ativo: u.ativo,
+          created_at: u.created_at ?? null,
+          notificacoes_email: (u as any).notificacoes_email ?? null,
+          notificacoes_email_360: (u as any).notificacoes_email_360 ?? null,
+          roleLabel: u.role ? roleLabels[u.role] : "Sem perfil",
+        })),
+      });
+      toast.success("Relatório gerado com sucesso!");
+    } catch (e: any) {
+      console.error("Erro ao gerar relatório de usuários:", e);
+      toast.error("Erro ao gerar o relatório");
+    } finally {
+      setGerandoRelatorio(false);
+    }
+  }
 
   async function fetchUsers() {
     setLoading(true);
