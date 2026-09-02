@@ -2346,6 +2346,17 @@ export default function PainelControle() {
                 >
                   Equipe
                 </Button>
+                {podeVerProtocoladosBaixados && (
+                  <Button
+                    size="sm"
+                    variant={modoProtocoladosBaixados ? "default" : "outline"}
+                    className="h-7 px-2 text-[11px]"
+                    onClick={toggleProtocoladosBaixados}
+                    title="Lista de todos os itens nas situações Protocolado ou Baixado"
+                  >
+                    Protocolados/Baixados
+                  </Button>
+                )}
                 {([
 
                   { key: "prazo",         label: "Prazos" },
