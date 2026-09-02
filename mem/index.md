@@ -1,4 +1,6 @@
 - [DJEN Servidor Refila Loop](mem://logic/djen/servidor-refila-timeout-loop) — Lentidão vem do refila de timeouts; medir cards por rodada em execucoes_servidor
 - [Gemini Deprecations](mem://infrastructure/api/gemini-model-deprecations) — gemini-2.5-pro removido; pro→gemini-3.1-pro-preview e fallback 404→flash-latest
 - [Outra Matéria neutra](mem://logic/distribuicao-tst/outra-materia-neutra) — Não gera pendência/aviso, não rejeita e vai literal para a Carga Benner
+- [Pendências = rejeições da Carga](mem://features/distribuicao-tst/pendencias-espelham-rejeicao-carga) — Tipo de recurso fora da lista e dossiê inválido geram pendência na lista
+
 - [Sem criação automática de tarefas](mem://constraints/no-auto-task-creation-triggers) — Gatilhos de tarefa por intimação/audiência removidos do banco; não reintroduzir

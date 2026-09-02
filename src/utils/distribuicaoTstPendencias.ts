@@ -10,6 +10,9 @@
 
 import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
 import { isMateriaOficialSync } from "./materiasOficiaisCache";
+import { getRecursosForaDaLista } from "./tipoRecursoOficial";
+import { getMotivoRejeicaoDossie } from "./dossieBenner";
+
 
 
 export type CampoObrigatorio = {
@@ -252,12 +255,18 @@ export type Pendencia = {
   label: string;
   quadrinho: string;
   /**
+   * Rótulo do campo do formulário que deve ser destacado quando o `label` da
+   * pendência é um texto explicativo longo (ex.: tipo de recurso fora da lista).
+   */
+  alvoLabel?: string;
+  /**
    * Quando `true`, o item é apenas um AVISO ("Verificar", em amarelo): aparece
    * no botão "Verificar Pendências" mas NÃO conta como pendência e não bloqueia
    * o envio. Hoje é usado quando "Outra Matéria" é a única matéria selecionada.
    */
   aviso?: boolean;
 };
+
 
 /** Nomes das matérias selecionadas de um bloco (string de matérias + JSONB). */
 function materiasSelecionadasDe(
@@ -384,8 +393,75 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
       quadrinho: "III. Recurso do Reclamante",
     });
   }
+
+  // Regra: tipo de recurso preenchido com valor fora da lista oficial de
+  // seleção (típico de preenchimento automático inventado pela Judit) rejeita
+  // a linha na Carga Benner — então precisa aparecer como pendência na lista.
+  const recursosFora = getRecursosForaDaLista(row);
+  if (recursosFora.length > 0) {
+    const amostra = recursosFora
+      .slice(0, 3)
+      .map((r) => `${r.campo}: "${r.valor}"`)
+      .join("; ");
+    const resto = recursosFora.length > 3 ? ` (+${recursosFora.length - 3})` : "";
+    out.push({
+      key: "tipo_recurso_fora_lista_oficial",
+      label:
+        "Tipo de recurso fora da lista oficial de seleção — NÃO irá para a planilha de Carga Benner: " +
+        amostra +
+        resto,
+      alvoLabel: QUADRO_POR_CAMPO_RECURSO[recursosFora[0].campo]?.alvoLabel,
+      quadrinho:
+        QUADRO_POR_CAMPO_RECURSO[recursosFora[0].campo]?.quadrinho ||
+        "III. Recurso do Reclamante",
+    });
+  }
+
+  // Regra: dossiê fora do padrão também rejeita a linha na Carga Benner.
+  // (Dossiê vazio já é cobrado pelos campos obrigatórios.)
+  const dossieRaw = String(row?.dossie ?? "").trim();
+  if (dossieRaw) {
+    const motivoDossie = getMotivoRejeicaoDossie(
+      dossieRaw,
+      row?.processo ?? row?.processo_numero,
+    );
+    if (motivoDossie) {
+      out.push({
+        key: "dossie_formato_invalido",
+        label:
+          `${motivoDossie} — NÃO irá para a planilha de Carga Benner`,
+        alvoLabel: "Dossiê (A)",
+        quadrinho: "I. Dados Básicos",
+      });
+    }
+  }
   return out;
 }
+
+/** Quadro/rótulo do formulário para cada campo de recurso inválido. */
+const QUADRO_POR_CAMPO_RECURSO: Record<
+  string,
+  { quadrinho: string; alvoLabel: string }
+> = {
+  "Tipo de Recurso": {
+    quadrinho: "III. Recurso do Reclamante",
+    alvoLabel: "Tipo de Recurso do Reclamante (C)",
+  },
+  "Recurso do Reclamante": {
+    quadrinho: "III. Recurso do Reclamante",
+    alvoLabel: "Tipo de Recurso do Reclamante (C)",
+  },
+  "Recurso do Banco": {
+    quadrinho: "IV. Recurso do Banco",
+    alvoLabel: "Tipo de Recurso do Banco (C)",
+  },
+  "Recurso de Terceiro": {
+    quadrinho: "V. Recurso Terceiro",
+    alvoLabel: "Tipo de Recurso (Terceiro) (C)",
+  },
+};
+
+
 
 export type MateriasForaDaLista = {
   reclamante: string[];
