@@ -24,10 +24,12 @@ export type StatsCardKey =
   | "de2026"
   | "prontoEnvio"
   | "prontoSemPendencia"
+  | "prontoComPendencia"
   | "semResponsavel"
   | "comEquipe"
   | "semEquipe"
   | "multiResp";
+
 
 interface Props {
   stats: DistribuicaoTstStats;
@@ -44,6 +46,8 @@ interface Props {
   /** Contagem de processos "Pronto para Enviar" sem pendências (computado no
    *  cliente, respeita todos os filtros/cards ativos). */
   prontoSemPendencia?: { count: number; loading: boolean } | null;
+  /** Contagem de processos marcados como prontos que AINDA têm pendências. */
+  prontoComPendencia?: { count: number; loading: boolean } | null;
 }
 
 interface CardDef {
@@ -56,7 +60,8 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia }: Props) {
+
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
     { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
@@ -82,7 +87,16 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "processosValidos", label: "Processos nº CNJ válidos", value: stats.processosValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "dossiesValidos", label: "Dossiês Válidos", value: stats.dossiesValidos, className: "from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 border-emerald-200 dark:border-emerald-800", textClass: "text-emerald-600 dark:text-emerald-400" },
     { key: "processosAtivos", label: "Processos Ativos", value: stats.processosAtivos, className: "from-green-50 to-green-100 dark:from-green-950/50 dark:to-green-900/30 border-green-200 dark:border-green-800", textClass: "text-green-600 dark:text-green-400" },
-    { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
+    ...(prontoComPendencia
+      ? [{
+          key: "prontoComPendencia" as StatsCardKey,
+          label: "Pronto com pendência",
+          value: prontoComPendencia.count,
+          hint: "Processos marcados como prontos que ainda têm pendências",
+          className: "from-orange-50 to-orange-100 dark:from-orange-950/50 dark:to-orange-900/30 border-orange-200 dark:border-orange-800",
+          textClass: "text-orange-700 dark:text-orange-400",
+        }]
+      : []),
     // Amarelos / Laranja
     { key: "transitoJulgado", label: "Trânsito em Julgado", value: stats.transitoJulgado, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-600 dark:text-amber-400" },
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
@@ -90,8 +104,10 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     { key: "processosInvalidos", label: "Processos Inválidos", value: stats.processosInvalidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
+    { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
   ];
   if (multiRespCard) {
+
     cards.push({
       key: "multiResp",
       label: "Mais de um responsável",

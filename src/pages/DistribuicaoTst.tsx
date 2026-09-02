@@ -659,7 +659,9 @@ export default function DistribuicaoTst() {
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
     if (filtroMultiResp) return "multiResp" as const;
+    if (filtroComPendencia) return "prontoComPendencia" as const;
     if (filtroSemPendencia) return "prontoSemPendencia" as const;
+
     if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
     if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
     if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
@@ -699,11 +701,13 @@ export default function DistribuicaoTst() {
     setFiltroMultiResp(false);
     // Reseta filtro de status (Pronto para Enviar) ao alternar cards
     if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
-    // "Pronto sem pendência" reaproveita o filtro de status = pronto_envio.
-    if (key === "prontoSemPendencia") setFiltroStatus("todos");
-    // Sempre desliga o filtro "sem pendência" ao alternar/limpar cards;
-    // será religado no switch abaixo se este for o card ativado.
+    // "Pronto sem/com pendência" reaproveitam o filtro de status = concluidos.
+    if (key === "prontoSemPendencia" || key === "prontoComPendencia") setFiltroStatus("todos");
+    // Sempre desliga os filtros de pendência ao alternar/limpar cards;
+    // serão religados no switch abaixo se este for o card ativado.
     setFiltroSemPendencia(false);
+    setFiltroComPendencia(false);
+
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
     setSelectedIds(new Set());
@@ -744,6 +748,11 @@ export default function DistribuicaoTst() {
         setFiltroStatus("concluidos");
         setFiltroSemPendencia(true);
         break;
+      case "prontoComPendencia":
+        setFiltroStatus("concluidos");
+        setFiltroComPendencia(true);
+        break;
+
       case "semResponsavel":
         setFiltroResponsavelIds(["__sem_responsavel__"]);
         break;
@@ -1760,11 +1769,12 @@ export default function DistribuicaoTst() {
               count: prontoSemPendenciaCount,
               loading: prontoSemPendenciaLoading,
             }}
-            multiRespCard={isAdmin ? {
-              count: multiRespIds.length,
-              active: filtroMultiResp,
-              onClick: () => handleCardClick("multiResp"),
-            } : null}
+            prontoComPendencia={{
+              count: Math.max(0, (statsWithGeral?.prontoEnvio ?? 0) - prontoSemPendenciaCount),
+              loading: prontoSemPendenciaLoading || statsLoading,
+            }}
+            multiRespCard={null}
+
             responsavelCard={(() => {
               // Quando há exatamente UM responsável selecionado no filtro,
               // o card reflete esse responsável (útil para o admin trocar e
