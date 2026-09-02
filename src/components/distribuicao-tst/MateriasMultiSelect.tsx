@@ -62,6 +62,24 @@ export function MateriasMultiSelect({
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
   const { dados, loading } = useMateriasBenner();
+  const [oficiaisProntas, setOficiaisProntas] = useState(materiasOficiaisCarregadas());
+
+  useEffect(() => {
+    if (oficiaisProntas) return;
+    let alive = true;
+    ensureMateriasOficiais()
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setOficiaisProntas(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [oficiaisProntas]);
+
+  /** Matéria fora da lista oficial do Benner (nunca marca "Outra Matéria"). */
+  const foraDaLista = (nome: string) =>
+    oficiaisProntas && !isOutraMateria(nome) && !isMateriaOficialSync(nome);
 
   const selected = useMemo(() => parseMateriasString(value), [value]);
   const selectedSet = useMemo(
