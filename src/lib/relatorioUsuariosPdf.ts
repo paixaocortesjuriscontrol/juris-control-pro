@@ -229,7 +229,7 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       10: { cellWidth: 46 },
       11: { cellWidth: 45 },
     },
-    margin: { left: 40, right: 40, top: 60 },
+    margin: { left: 30, right: 30, top: 60 },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 9 && data.cell.raw === "Inativo") {
         data.cell.styles.textColor = [185, 28, 28];
