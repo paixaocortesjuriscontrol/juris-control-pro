@@ -47,6 +47,8 @@ import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersH
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { BarChart3, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
@@ -177,6 +179,8 @@ export default function PainelControle() {
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [diaLateralKey, setDiaLateralKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+  // ===== Atalho "Protocolados/Baixados" (Coordenação Dra. Beatriz Costa) =====
+  const [modoProtocoladosBaixados, setModoProtocoladosBaixados] = useState(false);
 
   // ===== Drill-down vindo do Ranking de Atendimento =====
   const [drill, setDrill] = useState<{
@@ -309,7 +313,37 @@ export default function PainelControle() {
     setPainelFiltros(PAINEL_FILTROS_DEFAULT);
     setSituacaoFilter("todos");
     setSomenteHoje(false);
+    setModoProtocoladosBaixados(false);
   }, []);
+
+  // Liga/desliga o atalho Protocolados/Baixados
+  const toggleProtocoladosBaixados = useCallback(() => {
+    setModoProtocoladosBaixados((ativo) => {
+      if (ativo) {
+        setPainelFiltros((s) => ({ ...s, situacoes: [] }));
+        return false;
+      }
+      setViewMode("lista");
+      setSituacaoFilter("todos");
+      setSomenteHoje(false);
+      setPainelFiltros((s) => ({
+        ...s,
+        situacoes: ["protocolado", "baixado"],
+        classificacoes: [],
+        statusGroup: "todas",
+        souResponsavel: false,
+        estouEnvolvido: false,
+      }));
+      return true;
+    });
+  }, []);
+
+  // Sair do modo ao trocar de visão
+  useEffect(() => {
+    if (modoProtocoladosBaixados && viewMode !== "lista") {
+      setModoProtocoladosBaixados(false);
+    }
+  }, [viewMode, modoProtocoladosBaixados]);
   const [mostrarTotalizadores, setMostrarTotalizadores] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const v = window.localStorage.getItem("painel:mostrarTotalizadores");
@@ -358,6 +392,10 @@ export default function PainelControle() {
     },
     enabled: !!user?.id,
   });
+
+  // Atalho Protocolados/Baixados: só coordenação da Dra. Beatriz Costa (e admins)
+  const podeVerProtocoladosBaixados =
+    isAdmin || coordenacoesUsuario.includes(COORDENACAO_BEATRIZ_COSTA_ID);
 
   // Buscar IDs de todos os membros das coordenações do usuário (para modo escritório)
   // Inclui membros + coordenadores
@@ -2308,6 +2346,17 @@ export default function PainelControle() {
                 >
                   Equipe
                 </Button>
+                {podeVerProtocoladosBaixados && (
+                  <Button
+                    size="sm"
+                    variant={modoProtocoladosBaixados ? "default" : "outline"}
+                    className="h-7 px-2 text-[11px]"
+                    onClick={toggleProtocoladosBaixados}
+                    title="Lista de todos os itens nas situações Protocolado ou Baixado"
+                  >
+                    Protocolados/Baixados
+                  </Button>
+                )}
                 {([
 
                   { key: "prazo",         label: "Prazos" },
@@ -2376,6 +2425,62 @@ export default function PainelControle() {
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+            {modoProtocoladosBaixados && (
+              <div className="mx-4 mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex items-center gap-1.5 mr-1">
+                    <span className="text-xs font-semibold text-foreground">Protocolados/Baixados</span>
+                    <Badge variant="secondary">{itensListaEquipe.length} itens</Badge>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground">Data inicial</p>
+                    <Input
+                      type="date"
+                      value={painelFiltros.periodoInicio}
+                      onChange={(e) =>
+                        setPainelFiltros((s) => ({ ...s, periodoInicio: e.target.value }))
+                      }
+                      className="h-8 w-[150px] text-xs px-2"
+                    />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-muted-foreground">Data final</p>
+                    <Input
+                      type="date"
+                      value={painelFiltros.periodoFim}
+                      onChange={(e) =>
+                        setPainelFiltros((s) => ({ ...s, periodoFim: e.target.value }))
+                      }
+                      className="h-8 w-[150px] text-xs px-2"
+                    />
+                  </div>
+                  <div className="min-w-[240px] flex-1">
+                    <p className="text-[10px] text-muted-foreground">Responsáveis</p>
+                    <PeoplePicker
+                      selectedIds={painelFiltros.responsavelIds}
+                      onChange={(ids) => setPainelFiltros((s) => ({ ...s, responsavelIds: ids }))}
+                      placeholder="Filtrar por responsável"
+                      emptyLabel="Todos os responsáveis"
+                    />
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={() =>
+                      setPainelFiltros((s) => ({
+                        ...s,
+                        periodoInicio: "",
+                        periodoFim: "",
+                        responsavelIds: [],
+                      }))
+                    }
+                  >
+                    <X className="w-3 h-3 mr-1" /> Limpar
+                  </Button>
+                </div>
+              </div>
+            )}
             {drill && (
               <div className="mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs">
                 <span className="font-semibold text-foreground">Ranking:</span>
