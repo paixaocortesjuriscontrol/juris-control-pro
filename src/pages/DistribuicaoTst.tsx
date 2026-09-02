@@ -1834,6 +1834,16 @@ export default function DistribuicaoTst() {
                       </button>
                       <span
                         className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
+                          c.semMateriaDossie > 0
+                            ? "bg-purple-500/15 text-purple-700 dark:text-purple-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        title="Prontos sem NENHUMA matéria da lista do dossiê (nenhuma verde)"
+                      >
+                        {c.semMateriaDossie}
+                      </span>
+                      <span
+                        className={`rounded-sm px-1.5 py-0.5 font-bold tabular-nums ${
                           faltam > 0
                             ? "bg-amber-500/15 text-amber-700 dark:text-amber-400"
                             : "bg-muted text-muted-foreground"
