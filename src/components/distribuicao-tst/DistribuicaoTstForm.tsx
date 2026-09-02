@@ -392,7 +392,11 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
       setBennerExtraLoaded(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bennerDado?.id]);
+  }, [
+    bennerDado?.id,
+    JSON.stringify(bennerDado?.materias_analise_reclamante ?? null),
+    JSON.stringify(bennerDado?.materias_analise_banco ?? null),
+  ]);
 
   useEffect(() => {
     const persisted = extractPersistedIaFields((dado as any)?.observacao_advogado);
