@@ -360,8 +360,28 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   if (recorrenteEhTerceiro(row)) {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   }
+
+  // Regra: se TODAS as matérias selecionadas (Reclamante / Reclamada / Terceiro)
+  // estiverem fora da lista oficial de pedidos, o processo tem pendência —
+  // é o mesmo critério que rejeita a linha na Carga Benner.
+  const todasMaterias = [
+    ...materiasSelecionadasDe(row, "materias_analise_reclamante", "materias_recurso_reclamante"),
+    ...materiasSelecionadasDe(row, "materias_analise_banco", "materias_recurso_banco"),
+    ...materiasSelecionadasDe(row, "materias_analise_terceiro", "materias_recurso_terceiro"),
+  ].filter((i: any) => i && i.materia && String(i.materia).trim());
+  if (
+    todasMaterias.length > 0 &&
+    !todasMaterias.some((i: any) => isMateriaOficialSync(i.materia))
+  ) {
+    out.push({
+      key: "materias_fora_lista_oficial",
+      label: "Matérias fora da lista oficial de pedidos",
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  }
   return out;
 }
+
 
 /** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
 export function getPendencias(row: any): Pendencia[] {
