@@ -739,7 +739,21 @@ const Administracao = () => {
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGerarRelatorioUsuarios}
+                      disabled={gerandoRelatorio || filteredUsers.length === 0}
+                    >
+                      {gerandoRelatorio ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <FileText className="w-4 h-4 mr-2" />
+                      )}
+                      Relatório PDF
+                    </Button>
                     <Filter className="w-4 h-4 text-muted-foreground" />
+
                     <Select value={filialFilter} onValueChange={setFilialFilter}>
                       <SelectTrigger className="w-40">
                         <SelectValue placeholder="Filtrar por filial" />
