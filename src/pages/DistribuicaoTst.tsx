@@ -1716,13 +1716,8 @@ export default function DistribuicaoTst() {
                   <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
                 </Button>
               </Link>
-              {isAdmin && (
-                <Link to="/distribuicao-tst/arquivados">
-                  <Button variant="outline">
-                    <Archive className="w-4 h-4 mr-2" /> Arquivados
-                  </Button>
-                </Link>
-              )}
+              {/* "Arquivados" e "Ajustar Chance Turma/Relator" movidos para Admin TST */}
+
               {isAdminOrCoordinator && filtroDuplicado === "sim" && (
                 <Button
                   variant="outline"
