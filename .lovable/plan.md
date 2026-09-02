@@ -1,20 +1,25 @@
-# Carga Benner: separador de pedidos e relatório de recusas do Santander
+# Botão "Protocolados/Baixados" no Painel de Controle
 
-## Diagnóstico (verificado na planilha enviada e no retorno)
-- 492 linhas enviadas, 127 recusadas, 62 matérias citadas.
-- Não é erro de grafia nem de lista oficial: 60 das 62 matérias recusadas foram aceitas em outras linhas do mesmo arquivo (ex.: "Honorários de Sucumbência" recusada em 50 linhas e aceita em 93). A causa é a informada por eles: o pedido não está cadastrado naquele dossiê no Benner.
-- O cabeçalho do layout exige pedidos separados por **ponto e vírgula**; hoje a exportação usa **vírgula**. Além do formato estar fora do padrão, 8 pedidos da lista oficial têm vírgula no nome (ex.: "Complementação de Aposentadoria - Regulamento de Pessoal - 3,5%"), que seriam partidos em dois pedidos inexistentes.
+## Objetivo
+Novo atalho no Painel de Controle que abre a visão em Lista já filtrada pelas situações **Protocolado** e **Baixado**, com filtro de período (data inicial/final) e de responsáveis (todos, um ou vários).
 
-## O que será feito
-1. **Separador correto**: nas colunas de matérias (Favorável/Desfavorável turma, Favorável/Desfavorável relator, Bem/Mal aparelhado, Com chances de êxito, Sem chance de êxito) os pedidos passam a ser unidos por `;` em vez de `,`.
-2. **Relatório de recusas do Santander**: nova opção no Acesso Rápido da Distribuição TST — "Conferir retorno do Santander". O usuário cola o texto de retorno; o sistema:
-   - identifica as linhas recusadas e as matérias citadas em cada uma;
-   - cruza com a última carga (por número de linha e, quando disponível, pelo IDENTIFICADOR/dossiê presente no texto);
-   - exibe a lista e exporta uma planilha `Pedidos_Nao_Cadastrados_Dossie.xlsx` com Dossiê, Processo, Parte Recorrente, Campo (posição turma/relator, aparelhamento, chance de êxito) e Pedido recusado, para pedir o cadastro ao Santander.
-3. Nenhum bloqueio novo de geração e nenhuma mudança de schema.
+## Visibilidade
+- Aparece somente para usuários vinculados à **Coordenação Dra. Beatriz Costa** (`d997ca10-0012-4a0e-8856-664812366fec`), seja como membro ou como coordenadora titular.
+- Administradores também veem (mantém consistência com os demais atalhos do painel).
+
+## Comportamento ao clicar
+1. Muda a visão para **Lista**.
+2. Aplica nos filtros do painel: `situacoes = ["protocolado", "baixado"]`, `statusGroup = "todas"`, `classificacoes = []` (todos os tipos: prazo, tarefa, evento, audiência, parcelamento), sem restrição de "sou responsável / estou envolvido".
+3. Abre um painel compacto de filtros logo acima da lista, com:
+   - **Data inicial** e **Data final** (aplicadas em `periodoInicio` / `periodoFim`).
+   - **Responsáveis**: seleção múltipla com opção "Todos" (aplica em `responsavelIds`).
+   - Botão **Limpar** (volta a "todos os responsáveis" e sem período, mantendo Protocolado/Baixado).
+4. O botão fica destacado (estado ativo) enquanto o modo estiver ligado; clicar de novo, ou trocar de visão/limpar filtros, sai do modo.
 
 ## Detalhes técnicos
-- `src/components/distribuicao-tst/CargaBennerFromDb.tsx`: `joinUniqueMat` passa a usar `out.join(";")` (linha ~636); mesma mudança vale para as células de rejeição que reúsam a função.
-- Novo componente `src/components/distribuicao-tst/RetornoSantanderDialog.tsx`: textarea + parser com regex `Linha (\d+) : (.+?) não localizado com a informação (.+?) \.` e captura de `IDENTIFICADOR = <dossiê>`; agrupa por linha, resolve o dossiê pela ordem das linhas da carga (Linha N = linha N+1 da planilha) e usa o IDENTIFICADOR quando presente; exportação via `xlsx`.
-- Item adicionado ao dropdown "Acesso Rápido" em `src/pages/DistribuicaoTst.tsx`.
-- Para vincular linha → dossiê sem depender do arquivo enviado, o dialog aceita opcionalmente o upload da própria planilha de carga; se não for enviada, mostra só linha + pedido recusado.
+- `src/pages/PainelControle.tsx`:
+  - Nova query (ou reuso de `coordenacoesUsuario`) para saber se o usuário pertence à coordenação da Dra. Beatriz Costa; constante com o UUID da coordenação em `src/constants/`.
+  - Estado `modoProtocoladosBaixados`; handler que faz `setViewMode("lista")` + `setPainelFiltros({...})` conforme acima e `setSituacaoFilter("todos")`.
+  - Botão renderizado junto aos toggles de visão (Agenda/Lista/Kanban, ~linha 2286), condicionado à visibilidade.
+- Reaproveita a infraestrutura existente de filtros (`PainelFiltrosState` já tem `situacoes`, `periodoInicio`, `periodoFim`, `responsavelIds`) e o seletor de responsáveis já usado em `PainelFiltros.tsx` — nenhuma mudança de banco, RLS ou lógica de dados.
+- As situações `protocolado` e `baixado` já existem em `src/constants/situacoesItem.ts` e no enum `status_tarefa`; serão aplicadas de forma fixa pelo botão, independente da configuração "quem pode mudar cada situação".
