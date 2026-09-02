@@ -677,6 +677,8 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 marcados++;
               };
               for (const p of pend) {
+                if (p.key.startsWith("materias_fora_lista_oficial")) { marcados++; continue; }
+
                 // Pendências por matéria (JSONB) têm chave própria e são
                 // marcadas diretamente na célula correspondente.
                 if (p.key.includes(".")) {
