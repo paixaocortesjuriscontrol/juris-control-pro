@@ -73,17 +73,18 @@ export function MateriasMultiSelect({
   const [oficiaisProntas, setOficiaisProntas] = useState(materiasOficiaisCarregadas());
 
   useEffect(() => {
-    if (oficiaisProntas) return;
     let alive = true;
     ensureMateriasOficiais()
       .catch(() => {})
       .finally(() => {
-        if (alive) setOficiaisProntas(true);
+        if (alive) setOficiaisProntas(materiasOficiaisCarregadas());
       });
     return () => {
       alive = false;
     };
-  }, [oficiaisProntas]);
+    // Reavalia ao abrir o popover: o cache pode ter sido recarregado após uma
+    // importação de pedidos.
+  }, [open]);
 
   /** Matéria fora da lista oficial do Benner (nunca marca "Outra Matéria"). */
   const foraDaLista = (nome: string) =>
