@@ -23,6 +23,7 @@ import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
+import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -515,7 +516,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => {
+            onClick={async () => {
               // Limpa marcações anteriores
               const root = document.getElementById("dtst-form-root");
               if (!root) {
@@ -551,6 +552,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 cejusc: cejusc,
               };
 
+              await ensureMateriasOficiais().catch(() => {});
               const todos = getPendenciasEAvisos(row);
               const pend = todos.filter((p) => !p.aviso);
               const avisos = todos.filter((p) => p.aviso);
