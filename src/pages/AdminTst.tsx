@@ -22,6 +22,8 @@ import {
   Building,
   CheckSquare,
   History,
+  Archive,
+  Wand2,
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
