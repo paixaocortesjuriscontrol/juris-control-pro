@@ -24,10 +24,12 @@ export type StatsCardKey =
   | "de2026"
   | "prontoEnvio"
   | "prontoSemPendencia"
+  | "prontoComPendencia"
   | "semResponsavel"
   | "comEquipe"
   | "semEquipe"
   | "multiResp";
+
 
 interface Props {
   stats: DistribuicaoTstStats;
