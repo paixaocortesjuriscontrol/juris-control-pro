@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
@@ -1647,40 +1647,53 @@ export default function DistribuicaoTst() {
           >
             {mostrarFiltros ? <SlidersHorizontal className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4 opacity-50" />}
           </Button>
-          <Button
-            onClick={() => gerarManualDistribuicaoTst()}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
-          >
-            <FileText className="w-4 h-4 mr-2" /> M. Instruções
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" disabled={xlsxRunning || pdfRunning}>
                 {xlsxRunning || pdfRunning ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <FileText className="w-4 h-4 mr-2" />
+                  <Zap className="w-4 h-4 mr-2" />
                 )}
                 {xlsxRunning
                   ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
                   : pdfRunning
                     ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
                     : selectedIds.size > 0
-                      ? `Relatórios (${selectedIds.size})`
-                      : "Relatórios"}
+                      ? `Acesso Rápido (${selectedIds.size})`
+                      : "Acesso Rápido"}
                 <ChevronDown className="w-4 h-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
-              <DropdownMenuLabel>Relatórios da Distribuição TST</DropdownMenuLabel>
+              <DropdownMenuLabel>Acesso Rápido</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()}>
+              {isAdminOrCoordinator && (
+                <DropdownMenuItem onSelect={() => setTotalSituacaoOpen((v) => !v)}>
+                  <BarChart3 className="w-4 h-4 mr-2" /> Total por Situação
+                </DropdownMenuItem>
+              )}
+              {isAdminOrCoordinator && (
+                <>
+                  <DropdownMenuItem onSelect={() => navigate("/dados-benner")}>
+                    <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => navigate("/distribuicao-tst/kanban")}>
+                    <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem onSelect={() => gerarManualDistribuicaoTst()}>
+                <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">Relatórios</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()} disabled={xlsxRunning}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
               </DropdownMenuItem>
               {isAdminOrCoordinator && (
                 <>
-                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
+                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()} disabled={pdfRunning}>
                     <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
@@ -1697,26 +1710,7 @@ export default function DistribuicaoTst() {
         <div className="flex gap-2 flex-wrap justify-end items-center">
           {isAdminOrCoordinator && (
             <>
-              <Button
-                variant="outline"
-                onClick={() => setTotalSituacaoOpen((v) => !v)}
-                title="Mostra o total de processos por situação (respeita os filtros aplicados) em um card na própria tela, com opção de exportar Excel."
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                {totalSituacaoOpen ? "Ocultar Total por Situação" : "Total por Situação"}
-              </Button>
               {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
-              <Link to="/dados-benner">
-                <Button variant="outline">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
-                </Button>
-              </Link>
-              <Link to="/distribuicao-tst/kanban">
-                <Button variant="outline">
-                  <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
-                </Button>
-              </Link>
-              {/* "Arquivados" e "Ajustar Chance Turma/Relator" movidos para Admin TST */}
 
               {isAdminOrCoordinator && filtroDuplicado === "sim" && (
                 <Button
@@ -1750,7 +1744,7 @@ export default function DistribuicaoTst() {
                 hideTrigger
               />
               <Button
-                variant="secondary"
+                variant="destructive"
                 onClick={handleGerarCarga}
                 disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
               >
