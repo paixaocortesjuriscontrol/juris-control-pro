@@ -547,15 +547,17 @@ export type MateriasForaDaLista = {
 };
 
 /**
- * Matérias selecionadas que NÃO constam na lista oficial de pedidos
- * (inclui "Outra Matéria"), separadas por parte — mesmo critério aplicado
- * na geração da planilha de Carga Benner.
+ * Matérias selecionadas que NÃO constam na lista oficial de pedidos,
+ * separadas por parte — mesmo critério aplicado na geração da planilha de
+ * Carga Benner (`filtrarMateriasExportaveis`): lê apenas as listas JSONB
+ * `materias_analise_*` (fonte autoritativa da exportação) e considera
+ * "Outra Matéria" como válida (exportada com o nome em branco).
  */
 export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
-  const blocos: Array<[keyof MateriasForaDaLista, string, string, string]> = [
-    ["reclamante", "materias_analise_reclamante", "materias_recurso_reclamante", "Reclamante"],
-    ["banco", "materias_analise_banco", "materias_recurso_banco", "Reclamada (Banco)"],
-    ["terceiro", "materias_analise_terceiro", "materias_recurso_terceiro", "Terceiro"],
+  const blocos: Array<[keyof MateriasForaDaLista, string, string]> = [
+    ["reclamante", "materias_analise_reclamante", "Reclamante"],
+    ["banco", "materias_analise_banco", "Reclamada (Banco)"],
+    ["terceiro", "materias_analise_terceiro", "Terceiro"],
   ];
   const res: MateriasForaDaLista = {
     reclamante: [],
@@ -566,14 +568,14 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
     resumo: "",
   };
   const partes: string[] = [];
-  for (const [chave, campoJsonb, campoMaterias, rotulo] of blocos) {
-    const itens = materiasSelecionadasDe(row, campoJsonb, campoMaterias).filter(
+  for (const [chave, campoJsonb, rotulo] of blocos) {
+    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
       (i: any) => i && i.materia && String(i.materia).trim(),
     );
     const foraBloco: string[] = [];
     for (const i of itens) {
       const nome = String(i.materia).trim();
-      if (isMateriaOficialSync(nome)) res.validas++;
+      if (isOutraMateria(nome) || isMateriaOficialSync(nome)) res.validas++;
       else foraBloco.push(nome);
     }
     (res[chave] as string[]) = foraBloco;
