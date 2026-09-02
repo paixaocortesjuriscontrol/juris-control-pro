@@ -366,23 +366,77 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // Regra: se TODAS as matérias selecionadas (Reclamante / Reclamada / Terceiro)
   // estiverem fora da lista oficial de pedidos, o processo tem pendência —
   // é o mesmo critério que rejeita a linha na Carga Benner.
-  const todasMaterias = [
-    ...materiasSelecionadasDe(row, "materias_analise_reclamante", "materias_recurso_reclamante"),
-    ...materiasSelecionadasDe(row, "materias_analise_banco", "materias_recurso_banco"),
-    ...materiasSelecionadasDe(row, "materias_analise_terceiro", "materias_recurso_terceiro"),
-  ].filter((i: any) => i && i.materia && String(i.materia).trim());
-  if (
-    todasMaterias.length > 0 &&
-    !todasMaterias.some((i: any) => isMateriaOficialSync(i.materia))
-  ) {
+  const fora = getMateriasForaDaLista(row);
+  if (fora.total > 0 && fora.validas === 0) {
     out.push({
       key: "materias_fora_lista_oficial",
-      label: "Matérias fora da lista oficial de pedidos",
+      label:
+        "Matérias fora da lista oficial de pedidos — NÃO irá para a planilha de Carga Benner: " +
+        fora.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (fora.total > 0) {
+    out.push({
+      key: "materias_fora_lista_oficial_parcial",
+      aviso: true,
+      label:
+        "Matérias fora da lista oficial (não serão exportadas na Carga Benner): " + fora.resumo,
       quadrinho: "III. Recurso do Reclamante",
     });
   }
   return out;
 }
+
+export type MateriasForaDaLista = {
+  reclamante: string[];
+  banco: string[];
+  terceiro: string[];
+  /** Quantidade de matérias fora da lista oficial. */
+  total: number;
+  /** Quantidade de matérias que estão na lista oficial. */
+  validas: number;
+  /** Resumo textual por parte, para exibição. */
+  resumo: string;
+};
+
+/**
+ * Matérias selecionadas que NÃO constam na lista oficial de pedidos
+ * (inclui "Outra Matéria"), separadas por parte — mesmo critério aplicado
+ * na geração da planilha de Carga Benner.
+ */
+export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
+  const blocos: Array<[keyof MateriasForaDaLista, string, string, string]> = [
+    ["reclamante", "materias_analise_reclamante", "materias_recurso_reclamante", "Reclamante"],
+    ["banco", "materias_analise_banco", "materias_recurso_banco", "Reclamada (Banco)"],
+    ["terceiro", "materias_analise_terceiro", "materias_recurso_terceiro", "Terceiro"],
+  ];
+  const res: MateriasForaDaLista = {
+    reclamante: [],
+    banco: [],
+    terceiro: [],
+    total: 0,
+    validas: 0,
+    resumo: "",
+  };
+  const partes: string[] = [];
+  for (const [chave, campoJsonb, campoMaterias, rotulo] of blocos) {
+    const itens = materiasSelecionadasDe(row, campoJsonb, campoMaterias).filter(
+      (i: any) => i && i.materia && String(i.materia).trim(),
+    );
+    const foraBloco: string[] = [];
+    for (const i of itens) {
+      const nome = String(i.materia).trim();
+      if (isMateriaOficialSync(nome)) res.validas++;
+      else foraBloco.push(nome);
+    }
+    (res[chave] as string[]) = foraBloco;
+    res.total += foraBloco.length;
+    if (foraBloco.length > 0) partes.push(`${rotulo}: ${foraBloco.join(", ")}`);
+  }
+  res.resumo = partes.join(" | ");
+  return res;
+}
+
 
 
 /** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
