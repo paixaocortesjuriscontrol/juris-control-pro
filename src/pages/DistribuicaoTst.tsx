@@ -1742,8 +1742,13 @@ export default function DistribuicaoTst() {
                   {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
                 </Button>
               )}
-              <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
-              {isAdminOrCoordinator && <AjustarChanceDialog />}
+              <DossiesNaoLocalizadosButton
+                filters={debouncedFilters}
+                selectedIds={selectedIds}
+                open={dossiesOpen}
+                onOpenChange={setDossiesOpen}
+                hideTrigger
+              />
               <Button
                 variant="secondary"
                 onClick={handleGerarCarga}
