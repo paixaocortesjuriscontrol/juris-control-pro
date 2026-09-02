@@ -10,8 +10,10 @@
 
 import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
 import { isMateriaOficialSync } from "./materiasOficiaisCache";
+import { pedidosDoDossieSync, isMateriaDoDossieSync } from "./pedidosPorDossieCache";
 import { getRecursosForaDaLista } from "./tipoRecursoOficial";
 import { getMotivoRejeicaoDossie } from "./dossieBenner";
+
 
 
 
