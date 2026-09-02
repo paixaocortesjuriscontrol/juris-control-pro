@@ -504,6 +504,7 @@ export default function DistribuicaoTst() {
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
+  const { map: semMateriaDossiePorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -516,9 +517,10 @@ export default function DistribuicaoTst() {
         ...c,
         faltam: Math.max(0, c.count - (c.pronto || 0)),
         semPendencia: semPendenciaPorResp[c.id] || 0,
+        semMateriaDossie: semMateriaDossiePorResp[c.id] || 0,
       }))
       .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
-  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp]);
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp]);
 
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
