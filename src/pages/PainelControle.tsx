@@ -179,6 +179,8 @@ export default function PainelControle() {
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
   const [diaLateralKey, setDiaLateralKey] = useState<string | null>(null);
   const [somenteHoje, setSomenteHoje] = useState(false);
+  // ===== Atalho "Protocolados/Baixados" (Coordenação Dra. Beatriz Costa) =====
+  const [modoProtocoladosBaixados, setModoProtocoladosBaixados] = useState(false);
 
   // ===== Drill-down vindo do Ranking de Atendimento =====
   const [drill, setDrill] = useState<{
