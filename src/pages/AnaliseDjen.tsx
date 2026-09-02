@@ -3484,12 +3484,15 @@ const AnaliseDjen = () => {
     // Descarte em lote direto: descarta EXATAMENTE o que está selecionado.
     // (A análise de duplicidade fica no botão "Descartar duplicadas".)
     const paraDescartar = selecionadas;
+    const contagem = await contarItensDaPublicacao(paraDescartar as any);
     const confirmar = window.confirm(
       `Descartar ${paraDescartar.length} publicação(ões) selecionada(s)?\n\n` +
       `Elas saem da lista de encontradas e passam para "Descartadas" ` +
-      `(é possível desfazer pela aba de descartadas).`
+      `(é possível desfazer pela aba de descartadas).` +
+      textoAvisoItens(contagem)
     );
     if (!confirmar) return;
+
 
     setDescartandoSelecionadas(true);
     try {
