@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
 import { COLUNAS_SELECT_PRONTO_SEM_PENDENCIA, getPendencias, isNaoPrecisaFazer } from "@/utils/distribuicaoTstPendencias";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
+import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 
 interface Card {
   id: string;
@@ -109,6 +110,7 @@ export default function DistribuicaoTstKanban() {
         from += PAGE;
       }
 
+      await ensureMateriasOficiais().catch(() => {});
       // dedup by id (the inner join may duplicate)
       const uniqMap = new Map<string, any>();
       rows.forEach((r) => uniqMap.set(r.id, r));
