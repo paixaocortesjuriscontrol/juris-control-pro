@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, ChevronsUpDown, X, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,11 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
 import { OUTRA_MATERIA_LABEL, isOutraMateria } from "@/utils/outraMateria";
+import {
+  ensureMateriasOficiais,
+  isMateriaOficialSync,
+  materiasOficiaisCarregadas,
+} from "@/utils/materiasOficiaisCache";
 
 const SEPARATOR = "; ";
 
