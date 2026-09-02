@@ -9,6 +9,7 @@ import {
   getPendencias,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
   isNaoPrecisaFazer,
+  isMarcadoPronto,
 } from "@/utils/distribuicaoTstPendencias";
 
 /**
@@ -74,7 +75,9 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
             // Espelha a lógica do botão "Verificar Pendências":
             // processos em outro escritório, sob segredo de justiça ou CEJUSC
             // não são contabilizados (nem com pendência, nem sem).
-            if (isNaoPrecisaFazer(r)) continue;
+            // Marcados como pronto com situação impeditiva CONTAM como
+            // pendência (rejeitam na Carga Benner), por isso não pulamos.
+            if (!isMarcadoPronto(r) && isNaoPrecisaFazer(r)) continue;
 
             if (getPendencias(r).length === 0) {
               semPendencia++;
