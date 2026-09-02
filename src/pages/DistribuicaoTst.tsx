@@ -1678,12 +1678,16 @@ export default function DistribuicaoTst() {
               <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
-                <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
-                <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
-              </DropdownMenuItem>
+              {isAdminOrCoordinator && (
+                <>
+                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
+                    <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
+                    <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
