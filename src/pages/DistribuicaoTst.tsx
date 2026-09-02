@@ -1734,31 +1734,6 @@ export default function DistribuicaoTst() {
                 {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
               </Button>
             )}
-            {isAdminOrCoordinator && (
-              <>
-                <DossiesNaoLocalizadosButton
-                  filters={debouncedFilters}
-                  selectedIds={selectedIds}
-                  open={dossiesOpen}
-                  onOpenChange={setDossiesOpen}
-                  hideTrigger
-                />
-                <Button
-                  variant="destructive"
-                  onClick={handleGerarCarga}
-                  disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
-                >
-                  {cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-                  {cargaLoading
-                    ? "Carregando..."
-                    : selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading
-                    ? "Calculando pendências..."
-                    : selectedIds.size > 0
-                      ? `Carga Benner (${selectedIds.size})`
-                      : "Gerar Carga Benner"}
-                </Button>
-              </>
-            )}
         </div>
 
         {/* Card "Total por Situação" (respeita filtros) */}
