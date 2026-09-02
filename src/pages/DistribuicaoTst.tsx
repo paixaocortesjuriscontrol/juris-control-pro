@@ -1647,40 +1647,53 @@ export default function DistribuicaoTst() {
           >
             {mostrarFiltros ? <SlidersHorizontal className="w-4 h-4" /> : <SlidersHorizontal className="w-4 h-4 opacity-50" />}
           </Button>
-          <Button
-            onClick={() => gerarManualDistribuicaoTst()}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-            title="Baixa o manual completo em PDF: cards, filtros, botões, importações, Judit, Kanban e dicas."
-          >
-            <FileText className="w-4 h-4 mr-2" /> M. Instruções
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" disabled={xlsxRunning || pdfRunning}>
                 {xlsxRunning || pdfRunning ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 ) : (
-                  <FileText className="w-4 h-4 mr-2" />
+                  <Zap className="w-4 h-4 mr-2" />
                 )}
                 {xlsxRunning
                   ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
                   : pdfRunning
                     ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
                     : selectedIds.size > 0
-                      ? `Relatórios (${selectedIds.size})`
-                      : "Relatórios"}
+                      ? `Acesso Rápido (${selectedIds.size})`
+                      : "Acesso Rápido"}
                 <ChevronDown className="w-4 h-4 ml-2" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-72">
-              <DropdownMenuLabel>Relatórios da Distribuição TST</DropdownMenuLabel>
+              <DropdownMenuLabel>Acesso Rápido</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()}>
+              {isAdminOrCoordinator && (
+                <DropdownMenuItem onSelect={() => setTotalSituacaoOpen((v) => !v)}>
+                  <BarChart3 className="w-4 h-4 mr-2" /> Total por Situação
+                </DropdownMenuItem>
+              )}
+              {isAdminOrCoordinator && (
+                <>
+                  <DropdownMenuItem onSelect={() => navigate("/dados-benner")}>
+                    <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => navigate("/distribuicao-tst/kanban")}>
+                    <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem onSelect={() => gerarManualDistribuicaoTst()}>
+                <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">Relatórios</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()} disabled={xlsxRunning}>
                 <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
               </DropdownMenuItem>
               {isAdminOrCoordinator && (
                 <>
-                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
+                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()} disabled={pdfRunning}>
                     <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
