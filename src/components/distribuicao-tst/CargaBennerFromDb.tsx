@@ -64,11 +64,8 @@ const LAYOUT_COLS = [
 const COL_SEM_EXITO = LAYOUT_COLS.length - 1;
 
 
-const DOSSIE_INVALIDO_PATTERNS = [
-  /nao\s*(encontrad|localizad)/i, /inv[aá]lid/i, /sem\s*dossie/i,
-  /caso\s+encerrado/i, /em\s+andamento\s+no\s+benner/i,
-];
-const DOSSIE_VALIDO_REGEX = /^\d{2}\.\d{2}\.\d{3}\.\d{6,12}\/\d{2}$/;
+
+
 
 function normalizeText(val: unknown): string {
   return String(val ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
