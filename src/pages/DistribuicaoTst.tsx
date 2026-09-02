@@ -1806,9 +1806,6 @@ export default function DistribuicaoTst() {
         {/* Totais por responsável — visível apenas para administradores. */}
         {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="space-y-1.5">
-            <span className="text-[11px] font-medium text-muted-foreground">
-              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • prontos COM pendências • faltam (clique nos números para filtrar):
-            </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {responsavelCountsCompleto.map((c) => {
                 const isSemResp = c.id === SEM_RESPONSAVEL_UUID;
