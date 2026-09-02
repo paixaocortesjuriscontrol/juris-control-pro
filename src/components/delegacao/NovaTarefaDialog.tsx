@@ -398,6 +398,29 @@ export function NovaTarefaDialog({
         setSearchProcesso(processoNumero);
         setResponsaveisIds(respIds.length > 0 ? respIds : responsavelPrincipal ? [responsavelPrincipal] : []);
         setSituacao((tarefaParaEditar.status as any) || "pendente");
+        // Quantidade de dias do prazo: a listagem do Painel de Controle nem
+        // sempre traz essas colunas, então buscamos direto da tarefa.
+        let prazoDiasEdit = Number((tarefaParaEditar as any).prazo_dias ?? 0) || 0;
+        let prazoUnidadeEdit = ((tarefaParaEditar as any).prazo_unidade as "uteis" | "corridos") || "uteis";
+        let dataBaseEdit = (tarefaParaEditar as any).data_base || "";
+        if ((tarefaParaEditar as any).prazo_dias === undefined || (tarefaParaEditar as any).data_base === undefined) {
+          const { data: tarefaFull } = await supabase
+            .from("tarefas")
+            .select("prazo_dias, prazo_unidade, data_base, hora_prevista")
+            .eq("id", tarefaParaEditar.id)
+            .maybeSingle();
+          if (tarefaFull) {
+            prazoDiasEdit = Number((tarefaFull as any).prazo_dias ?? prazoDiasEdit) || 0;
+            prazoUnidadeEdit = ((tarefaFull as any).prazo_unidade as "uteis" | "corridos") || prazoUnidadeEdit;
+            dataBaseEdit = (tarefaFull as any).data_base || dataBaseEdit;
+            if ((tarefaFull as any).hora_prevista) {
+              form.setValue("hora_prevista", (tarefaFull as any).hora_prevista);
+            }
+          }
+        }
+        setPrazoDias(prazoDiasEdit);
+        setPrazoUnidade(prazoUnidadeEdit);
+        if (dataBaseEdit) form.setValue("data_base", dataBaseEdit);
         setRecorrenciaTipo((tarefaParaEditar as any).recorrencia_tipo || "nenhuma");
         setRecorrenciaIntervalo((tarefaParaEditar as any).recorrencia_intervalo || 1);
         setRecorrenciaFim(((tarefaParaEditar as any).recorrencia_fim || "").slice(0, 10));
@@ -605,6 +628,8 @@ export function NovaTarefaDialog({
           hora_fatal: values.hora_fatal || null,
           link_local: values.local || null,
           prioridade: values.prioridade,
+          prazo_dias: prazoDias > 0 ? prazoDias : null,
+          prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
           // Recorrente: situação é dada pela barra de baixa por ocorrência
           ...(ocultarSituacao
             ? {}
@@ -690,6 +715,8 @@ export function NovaTarefaDialog({
         hora_fatal: values.hora_fatal || null,
         link_local: values.local || null,
         prioridade: values.prioridade,
+        prazo_dias: prazoDias > 0 ? prazoDias : null,
+        prazo_unidade: prazoDias > 0 ? prazoUnidade : null,
         status: situacao as any,
         criado_por: userData?.id || null,
         recorrente: recorrenciaTipo !== "nenhuma",
