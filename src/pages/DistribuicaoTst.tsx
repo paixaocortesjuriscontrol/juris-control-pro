@@ -1807,7 +1807,7 @@ export default function DistribuicaoTst() {
         {mostrarCards && isAdmin && responsavelCountsCompleto.length > 0 && (
           <div className="space-y-1.5">
             <span className="text-[11px] font-medium text-muted-foreground">
-              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • com pendências • faltam (clique nos números para filtrar):
+              Por responsável (menos pendências primeiro) — total • prontos • sem pendência • prontos COM pendências • faltam (clique nos números para filtrar):
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {responsavelCountsCompleto.map((c) => {
@@ -1839,7 +1839,7 @@ export default function DistribuicaoTst() {
                           ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
                           : "border-border bg-card text-foreground"
                     }`}
-                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Com pendências: ${comPendencia} • Faltam: ${faltam}`}
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Faltam: ${faltam}`}
                   >
                     <button
                       type="button"
@@ -1876,7 +1876,7 @@ export default function DistribuicaoTst() {
                       <button
                         type="button"
                         className={`${badge} bg-red-500/15 text-red-700 dark:text-red-400`}
-                        title="Com pendências — clique para filtrar"
+                        title="Marcados como prontos, mas COM pendências — clique para filtrar"
                         onClick={() => aplicar("comPend")}
                       >
                         {comPendencia}
