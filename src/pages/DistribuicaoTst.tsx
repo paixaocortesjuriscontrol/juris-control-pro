@@ -112,7 +112,13 @@ const getJuditPartesResumo = (juditData: any, fallback?: string | null) => {
 
 
 export default function DistribuicaoTst() {
+  // Lista oficial de pedidos: necessária para acusar pendência quando todas as
+  // matérias selecionadas estão fora da lista.
+  useEffect(() => {
+    ensureMateriasOficiais().catch(() => {});
+  }, []);
   const [showForm, setShowForm] = useState(false);
+
   const [mostrarCards, setMostrarCards] = useState(true);
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
