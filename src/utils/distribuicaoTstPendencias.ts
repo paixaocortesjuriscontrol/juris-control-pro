@@ -238,6 +238,30 @@ export const COLUNAS_SELECT_PRONTO_SEM_PENDENCIA = Array.from(
  * contabilizados (nem com pendência, nem sem) — mesma regra do botão
  * "Verificar Pendências".
  */
+/**
+ * Situações que rejeitam a linha na Carga Benner (mesmo em seleção manual).
+ * Retorna o rótulo do motivo ou `null`.
+ */
+export function getSituacaoImpeditiva(row: any): string | null {
+  if (row?.transito_julgado === true) return "Trânsito em julgado";
+  if (row?.processo_outro_escritorio === true) return "Processo em outro escritório";
+  if (row?.segredo_justica === true) return "Segredo de justiça";
+  if (row?.cejusc === true) return "CEJUSC";
+  if (row?.acordo === true) return "Acordo";
+  return null;
+}
+
+/** O processo já foi marcado como pronto para enviar (ou planilhado/enviado)? */
+export function isMarcadoPronto(row: any): boolean {
+  const st = String(row?.status ?? "").trim();
+  return (
+    row?.pronto_envio === true ||
+    st === "pronto_envio" ||
+    st === "planilhado" ||
+    st === "enviado"
+  );
+}
+
 export function isNaoPrecisaFazer(row: any): boolean {
   return (
     row?.processo_outro_escritorio === true ||
