@@ -1651,58 +1651,127 @@ export default function DistribuicaoTst() {
       }
     >
       <div className="space-y-4">
-        <div className="flex gap-2 flex-wrap justify-end items-center">
-          {isAdminOrCoordinator && (
-            <>
-              {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
+        <div className="flex gap-2 flex-wrap justify-between items-center">
+          {/* Busca rápida por processo */}
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+            <Input
+              placeholder="Buscar por Processo"
+              value={filtroProcesso}
+              onChange={e => setFiltroProcesso(formatProcessoNumero(e.target.value) === "-" ? e.target.value : formatProcessoNumero(e.target.value))}
+              className="h-9 pl-8 w-52"
+            />
+          </div>
 
-              {isAdminOrCoordinator && filtroDuplicado === "sim" && (
-                <Button
-                  variant="outline"
-                  onClick={() => setArquivarDupOpen(true)}
-                  disabled={arquivarDupRunning}
-                  title="Arquiva os duplicados respeitando os filtros atuais. Mantém o registro com mais tags (empate: mais campos preenchidos). Se outro do grupo tiver alteração mais recente, esse é mantido. Nada é apagado."
-                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
-                >
-                  {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
-                  {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
+          <div className="flex gap-2 flex-wrap items-center">
+            {/* Acesso Rápido */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" disabled={xlsxRunning || pdfRunning}>
+                  {xlsxRunning || pdfRunning ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Zap className="w-4 h-4 mr-2" />
+                  )}
+                  {xlsxRunning
+                    ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                    : pdfRunning
+                      ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                      : selectedIds.size > 0
+                        ? `Acesso Rápido (${selectedIds.size})`
+                        : "Acesso Rápido"}
+                  <ChevronDown className="w-4 h-4 ml-2" />
                 </Button>
-              )}
-              {isAdminOrCoordinator && selectedIds.size > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={handleArquivarSelecionados}
-                  disabled={arquivarSelRunning}
-                  title="Arquiva apenas os registros selecionados. Eles ficam disponíveis em 'Arquivados' e podem ser restaurados."
-                  className="border-amber-400 text-amber-700 hover:bg-amber-50"
-                >
-                  {arquivarSelRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
-                  {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
-                </Button>
-              )}
-              <DossiesNaoLocalizadosButton
-                filters={debouncedFilters}
-                selectedIds={selectedIds}
-                open={dossiesOpen}
-                onOpenChange={setDossiesOpen}
-                hideTrigger
-              />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>Acesso Rápido</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isAdminOrCoordinator && (
+                  <DropdownMenuItem onSelect={() => setTotalSituacaoOpen((v) => !v)}>
+                    <BarChart3 className="w-4 h-4 mr-2" /> Total por Situação
+                  </DropdownMenuItem>
+                )}
+                {isAdminOrCoordinator && (
+                  <>
+                    <DropdownMenuItem onSelect={() => navigate("/dados-benner")}>
+                      <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => navigate("/distribuicao-tst/kanban")}>
+                      <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem onSelect={() => gerarManualDistribuicaoTst()}>
+                  <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">Relatórios</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()} disabled={xlsxRunning}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
+                </DropdownMenuItem>
+                {isAdminOrCoordinator && (
+                  <>
+                    <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()} disabled={pdfRunning}>
+                      <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {isAdminOrCoordinator && filtroDuplicado === "sim" && (
               <Button
-                variant="destructive"
-                onClick={handleGerarCarga}
-                disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
+                variant="outline"
+                onClick={() => setArquivarDupOpen(true)}
+                disabled={arquivarDupRunning}
+                title="Arquiva os duplicados respeitando os filtros atuais. Mantém o registro com mais tags (empate: mais campos preenchidos). Se outro do grupo tiver alteração mais recente, esse é mantido. Nada é apagado."
+                className="border-amber-400 text-amber-700 hover:bg-amber-50"
               >
-                {cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-                {cargaLoading
-                  ? "Carregando..."
-                  : selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading
-                  ? "Calculando pendências..."
-                  : selectedIds.size > 0
-                    ? `Carga Benner (${selectedIds.size})`
-                    : "Gerar Carga Benner"}
+                {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
+                {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
               </Button>
-            </>
-          )}
+            )}
+            {isAdminOrCoordinator && selectedIds.size > 0 && (
+              <Button
+                variant="outline"
+                onClick={handleArquivarSelecionados}
+                disabled={arquivarSelRunning}
+                title="Arquiva apenas os registros selecionados. Eles ficam disponíveis em 'Arquivados' e podem ser restaurados."
+                className="border-amber-400 text-amber-700 hover:bg-amber-50"
+              >
+                {arquivarSelRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
+                {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
+              </Button>
+            )}
+            {isAdminOrCoordinator && (
+              <>
+                <DossiesNaoLocalizadosButton
+                  filters={debouncedFilters}
+                  selectedIds={selectedIds}
+                  open={dossiesOpen}
+                  onOpenChange={setDossiesOpen}
+                  hideTrigger
+                />
+                <Button
+                  variant="destructive"
+                  onClick={handleGerarCarga}
+                  disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
+                >
+                  {cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+                  {cargaLoading
+                    ? "Carregando..."
+                    : selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading
+                    ? "Calculando pendências..."
+                    : selectedIds.size > 0
+                      ? `Carga Benner (${selectedIds.size})`
+                      : "Gerar Carga Benner"}
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Card "Total por Situação" (respeita filtros) */}
