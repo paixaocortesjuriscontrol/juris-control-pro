@@ -162,6 +162,12 @@ export function PedidosPorDossieDialog() {
 
       await queryClient.invalidateQueries({ queryKey: ["pedidos-por-dossie"] });
       await queryClient.invalidateQueries({ queryKey: ["materias-pedidos-oficiais"] });
+      await queryClient.invalidateQueries({ queryKey: ["materias-benner"] });
+
+      // Recarrega o cache em memória da lista oficial para que os pedidos
+      // recém-cadastrados não apareçam mais como "fora lista do Benner".
+      resetMateriasOficiais();
+      await ensureMateriasOficiais().catch(() => {});
 
       const novosUnicos = new Set([
         ...novosOficiais.map((n) => normalizeMateriaNome(n)),
