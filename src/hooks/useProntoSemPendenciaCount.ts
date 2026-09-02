@@ -4,8 +4,8 @@ import {
   DistribuicaoTstFilters,
   fetchAllDistribuicaoTstIds,
 } from "@/hooks/useDistribuicoesTst";
-import {
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
+import {
   getPendencias,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
   isNaoPrecisaFazer,

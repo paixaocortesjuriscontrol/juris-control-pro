@@ -516,7 +516,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => {
+            onClick={async () => {
               // Limpa marcações anteriores
               const root = document.getElementById("dtst-form-root");
               if (!root) {
