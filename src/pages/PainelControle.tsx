@@ -47,6 +47,8 @@ import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersH
 import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
 import { BarChart3, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
 import { Card, CardContent } from "@/components/ui/card";
