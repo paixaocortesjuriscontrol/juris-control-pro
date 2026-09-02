@@ -196,7 +196,19 @@ export const CHAVES_OBRIGATORIAS = new Set<string>(
 
 /** Colunas a selecionar em `dados_benner` para checar pendências. */
 export const COLUNAS_SELECT_PENDENCIAS = Array.from(
-  new Set([...CAMPOS_OBRIGATORIOS.map((c) => c.key), "tipo_recurso"]),
+  new Set([
+    ...CAMPOS_OBRIGATORIOS.map((c) => c.key),
+    "tipo_recurso",
+    // Situações impeditivas + marcação de pronto: quando o processo está
+    // marcado como pronto, elas viram pendência (rejeitam na Carga Benner).
+    "status",
+    "pronto_envio",
+    "acordo",
+    "cejusc",
+    "processo_outro_escritorio",
+    "segredo_justica",
+    "transito_julgado",
+  ]),
 );
 
 /**
