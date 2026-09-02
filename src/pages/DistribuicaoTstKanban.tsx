@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadResponsaveisMap, ProfileBasic } from "@/hooks/useDistribuicaoResponsaveis";
-import { COLUNAS_SELECT_PRONTO_SEM_PENDENCIA, getPendencias, isNaoPrecisaFazer } from "@/utils/distribuicaoTstPendencias";
+import { COLUNAS_SELECT_PRONTO_SEM_PENDENCIA, getPendencias, isNaoPrecisaFazer, isMarcadoPronto } from "@/utils/distribuicaoTstPendencias";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 
@@ -138,7 +138,8 @@ export default function DistribuicaoTstKanban() {
         responsaveis: respMap.get(r.id) || [],
         raw: r,
         // Mesma regra do card: isentos ("não precisa fazer") não entram.
-        semPendencia: !isNaoPrecisaFazer(r) && getPendencias(r).length === 0,
+        semPendencia:
+          (isMarcadoPronto(r) || !isNaoPrecisaFazer(r)) && getPendencias(r).length === 0,
       })));
     } catch (e: any) {
       toast.error("Erro ao carregar Kanban: " + (e?.message || ""));

@@ -196,7 +196,19 @@ export const CHAVES_OBRIGATORIAS = new Set<string>(
 
 /** Colunas a selecionar em `dados_benner` para checar pendências. */
 export const COLUNAS_SELECT_PENDENCIAS = Array.from(
-  new Set([...CAMPOS_OBRIGATORIOS.map((c) => c.key), "tipo_recurso"]),
+  new Set([
+    ...CAMPOS_OBRIGATORIOS.map((c) => c.key),
+    "tipo_recurso",
+    // Situações impeditivas + marcação de pronto: quando o processo está
+    // marcado como pronto, elas viram pendência (rejeitam na Carga Benner).
+    "status",
+    "pronto_envio",
+    "acordo",
+    "cejusc",
+    "processo_outro_escritorio",
+    "segredo_justica",
+    "transito_julgado",
+  ]),
 );
 
 /**
@@ -238,6 +250,30 @@ export const COLUNAS_SELECT_PRONTO_SEM_PENDENCIA = Array.from(
  * contabilizados (nem com pendência, nem sem) — mesma regra do botão
  * "Verificar Pendências".
  */
+/**
+ * Situações que rejeitam a linha na Carga Benner (mesmo em seleção manual).
+ * Retorna o rótulo do motivo ou `null`.
+ */
+export function getSituacaoImpeditiva(row: any): string | null {
+  if (row?.transito_julgado === true) return "Trânsito em julgado";
+  if (row?.processo_outro_escritorio === true) return "Processo em outro escritório";
+  if (row?.segredo_justica === true) return "Segredo de justiça";
+  if (row?.cejusc === true) return "CEJUSC";
+  if (row?.acordo === true) return "Acordo";
+  return null;
+}
+
+/** O processo já foi marcado como pronto para enviar (ou planilhado/enviado)? */
+export function isMarcadoPronto(row: any): boolean {
+  const st = String(row?.status ?? "").trim();
+  return (
+    row?.pronto_envio === true ||
+    st === "pronto_envio" ||
+    st === "planilhado" ||
+    st === "enviado"
+  );
+}
+
 export function isNaoPrecisaFazer(row: any): boolean {
   return (
     row?.processo_outro_escritorio === true ||
@@ -337,16 +373,25 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // processos com o formulário em branco.
   // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
   // reportar Sem pendências mesmo que existam campos vazios.
-  if (
-    row?.acordo === true ||
-    row?.cejusc === true ||
-    row?.processo_outro_escritorio === true ||
-    row?.segredo_justica === true ||
-    row?.transito_julgado === true ||
-    recorrenteSomenteTerceiro(row)
-  ) {
+  // Exceção: quando o processo já está marcado como PRONTO PARA ENVIAR, essas
+  // mesmas situações rejeitam a linha na Carga Benner. Nesse caso precisam
+  // aparecer como pendência na tela (regra: tudo que rejeita na planilha tem
+  // que ser visível antes).
+  const bloqueio = getSituacaoImpeditiva(row);
+  if (bloqueio) {
+    if (isMarcadoPronto(row)) {
+      return [
+        {
+          key: "situacao_impeditiva",
+          label: `${bloqueio} — NÃO irá para a planilha de Carga Benner`,
+          alvoLabel: bloqueio,
+          quadrinho: "I. Dados Básicos",
+        },
+      ];
+    }
     return [];
   }
+  if (recorrenteSomenteTerceiro(row)) return [];
   const out: Pendencia[] = [];
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
