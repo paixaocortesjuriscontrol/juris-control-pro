@@ -557,6 +557,52 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
               const pend = todos.filter((p) => !p.aviso);
               const avisos = todos.filter((p) => p.aviso);
 
+              // Matérias fora da lista oficial de pedidos: destaca os blocos
+              // correspondentes e avisa que não irão para a Carga Benner.
+              const fora = getMateriasForaDaLista(row);
+              const rotuloBlocoMateria: Record<string, string> = {
+                reclamante: "Matérias Recurso Reclamante",
+                banco: "Matérias Recurso do Banco",
+                terceiro: "Matérias Recurso (Terceiro)",
+              };
+              const marcarBlocosMaterias = (cor: "vermelho" | "amarelo") => {
+                const labelsAll = Array.from(root.querySelectorAll<HTMLElement>("label"));
+                for (const chave of ["reclamante", "banco", "terceiro"] as const) {
+                  if ((fora as any)[chave].length === 0) continue;
+                  const alvo = rotuloBlocoMateria[chave].toLowerCase();
+                  const lbl = labelsAll.find((l) =>
+                    (l.textContent || "").replace(/\s+/g, " ").replace(/\*/g, "").trim().toLowerCase().startsWith(alvo),
+                  );
+                  const container =
+                    (lbl?.closest(".space-y-2") as HTMLElement | null) || lbl?.parentElement;
+                  if (!container) continue;
+                  container.setAttribute("data-pendencia-highlight", "true");
+                  container.classList.add(
+                    "ring-2",
+                    "rounded-md",
+                    ...(cor === "vermelho"
+                      ? ["ring-red-500", "bg-red-50", "dark:bg-red-950/20"]
+                      : ["ring-amber-500", "bg-amber-50", "dark:bg-amber-950/20"]),
+                  );
+                }
+              };
+              if (fora.total > 0) {
+                const bloqueia = fora.validas === 0;
+                marcarBlocosMaterias(bloqueia ? "vermelho" : "amarelo");
+                if (bloqueia) {
+                  toast.error("Não irá para a planilha de Carga Benner", {
+                    duration: 20000,
+                    description: `Nenhuma matéria válida: todas estão fora da lista oficial de pedidos. ${fora.resumo}`,
+                  });
+                } else {
+                  toast.warning("Matérias fora da lista oficial de pedidos", {
+                    duration: 15000,
+                    description: `Estas matérias NÃO serão exportadas na Carga Benner: ${fora.resumo}`,
+                  });
+                }
+              }
+
+
               const norm0 = (s: string) =>
                 s.replace(/\s+/g, " ").replace(/\*/g, "").trim().toLowerCase();
 
