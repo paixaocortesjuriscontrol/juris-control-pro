@@ -12,12 +12,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
-import { OUTRA_MATERIA_LABEL, isOutraMateria } from "@/utils/outraMateria";
+import { OUTRA_MATERIA_LABEL, isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
 import {
   ensureMateriasOficiais,
   isMateriaOficialSync,
   materiasOficiaisCarregadas,
 } from "@/utils/materiasOficiaisCache";
+
 
 const SEPARATOR = "; ";
 
@@ -51,6 +52,11 @@ interface Props {
   onChange: (value: string | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Pedidos cadastrados para o dossiê do processo (nomes normalizados). Quando
+   * informado, essas matérias aparecem primeiro na lista e em verde.
+   */
+  pedidosDossie?: Set<string>;
 }
 
 export function MateriasMultiSelect({
@@ -58,7 +64,9 @@ export function MateriasMultiSelect({
   onChange,
   placeholder = "Selecione uma ou mais matérias...",
   disabled,
+  pedidosDossie,
 }: Props) {
+
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
   const { dados, loading } = useMateriasBenner();
@@ -102,15 +110,30 @@ export function MateriasMultiSelect({
     onChange(joinMaterias(next));
   };
 
+  /** Matéria consta na lista de pedidos do dossiê deste processo. */
+  const isDoDossie = (nome: string) =>
+    !!pedidosDossie && pedidosDossie.size > 0 && pedidosDossie.has(normalizeMateriaNome(nome));
+
   const filtrados = useMemo(() => {
     const q = normalize(busca);
-    if (!q) return dados;
-    return dados.filter(
-      (m) =>
-        normalize(m.nome).includes(q) ||
-        normalize(m.descricao || "").includes(q),
-    );
-  }, [dados, busca]);
+    const base = !q
+      ? dados
+      : dados.filter(
+          (m) =>
+            normalize(m.nome).includes(q) ||
+            normalize(m.descricao || "").includes(q),
+        );
+    if (!pedidosDossie || pedidosDossie.size === 0) return base;
+    const doDossie = base.filter((m) => pedidosDossie.has(normalizeMateriaNome(m.nome)));
+    const outros = base.filter((m) => !pedidosDossie.has(normalizeMateriaNome(m.nome)));
+    return [...doDossie, ...outros];
+  }, [dados, busca, pedidosDossie]);
+
+  const qtdDoDossie = useMemo(
+    () => filtrados.filter((m) => isDoDossie(m.nome)).length,
+    [filtrados, pedidosDossie],
+  );
+
 
   const mostrarOutra = !normalize(busca) || normalize(OUTRA_MATERIA_LABEL).includes(normalize(busca));
   const outraSelecionada = selectedSet.has(OUTRA_MATERIA_LABEL.toLowerCase());
@@ -176,14 +199,20 @@ export function MateriasMultiSelect({
                       </Badge>
                     </button>
                   )}
-                  {filtrados.map((m) => {
+                  {filtrados.map((m, idx) => {
                     const isSelected = selectedSet.has(m.nome.toLowerCase());
+                    const doDossie = isDoDossie(m.nome);
+                    const ultimoDoDossie = doDossie && idx === qtdDoDossie - 1;
                     return (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => toggle(m.nome)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left"
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left",
+                          doDossie && "bg-emerald-50",
+                          ultimoDoDossie && "border-b border-border/50 mb-1",
+                        )}
                       >
                         <Check
                           className={cn(
@@ -191,13 +220,18 @@ export function MateriasMultiSelect({
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span className="truncate">
+                        <span className={cn("truncate", doDossie && "text-emerald-700 font-medium")}>
                           {m.nome}
                           {foraDaLista(m.nome) && (
                             <span className="text-amber-600 text-xs"> (fora lista do Benner)</span>
                           )}
                         </span>
-                        {!m.ativo && (
+                        {doDossie && (
+                          <Badge className="ml-auto text-[10px] bg-emerald-600 hover:bg-emerald-600 text-white">
+                            pedido do dossiê
+                          </Badge>
+                        )}
+                        {!m.ativo && !doDossie && (
                           <Badge variant="secondary" className="ml-auto text-[10px]">
                             inativa
                           </Badge>
@@ -205,6 +239,7 @@ export function MateriasMultiSelect({
                       </button>
                     );
                   })}
+
                 </div>
               </ScrollArea>
             )}
@@ -221,8 +256,14 @@ export function MateriasMultiSelect({
             <Badge
               key={nome}
               variant="secondary"
-              className="text-xs gap-1 pr-1"
+              className={cn(
+                "text-xs gap-1 pr-1",
+                isDoDossie(nome) &&
+                  "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-300",
+              )}
+              title={isDoDossie(nome) ? "Pedido cadastrado para este dossiê" : undefined}
             >
+
               <span className="max-w-[260px] truncate">
                 {nome}
                 {foraDaLista(nome) && (

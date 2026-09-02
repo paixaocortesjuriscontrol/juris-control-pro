@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
+import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
 import {
   MateriasAnaliseList,
   reconcileMateriasAnalise,
@@ -352,6 +353,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     return out;
   };
   const [bennerExtra, setBennerExtra] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
+  const { pedidosSet: pedidosDossieSet } = usePedidosPorDossie(form.dossie);
+
   // Snapshot do estado original carregado de `bennerDado` — usado para
   // computar o diff no save (só envia campos que o usuário realmente alterou).
   const [bennerExtraInitial, setBennerExtraInitial] = useState<Record<string, any>>(() => buildBennerExtra(bennerDado));
@@ -1543,6 +1546,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <MateriasMultiSelect
               value={form.materias_recurso_reclamante || null}
               onChange={(v) => set("materias_recurso_reclamante", v)}
+              pedidosDossie={pedidosDossieSet}
             />
           </div>
           <MateriasAnaliseList
@@ -1551,6 +1555,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             materias={form.materias_recurso_reclamante || null}
             value={(bennerExtra.materias_analise_reclamante as MateriaAnaliseItem[] | null) || null}
             onChange={(next) => setExtra("materias_analise_reclamante", next)}
+            pedidosDossie={pedidosDossieSet}
           />
         </div>
       </div>
@@ -1603,6 +1608,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
               onChange={(v) => set("materias_recurso_banco", v)}
+              pedidosDossie={pedidosDossieSet}
             />
           </div>
           <MateriasAnaliseList
@@ -1611,6 +1617,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             materias={form.materias_recurso_banco || null}
             value={(bennerExtra.materias_analise_banco as MateriaAnaliseItem[] | null) || null}
             onChange={(next) => setExtra("materias_analise_banco", next)}
+            pedidosDossie={pedidosDossieSet}
           />
         </div>
       </div>
@@ -1652,6 +1659,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <MateriasMultiSelect
               value={(form as any).materias_recurso_terceiro || null}
               onChange={(v) => set("materias_recurso_terceiro", v)}
+              pedidosDossie={pedidosDossieSet}
             />
           </div>
           <div className={cn("space-y-2 p-2 -m-2", fieldClass("chance_exito_terceiro", (form as any).chance_exito_terceiro))}>
