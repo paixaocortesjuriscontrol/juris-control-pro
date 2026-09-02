@@ -295,6 +295,8 @@ export default function DistribuicaoTst() {
   // Ativo quando o card "Pronto sem pendência" está selecionado.
   // Complementa filtroStatus="pronto_envio" restringindo aos IDs sem pendências.
   const [filtroSemPendencia, setFiltroSemPendencia] = useState<boolean>(false);
+  // Inverso do "pronto sem pendência": tudo que ainda tem alguma pendência.
+  const [filtroComPendencia, setFiltroComPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
   // ===== TAGs (admin/coord) =====
   const [filtroTagId, setFiltroTagId] = useState<string>("todas");
