@@ -324,6 +324,10 @@ export default function PainelControle() {
         return false;
       }
       setViewMode("lista");
+      // Protocolados/Baixados são itens da equipe: a aba pessoal limitaria à
+      // agenda do usuário logado e a lista apareceria vazia.
+      setTabMode("escritorio");
+      if (isAdmin) setAdminCoordFilter(COORDENACAO_BEATRIZ_COSTA_ID);
       setSituacaoFilter("todos");
       setSomenteHoje(false);
       setPainelFiltros((s) => ({
