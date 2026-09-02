@@ -199,14 +199,20 @@ export function MateriasMultiSelect({
                       </Badge>
                     </button>
                   )}
-                  {filtrados.map((m) => {
+                  {filtrados.map((m, idx) => {
                     const isSelected = selectedSet.has(m.nome.toLowerCase());
+                    const doDossie = isDoDossie(m.nome);
+                    const ultimoDoDossie = doDossie && idx === qtdDoDossie - 1;
                     return (
                       <button
                         key={m.id}
                         type="button"
                         onClick={() => toggle(m.nome)}
-                        className="w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left"
+                        className={cn(
+                          "w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm hover:bg-accent hover:text-accent-foreground text-left",
+                          doDossie && "bg-emerald-50",
+                          ultimoDoDossie && "border-b border-border/50 mb-1",
+                        )}
                       >
                         <Check
                           className={cn(
@@ -214,13 +220,18 @@ export function MateriasMultiSelect({
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span className="truncate">
+                        <span className={cn("truncate", doDossie && "text-emerald-700 font-medium")}>
                           {m.nome}
                           {foraDaLista(m.nome) && (
                             <span className="text-amber-600 text-xs"> (fora lista do Benner)</span>
                           )}
                         </span>
-                        {!m.ativo && (
+                        {doDossie && (
+                          <Badge className="ml-auto text-[10px] bg-emerald-600 hover:bg-emerald-600 text-white">
+                            pedido do dossiê
+                          </Badge>
+                        )}
+                        {!m.ativo && !doDossie && (
                           <Badge variant="secondary" className="ml-auto text-[10px]">
                             inativa
                           </Badge>
@@ -228,6 +239,7 @@ export function MateriasMultiSelect({
                       </button>
                     );
                   })}
+
                 </div>
               </ScrollArea>
             )}
