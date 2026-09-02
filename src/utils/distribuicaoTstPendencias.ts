@@ -202,7 +202,6 @@ export const COLUNAS_SELECT_PENDENCIAS = Array.from(
     // Situações impeditivas + marcação de pronto: quando o processo está
     // marcado como pronto, elas viram pendência (rejeitam na Carga Benner).
     "status",
-    "pronto_envio",
     "acordo",
     "cejusc",
     "processo_outro_escritorio",
