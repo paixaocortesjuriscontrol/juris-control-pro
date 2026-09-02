@@ -707,6 +707,8 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           materiasPorParte.terceiro.length;
         const MOTIVO_MATERIAS_FORA_LISTA =
           "Matérias fora da lista oficial de pedidos";
+        const MOTIVO_MATERIAS_FORA_DOSSIE =
+          "Nenhuma matéria consta na lista de pedidos do dossiê — revisar lista de matérias";
         if (
           materiasSelecionadasCount > 0 &&
           materiasValidasCount === 0 &&
@@ -718,14 +720,25 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
             "Data Distribuição": formatDateDDMMYYYY(getDataDistribuicaoReal(d)),
             "Turma": d.turma || "",
             "Relator": d.relator || "",
-            "Motivo": MOTIVO_MATERIAS_FORA_LISTA,
+            "Motivo":
+              materiasForaDossieCount > 0 && materiasForaListaCount === 0
+                ? MOTIVO_MATERIAS_FORA_DOSSIE
+                : MOTIVO_MATERIAS_FORA_LISTA,
           });
           isRejected = true;
-        } else if (materiasForaListaCount > 0) {
-          const label = "Matérias descartadas fora da lista oficial";
-          warningsByType[label] = (warningsByType[label] || 0) + 1;
-          warningsTotal++;
+        } else {
+          if (materiasForaListaCount > 0) {
+            const label = "Matérias descartadas fora da lista oficial";
+            warningsByType[label] = (warningsByType[label] || 0) + 1;
+            warningsTotal++;
+          }
+          if (materiasForaDossieCount > 0) {
+            const label = "Matérias descartadas fora da lista do dossiê";
+            warningsByType[label] = (warningsByType[label] || 0) + 1;
+            warningsTotal++;
+          }
         }
+
         // Detecta as partes recorrentes.
         // Regra: o campo `parte_recorrente` da aba Distribuição TST é a fonte
         // autoritativa. Quando ele está preenchido, respeitamos ESTRITAMENTE
