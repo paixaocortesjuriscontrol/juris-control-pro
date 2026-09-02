@@ -474,18 +474,23 @@ export default function DistribuicaoTst() {
   // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
+  const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
       .filter((p) => !byId.has(p.id))
       .map((p) => ({ id: p.id, nome: p.nome, count: 0, pronto: 0 }));
-    const semResp = responsavelCounts.filter((c) => c.id === SEM_RESPONSAVEL_UUID);
-    const reais = responsavelCounts.filter((c) => c.id !== SEM_RESPONSAVEL_UUID);
-    return [
-      ...semResp,
-      ...[...reais, ...extras].sort((a, b) => b.count - a.count || a.nome.localeCompare(b.nome)),
-    ];
-  }, [responsavelCounts, membrosCoordenacaoTst]);
+    // Ordena pelos que têm MENOS pendências (faltam) primeiro — assim os
+    // responsáveis mais adiantados aparecem à esquerda.
+    return [...responsavelCounts, ...extras]
+      .map((c) => ({
+        ...c,
+        faltam: Math.max(0, c.count - (c.pronto || 0)),
+        semPendencia: semPendenciaPorResp[c.id] || 0,
+      }))
+      .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp]);
+
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
   // (apenas se ele estiver na lista de responsáveis). Roda uma única vez.
