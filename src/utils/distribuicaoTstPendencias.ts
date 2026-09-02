@@ -252,12 +252,18 @@ export type Pendencia = {
   label: string;
   quadrinho: string;
   /**
+   * Rótulo do campo do formulário que deve ser destacado quando o `label` da
+   * pendência é um texto explicativo longo (ex.: tipo de recurso fora da lista).
+   */
+  alvoLabel?: string;
+  /**
    * Quando `true`, o item é apenas um AVISO ("Verificar", em amarelo): aparece
    * no botão "Verificar Pendências" mas NÃO conta como pendência e não bloqueia
    * o envio. Hoje é usado quando "Outra Matéria" é a única matéria selecionada.
    */
   aviso?: boolean;
 };
+
 
 /** Nomes das matérias selecionadas de um bloco (string de matérias + JSONB). */
 function materiasSelecionadasDe(
