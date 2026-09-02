@@ -9,7 +9,7 @@
  * evitar falso positivo.
  */
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeMateriaNome, isOutraMateria } from "./outraMateria";
+import { normalizeMateriaNome } from "./outraMateria";
 
 let cache: Set<string> | null = null;
 let inflight: Promise<Set<string>> | null = null;
@@ -53,11 +53,10 @@ export function ensureMateriasOficiais(): Promise<Set<string>> {
 }
 
 /**
- * `true` se a matéria consta na lista oficial. "Outra Matéria" nunca é
- * oficial. Se o cache ainda não carregou, assume oficial (não bloqueia).
+ * `true` se a matéria consta na lista oficial (que hoje inclui "Outra
+ * Matéria"). Se o cache ainda não carregou, assume oficial (não bloqueia).
  */
 export function isMateriaOficialSync(nome: string | null | undefined): boolean {
-  if (isOutraMateria(nome)) return false;
   if (!cache || cache.size === 0) return true;
   return cache.has(normalizeMateriaNome(nome));
 }

@@ -1,12 +1,11 @@
 ---
-name: Outra Matéria não vai para a Carga Benner
-description: "Outra Matéria" na Distribuição TST não gera pendência sozinha por sub-itens, é descartada na Carga Benner e, se for a única matéria, gera pendência
+name: Outra Matéria é oficial e sai em branco na Carga Benner
+description: "Outra Matéria" consta na lista oficial (materias_pedidos_oficiais), não gera pendência nem rejeição, e é exportada com o nome em branco na Carga Benner
 type: feature
 ---
 Regra atual (2026-09-02):
 
-- **Sub-itens**: "Outra Matéria" nunca cobra Aparelhamento / Chance Turma / Chance Relator / Êxito. Continua aparecendo como linha na tabela "Análise por Matéria" (preenchimento opcional).
-- **Carga Benner**: "Outra Matéria" NUNCA é exportada. Conta como matéria fora da lista oficial: se nenhuma válida sobrou, o processo é rejeitado com "Matérias fora da lista oficial de pedidos".
-- **Pendência**: se TODAS as matérias selecionadas (Reclamante/Reclamada/Terceiro) estiverem fora da lista oficial — inclusive o caso de "Outra Matéria" sozinha ou só com outras inválidas — o processo gera a pendência "Matérias fora da lista oficial de pedidos".
-
-A lista oficial (`materias_pedidos_oficiais`) é carregada em cache por `src/utils/materiasOficiaisCache.ts` antes do cálculo de pendências; `isMateriaOficialSync` sempre retorna false para "Outra Matéria".
+- **Banco**: "Outra Matéria" está cadastrada e ativa em `materias_pedidos_oficiais`. `isMateriaOficialSync` não tem mais exceção para ela.
+- **Sub-itens**: "Outra Matéria" nunca cobra Aparelhamento / Chance Turma / Chance Relator / Êxito. Continua como linha na tabela "Análise por Matéria" (preenchimento opcional).
+- **Pendência**: processo com "Outra Matéria" selecionada nunca gera a pendência "Matérias fora da lista oficial de pedidos", mesmo que todas as demais matérias estejam fora da lista.
+- **Carga Benner**: o processo é exportado; a matéria "Outra Matéria" vai com o **nome em branco** na planilha (nunca aparece o texto). Demais matérias fora da lista continuam descartadas e, se não sobrar nenhuma válida, o processo é rejeitado com "Matérias fora da lista oficial de pedidos".
