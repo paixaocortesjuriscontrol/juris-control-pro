@@ -1699,19 +1699,6 @@ export default function DistribuicaoTst() {
             <>
               <Button
                 variant="outline"
-                onClick={handleGerarRelatorioPdf}
-                disabled={pdfRunning}
-                title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
-              >
-                {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-                {pdfRunning
-                  ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
-                  : selectedIds.size > 0
-                    ? `Relatório PDF Partes (${selectedIds.size})`
-                    : "Relatório PDF Partes"}
-              </Button>
-              <Button
-                variant="outline"
                 onClick={() => setTotalSituacaoOpen((v) => !v)}
                 title="Mostra o total de processos por situação (respeita os filtros aplicados) em um card na própria tela, com opção de exportar Excel."
               >
