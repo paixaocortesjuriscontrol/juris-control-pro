@@ -376,6 +376,12 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // mesmas situações rejeitam a linha na Carga Benner. Nesse caso precisam
   // aparecer como pendência na tela (regra: tudo que rejeita na planilha tem
   // que ser visível antes).
+  // Rejeições da geração da planilha de Carga Benner que independem da
+  // situação do processo ou da parte recorrente: a geração rejeita a linha
+  // por esses motivos SEMPRE, então a tela precisa acusar a pendência mesmo
+  // quando os demais campos são isentos (trânsito, acordo, somente terceiro…).
+  const rejeicoesCarga = getPendenciasRejeicaoCarga(row);
+
   const bloqueio = getSituacaoImpeditiva(row);
   if (bloqueio) {
     if (isMarcadoPronto(row)) {
@@ -386,11 +392,12 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
           alvoLabel: bloqueio,
           quadrinho: "I. Dados Básicos",
         },
+        ...rejeicoesCarga,
       ];
     }
-    return [];
+    return rejeicoesCarga;
   }
-  if (recorrenteSomenteTerceiro(row)) return [];
+  if (recorrenteSomenteTerceiro(row)) return rejeicoesCarga;
   const out: Pendencia[] = [];
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
