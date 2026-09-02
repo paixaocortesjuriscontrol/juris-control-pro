@@ -22,6 +22,8 @@ import {
   Building,
   CheckSquare,
   History,
+  Archive,
+  Wand2,
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -49,6 +51,8 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
       { label: "Base PCA - TST - Distribuições", path: "/admin-tst/base-pca-distribuicoes", icon: TagIcon, description: "Upload da planilha, localizar Dossiê/Processo na base e aplicar uma TAG em lote." },
       { label: "Auditoria da Distribuição TST", path: "/admin-tst/auditoria-distribuicao", icon: History, description: "Histórico completo de criações, alterações e exclusões: quem alterou, quando, de qual valor para qual valor.", adminOnly: true },
       { label: "Auditoria de Importações em Lote", path: "/admin-tst/auditoria-lotes", icon: ClipboardList, description: "Histórico de tudo que foi gravado em lote pelas ferramentas do Admin. TST, separado por tipo de operação: data/hora, usuário, arquivo e processos afetados.", adminOnly: true },
+      { label: "Arquivados", path: "/distribuicao-tst/arquivados", icon: Archive, description: "Processos arquivados da Distribuição TST: consulta e restauração.", adminOnly: true },
+      { label: "Ajustar Chance Turma/Relator (2026+)", path: "/admin-tst/ajustar-chance-turma-relator", icon: Wand2, description: "Inverte FAVORÁVEL para DESFAVORÁVEL na Chance Turma/Relator dos prontos para enviar de 2026 em diante, com relatório Excel.", adminOnly: true },
       { label: "Classificação TST", path: "/classificacao-tst", icon: ShieldCheck, description: "Classificar processos do TST." },
       { label: "Pautas TST", path: "/pautas-tst", icon: Scale, description: "Gerenciar pautas de julgamento do TST." },
     ],

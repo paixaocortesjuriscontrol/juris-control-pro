@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3 } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
@@ -32,7 +32,14 @@ import { DistribuicaoTstDetail } from "@/components/distribuicao-tst/Distribuica
 // foram movidas para Admin TST → Importações Distribuição TST.
 import { CargaBennerFromDb } from "@/components/distribuicao-tst/CargaBennerFromDb";
 import { DossiesNaoLocalizadosButton } from "@/components/distribuicao-tst/DossiesNaoLocalizadosButton";
-import { AjustarChanceDialog } from "@/components/distribuicao-tst/AjustarChanceDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DadosBennerForm } from "@/components/benner/DadosBennerForm";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { Link, useLocation, useNavigate } from "react-router-dom";
@@ -237,6 +244,9 @@ export default function DistribuicaoTst() {
 
   // Card "Total por Situação"
   const [totalSituacaoOpen, setTotalSituacaoOpen] = useState(false);
+
+  // Diálogo "Relatório Dossiês não localizados" (aberto pelo menu Relatórios)
+  const [dossiesOpen, setDossiesOpen] = useState(false);
 
   // Row selection for bulk Judit
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -1644,19 +1654,42 @@ export default function DistribuicaoTst() {
           >
             <FileText className="w-4 h-4 mr-2" /> M. Instruções
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleGerarRelatorioExcel}
-            disabled={xlsxRunning}
-            title="Gera uma planilha Excel obedecendo os filtros: Processo, Dossiê, Equipe, Data da Distribuição, Responsável, Situação do Processo, Status do Envio, Em Análise e Situação Carga Santander."
-          >
-            {xlsxRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-            {xlsxRunning
-              ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
-              : selectedIds.size > 0
-                ? `Relatório Excel (${selectedIds.size})`
-                : "Relatório Excel"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={xlsxRunning || pdfRunning}>
+                {xlsxRunning || pdfRunning ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                {xlsxRunning
+                  ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                  : pdfRunning
+                    ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                    : selectedIds.size > 0
+                      ? `Relatórios (${selectedIds.size})`
+                      : "Relatórios"}
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Relatórios da Distribuição TST</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
+              </DropdownMenuItem>
+              {isAdminOrCoordinator && (
+                <>
+                  <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
+                    <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
+                    <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -1664,19 +1697,6 @@ export default function DistribuicaoTst() {
         <div className="flex gap-2 flex-wrap justify-end items-center">
           {isAdminOrCoordinator && (
             <>
-              <Button
-                variant="outline"
-                onClick={handleGerarRelatorioPdf}
-                disabled={pdfRunning}
-                title="Gera um PDF profissional listando as partes (polo ativo/passivo) de cada processo, respeitando os filtros aplicados."
-              >
-                {pdfRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileText className="w-4 h-4 mr-2" />}
-                {pdfRunning
-                  ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
-                  : selectedIds.size > 0
-                    ? `Relatório PDF Partes (${selectedIds.size})`
-                    : "Relatório PDF Partes"}
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => setTotalSituacaoOpen((v) => !v)}
@@ -1696,13 +1716,8 @@ export default function DistribuicaoTst() {
                   <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
                 </Button>
               </Link>
-              {isAdmin && (
-                <Link to="/distribuicao-tst/arquivados">
-                  <Button variant="outline">
-                    <Archive className="w-4 h-4 mr-2" /> Arquivados
-                  </Button>
-                </Link>
-              )}
+              {/* "Arquivados" e "Ajustar Chance Turma/Relator" movidos para Admin TST */}
+
               {isAdminOrCoordinator && filtroDuplicado === "sim" && (
                 <Button
                   variant="outline"
@@ -1727,8 +1742,13 @@ export default function DistribuicaoTst() {
                   {arquivarSelRunning ? "Arquivando..." : `Arquivar selecionados (${selectedIds.size})`}
                 </Button>
               )}
-              <DossiesNaoLocalizadosButton filters={debouncedFilters} selectedIds={selectedIds} />
-              {isAdminOrCoordinator && <AjustarChanceDialog />}
+              <DossiesNaoLocalizadosButton
+                filters={debouncedFilters}
+                selectedIds={selectedIds}
+                open={dossiesOpen}
+                onOpenChange={setDossiesOpen}
+                hideTrigger
+              />
               <Button
                 variant="secondary"
                 onClick={handleGerarCarga}

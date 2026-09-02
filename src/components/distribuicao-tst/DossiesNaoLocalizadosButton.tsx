@@ -36,10 +36,22 @@ import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 interface Props {
   filters: DistribuicaoTstFilters;
   selectedIds?: Set<string>;
+  /** Quando controlado externamente (ex.: item de menu), o botão próprio não é renderizado. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  hideTrigger?: boolean;
 }
 
-export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
-  const [open, setOpen] = useState(false);
+export function DossiesNaoLocalizadosButton({
+  filters,
+  selectedIds,
+  open: openProp,
+  onOpenChange,
+  hideTrigger,
+}: Props) {
+  const [openInternal, setOpenInternal] = useState(false);
+  const open = openProp ?? openInternal;
+  const setOpen = (v: boolean) => (onOpenChange ? onOpenChange(v) : setOpenInternal(v));
   const [usarJudit, setUsarJudit] = useState(false);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
@@ -254,12 +266,14 @@ export function DossiesNaoLocalizadosButton({ filters, selectedIds }: Props) {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <FileSpreadsheet className="w-4 h-4 mr-2" />
-        {total > 0
-          ? `Dossiês não localizados (${total})`
-          : "Relatório Dossiês não localizados"}
-      </Button>
+      {!hideTrigger && (
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          {total > 0
+            ? `Dossiês não localizados (${total})`
+            : "Relatório Dossiês não localizados"}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => !running && setOpen(o)}>
         <DialogContent className="max-w-md">
