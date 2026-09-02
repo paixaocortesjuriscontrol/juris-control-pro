@@ -12,12 +12,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMateriasBenner } from "@/hooks/useMateriasBenner";
 
-import { OUTRA_MATERIA_LABEL, isOutraMateria } from "@/utils/outraMateria";
+import { OUTRA_MATERIA_LABEL, isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
 import {
   ensureMateriasOficiais,
   isMateriaOficialSync,
   materiasOficiaisCarregadas,
 } from "@/utils/materiasOficiaisCache";
+
 
 const SEPARATOR = "; ";
 
