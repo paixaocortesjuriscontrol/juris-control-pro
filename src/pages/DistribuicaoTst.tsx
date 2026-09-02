@@ -1851,8 +1851,32 @@ export default function DistribuicaoTst() {
             Seleção Mês/Ano ocultada temporariamente (não utilizada). */}
         {true && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 items-stretch">
-
-
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
+              <CheckCircle className="w-3 h-3 mr-1" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
+              <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
+              onClick={handleMarcarEmAnalise}
+              disabled={selectedIds.size === 0}
+              title="Trava esses registros como 'Em análise' — eles ficam estáveis na lista até você finalizar"
+            >
+              <Filter className="w-3 h-3 mr-1" /> Marcar Em Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleFinalizarAnalise}
+              disabled={selectedIds.size === 0}
+              title="Remove a marca 'Em análise' dos registros selecionados"
+            >
+              <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
+            </Button>
 
             {delegarButton}
             {isAdminOrCoordinator && (
@@ -1922,32 +1946,6 @@ export default function DistribuicaoTst() {
                 <X className="w-3 h-3 mr-1" /> Cancelar
               </Button>
             )}
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarPronto} disabled={selectedIds.size === 0}>
-              <CheckCircle className="w-3 h-3 mr-1" /> Marcar como Pronto{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-            </Button>
-            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleMarcarEnviado} disabled={selectedIds.size === 0}>
-              <Send className="w-3 h-3 mr-1" /> Marcar como Enviado{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs border-amber-500 text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
-              onClick={handleMarcarEmAnalise}
-              disabled={selectedIds.size === 0}
-              title="Trava esses registros como 'Em análise' — eles ficam estáveis na lista até você finalizar"
-            >
-              <Filter className="w-3 h-3 mr-1" /> Marcar Em Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={handleFinalizarAnalise}
-              disabled={selectedIds.size === 0}
-              title="Remove a marca 'Em análise' dos registros selecionados"
-            >
-              <CheckCircle2 className="w-3 h-3 mr-1" /> Finalizar Análise{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
-            </Button>
             <Button
               variant={mostrarPendencias ? "default" : "outline"}
               size="sm"
