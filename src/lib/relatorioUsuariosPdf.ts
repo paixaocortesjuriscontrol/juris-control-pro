@@ -100,16 +100,16 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Relatório de Usuários Cadastrados", 40, 32);
+  doc.text("Relatório de Usuários Cadastrados", 30, 32);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
     `Filial: ${filtroFilial && filtroFilial !== "todas" ? filtroFilial : "Todas"}`,
-    40,
+    30,
     52
   );
-  doc.text(`Gerado em: ${dataHoraBrt(new Date())} (BRT)`, largura - 40, 32, { align: "right" });
-  doc.text("Documento interno — não contém credenciais de acesso", largura - 40, 52, {
+  doc.text(`Gerado em: ${dataHoraBrt(new Date())} (BRT)`, largura - 30, 32, { align: "right" });
+  doc.text("Documento interno — não contém credenciais de acesso", largura - 30, 52, {
     align: "right",
   });
   doc.setTextColor(0, 0, 0);
@@ -153,7 +153,7 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       ["Distribuição por coordenação", coordenacoesResumo || "—"],
     ],
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 150 } },
-    margin: { left: 40, right: 40 },
+    margin: { left: 30, right: 30 },
   });
 
 
@@ -161,7 +161,7 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(11);
-  doc.text("Relação de usuários", 40, afterResumo + 24);
+  doc.text("Relação de usuários", 30, afterResumo + 24);
 
   // ---- Tabela principal
   const body = usuarios.map((u, i) => [
@@ -205,30 +205,31 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
     body,
     theme: "striped",
     styles: {
-      fontSize: 7.5,
-      cellPadding: 4,
+      fontSize: 7,
+      cellPadding: 3,
       overflow: "linebreak",
       lineColor: [220, 224, 230],
       lineWidth: 0.4,
       textColor: 30,
     },
-    headStyles: { fillColor: [23, 37, 84], textColor: 255, fontStyle: "bold", fontSize: 7.5 },
+    headStyles: { fillColor: [23, 37, 84], textColor: 255, fontStyle: "bold", fontSize: 7 },
     alternateRowStyles: { fillColor: [248, 250, 252] },
+    // Largura útil A4 paisagem = 842 - 2*30 = 782pt. Somatório abaixo = 778pt.
     columnStyles: {
-      0: { cellWidth: 22, halign: "right" },
-      1: { cellWidth: 120 },
-      2: { cellWidth: 140 },
-      3: { cellWidth: 78 },
-      4: { cellWidth: 58 },
-      5: { cellWidth: 55 },
-      6: { cellWidth: 88 },
-      7: { cellWidth: 62 },
-      8: { cellWidth: 95 },
-      9: { cellWidth: 40 },
-      10: { cellWidth: 55 },
-      11: { cellWidth: 50 },
+      0: { cellWidth: 20, halign: "right" },
+      1: { cellWidth: 105 },
+      2: { cellWidth: 132 },
+      3: { cellWidth: 70 },
+      4: { cellWidth: 44 },
+      5: { cellWidth: 48 },
+      6: { cellWidth: 80 },
+      7: { cellWidth: 50 },
+      8: { cellWidth: 90 },
+      9: { cellWidth: 36 },
+      10: { cellWidth: 46 },
+      11: { cellWidth: 45 },
     },
-    margin: { left: 40, right: 40, top: 60 },
+    margin: { left: 30, right: 30, top: 60 },
     didParseCell: (data) => {
       if (data.section === "body" && data.column.index === 9 && data.cell.raw === "Inativo") {
         data.cell.styles.textColor = [185, 28, 28];
@@ -239,8 +240,8 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       const pagina = doc.getNumberOfPages();
       doc.setFontSize(8);
       doc.setTextColor(120, 120, 120);
-      doc.text("Relatório de Usuários Cadastrados", 40, altura - 20);
-      doc.text(`Página ${pagina}`, largura - 40, altura - 20, { align: "right" });
+      doc.text("Relatório de Usuários Cadastrados", 30, altura - 20);
+      doc.text(`Página ${pagina}`, largura - 30, altura - 20, { align: "right" });
       doc.setTextColor(0, 0, 0);
     },
   });
