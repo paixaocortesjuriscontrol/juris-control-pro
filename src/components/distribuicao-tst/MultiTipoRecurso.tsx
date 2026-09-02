@@ -87,13 +87,14 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
               <Select
               value={isPredef ? t : (t.trim() ? t : "")}
               onValueChange={(v) => {
-                setAt(idx, v);
+                setAt(idx, v === "__none__" ? "" : v);
               }}
             >
               <SelectTrigger className="flex-1 min-w-0">
-                <SelectValue placeholder="Tipo" />
+                <SelectValue placeholder="Selecione" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="__none__">Selecione</SelectItem>
                 {OPCOES_RECURSO.map((opt) => (
                   <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                 ))}
@@ -103,6 +104,7 @@ export function MultiTipoRecurso({ value, onChange }: Props) {
                   </SelectItem>
                 )}
               </SelectContent>
+
               </Select>
               {tipos.length > 1 ? (
                 <Button type="button" variant="ghost" size="icon" onClick={() => remove(idx)} title="Remover">
