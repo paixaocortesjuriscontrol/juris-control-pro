@@ -51,7 +51,7 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
           const { data, error } = await supabase
             .from("dados_benner" as any)
             .select(
-              "id, dossie, parte_recorrente, materias_analise_reclamante, materias_analise_banco, materias_analise_terceiro",
+              "id, dossie, recorrente, materias_analise_reclamante, materias_analise_banco",
             )
             .in("status", STATUS_CONCLUIDOS)
             .order("id", { ascending: true })
