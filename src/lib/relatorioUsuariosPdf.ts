@@ -240,8 +240,8 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       const pagina = doc.getNumberOfPages();
       doc.setFontSize(8);
       doc.setTextColor(120, 120, 120);
-      doc.text("Relatório de Usuários Cadastrados", 40, altura - 20);
-      doc.text(`Página ${pagina}`, largura - 40, altura - 20, { align: "right" });
+      doc.text("Relatório de Usuários Cadastrados", 30, altura - 20);
+      doc.text(`Página ${pagina}`, largura - 30, altura - 20, { align: "right" });
       doc.setTextColor(0, 0, 0);
     },
   });
