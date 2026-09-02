@@ -659,7 +659,9 @@ export default function DistribuicaoTst() {
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
     if (filtroMultiResp) return "multiResp" as const;
+    if (filtroComPendencia) return "prontoComPendencia" as const;
     if (filtroSemPendencia) return "prontoSemPendencia" as const;
+
     if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
     if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
     if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
