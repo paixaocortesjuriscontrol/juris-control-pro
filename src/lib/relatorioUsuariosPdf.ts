@@ -44,18 +44,23 @@ const telefoneBr = (tel: string | null) => {
   return dash(tel);
 };
 
-/** Busca as coordenações de cada usuário (id -> nomes). */
+/** Busca as coordenações de cada usuário (id -> nomes), com fallback na coordenação padrão. */
 async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[]>> {
   const map: Record<string, string[]> = {};
   if (ids.length === 0) return map;
   try {
     const db = supabase as any;
-    const { data: membros } = await db
-      .from("membros_coordenacao")
-      .select("user_id, coordenacao_id")
-      .in("user_id", ids);
+    const [{ data: membros }, { data: perfis }] = await Promise.all([
+      db.from("membros_coordenacao").select("user_id, coordenacao_id").in("user_id", ids),
+      db.from("profiles").select("id, coordenacao_padrao_id").in("id", ids),
+    ]);
     const coordIds = Array.from(
-      new Set((membros ?? []).map((m: any) => m.coordenacao_id).filter(Boolean))
+      new Set(
+        [
+          ...(membros ?? []).map((m: any) => m.coordenacao_id),
+          ...(perfis ?? []).map((p: any) => p.coordenacao_padrao_id),
+        ].filter(Boolean)
+      )
     );
     if (coordIds.length === 0) return map;
     const { data: coords } = await db.from("coordenacoes").select("id, nome").in("id", coordIds);
@@ -65,14 +70,21 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
     (membros ?? []).forEach((m: any) => {
       const nome = nomes.get(m.coordenacao_id);
       if (!nome) return;
-      map[m.user_id] = [...(map[m.user_id] ?? []), nome];
+      const atuais = map[m.user_id] ?? [];
+      if (!atuais.includes(nome)) map[m.user_id] = [...atuais, nome];
+    });
+    (perfis ?? []).forEach((p: any) => {
+      const nome = p.coordenacao_padrao_id ? nomes.get(p.coordenacao_padrao_id) : null;
+      if (!nome) return;
+      const atuais = map[p.id] ?? [];
+      if (!atuais.includes(nome)) map[p.id] = [...atuais, nome];
     });
   } catch {
     /* coordenações são complementares; segue sem elas */
   }
   return map;
-
 }
+
 
 /** Gera o relatório profissional de usuários cadastrados (sem dados de senha). */
 export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Params) {
