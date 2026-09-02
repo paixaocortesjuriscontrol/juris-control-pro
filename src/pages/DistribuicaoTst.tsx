@@ -2136,6 +2136,109 @@ export default function DistribuicaoTst() {
                 totalFiltered={totalCount}
               />
             )}
+
+            {/* Acesso Rápido */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs" disabled={xlsxRunning || pdfRunning}>
+                  {xlsxRunning || pdfRunning ? (
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                  ) : (
+                    <Zap className="w-3 h-3 mr-1" />
+                  )}
+                  {xlsxRunning
+                    ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                    : pdfRunning
+                      ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                      : selectedIds.size > 0
+                        ? `Acesso Rápido (${selectedIds.size})`
+                        : "Acesso Rápido"}
+                  <ChevronDown className="w-3 h-3 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel>Acesso Rápido</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isAdminOrCoordinator && (
+                  <>
+                    <DropdownMenuItem onSelect={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setShowForm(true); }}>
+                      <Plus className="w-4 h-4 mr-2" /> Nova Distribuição
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => setAutoDistOpen(true)}
+                      disabled={totalCount === 0 && selectedIds.size === 0}
+                    >
+                      <Shuffle className="w-4 h-4 mr-2" />
+                      {isAdmin && selectedIds.size > 0
+                        ? `Distribuir selecionados (${selectedIds.size})`
+                        : `Distribuir automaticamente${totalCount > 0 ? ` (${totalCount})` : ""}`}
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                {isAdminOrCoordinator && (
+                  <DropdownMenuItem onSelect={() => setTotalSituacaoOpen((v) => !v)}>
+                    <BarChart3 className="w-4 h-4 mr-2" /> Total por Situação
+                  </DropdownMenuItem>
+                )}
+                {isAdminOrCoordinator && (
+                  <>
+                    <DropdownMenuItem onSelect={() => navigate("/dados-benner")}>
+                      <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => navigate("/distribuicao-tst/kanban")}>
+                      <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
+                    </DropdownMenuItem>
+                  </>
+                )}
+                <DropdownMenuItem onSelect={() => gerarManualDistribuicaoTst()}>
+                  <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="text-xs text-muted-foreground uppercase tracking-wide">Relatórios</DropdownMenuLabel>
+                <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()} disabled={xlsxRunning}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
+                </DropdownMenuItem>
+                {isAdminOrCoordinator && (
+                  <>
+                    <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()} disabled={pdfRunning}>
+                      <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
+                      <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {isAdminOrCoordinator && (
+              <>
+                <DossiesNaoLocalizadosButton
+                  filters={debouncedFilters}
+                  selectedIds={selectedIds}
+                  open={dossiesOpen}
+                  onOpenChange={setDossiesOpen}
+                  hideTrigger
+                />
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={handleGerarCarga}
+                  disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
+                >
+                  {cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading) ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <FileSpreadsheet className="w-3 h-3 mr-1" />}
+                  {cargaLoading
+                    ? "Carregando..."
+                    : selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading
+                    ? "Calculando pendências..."
+                    : selectedIds.size > 0
+                      ? `Carga Benner (${selectedIds.size})`
+                      : "Gerar Carga Benner"}
+                </Button>
+              </>
+            )}
           </div>
         )}
 
