@@ -1654,19 +1654,38 @@ export default function DistribuicaoTst() {
           >
             <FileText className="w-4 h-4 mr-2" /> M. Instruções
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleGerarRelatorioExcel}
-            disabled={xlsxRunning}
-            title="Gera uma planilha Excel obedecendo os filtros: Processo, Dossiê, Equipe, Data da Distribuição, Responsável, Situação do Processo, Status do Envio, Em Análise e Situação Carga Santander."
-          >
-            {xlsxRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-            {xlsxRunning
-              ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
-              : selectedIds.size > 0
-                ? `Relatório Excel (${selectedIds.size})`
-                : "Relatório Excel"}
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={xlsxRunning || pdfRunning}>
+                {xlsxRunning || pdfRunning ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <FileText className="w-4 h-4 mr-2" />
+                )}
+                {xlsxRunning
+                  ? (xlsxProgress.total > 0 ? `Gerando Excel ${xlsxProgress.current}/${xlsxProgress.total}` : "Gerando Excel...")
+                  : pdfRunning
+                    ? (pdfProgress.total > 0 ? `Gerando PDF ${pdfProgress.current}/${pdfProgress.total}` : "Gerando PDF...")
+                    : selectedIds.size > 0
+                      ? `Relatórios (${selectedIds.size})`
+                      : "Relatórios"}
+                <ChevronDown className="w-4 h-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuLabel>Relatórios da Distribuição TST</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => handleGerarRelatorioExcel()}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => handleGerarRelatorioPdf()}>
+                <FileText className="w-4 h-4 mr-2" /> Relatório PDF Partes
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setDossiesOpen(true)}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Relatório Dossiês não localizados
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
