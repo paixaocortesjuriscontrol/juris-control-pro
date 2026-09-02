@@ -313,7 +313,37 @@ export default function PainelControle() {
     setPainelFiltros(PAINEL_FILTROS_DEFAULT);
     setSituacaoFilter("todos");
     setSomenteHoje(false);
+    setModoProtocoladosBaixados(false);
   }, []);
+
+  // Liga/desliga o atalho Protocolados/Baixados
+  const toggleProtocoladosBaixados = useCallback(() => {
+    setModoProtocoladosBaixados((ativo) => {
+      if (ativo) {
+        setPainelFiltros((s) => ({ ...s, situacoes: [] }));
+        return false;
+      }
+      setViewMode("lista");
+      setSituacaoFilter("todos");
+      setSomenteHoje(false);
+      setPainelFiltros((s) => ({
+        ...s,
+        situacoes: ["protocolado", "baixado"],
+        classificacoes: [],
+        statusGroup: "todas",
+        souResponsavel: false,
+        estouEnvolvido: false,
+      }));
+      return true;
+    });
+  }, []);
+
+  // Sair do modo ao trocar de visão
+  useEffect(() => {
+    if (modoProtocoladosBaixados && viewMode !== "lista") {
+      setModoProtocoladosBaixados(false);
+    }
+  }, [viewMode, modoProtocoladosBaixados]);
   const [mostrarTotalizadores, setMostrarTotalizadores] = useState<boolean>(() => {
     if (typeof window === "undefined") return true;
     const v = window.localStorage.getItem("painel:mostrarTotalizadores");
