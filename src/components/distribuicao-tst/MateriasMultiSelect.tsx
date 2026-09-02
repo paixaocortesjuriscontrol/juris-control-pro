@@ -256,8 +256,14 @@ export function MateriasMultiSelect({
             <Badge
               key={nome}
               variant="secondary"
-              className="text-xs gap-1 pr-1"
+              className={cn(
+                "text-xs gap-1 pr-1",
+                isDoDossie(nome) &&
+                  "bg-emerald-100 text-emerald-800 hover:bg-emerald-100 border border-emerald-300",
+              )}
+              title={isDoDossie(nome) ? "Pedido cadastrado para este dossiê" : undefined}
             >
+
               <span className="max-w-[260px] truncate">
                 {nome}
                 {foraDaLista(nome) && (
