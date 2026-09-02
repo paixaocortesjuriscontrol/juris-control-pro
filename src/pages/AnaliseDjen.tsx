@@ -5549,12 +5549,14 @@ const AnaliseDjen = () => {
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                               e.stopPropagation();
-                                              if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas" e poderá ser restaurada de lá.')) {
+                                              const c = await contarItensDaPublicacao([pub as any]);
+                                              if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas" e poderá ser restaurada de lá.' + textoAvisoItens(c))) {
                                                 descartarManualmente.mutate({ id: pub.id, tipo_origem: pub.tipo_origem as 'termo' | 'processo' });
                                               }
                                             }}
+
                                             disabled={descartarManualmente.isPending}
                                             title="Descartar publicação"
                                             className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 text-rose-600 hover:text-rose-700"
