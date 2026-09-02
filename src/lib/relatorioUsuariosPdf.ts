@@ -49,13 +49,21 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
   const map: Record<string, string[]> = {};
   if (ids.length === 0) return map;
   try {
-    const { data } = await (supabase as any)
+    const db = supabase as any;
+    const { data: membros } = await db
       .from("membros_coordenacao")
-      .select("user_id, coordenacoes(nome)")
+      .select("user_id, coordenacao_id")
       .in("user_id", ids);
-
-    (data ?? []).forEach((m: any) => {
-      const nome = m?.coordenacoes?.nome;
+    const coordIds = Array.from(
+      new Set((membros ?? []).map((m: any) => m.coordenacao_id).filter(Boolean))
+    );
+    if (coordIds.length === 0) return map;
+    const { data: coords } = await db.from("coordenacoes").select("id, nome").in("id", coordIds);
+    const nomes = new Map<string, string>(
+      (coords ?? []).map((c: any) => [c.id as string, (c.nome as string) ?? ""])
+    );
+    (membros ?? []).forEach((m: any) => {
+      const nome = nomes.get(m.coordenacao_id);
       if (!nome) return;
       map[m.user_id] = [...(map[m.user_id] ?? []), nome];
     });
@@ -63,6 +71,7 @@ async function buscarCoordenacoes(ids: string[]): Promise<Record<string, string[
     /* coordenações são complementares; segue sem elas */
   }
   return map;
+
 }
 
 /** Gera o relatório profissional de usuários cadastrados (sem dados de senha). */
