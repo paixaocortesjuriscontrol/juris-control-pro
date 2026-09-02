@@ -100,16 +100,16 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Relatório de Usuários Cadastrados", 40, 32);
+  doc.text("Relatório de Usuários Cadastrados", 30, 32);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text(
     `Filial: ${filtroFilial && filtroFilial !== "todas" ? filtroFilial : "Todas"}`,
-    40,
+    30,
     52
   );
-  doc.text(`Gerado em: ${dataHoraBrt(new Date())} (BRT)`, largura - 40, 32, { align: "right" });
-  doc.text("Documento interno — não contém credenciais de acesso", largura - 40, 52, {
+  doc.text(`Gerado em: ${dataHoraBrt(new Date())} (BRT)`, largura - 30, 32, { align: "right" });
+  doc.text("Documento interno — não contém credenciais de acesso", largura - 30, 52, {
     align: "right",
   });
   doc.setTextColor(0, 0, 0);
