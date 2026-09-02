@@ -32,7 +32,13 @@ interface Props {
    * Pendências" destaque as lacunas por matéria.
    */
   fieldKey?: string;
+  /**
+   * Pedidos cadastrados para o dossiê do processo (nomes normalizados).
+   * Matérias que constam nessa lista são exibidas em verde.
+   */
+  pedidosDossie?: Set<string>;
 }
+
 
 const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA", "BEM APARELHADO", "MAL APARELHADO"];
 const CHANCE_OPTS = ["FAVORÁVEL", "DESFAVORÁVEL"];
