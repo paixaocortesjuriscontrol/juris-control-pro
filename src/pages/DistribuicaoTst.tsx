@@ -1650,8 +1650,10 @@ export default function DistribuicaoTst() {
         </div>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-3">
+        {isAdminOrCoordinator && (filtroDuplicado === "sim" || selectedIds.size > 0) && (
         <div className="flex gap-2 flex-wrap justify-end items-center">
+
 
             {isAdminOrCoordinator && filtroDuplicado === "sim" && (
               <Button
