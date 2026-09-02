@@ -196,7 +196,7 @@ export const CHAVES_OBRIGATORIAS = new Set<string>(
 
 /** Colunas a selecionar em `dados_benner` para checar pendências. */
 export const COLUNAS_SELECT_PENDENCIAS = Array.from(
-  new Set(CAMPOS_OBRIGATORIOS.map((c) => c.key)),
+  new Set([...CAMPOS_OBRIGATORIOS.map((c) => c.key), "tipo_recurso"]),
 );
 
 /**
