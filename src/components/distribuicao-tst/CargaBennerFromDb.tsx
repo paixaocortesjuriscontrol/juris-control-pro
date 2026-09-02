@@ -652,6 +652,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         // oficial de pedidos do Santander (`materias_pedidos_oficiais`).
         let materiasSelecionadasCount = 0;
         let materiasForaListaCount = 0;
+        let materiasForaDossieCount = 0;
         const filtrarMateriasExportaveis = (arr: any[]) => {
           const itens = (Array.isArray(arr) ? arr : []).filter(
             (it: any) => it && it.materia && String(it.materia).trim(),
@@ -667,10 +668,17 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
               materiasForaListaCount++;
               continue;
             }
+            // Só as matérias que constam na lista de pedidos do dossiê
+            // ("verdes") podem ser exportadas.
+            if (!isMateriaDoDossie(dossie, it.materia)) {
+              materiasForaDossieCount++;
+              continue;
+            }
             validas.push(it);
           }
           return validas;
         };
+
         // Escopo por parte recorrente: matérias gravadas no quadro de uma parte
         // que NÃO é recorrente são ignoradas (não exportam nem rejeitam).
         const pr = normalizeText((d as any).parte_recorrente);
