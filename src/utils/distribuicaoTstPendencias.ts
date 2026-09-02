@@ -257,15 +257,12 @@ export type Pendencia = {
   aviso?: boolean;
 };
 
-/** Verifica pendências na lista de "Análise por matéria" (JSONB). Cada matéria
- *  selecionada exige aparelhamento, chance_turma, chance_relator e chance_exito. */
-function pendenciasMateriasAnalise(
+/** Nomes das matérias selecionadas de um bloco (string de matérias + JSONB). */
+function materiasSelecionadasDe(
   row: any,
   campoJsonb: string,
   campoMaterias: string,
-  rotuloBloco: string,
-  quadrinho: string,
-): Pendencia[] {
+): any[] {
   const listaPersistida = Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : [];
   const materiasSelecionadas = String(row?.[campoMaterias] || "")
     .split(/;|\n/)
@@ -276,13 +273,26 @@ function pendenciasMateriasAnalise(
     if (!item || typeof item !== "object" || !item.materia) continue;
     porMateria.set(String(item.materia).trim().toLocaleLowerCase("pt-BR"), item);
   }
-  const lista = materiasSelecionadas.length > 0
+  return materiasSelecionadas.length > 0
     ? materiasSelecionadas.map((materia) => ({
         ...(porMateria.get(materia.toLocaleLowerCase("pt-BR")) || {}),
         materia,
       }))
     : listaPersistida;
+}
+
+/** Verifica pendências na lista de "Análise por matéria" (JSONB). Cada matéria
+ *  selecionada exige aparelhamento, chance_turma, chance_relator e chance_exito. */
+function pendenciasMateriasAnalise(
+  row: any,
+  campoJsonb: string,
+  campoMaterias: string,
+  rotuloBloco: string,
+  quadrinho: string,
+): Pendencia[] {
+  const lista = materiasSelecionadasDe(row, campoJsonb, campoMaterias);
   if (lista.length === 0) return [];
+
   const out: Pendencia[] = [];
   for (const item of lista) {
     if (!item || typeof item !== "object" || !item.materia) continue;
