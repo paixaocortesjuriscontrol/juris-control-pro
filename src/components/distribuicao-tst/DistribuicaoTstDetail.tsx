@@ -692,8 +692,9 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                   }
                   continue;
                 }
-                const alvo = norm(p.label);
+                const alvo = norm(p.alvoLabel || p.label);
                 const lbl = labels.find((l) => norm(l.textContent || "").startsWith(alvo));
+
                 if (!lbl) {
                   naoMarcados.push(p.label);
                   continue;
