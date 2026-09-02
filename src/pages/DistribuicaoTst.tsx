@@ -378,6 +378,14 @@ export default function DistribuicaoTst() {
   } =
     useProntoSemPendenciaCount(debouncedFilters);
 
+  // Universo de IDs filtrados — usado apenas pelo filtro "com pendências".
+  const { data: todosIdsFiltrados = [] } = useQuery({
+    queryKey: ["todos-ids-filtrados", JSON.stringify(debouncedFilters)],
+    enabled: filtroComPendencia,
+    queryFn: () => fetchAllDistribuicaoTstIds(debouncedFilters),
+  });
+
+
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
