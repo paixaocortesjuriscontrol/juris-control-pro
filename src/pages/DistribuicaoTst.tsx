@@ -616,7 +616,7 @@ export default function DistribuicaoTst() {
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
     filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas" ||
-    filtroSemPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+    filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
   const clearFilters = () => {
@@ -638,6 +638,7 @@ export default function DistribuicaoTst() {
     setFiltroSubidaMassa("todos");
     setFiltroAcordo("todos");
     setFiltroSemPendencia(false);
+    setFiltroComPendencia(false);
     setFiltroProcesso("");
     setFiltroDossie("");
     setFiltroTurma("");
