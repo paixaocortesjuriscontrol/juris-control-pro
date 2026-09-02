@@ -52,6 +52,11 @@ interface Props {
   onChange: (value: string | null) => void;
   placeholder?: string;
   disabled?: boolean;
+  /**
+   * Pedidos cadastrados para o dossiê do processo (nomes normalizados). Quando
+   * informado, essas matérias aparecem primeiro na lista e em verde.
+   */
+  pedidosDossie?: Set<string>;
 }
 
 export function MateriasMultiSelect({
@@ -59,7 +64,9 @@ export function MateriasMultiSelect({
   onChange,
   placeholder = "Selecione uma ou mais matérias...",
   disabled,
+  pedidosDossie,
 }: Props) {
+
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
   const { dados, loading } = useMateriasBenner();
