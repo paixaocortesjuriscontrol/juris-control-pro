@@ -1847,56 +1847,11 @@ export default function DistribuicaoTst() {
         )}
 
 
-        {/* Mês/Ano dropdown — apenas admin/coordenador */}
-        {mesesAnos.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {isAdminOrCoordinator && (
-              <>
-                <Label className="text-xs font-bold text-muted-foreground">Mês/Ano:</Label>
-                <Select
-                  value={filtroMesAno}
-                  onValueChange={(val) => {
-                    setFiltroMesAno(val);
-                    if (val === "todos" || val === "sem-data") {
-                      setFiltroDataInicio("");
-                      setFiltroDataFim("");
-                    } else {
-                      const [y, m] = val.split("-").map(Number);
-                      const last = new Date(y, m, 0).getDate();
-                      setFiltroDataInicio(`${val}-01`);
-                      setFiltroDataFim(`${val}-${String(last).padStart(2, "0")}`);
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-8 text-xs w-64">
-                    <SelectValue placeholder="Selecione o mês/ano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">
-                      Todos meses ({mesesAnos.reduce((s, m) => s + m.count, 0)})
-                    </SelectItem>
-                    {mesesAnos.map(({ key, count }) => {
-                      if (key === "sem-data") {
-                        return (
-                          <SelectItem key={key} value={key}>
-                            Sem data ({count})
-                          </SelectItem>
-                        );
-                      }
-                      const [y, m] = key.split("-");
-                      const label = `${mesesLabels[parseInt(m) - 1]}/${y}`;
-                      return (
-                        <SelectItem key={key} value={key}>
-                          {label} ({count})
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+        {/* Ações em lote — grade de 2 colunas alinhadas.
+            Seleção Mês/Ano ocultada temporariamente (não utilizada). */}
+        {true && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
 
-                <div className="h-6 w-px bg-border mx-1" />
-              </>
-            )}
 
             {delegarButton}
             {isAdminOrCoordinator && (
