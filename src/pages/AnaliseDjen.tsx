@@ -100,6 +100,8 @@ import { EtiquetarLoteDialog } from "@/components/etiquetas/EtiquetarLoteDialog"
 import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
+import { contarItensDaPublicacao, textoAvisoItens } from "@/lib/contarItensDaPublicacao";
+
 import { NovaAudienciaPublicacaoDialog } from "@/components/djen/NovaAudienciaPublicacaoDialog";
 import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudienciaForm";
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
@@ -3484,12 +3486,15 @@ const AnaliseDjen = () => {
     // Descarte em lote direto: descarta EXATAMENTE o que está selecionado.
     // (A análise de duplicidade fica no botão "Descartar duplicadas".)
     const paraDescartar = selecionadas;
+    const contagem = await contarItensDaPublicacao(paraDescartar as any);
     const confirmar = window.confirm(
       `Descartar ${paraDescartar.length} publicação(ões) selecionada(s)?\n\n` +
       `Elas saem da lista de encontradas e passam para "Descartadas" ` +
-      `(é possível desfazer pela aba de descartadas).`
+      `(é possível desfazer pela aba de descartadas).` +
+      textoAvisoItens(contagem)
     );
     if (!confirmar) return;
+
 
     setDescartandoSelecionadas(true);
     try {
@@ -3677,13 +3682,16 @@ const AnaliseDjen = () => {
       return;
     }
 
+    const contagemDup = await contarItensDaPublicacao(paraDescartar as any);
     const confirmar = window.confirm(
       `Serão descartadas ${paraDescartar.length} duplicada(s), ` +
       `mantendo ${mantidas} publicação(ões) — a mais antiga de cada grupo. ` +
       (semPar > 0 ? `${semPar} selecionada(s) sem par NÃO serão descartadas. ` : '') +
-      `Confirmar?`
+      `Confirmar?` +
+      textoAvisoItens(contagemDup)
     );
     if (!confirmar) return;
+
 
     setDescartandoDupSelecionadas(true);
     try {
@@ -5543,12 +5551,14 @@ const AnaliseDjen = () => {
                                           <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={(e) => {
+                                            onClick={async (e) => {
                                               e.stopPropagation();
-                                              if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas" e poderá ser restaurada de lá.')) {
+                                              const c = await contarItensDaPublicacao([pub as any]);
+                                              if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas" e poderá ser restaurada de lá.' + textoAvisoItens(c))) {
                                                 descartarManualmente.mutate({ id: pub.id, tipo_origem: pub.tipo_origem as 'termo' | 'processo' });
                                               }
                                             }}
+
                                             disabled={descartarManualmente.isPending}
                                             title="Descartar publicação"
                                             className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 text-rose-600 hover:text-rose-700"
@@ -5639,12 +5649,14 @@ const AnaliseDjen = () => {
                                          <Button
                                            variant="outline"
                                            size="sm"
-                                           onClick={(e) => {
+                                           onClick={async (e) => {
                                              e.stopPropagation();
-                                             if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas".')) {
+                                             const c = await contarItensDaPublicacao([pub as any]);
+                                             if (window.confirm('Descartar esta publicação? Ela será movida para a aba "Descartadas".' + textoAvisoItens(c))) {
                                                descartarManualmente.mutate({ id: pub.id, tipo_origem: pub.tipo_origem as 'termo' | 'processo' });
                                              }
                                            }}
+
                                            disabled={descartarManualmente.isPending}
                                            title="Descartar publicação"
                                            className="h-7 md:h-8 px-2 md:px-3 flex-shrink-0 text-rose-600 hover:text-rose-700"
