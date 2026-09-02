@@ -266,12 +266,14 @@ export function DossiesNaoLocalizadosButton({
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        <FileSpreadsheet className="w-4 h-4 mr-2" />
-        {total > 0
-          ? `Dossiês não localizados (${total})`
-          : "Relatório Dossiês não localizados"}
-      </Button>
+      {!hideTrigger && (
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          <FileSpreadsheet className="w-4 h-4 mr-2" />
+          {total > 0
+            ? `Dossiês não localizados (${total})`
+            : "Relatório Dossiês não localizados"}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => !running && setOpen(o)}>
         <DialogContent className="max-w-md">
