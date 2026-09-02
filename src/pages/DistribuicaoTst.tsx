@@ -1770,7 +1770,9 @@ export default function DistribuicaoTst() {
               loading: prontoSemPendenciaLoading,
             }}
             prontoComPendencia={{
-              count: Math.max(0, (statsWithGeral?.prontoEnvio ?? 0) - prontoSemPendenciaCount),
+              count: filtroComPendencia
+                ? (statsWithGeral?.prontoEnvio ?? 0)
+                : Math.max(0, (statsWithGeral?.prontoEnvio ?? 0) - prontoSemPendenciaCount),
               loading: prontoSemPendenciaLoading || statsLoading,
             }}
             multiRespCard={null}
