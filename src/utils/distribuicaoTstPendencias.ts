@@ -428,31 +428,25 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
   }
 
-  // Regra: se TODAS as matérias selecionadas (Reclamante / Reclamada / Terceiro)
-  // estiverem fora da lista oficial de pedidos, o processo tem pendência —
-  // é o mesmo critério que rejeita a linha na Carga Benner.
-  const fora = getMateriasForaDaLista(row);
-  if (fora.total > 0 && fora.validas === 0) {
-    out.push({
-      key: "materias_fora_lista_oficial",
-      label:
-        "Matérias fora da lista oficial de pedidos — NÃO irá para a planilha de Carga Benner: " +
-        fora.resumo,
-      quadrinho: "III. Recurso do Reclamante",
-    });
-  } else if (fora.total > 0) {
-    out.push({
-      key: "materias_fora_lista_oficial_parcial",
-      aviso: true,
-      label:
-        "Matérias fora da lista oficial (não serão exportadas na Carga Benner): " + fora.resumo,
-      quadrinho: "III. Recurso do Reclamante",
-    });
-  }
+  // Rejeições da Carga Benner (tipo de recurso fora da lista, matérias fora
+  // da lista oficial, dossiê inválido) — mesmos motivos avaliados na geração.
+  out.push(...rejeicoesCarga);
+  return out;
+}
 
-  // Regra: tipo de recurso preenchido com valor fora da lista oficial de
-  // seleção (típico de preenchimento automático inventado pela Judit) rejeita
-  // a linha na Carga Benner — então precisa aparecer como pendência na lista.
+/**
+ * Pendências que correspondem 1:1 aos motivos de REJEIÇÃO da geração da
+ * planilha de Carga Benner (CargaBennerFromDb): tipo de recurso fora da lista
+ * oficial de seleção, matérias fora da lista oficial de pedidos e dossiê fora
+ * do padrão. A geração rejeita a linha por esses motivos independentemente de
+ * situação impeditiva ou de a parte recorrente ser somente Terceiro — por isso
+ * esta lista é calculada antes dos retornos antecipados de `getPendencias`.
+ */
+export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
+  const out: Pendencia[] = [];
+
+  // Tipo de recurso preenchido com valor fora da lista oficial de seleção
+  // (típico de preenchimento automático inventado pela Judit) rejeita a linha.
   const recursosFora = getRecursosForaDaLista(row);
   if (recursosFora.length > 0) {
     const amostra = recursosFora
@@ -473,7 +467,29 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     });
   }
 
-  // Regra: dossiê fora do padrão também rejeita a linha na Carga Benner.
+  // Se TODAS as matérias selecionadas estiverem fora da lista oficial de
+  // pedidos, a linha é rejeitada; se apenas algumas, é apenas aviso (a geração
+  // descarta as matérias inválidas e exporta as demais).
+  const fora = getMateriasForaDaLista(row);
+  if (fora.total > 0 && fora.validas === 0) {
+    out.push({
+      key: "materias_fora_lista_oficial",
+      label:
+        "Matérias fora da lista oficial de pedidos — NÃO irá para a planilha de Carga Benner: " +
+        fora.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (fora.total > 0) {
+    out.push({
+      key: "materias_fora_lista_oficial_parcial",
+      aviso: true,
+      label:
+        "Matérias fora da lista oficial (não serão exportadas na Carga Benner): " + fora.resumo,
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  }
+
+  // Dossiê fora do padrão também rejeita a linha.
   // (Dossiê vazio já é cobrado pelos campos obrigatórios.)
   const dossieRaw = String(row?.dossie ?? "").trim();
   if (dossieRaw) {
@@ -484,8 +500,7 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     if (motivoDossie) {
       out.push({
         key: "dossie_formato_invalido",
-        label:
-          `${motivoDossie} — NÃO irá para a planilha de Carga Benner`,
+        label: `${motivoDossie} — NÃO irá para a planilha de Carga Benner`,
         alvoLabel: "Dossiê (A)",
         quadrinho: "I. Dados Básicos",
       });
