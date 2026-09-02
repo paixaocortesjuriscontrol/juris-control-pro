@@ -14,10 +14,10 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 export type MateriaAnaliseItem = {
   materia: string;
-  aparelhamento: string | null; // "BEM APARELHADA" | "MAL APARELHADA"
+  aparelhamento: string | null; // valores atuais e históricos de aparelhamento
   chance_turma: string | null; // "FAVORÁVEL" | "DESFAVORÁVEL"
   chance_relator: string | null; // "FAVORÁVEL" | "DESFAVORÁVEL"
-  chance_exito: string | null; // "SIM" | "NÃO"
+  chance_exito: string | null; // valores atuais e históricos de chance de êxito
 };
 
 interface Props {
@@ -34,9 +34,9 @@ interface Props {
   fieldKey?: string;
 }
 
-const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA"];
+const APARELHAMENTO_OPTS = ["BEM APARELHADA", "MAL APARELHADA", "BEM APARELHADO", "MAL APARELHADO"];
 const CHANCE_OPTS = ["FAVORÁVEL", "DESFAVORÁVEL"];
-const SIM_NAO_OPTS = ["SIM", "NÃO"];
+const EXITO_OPTS = ["SIM", "NÃO", "PROVÁVEL", "POSSÍVEL", "REMOTA"];
 
 function normalize(s: string): string {
   return (s || "")
@@ -185,7 +185,7 @@ export function MateriasAnaliseList({ materias, value, onChange, title, fieldKey
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__none__">Selecione</SelectItem>
-                  {SIM_NAO_OPTS.map((o) => (
+                  {EXITO_OPTS.map((o) => (
                     <SelectItem key={o} value={o}>{o}</SelectItem>
                   ))}
                 </SelectContent>
