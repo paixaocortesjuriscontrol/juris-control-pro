@@ -125,6 +125,20 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
     .map(([p, q]) => `${p}: ${q}`)
     .join("   ·   ");
 
+  const porCoordenacao = new Map<string, number>();
+  usuarios.forEach((u) => {
+    const nomes = coordMap[u.id] ?? [];
+    if (nomes.length === 0) {
+      porCoordenacao.set("Sem coordenação", (porCoordenacao.get("Sem coordenação") ?? 0) + 1);
+      return;
+    }
+    nomes.forEach((n) => porCoordenacao.set(n, (porCoordenacao.get(n) ?? 0) + 1));
+  });
+  const coordenacoesResumo = Array.from(porCoordenacao.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([c, q]) => `${c}: ${q}`)
+    .join("   ·   ");
+
   autoTable(doc, {
     startY: 88,
     theme: "grid",
@@ -136,10 +150,12 @@ export async function gerarRelatorioUsuariosPdf({ usuarios, filtroFilial }: Para
       ["Inativos", String(inativos)],
       ["Com OAB cadastrada", String(comOab)],
       ["Distribuição por perfil", perfis || "—"],
+      ["Distribuição por coordenação", coordenacoesResumo || "—"],
     ],
     columnStyles: { 0: { fontStyle: "bold", cellWidth: 150 } },
     margin: { left: 40, right: 40 },
   });
+
 
   const afterResumo = (doc as any).lastAutoTable?.finalY ?? 120;
 
