@@ -18,6 +18,8 @@ import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { getMotivoRecursoForaLista, MOTIVO_RECURSO_FORA_LISTA } from "@/utils/tipoRecursoOficial";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
+import { getMotivoRejeicaoDossie } from "@/utils/dossieBenner";
+
 
 // --- Types ---
 interface Stats {
