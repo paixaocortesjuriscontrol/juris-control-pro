@@ -5,6 +5,7 @@ import {
   fetchAllDistribuicaoTstIds,
 } from "@/hooks/useDistribuicoesTst";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
+import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
   getPendencias,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
@@ -39,6 +40,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
       setLoading(true);
       try {
         await ensureMateriasOficiais().catch(() => {});
+        await ensurePedidosPorDossie().catch(() => {});
         const ids = await fetchAllDistribuicaoTstIds(filters);
         if (cancelled || runId !== runIdRef.current) return;
         if (!ids || ids.length === 0) {
