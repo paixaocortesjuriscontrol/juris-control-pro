@@ -26,6 +26,7 @@ export type StatsCardKey =
   | "prontoSemPendencia"
   | "prontoComPendencia"
   | "semResponsavel"
+  | "revisarListaMaterias"
   | "comEquipe"
   | "semEquipe"
   | "multiResp";
@@ -48,6 +49,8 @@ interface Props {
   prontoSemPendencia?: { count: number; loading: boolean } | null;
   /** Contagem de processos marcados como prontos que AINDA têm pendências. */
   prontoComPendencia?: { count: number; loading: boolean } | null;
+  /** Prontos sem NENHUMA matéria na lista de pedidos do dossiê. */
+  revisarListaMaterias?: { count: number; loading: boolean } | null;
 }
 
 interface CardDef {
@@ -60,7 +63,7 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
 
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
@@ -103,7 +106,16 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
     // Vermelhos / Rosas (última fileira)
     { key: "processosInvalidos", label: "Processos Inválidos", value: stats.processosInvalidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
     { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
-    { key: "semResponsavel", label: "Sem Responsável", value: stats.semResponsavel, className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800", textClass: "text-red-600 dark:text-red-400" },
+    ...(revisarListaMaterias
+      ? [{
+          key: "revisarListaMaterias" as StatsCardKey,
+          label: "Revisar Lista de matérias",
+          value: revisarListaMaterias.count,
+          hint: "Prontos sem NENHUMA matéria na lista de pedidos do dossiê — não vão para a Carga Benner",
+          className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-200 dark:border-red-800",
+          textClass: "text-red-600 dark:text-red-400",
+        }]
+      : []),
     { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
   ];
   if (multiRespCard) {
