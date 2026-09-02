@@ -746,6 +746,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
           .order("updated_at", { ascending: false, nullsFirst: false })
           .order("processo", { ascending: true, nullsFirst: false });
       }
+      // Desempate por chave única para paginação estável.
+      query = query.order("id", { ascending: true });
 
       if (hasResponsavelFilter) {
         query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
