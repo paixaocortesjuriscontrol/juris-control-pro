@@ -1710,26 +1710,7 @@ export default function DistribuicaoTst() {
         <div className="flex gap-2 flex-wrap justify-end items-center">
           {isAdminOrCoordinator && (
             <>
-              <Button
-                variant="outline"
-                onClick={() => setTotalSituacaoOpen((v) => !v)}
-                title="Mostra o total de processos por situação (respeita os filtros aplicados) em um card na própria tela, com opção de exportar Excel."
-              >
-                <BarChart3 className="w-4 h-4 mr-2" />
-                {totalSituacaoOpen ? "Ocultar Total por Situação" : "Total por Situação"}
-              </Button>
               {/* Botões de importação movidos para Admin TST → Importações Distribuição TST */}
-              <Link to="/dados-benner">
-                <Button variant="outline">
-                  <ExternalLink className="w-4 h-4 mr-2" /> Dados Benner
-                </Button>
-              </Link>
-              <Link to="/distribuicao-tst/kanban">
-                <Button variant="outline">
-                  <LayoutGrid className="w-4 h-4 mr-2" /> Kanban Delegação
-                </Button>
-              </Link>
-              {/* "Arquivados" e "Ajustar Chance Turma/Relator" movidos para Admin TST */}
 
               {isAdminOrCoordinator && filtroDuplicado === "sim" && (
                 <Button
@@ -1763,7 +1744,7 @@ export default function DistribuicaoTst() {
                 hideTrigger
               />
               <Button
-                variant="secondary"
+                variant="destructive"
                 onClick={handleGerarCarga}
                 disabled={cargaLoading || (selectedIds.size === 0 && filtroSemPendencia && prontoSemPendenciaLoading)}
               >
