@@ -1680,6 +1680,8 @@ export default function DistribuicaoTst() {
               </Button>
             )}
         </div>
+        )}
+
 
         {/* Card "Total por Situação" (respeita filtros) */}
         {totalSituacaoOpen && (
