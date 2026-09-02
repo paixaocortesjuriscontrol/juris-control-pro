@@ -8,9 +8,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { parseMateriasString } from "./MateriasMultiSelect";
+import { normalizeMateriaNome } from "@/utils/outraMateria";
+import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 export type MateriaAnaliseItem = {
   materia: string;
