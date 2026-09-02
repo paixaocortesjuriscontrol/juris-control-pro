@@ -9,6 +9,8 @@
  */
 
 import { aplicarRegraOutraMateria, isOutraMateria } from "./outraMateria";
+import { isMateriaOficialSync } from "./materiasOficiaisCache";
+
 
 export type CampoObrigatorio = {
   /** Chave em `dados_benner` (snake_case) usada na consulta SQL. */
