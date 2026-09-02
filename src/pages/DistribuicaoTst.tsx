@@ -1847,10 +1847,11 @@ export default function DistribuicaoTst() {
         )}
 
 
-        {/* Ações em lote — grade de 2 colunas alinhadas.
+        {/* Ações em lote — grade de 4 colunas alinhadas.
             Seleção Mês/Ano ocultada temporariamente (não utilizada). */}
         {true && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-stretch">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 items-stretch">
+
 
 
             {delegarButton}
