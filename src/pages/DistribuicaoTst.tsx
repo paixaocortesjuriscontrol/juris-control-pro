@@ -2619,24 +2619,52 @@ export default function DistribuicaoTst() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Situação processo</Label>
-                <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Situação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="transito">Trânsito em Julgado</SelectItem>
-                    <SelectItem value="outros">Outros</SelectItem>
-                    <SelectItem value="outro_escritorio">Processo outro escritório</SelectItem>
-                    <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
-                    <SelectItem value="cejusc">CEJUSC</SelectItem>
-                    <SelectItem value="a_fazer">A fazer</SelectItem>
-                    <SelectItem value="nao_precisa_fazer">Não precisa fazer</SelectItem>
-
-
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-8 w-full justify-between px-3 text-xs font-normal">
+                      <span className="truncate">
+                        {filtroSituacoesProcesso.length === 0
+                          ? "Todas"
+                          : filtroSituacoesProcesso.length === 1
+                            ? (SITUACOES_PROCESSO_OPCOES.find((o) => o.value === filtroSituacoesProcesso[0])?.label ?? "1 situação")
+                            : `${filtroSituacoesProcesso.length} situações`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-2">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-[11px] font-semibold text-muted-foreground">Selecione as situações</span>
+                      {filtroSituacoesProcesso.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-[11px] text-primary hover:underline"
+                          onClick={() => setFiltroSituacoesProcesso([])}
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 space-y-1 overflow-y-auto">
+                      {SITUACOES_PROCESSO_OPCOES.map((o) => (
+                        <label
+                          key={o.value}
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted"
+                        >
+                          <Checkbox
+                            checked={filtroSituacoesProcesso.includes(o.value)}
+                            onCheckedChange={(v) =>
+                              setFiltroSituacoesProcesso((prev) =>
+                                v === true ? [...prev, o.value] : prev.filter((x) => x !== o.value),
+                              )
+                            }
+                          />
+                          <span className={cn("truncate", o.className)}>{o.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Subida em massa</Label>
