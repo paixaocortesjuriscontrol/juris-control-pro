@@ -33,4 +33,4 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Trigger no banco aplica pessoas fixas de AUDIÊNCIA em toda audiência criada
 - [x] Cards do Kanban de audiências mostram responsáveis e envolvidos
 - [x] Diálogo de reagendar/nova audiência mostra as pessoas replicadas
-- [ ] Editar audiência: campo de Envolvidos sempre visível, com fixos travados (cadeado)
+- [x] Editar audiência: campo de Envolvidos sempre visível, com fixos travados (cadeado)
