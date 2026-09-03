@@ -475,6 +475,8 @@ Deno.serve(async (req) => {
       dataFim: typeof body.data_fim === "string" ? body.data_fim : undefined,
       modoPersonalizado: body.modo_personalizado === true,
       drenarBacklog: body.drenar_backlog === true,
+      credencialId: typeof body.credencial_id === "string" ? body.credencial_id : undefined,
+      drenagem: body.drenagem === true || typeof body.credencial_id === "string",
     };
     const state = await createInitialState(supabase, opts);
     if (!state.tracks.length) return json({ skipped: "nenhuma_credencial_ativa" });
