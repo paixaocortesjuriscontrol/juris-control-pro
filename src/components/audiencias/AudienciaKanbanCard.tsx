@@ -115,6 +115,30 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
         <p className="text-[10px] text-muted-foreground truncate">Adv: {audiencia.advogado}</p>
       )}
 
+      {/* Responsáveis e envolvidos */}
+      {((pessoas?.responsaveis?.length ?? 0) > 0 || (pessoas?.envolvidos?.length ?? 0) > 0) && (
+        <div className="space-y-1">
+          {(pessoas?.responsaveis?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <UserCheck className="w-3 h-3 text-muted-foreground shrink-0" />
+              {pessoas!.responsaveis.map((nome) => (
+                <Badge key={`r-${nome}`} variant="secondary" className="text-[10px] px-1.5 py-0">{nome}</Badge>
+              ))}
+            </div>
+          )}
+          {(pessoas?.envolvidos?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <Users className="w-3 h-3 text-muted-foreground shrink-0" />
+              {pessoas!.envolvidos.map((nome) => (
+                <Badge key={`e-${nome}`} variant="outline" className="text-[10px] px-1.5 py-0">{nome}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+
+
       {/* Actions */}
       <div className="pt-1 border-t border-border" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
