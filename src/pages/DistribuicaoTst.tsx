@@ -2375,25 +2375,63 @@ export default function DistribuicaoTst() {
               {/* VERMELHO — visível a todos (RLS entrega só as TAGs públicas para não-admin) */}
               <div className="space-y-1">
                   <Label className="text-[10px] font-semibold text-red-600">TAGs</Label>
-                  <Select value={filtroTagId} onValueChange={setFiltroTagId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="TAGs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas</SelectItem>
-                      {tagsCatalogo.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="inline-block w-2 h-2 rounded-full"
-                              style={{ backgroundColor: t.cor }}
-                            />
-                            {t.nome}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-8 w-full justify-between px-3 text-xs font-normal"
+                      >
+                        <span className="truncate">
+                          {filtroTagIds.length === 0
+                            ? "Todas"
+                            : filtroTagIds.length === 1
+                              ? (tagsCatalogo.find((t) => t.id === filtroTagIds[0])?.nome ?? "1 TAG")
+                              : `${filtroTagIds.length} TAGs`}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-64 p-2">
+                      <div className="flex items-center justify-between pb-2">
+                        <span className="text-[11px] font-semibold text-muted-foreground">Selecione as TAGs</span>
+                        {filtroTagIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="text-[11px] text-primary hover:underline"
+                            onClick={() => setFiltroTagIds([])}
+                          >
+                            Limpar
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-64 space-y-1 overflow-y-auto">
+                        {tagsCatalogo.map((t) => {
+                          const checked = filtroTagIds.includes(t.id);
+                          return (
+                            <label
+                              key={t.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) =>
+                                  setFiltroTagIds((prev) =>
+                                    v === true ? [...prev, t.id] : prev.filter((id) => id !== t.id),
+                                  )
+                                }
+                              />
+                              <span
+                                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: t.cor }}
+                              />
+                              <span className="truncate">{t.nome}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
               </div>
               {/* LARANJA */}
               <div className="space-y-1">
