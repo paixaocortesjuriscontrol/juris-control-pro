@@ -24,7 +24,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] 04 Balãozinho de comentários no Painel de Controle com bolinha de não vistos
 
 ## Leva 4 — Complementos
-- [ ] 07 Processos em comum Dr. Thonmás / Dra. Janaina em planilha
+- [x] 07 Processos em comum Dr. Thonmás / Dra. Janaina em planilha
 - [ ] 17b Exportar comentários em XLSX
 - [ ] 16 Botão "Acatar" ao lado de cada sugestão da Judit
 - [ ] 19 Diagnóstico do erro ao criar/editar usuário
