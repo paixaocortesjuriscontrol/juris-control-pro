@@ -811,6 +811,9 @@ Deno.serve(async (req: Request) => {
     // Sinaliza ao worker que não há mais nada na fila desta credencial, para ele
     // parar de fatiar novas chamadas pequenas.
     let filaVazia = false;
+    // Quantos itens a API devolveu no último lote (antes do corte por lote_size).
+    // O orquestrador usa isso para decidir se pode aumentar o tamanho do lote.
+    let ultimaRecebidasDaApi = 0;
     let totalForaJanelaAntes = 0;
     let totalForaJanelaDepois = 0;
 
@@ -890,6 +893,7 @@ Deno.serve(async (req: Request) => {
           const j = JSON.parse(texto);
           pubs = extractPublicacoes(j);
           recebidasDaApi = pubs.length;
+          ultimaRecebidasDaApi = recebidasDaApi;
           if (!useDateMode && pubs.length > lote_size) pubs = pubs.slice(0, lote_size);
         } catch (e) {
           ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
@@ -1547,6 +1551,7 @@ Deno.serve(async (req: Request) => {
       total_confirmadas: totalConfirmadas,
       total_fora_janela_antes: totalForaJanelaAntes,
       total_fora_janela_depois: totalForaJanelaDepois,
+      recebidas_da_api: ultimaRecebidasDaApi,
       janela_ultrapassada: janelaUltrapassada,
       fila_vazia: filaVazia || janelaUltrapassada,
       erro: ultimoErro,

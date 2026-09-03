@@ -9,8 +9,14 @@ const corsHeaders = {
 const WINDOW_MIN = 30;
 const DEFAULT_LOTE_SIZE = 25;
 const MIN_LOTE_SIZE = 10;
+const MAX_LOTE_SIZE = 50;
+const LOTE_STEPS = [MIN_LOTE_SIZE, DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE];
+/** Rodadas consecutivas sem erro necessárias para aumentar o lote de novo. */
+const HOPS_PARA_CRESCER = 2;
 const DEFAULT_MAX_LOTES = 2;
 const MAX_HOPS = 300;
+/** A partir deste número de lotes na mesma credencial, os outros logins passam na frente. */
+const ADIAR_APOS_LOTES = 6;
 const MAX_LIMIT_ERRORS = 3;
 const INNER_TIMEOUT_MS = 75_000;
 const NEXT_HOP_DELAY_MS = 1_500;
@@ -34,6 +40,8 @@ interface KurierTrack {
   loteSize: number;
   maxLotes: number;
   errosLimite: number;
+  hopsSemErro?: number;
+  adiado?: boolean;
 }
 
 interface JobOptions {
@@ -43,6 +51,9 @@ interface JobOptions {
   dataFim?: string;
   modoPersonalizado: boolean;
   drenarBacklog: boolean;
+  /** Modo drenagem: roda uma credencial só, até a fila esvaziar. */
+  credencialId?: string;
+  drenagem?: boolean;
 }
 
 interface JobState {
@@ -116,6 +127,7 @@ async function saveState(
       currentIndex: state.currentIndex,
       hop: state.hop,
       opts: state.opts,
+      modo: state.opts.drenagem ? "drenagem" : "normal",
       atualizado_em: new Date().toISOString(),
       lease_token: leaseToken,
       lease_until: new Date(Date.now() + 120_000).toISOString(),
@@ -238,6 +250,7 @@ async function processHop(
         track.errosLimite++;
         track.maxLotes = 1;
         track.loteSize = MIN_LOTE_SIZE;
+        track.hopsSemErro = 0;
         if (track.errosLimite >= MAX_LIMIT_ERRORS) {
           track.status = "erro";
           track.erro = `Limite do servidor persistiu por ${MAX_LIMIT_ERRORS} tentativas (HTTP ${response.status})`;
@@ -269,8 +282,18 @@ async function processHop(
         track.recebidas += recebidas;
         track.lotes += lotes;
         track.errosLimite = 0;
+        // Recuperação do tamanho de lote: depois de um erro de limite o lote cai
+        // para 10; aqui ele volta a crescer (10 → 25 → 50) a cada duas rodadas
+        // sem erro, evitando drenar backlog grande de 10 em 10.
+        track.hopsSemErro = (track.hopsSemErro ?? 0) + 1;
+        if (track.hopsSemErro >= HOPS_PARA_CRESCER && track.loteSize < MAX_LOTE_SIZE) {
+          const proximo = LOTE_STEPS.find((step) => step > track.loteSize) ?? MAX_LOTE_SIZE;
+          track.loteSize = proximo;
+          track.maxLotes = DEFAULT_MAX_LOTES;
+          track.hopsSemErro = 0;
+        }
         track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
-        const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog
+        const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog && !state.opts.drenagem
           || result.fila_vazia === true
           || result.janela_ultrapassada === true
           || recebidas === 0
@@ -278,6 +301,21 @@ async function processHop(
         if (terminou) {
           track.status = "concluido";
           state.currentIndex++;
+        } else if (
+          !state.opts.drenagem
+          && !track.adiado
+          && track.lotes >= ADIAR_APOS_LOTES
+          && state.tracks.some((item, index) => index > state.currentIndex && item.status !== "concluido")
+        ) {
+          // Um login com fila acumulada não segura os demais: ele é movido para o
+          // fim da lista e retomado depois que os outros terminarem.
+          track.adiado = true;
+          track.status = "pendente";
+          track.mensagem = `Fila acumulada — retomando após os outros logins (${track.lotes} lote(s) já drenados)`;
+          state.tracks.splice(state.currentIndex, 1);
+          state.tracks.push(track);
+        } else if (state.opts.drenagem) {
+          track.mensagem = `Fila acumulada — drenando: ${track.mensagem}`;
         }
       }
     }
@@ -341,7 +379,9 @@ async function createInitialState(supabase: SupabaseClient, opts: JobOptions): P
     .eq("ativo", true)
     .not("senha_encrypted", "is", null)
     .order("prioridade", { ascending: false });
-  if (opts.coordenacaoId) {
+  if (opts.credencialId) {
+    query = query.eq("id", opts.credencialId);
+  } else if (opts.coordenacaoId) {
     const { data: links } = await supabase
       .from("kurier_credencial_coordenacoes")
       .select("credencial_id")
@@ -435,6 +475,8 @@ Deno.serve(async (req) => {
       dataFim: typeof body.data_fim === "string" ? body.data_fim : undefined,
       modoPersonalizado: body.modo_personalizado === true,
       drenarBacklog: body.drenar_backlog === true,
+      credencialId: typeof body.credencial_id === "string" ? body.credencial_id : undefined,
+      drenagem: body.drenagem === true || typeof body.credencial_id === "string",
     };
     const state = await createInitialState(supabase, opts);
     if (!state.tracks.length) return json({ skipped: "nenhuma_credencial_ativa" });
@@ -443,7 +485,9 @@ Deno.serve(async (req) => {
     const { data: execution, error } = await supabase.from("execucoes_agendadas").insert({
       tipo: "djen_kurier",
       status: "executando",
-      job_name: "DJEN Termos Kurier (Servidor)",
+      job_name: opts.drenagem
+        ? `Kurier — drenar fila (${state.tracks[0]?.login ?? "credencial"})`
+        : "DJEN Termos Kurier (Servidor)",
       iniciado_em: new Date().toISOString(),
       detalhes: {
         ...initialTotals,
