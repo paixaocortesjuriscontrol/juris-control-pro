@@ -27,7 +27,9 @@ import {
   useUpdateWorkflowEtapa,
   useDeleteWorkflowEtapa,
   useWorkflowEtapasResponsaveis,
+  useWorkflowEtapasAtividades,
 } from "@/hooks/useWorkflows";
+import type { WorkflowEtapaAtividade } from "@/hooks/useWorkflows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -45,6 +47,10 @@ import {
   ArrowLeft,
   MoreVertical,
   CalendarPlus,
+  ListChecks,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -89,6 +95,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
   const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
+  const { data: atividadesMap = {} } = useWorkflowEtapasAtividades(workflowId);
   const { coordenacoes } = useCoordenacoesDoUsuario();
   const [coordSelecionada, setCoordSelecionada] = useState<string>("");
   const coordEfetiva = coordSelecionada || workflow?.coordenacao_id || "";
@@ -184,6 +191,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       dias_fatal: form.dias_fatal ? parseInt(form.dias_fatal) : null,
       responsaveis:
         form.regra_responsavel === "predefinido" ? (form.responsaveis || []) : [],
+      atividades: (form.atividades || []) as WorkflowEtapaAtividade[],
       responsavel_id:
         form.regra_responsavel === "predefinido"
           ? (form.responsaveis || [])[0] || null
