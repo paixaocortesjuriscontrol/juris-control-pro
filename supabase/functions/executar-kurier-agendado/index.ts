@@ -23,10 +23,15 @@ const corsHeaders = {
 };
 
 const WINDOW_MIN = 30;
-const MAX_CONCURRENCY = 3;
+const MAX_CONCURRENCY = 4;
 const MAX_CALLS_PER_CREDENCIAL = 200;
-const DEFAULT_LOTE_SIZE = 25;
+// Lote adaptativo: começa rápido (2 lotes de 50) e só encolhe se a função
+// estourar recurso (546). Depois de algumas chamadas boas volta a crescer.
+const DEFAULT_LOTE_SIZE = 50;
 const MIN_LOTE_SIZE = 10;
+const DEFAULT_MAX_LOTES = 2;
+const SUCESSOS_PARA_SUBIR = 3;
+
 
 function brtNow(): { ymd: string; hour: number; minute: number } {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
