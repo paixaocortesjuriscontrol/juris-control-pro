@@ -139,14 +139,11 @@ async function run({ sb, payload, log, job }) {
     log("kurier.cred_start", { credencial_id: c.id, login: c.login });
     const itemKeyFalha = `kurier|${c.id}`;
     try {
-      const { status, body } = await invokeKurier(c.id, maxLotes);
-      const novas = Number(body?.totalNovas || body?.inseridas || 0);
-      const proc = Number(body?.totalProcessadas || body?.processadas || 0);
-      if (status < 200 || status >= 300) throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0,200)}`);
+      const { status, novas, processadas: proc, chamadas } = await drenarCredencial(c.id, log);
       totalNovas += novas;
       totalProcessadas += proc;
-      results.push({ credencial_id: c.id, login: c.login, status, novas, processadas: proc, ok: status >= 200 && status < 300 });
-      log("kurier.cred_done", { credencial_id: c.id, status, novas, processadas: proc });
+      results.push({ credencial_id: c.id, login: c.login, status, novas, processadas: proc, chamadas, ok: true });
+      log("kurier.cred_done", { credencial_id: c.id, status, novas, processadas: proc, chamadas });
       await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
     } catch (e) {
       results.push({ credencial_id: c.id, login: c.login, error: String(e.message || e) });
