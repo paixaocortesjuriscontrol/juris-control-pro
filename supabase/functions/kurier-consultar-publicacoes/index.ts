@@ -799,6 +799,9 @@ Deno.serve(async (req: Request) => {
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
     let janelaUltrapassada = false;
+    // Sinaliza ao worker que não há mais nada na fila desta credencial, para ele
+    // parar de fatiar novas chamadas pequenas.
+    let filaVazia = false;
     let totalForaJanelaAntes = 0;
     let totalForaJanelaDepois = 0;
 
