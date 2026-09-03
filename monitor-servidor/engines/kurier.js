@@ -60,12 +60,13 @@ async function drenarCredencial(credencialId, log) {
         continue;
       }
       if (loteSize > 10) {
-        loteSize = 10;
+        loteSize = loteSize > 25 ? 25 : 10;
         log?.("kurier.reduz_publicacoes", { credencial_id: credencialId, status, loteSize });
         continue;
       }
       throw new Error(`HTTP ${status}: limite de recurso da função mesmo com 1 lote`);
     }
+
     if (status < 200 || status >= 300) {
       throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0, 200)}`);
     }
