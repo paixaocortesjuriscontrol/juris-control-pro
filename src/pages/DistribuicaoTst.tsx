@@ -91,6 +91,28 @@ import {
 
 const TAG_FILTER_PENDING_ID = "00000000-0000-0000-0000-000000000000";
 
+/**
+ * Opções do filtro "Situação processo".
+ * Reúne, sem duplicar, as situações do filtro antigo e os switches de
+ * "Status do processo" da tela de cadastro (Pronto para Enviar, Problema Judit,
+ * Trânsito em Julgado, Outro escritório, Segredo de Justiça, Recurso de terceiro,
+ * CEJUSC e Acordo).
+ */
+const SITUACOES_PROCESSO_OPCOES: { value: string; label: string; className?: string }[] = [
+  { value: "ativo", label: "Ativo" },
+  { value: "outros", label: "Outros" },
+  { value: "a_fazer", label: "A fazer" },
+  { value: "nao_precisa_fazer", label: "Não precisa fazer" },
+  { value: "pronto_enviar", label: "Pronto para Enviar" },
+  { value: "problema_judit", label: "Problema Judit", className: "text-amber-700 dark:text-amber-400" },
+  { value: "transito", label: "Trânsito em Julgado", className: "text-orange-700 dark:text-orange-400" },
+  { value: "outro_escritorio", label: "Outro escritório", className: "text-purple-700 dark:text-purple-400" },
+  { value: "segredo_justica", label: "Segredo de Justiça", className: "text-rose-700 dark:text-rose-400" },
+  { value: "recurso_terceiro", label: "Recurso de terceiro", className: "text-indigo-700 dark:text-indigo-400" },
+  { value: "cejusc", label: "CEJUSC", className: "text-teal-700 dark:text-teal-400" },
+  { value: "acordo", label: "Acordo", className: "text-emerald-700 dark:text-emerald-400" },
+];
+
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
   const l = val.toLowerCase();
@@ -295,7 +317,15 @@ export default function DistribuicaoTst() {
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
   const [filtroErroJudit, setFiltroErroJudit] = useState<string>("todos");
-  const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
+  // Situação do processo: seleção múltipla (vazio = todas).
+  const [filtroSituacoesProcesso, setFiltroSituacoesProcesso] = useState<string[]>([]);
+  const filtroSituacaoProcesso =
+    filtroSituacoesProcesso.length === 0
+      ? "todos"
+      : filtroSituacoesProcesso.length === 1
+        ? filtroSituacoesProcesso[0]
+        : "__multi__";
+  const setFiltroSituacaoProcesso = (v: string) => setFiltroSituacoesProcesso(v === "todos" ? [] : [v]);
   const [filtroSubidaMassa, setFiltroSubidaMassa] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
@@ -353,7 +383,7 @@ export default function DistribuicaoTst() {
         processoStatus: filtroProcessoStatus !== "todos" ? (filtroProcessoStatus as any) : undefined,
         judit: filtroJudit as any,
         erroJudit: filtroErroJudit !== "todos" ? (filtroErroJudit as any) : undefined,
-        situacaoProcesso: filtroSituacaoProcesso !== "todos" ? (filtroSituacaoProcesso as any) : undefined,
+        situacaoProcesso: filtroSituacoesProcesso.length > 0 ? filtroSituacoesProcesso : undefined,
         subidaMassa: filtroSubidaMassa !== "todos" ? (filtroSubidaMassa as any) : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
@@ -373,7 +403,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -412,7 +442,7 @@ export default function DistribuicaoTst() {
 
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
-    if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
+    if (filtroSituacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
       f = { ...f, responsavelIds: [user.id] };
     }
     if (filtroMultiResp) {
@@ -2611,24 +2641,52 @@ export default function DistribuicaoTst() {
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Situação processo</Label>
-                <Select value={filtroSituacaoProcesso} onValueChange={setFiltroSituacaoProcesso}>
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Situação" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todas</SelectItem>
-                    <SelectItem value="ativo">Ativo</SelectItem>
-                    <SelectItem value="transito">Trânsito em Julgado</SelectItem>
-                    <SelectItem value="outros">Outros</SelectItem>
-                    <SelectItem value="outro_escritorio">Processo outro escritório</SelectItem>
-                    <SelectItem value="segredo_justica">Segredo de Justiça</SelectItem>
-                    <SelectItem value="cejusc">CEJUSC</SelectItem>
-                    <SelectItem value="a_fazer">A fazer</SelectItem>
-                    <SelectItem value="nao_precisa_fazer">Não precisa fazer</SelectItem>
-
-
-                  </SelectContent>
-                </Select>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="h-8 w-full justify-between px-3 text-xs font-normal">
+                      <span className="truncate">
+                        {filtroSituacoesProcesso.length === 0
+                          ? "Todas"
+                          : filtroSituacoesProcesso.length === 1
+                            ? (SITUACOES_PROCESSO_OPCOES.find((o) => o.value === filtroSituacoesProcesso[0])?.label ?? "1 situação")
+                            : `${filtroSituacoesProcesso.length} situações`}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-64 p-2">
+                    <div className="flex items-center justify-between pb-2">
+                      <span className="text-[11px] font-semibold text-muted-foreground">Selecione as situações</span>
+                      {filtroSituacoesProcesso.length > 0 && (
+                        <button
+                          type="button"
+                          className="text-[11px] text-primary hover:underline"
+                          onClick={() => setFiltroSituacoesProcesso([])}
+                        >
+                          Limpar
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-64 space-y-1 overflow-y-auto">
+                      {SITUACOES_PROCESSO_OPCOES.map((o) => (
+                        <label
+                          key={o.value}
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted"
+                        >
+                          <Checkbox
+                            checked={filtroSituacoesProcesso.includes(o.value)}
+                            onCheckedChange={(v) =>
+                              setFiltroSituacoesProcesso((prev) =>
+                                v === true ? [...prev, o.value] : prev.filter((x) => x !== o.value),
+                              )
+                            }
+                          />
+                          <span className={cn("truncate", o.className)}>{o.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
               <div className="space-y-1">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Subida em massa</Label>
