@@ -91,6 +91,28 @@ import {
 
 const TAG_FILTER_PENDING_ID = "00000000-0000-0000-0000-000000000000";
 
+/**
+ * Opções do filtro "Situação processo".
+ * Reúne, sem duplicar, as situações do filtro antigo e os switches de
+ * "Status do processo" da tela de cadastro (Pronto para Enviar, Problema Judit,
+ * Trânsito em Julgado, Outro escritório, Segredo de Justiça, Recurso de terceiro,
+ * CEJUSC e Acordo).
+ */
+const SITUACOES_PROCESSO_OPCOES: { value: string; label: string; className?: string }[] = [
+  { value: "ativo", label: "Ativo" },
+  { value: "outros", label: "Outros" },
+  { value: "a_fazer", label: "A fazer" },
+  { value: "nao_precisa_fazer", label: "Não precisa fazer" },
+  { value: "pronto_enviar", label: "Pronto para Enviar" },
+  { value: "problema_judit", label: "Problema Judit", className: "text-amber-700 dark:text-amber-400" },
+  { value: "transito", label: "Trânsito em Julgado", className: "text-orange-700 dark:text-orange-400" },
+  { value: "outro_escritorio", label: "Outro escritório", className: "text-purple-700 dark:text-purple-400" },
+  { value: "segredo_justica", label: "Segredo de Justiça", className: "text-rose-700 dark:text-rose-400" },
+  { value: "recurso_terceiro", label: "Recurso de terceiro", className: "text-indigo-700 dark:text-indigo-400" },
+  { value: "cejusc", label: "CEJUSC", className: "text-teal-700 dark:text-teal-400" },
+  { value: "acordo", label: "Acordo", className: "text-emerald-700 dark:text-emerald-400" },
+];
+
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
   const l = val.toLowerCase();
