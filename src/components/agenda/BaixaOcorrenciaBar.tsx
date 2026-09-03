@@ -105,9 +105,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
         userId: user?.id ?? null,
       });
       setTemBaixa(true);
-      await finalizar(`Baixa registrada apenas para ${dataLabel}.`);
+      await finalizar(`Situação aplicada somente à ocorrência de ${dataLabel}.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao registrar a baixa desta ocorrência.");
+      toast.error(e?.message ?? "Erro ao aplicar a situação nesta ocorrência.");
     } finally {
       setSalvando(null);
     }
