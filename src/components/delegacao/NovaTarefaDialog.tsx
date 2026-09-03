@@ -124,6 +124,8 @@ interface NovaTarefaDialogProps {
   processoPreSelecionado?: { id: string; numero: string } | null;
   tarefaParaEditar?: any | null;
   inline?: boolean;
+  /** Data (yyyy-MM-dd) usada como data prevista padrão ao criar uma nova tarefa. */
+  dataPadrao?: string;
   /** Quando true (em conjunto com `inline`), usa fluxo natural sem scroll interno. */
   embedded?: boolean;
   publicacao?: PublicacaoUnificada | null;
@@ -166,6 +168,7 @@ export function NovaTarefaDialog({
   onSuccess,
   processoPreSelecionado,
   tarefaParaEditar,
+  dataPadrao,
   inline = false,
   embedded = false,
   publicacao = null,
@@ -232,7 +235,7 @@ export function NovaTarefaDialog({
       descricao: "",
       responsavel_id: "",
       data_base: dataBaseInicial,
-      data_vencimento: "",
+      data_vencimento: dataPadrao ?? "",
       hora_prevista: "",
       data_fatal: "",
       hora_fatal: "",
@@ -473,7 +476,7 @@ export function NovaTarefaDialog({
       descricao: "",
       responsavel_id: "",
       data_base: dataBaseInicial,
-      data_vencimento: "",
+      data_vencimento: dataPadrao ?? "",
       hora_prevista: "",
       data_fatal: "",
       hora_fatal: "",

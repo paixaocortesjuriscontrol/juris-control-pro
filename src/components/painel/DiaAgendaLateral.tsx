@@ -1,7 +1,13 @@
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ListChecks, X } from "lucide-react";
+import { ListChecks, Plus, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -209,6 +215,8 @@ interface DiaAgendaLateralProps {
   atividades?: any[];
   onSelectItem: (item: ItemAgendaUnificado) => void;
   onSelectAtividade?: (atividade: any) => void;
+  /** Criar um novo item já com a data deste dia. */
+  onCriarNesteDia?: (tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento") => void;
   onClose: () => void;
 }
 
@@ -219,6 +227,7 @@ export function DiaAgendaLateral({
   atividades = [],
   onSelectItem,
   onSelectAtividade,
+  onCriarNesteDia,
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
@@ -246,6 +255,23 @@ export function DiaAgendaLateral({
             </span>
           </p>
         </div>
+        {onCriarNesteDia && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-7 gap-1 px-2" title="Criar nesta data">
+                <Plus className="w-3.5 h-3.5" />
+                <span className="text-xs">Criar nesta data</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onCriarNesteDia("tarefa")}>Tarefa</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCriarNesteDia("prazo")}>Prazo</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCriarNesteDia("evento")}>Evento</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCriarNesteDia("audiencia")}>Audiência</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onCriarNesteDia("parcelamento")}>Parcelamento</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
           <X className="w-4 h-4" />
         </Button>

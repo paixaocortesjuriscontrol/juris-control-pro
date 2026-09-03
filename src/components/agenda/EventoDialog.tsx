@@ -67,6 +67,8 @@ interface EventoDialogProps {
   defaultProcessoId?: string;
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
+  /** Data (yyyy-MM-dd) usada como padrão ao criar um novo evento (ex.: clique no dia do calendário). */
+  dataPadrao?: string;
   /** Fluxo natural sem scroll interno (usado dentro de páginas). */
   embedded?: boolean;
   /**
@@ -121,7 +123,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, embedded = false, hidePublicacaoCollapsible = false, ocultarSituacao = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, dataPadrao, embedded = false, hidePublicacaoCollapsible = false, ocultarSituacao = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
@@ -188,7 +190,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   // Reset do formulário para "novo evento". Reutilizado pelo useEffect de abertura
   // e pelo pós-Save quando o wrapper deve permanecer aberto para cadastrar outro item.
   const resetFormForNew = () => {
-    const hoje = format(new Date(), "yyyy-MM-dd");
+    const hoje = dataPadrao || format(new Date(), "yyyy-MM-dd");
     setTitulo("");
     setDataInicio(hoje);
     setHoraInicio("09:00");
