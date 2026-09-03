@@ -76,11 +76,14 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
       };
     }, [itemId, coluna]);
 
-    const handleAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      setAnexos((prev) => [...prev, ...Array.from(files).map((file) => ({ file }))]);
+      const novos = Array.from(files).map((file) => ({ file }));
+      setAnexos((prev) => [...prev, ...novos]);
       e.target.value = "";
+      // Item já existe: vincula imediatamente, sem depender do botão Salvar.
+      if (itemId) await enviarArquivos(novos, itemId, processoId);
     };
 
     const handleRemove = async (index: number) => {
