@@ -37,22 +37,36 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
 
   useEffect(() => {
     if (!audiencia || !open) return;
-    let dataFormatted = "";
-    if (audiencia.data_audiencia) {
-      try {
-        const d = parseISO(audiencia.data_audiencia);
-        if (isValid(d)) dataFormatted = format(d, "yyyy-MM-dd");
-      } catch { /* ignore */ }
-    }
-    setForm({
-      data_audiencia: modo === "reagendar" ? dataFormatted : "",
-      hora: audiencia.hora || "",
-      hora_brasilia: audiencia.hora_brasilia || "",
-      tipo_audiencia: audiencia.tipo_audiencia || "",
-      modalidade: audiencia.modalidade || "",
-      motivo: "",
-    });
+    let cancelado = false;
+    const carregar = async () => {
+      // Relê do banco para refletir edições recentes (título/tipo) e não o cache
+      const { data: fresca } = await supabase
+        .from("audiencias_detectadas")
+        .select("data_audiencia, hora, hora_brasilia, tipo_audiencia, titulo, modalidade")
+        .eq("id", audiencia.id)
+        .maybeSingle();
+      if (cancelado) return;
+      const base: any = fresca ?? audiencia;
+      let dataFormatted = "";
+      if (base.data_audiencia) {
+        try {
+          const d = parseISO(base.data_audiencia);
+          if (isValid(d)) dataFormatted = format(d, "yyyy-MM-dd");
+        } catch { /* ignore */ }
+      }
+      setForm({
+        data_audiencia: modo === "reagendar" ? dataFormatted : "",
+        hora: base.hora || "",
+        hora_brasilia: base.hora_brasilia || "",
+        tipo_audiencia: base.tipo_audiencia || base.titulo || "",
+        modalidade: base.modalidade || "",
+        motivo: "",
+      });
+    };
+    void carregar();
+    return () => { cancelado = true; };
   }, [audiencia, open, modo]);
+
 
   const change = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
