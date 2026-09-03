@@ -1,10 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Trash2, Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { registrarFlushAnexos } from "@/lib/anexosPendentes";
 
 export type ItemAnexosTipo = "tarefa" | "evento" | "audiencia";
 

@@ -25,6 +25,7 @@ import {
   removerBaixaOcorrencia,
   salvarBaixaOcorrencia,
 } from "@/lib/baixaOcorrencia";
+import { enviarAnexosPendentes } from "@/lib/anexosPendentes";
 import { toast } from "sonner";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
@@ -94,6 +95,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   const baixarSomenteEsta = async () => {
     setSalvando("esta");
     try {
+      await enviarAnexosPendentes();
       await salvarBaixaOcorrencia({
         origem: info.origem,
         itemId: info.itemId,
@@ -114,6 +116,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   const baixarSerie = async () => {
     setSalvando("serie");
     try {
+      await enviarAnexosPendentes();
       const concluido = situacao === valorConcluidoSucesso(tipoSituacao);
       if (info.origem === "tarefa") {
         const { error } = await supabase
