@@ -127,6 +127,7 @@ async function saveState(
       currentIndex: state.currentIndex,
       hop: state.hop,
       opts: state.opts,
+      modo: state.opts.drenagem ? "drenagem" : "normal",
       atualizado_em: new Date().toISOString(),
       lease_token: leaseToken,
       lease_until: new Date(Date.now() + 120_000).toISOString(),
