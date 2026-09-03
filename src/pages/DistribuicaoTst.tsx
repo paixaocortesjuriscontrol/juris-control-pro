@@ -1330,7 +1330,9 @@ export default function DistribuicaoTst() {
             r.turma || "",
             r.relator || "",
             r.recorrente || "",
-            formatDateBR(r.data_distribuicao) || "",
+            r.data_distribuicao
+              ? String(r.data_distribuicao).slice(0, 10).split("-").reverse().join("/")
+              : "",
             r.aba_origem || "",
           ]);
         });
