@@ -85,13 +85,36 @@ export function ReatribuirProcessoDialog({
           cliente:clientes(id, nome)
         `)
         .eq("coordenacao_id", coordenacaoId)
-        .not("advogado_responsavel_id", "is", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
     enabled: open,
+  });
+
+  // Responsabilidade real do sistema: vínculos N:N em processos_responsaveis
+  const { data: vinculosPorProcesso } = useQuery({
+    queryKey: ["processos-responsaveis-coord", coordenacaoId, (processosAtribuidos || []).length],
+    enabled: open && !!processosAtribuidos?.length,
+    queryFn: async () => {
+      const ids = (processosAtribuidos || []).map((p) => p.id);
+      const map = new Map<string, string[]>();
+      for (let i = 0; i < ids.length; i += 500) {
+        const lote = ids.slice(i, i + 500);
+        const { data, error } = await supabase
+          .from("processos_responsaveis")
+          .select("processo_id, usuario_id")
+          .in("processo_id", lote);
+        if (error) throw error;
+        (data || []).forEach((r: any) => {
+          const arr = map.get(r.processo_id) || [];
+          arr.push(r.usuario_id);
+          map.set(r.processo_id, arr);
+        });
+      }
+      return map;
+    },
   });
 
   const clientesUnicos = useMemo(() => {
@@ -127,6 +150,33 @@ export function ReatribuirProcessoDialog({
         if (error) throw error;
       }
 
+      // Mantém os vínculos N:N em sincronia com o novo responsável
+      const vinculos = values.processos.map((processo_id) => ({
+        processo_id,
+        usuario_id: values.novo_advogado_id,
+        papel: "Responsável",
+        ativo: true,
+        coordenacao_id: coordenacaoId,
+      }));
+      for (let i = 0; i < vinculos.length; i += 500) {
+        const lote = vinculos.slice(i, i + 500);
+        const { error } = await (supabase as any)
+          .from("processos_responsaveis")
+          .upsert(lote, { onConflict: "processo_id,usuario_id", ignoreDuplicates: true });
+        if (error) throw error;
+      }
+      if (selectedAdvogado && selectedAdvogado !== "all" && selectedAdvogado !== values.novo_advogado_id) {
+        for (let i = 0; i < values.processos.length; i += 200) {
+          const lote = values.processos.slice(i, i + 200);
+          const { error } = await supabase
+            .from("processos_responsaveis")
+            .delete()
+            .eq("usuario_id", selectedAdvogado)
+            .in("processo_id", lote);
+          if (error) throw error;
+        }
+      }
+
       toast({ 
         title: "Processos reatribuídos!", 
         description: `${values.processos.length} processo(s) transferido(s) com sucesso.` 
@@ -134,6 +184,7 @@ export function ReatribuirProcessoDialog({
       
       queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
       queryClient.invalidateQueries({ queryKey: ["processos-atribuidos"] });
+      queryClient.invalidateQueries({ queryKey: ["processos-responsaveis-coord"] });
       queryClient.invalidateQueries({ queryKey: ["processos"] });
       onOpenChange(false);
       form.reset();
@@ -158,7 +209,11 @@ export function ReatribuirProcessoDialog({
     let filtered = processosAtribuidos || [];
     
     if (selectedAdvogado && selectedAdvogado !== "all") {
-      filtered = filtered.filter(p => p.advogado_responsavel_id === selectedAdvogado);
+      filtered = filtered.filter(
+        (p) =>
+          p.advogado_responsavel_id === selectedAdvogado ||
+          (vinculosPorProcesso?.get(p.id) || []).includes(selectedAdvogado),
+      );
     }
     
     if (areaFilter && areaFilter !== "all") {
@@ -178,7 +233,7 @@ export function ReatribuirProcessoDialog({
     }
     
     return filtered;
-  }, [processosAtribuidos, selectedAdvogado, areaFilter, clienteFilter, searchQuery]);
+  }, [processosAtribuidos, vinculosPorProcesso, selectedAdvogado, areaFilter, clienteFilter, searchQuery]);
 
   const getInitials = (name: string) => {
     return name?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase() || "ND";

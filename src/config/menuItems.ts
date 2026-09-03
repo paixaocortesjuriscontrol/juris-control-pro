@@ -45,6 +45,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
   { icon: Trophy, label: "Ranking Atendimento", path: "/ranking-atendimento", adminOrCoordOnly: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", adminOrCoordOnly: true },
+  { icon: ArrowRightLeft, label: "Reatribuir Processos", path: "/reatribuir-processos", adminOrCoordOnly: true },
   { icon: Bell, label: "Config. Notificações", path: "/notificacoes" },
   { icon: FileText, label: "Rel. Auditoria", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Workflow, label: "Workflow", path: "/workflow", adminOrCoordOnly: true },
