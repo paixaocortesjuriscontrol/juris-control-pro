@@ -38,7 +38,7 @@ A lista vai para `roadmap.md` na raiz, incluindo os ajustes desta última mensag
 
 16. **Processos em comum Dr. Thonmás / Dra. Janaina (item 07)** — levanto a lista no banco e entrego em planilha.
 17. **Exportar os comentários das tarefas** — exportação XLSX dos comentários por processo/período.
-18. ~~Acatar a sugestão da Judit~~ — fora desta rodada, conforme sua mensagem.
+18. **Acatar a sugestão da Judit (item 16 do doc)** — botão "Acatar" ao lado de cada sugestão, junto do "Ciente": aplica o valor da Judit ao campo correspondente do processo (Tribunal, Classe, Assunto, Vara/Câmara, Instância, Pedidos, Fase) e marca a divergência como resolvida, mantendo a linha visível com a marca de aplicada.
 19. **Erro ao criar/editar usuário** — diagnóstico do "Edge Function returned a non-2xx status code" e relatório do motivo; cadastros e a duplicidade da Julia Rocha ficam para depois.
 
 ## Notas técnicas
