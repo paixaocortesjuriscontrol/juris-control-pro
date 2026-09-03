@@ -281,8 +281,18 @@ async function processHop(
         track.recebidas += recebidas;
         track.lotes += lotes;
         track.errosLimite = 0;
+        // Recuperação do tamanho de lote: depois de um erro de limite o lote cai
+        // para 10; aqui ele volta a crescer (10 → 25 → 50) a cada duas rodadas
+        // sem erro, evitando drenar backlog grande de 10 em 10.
+        track.hopsSemErro = (track.hopsSemErro ?? 0) + 1;
+        if (track.hopsSemErro >= HOPS_PARA_CRESCER && track.loteSize < MAX_LOTE_SIZE) {
+          const proximo = LOTE_STEPS.find((step) => step > track.loteSize) ?? MAX_LOTE_SIZE;
+          track.loteSize = proximo;
+          track.maxLotes = DEFAULT_MAX_LOTES;
+          track.hopsSemErro = 0;
+        }
         track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
-        const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog
+        const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog && !state.opts.drenagem
           || result.fila_vazia === true
           || result.janela_ultrapassada === true
           || recebidas === 0
@@ -290,6 +300,21 @@ async function processHop(
         if (terminou) {
           track.status = "concluido";
           state.currentIndex++;
+        } else if (
+          !state.opts.drenagem
+          && !track.adiado
+          && track.lotes >= ADIAR_APOS_LOTES
+          && state.tracks.some((item, index) => index > state.currentIndex && item.status !== "concluido")
+        ) {
+          // Um login com fila acumulada não segura os demais: ele é movido para o
+          // fim da lista e retomado depois que os outros terminarem.
+          track.adiado = true;
+          track.status = "pendente";
+          track.mensagem = `Fila acumulada — retomando após os outros logins (${track.lotes} lote(s) já drenados)`;
+          state.tracks.splice(state.currentIndex, 1);
+          state.tracks.push(track);
+        } else if (state.opts.drenagem) {
+          track.mensagem = `Fila acumulada — drenando: ${track.mensagem}`;
         }
       }
     }
