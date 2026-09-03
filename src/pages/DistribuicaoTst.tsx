@@ -61,6 +61,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { buildJuditPatch, persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
 import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
+import { useIdsPorPedidosDossie, type FiltroPedidosDossie } from "@/hooks/useIdsPorPedidosDossie";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import {
   useProcessoTagsCatalogo,
@@ -309,6 +310,8 @@ export default function DistribuicaoTst() {
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
   const [filtroEquipe, setFiltroEquipe] = useState<string>("todos");
+  // Matérias (pedidos) cadastradas por dossiê em `pedidos_por_dossie`.
+  const [filtroPedidosDossie, setFiltroPedidosDossie] = useState<FiltroPedidosDossie>("todos");
   // Ativo quando o card "Pronto sem pendência" está selecionado.
   // Complementa filtroStatus="pronto_envio" restringindo aos IDs sem pendências.
   const [filtroSemPendencia, setFiltroSemPendencia] = useState<boolean>(false);
@@ -405,6 +408,8 @@ export default function DistribuicaoTst() {
   });
 
 
+  const { ids: idsPedidosDossie } = useIdsPorPedidosDossie(filtroPedidosDossie);
+
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
     if (debouncedFilters.situacaoProcesso === "a_fazer" && !isAdmin && user?.id) {
@@ -427,6 +432,12 @@ export default function DistribuicaoTst() {
         : semMateriaDossieIds;
       f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
+    if (idsPedidosDossie) {
+      const base = f.idsAllowed && f.idsAllowed.length > 0
+        ? idsPedidosDossie.filter((id) => f.idsAllowed!.includes(id))
+        : idsPedidosDossie;
+      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+    }
     if (filtroComPendencia) {
       // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
       const semSet = new Set(prontoSemPendenciaIds);
@@ -436,7 +447,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds)]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), JSON.stringify(idsPedidosDossie)]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -651,10 +662,11 @@ export default function DistribuicaoTst() {
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
     filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagIds.length > 0 ||
-    filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+    filtroPedidosDossie !== "todos" || filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
   const clearFilters = () => {
+    setFiltroPedidosDossie("todos");
     setFiltroAba("todas");
     setFiltroBenner("todos");
     setFiltroDossieStatus("todos");
@@ -2584,6 +2596,19 @@ export default function DistribuicaoTst() {
                     <SelectItem value="Resposta Santander">Resposta Santander</SelectItem>
                     <SelectItem value="Certidão TST">Certidão TST (PDF)</SelectItem>
                     <SelectItem value="Planilha Distribuição">Planilha Distribuição</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] font-semibold text-muted-foreground">Matérias por dossiê</Label>
+                <Select value={filtroPedidosDossie} onValueChange={(v) => setFiltroPedidosDossie(v as FiltroPedidosDossie)}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Matérias por dossiê" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todos">Todos</SelectItem>
+                    <SelectItem value="com">Com matérias cadastradas</SelectItem>
+                    <SelectItem value="sem">Sem matérias cadastradas</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
