@@ -2879,36 +2879,6 @@ export default function PainelControle() {
             </aside>
           )}
 
-          {selectedItem && (
-            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
-              <EdicaoItemPanel
-                key={selectedItem.id}
-                item={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </aside>
-          )}
-
-          {!selectedItem && novoItemTipo && (
-            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
-              <NovoItemPanel
-                tipo={novoItemTipo}
-                dataPadrao={novoItemData ?? undefined}
-                onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
-                onSuccess={async () => {
-                  setNovoItemTipo(null);
-                  setNovoItemData(null);
-                  await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                  await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-                  await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-                }}
-              />
-            </aside>
-          )}
-
         </div>
         )}
       </div>
