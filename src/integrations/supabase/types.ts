@@ -9817,6 +9817,47 @@ export type Database = {
           },
         ]
       }
+      workflow_etapa_atividades: {
+        Row: {
+          created_at: string
+          etapa_id: string
+          id: string
+          observacao: string | null
+          ordem: number
+          responsavel_id: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          etapa_id: string
+          id?: string
+          observacao?: string | null
+          ordem?: number
+          responsavel_id?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          etapa_id?: string
+          id?: string
+          observacao?: string | null
+          ordem?: number
+          responsavel_id?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_etapa_atividades_etapa_id_fkey"
+            columns: ["etapa_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_etapas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflow_etapa_envolvidos: {
         Row: {
           etapa_id: string
