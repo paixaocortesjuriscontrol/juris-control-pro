@@ -481,9 +481,12 @@ function termoTokens(raw: string | null | undefined): string[] {
   return Array.from(new Set(norm.split(/\s+/).filter((t) => t.length >= 3)));
 }
 
-function kurierMatchesMonitoramento(searchable: string, monitoramento: Monitoramento): boolean {
-  const searchNorm = normalizar(searchable);
-  const searchDigits = searchable.replace(/\D/g, "");
+function kurierMatchesMonitoramento(
+  searchable: string,
+  monitoramento: Monitoramento,
+  searchNorm = normalizar(searchable),
+  searchDigits = searchable.replace(/\D/g, ""),
+): boolean {
   const tipo = monitoramento.tipo;
   const termos = [monitoramento.termo_busca, ...(monitoramento.termos_or || [])].filter(Boolean);
 
@@ -1084,6 +1087,10 @@ Deno.serve(async (req: Request) => {
 
 
         if (numero && conteudo) {
+          // O texto integral pode ter centenas de KB. Normalizá-lo novamente para
+          // cada monitoramento multiplicava o custo de CPU e causava HTTP 546.
+          const searchableNorm = normalizar(searchable || conteudo);
+          const searchableDigits = (searchable || conteudo).replace(/\D/g, "");
           // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
           // o universo de monitoramentos avaliados usando o índice por palavra-chave.
           const termoKurier = String((p as any).TermoPesquisa || (p as any).NOME_PESQUISADO || "").trim();
@@ -1097,7 +1104,7 @@ Deno.serve(async (req: Request) => {
           let bloqueadoPorTribunal = false;
           for (const m of candidatos) {
             try {
-              if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento)) continue;
+              if (!kurierMatchesMonitoramento(searchable || conteudo, m as Monitoramento, searchableNorm, searchableDigits)) continue;
               // Escopo de tribunais do termo — mesma regra do DJEN Termos Servidor
               // (paralela.js: "tribunal_nao_permitido"). Termo sem tribunais
               // definidos aceita qualquer tribunal; sigla não reconhecida passa.

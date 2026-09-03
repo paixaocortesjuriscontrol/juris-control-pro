@@ -7,13 +7,13 @@ const corsHeaders = {
 };
 
 const WINDOW_MIN = 30;
-const DEFAULT_LOTE_SIZE = 25;
+// O endpoint da Kurier devolve textos integrais e alguns itens isolados consomem
+// bastante CPU. Manter o hop pequeno é mais estável do que crescer novamente e
+// entrar num ciclo de 546 depois de já ter avançado a fila.
+const DEFAULT_LOTE_SIZE = 5;
 const MIN_LOTE_SIZE = 1;
-const MAX_LOTE_SIZE = 50;
-const LOTE_STEPS = [MIN_LOTE_SIZE, 5, 10, DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE];
-/** Rodadas consecutivas sem erro necessárias para aumentar o lote de novo. */
-const HOPS_PARA_CRESCER = 2;
-const DEFAULT_MAX_LOTES = 2;
+const MAX_LOTE_SIZE = 5;
+const DEFAULT_MAX_LOTES = 1;
 const MAX_HOPS = 300;
 /** A partir deste número de lotes na mesma credencial, os outros logins passam na frente. */
 const ADIAR_APOS_LOTES = 6;
@@ -209,6 +209,10 @@ async function processHop(
     }
 
     track.status = "executando";
+    // Também limita execuções criadas por versões anteriores, cujo estado pode
+    // ter persistido 10/25/50 itens por lote.
+    track.loteSize = Math.max(MIN_LOTE_SIZE, Math.min(track.loteSize || DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE));
+    track.maxLotes = 1;
     track.mensagem = `Consultando lote ${track.maxLotes}×${track.loteSize}...`;
     state.hop++;
     await saveState(supabase, execId, state, leaseToken);
@@ -287,16 +291,7 @@ async function processHop(
         track.recebidas += recebidas;
         track.lotes += lotes;
         track.errosLimite = 0;
-        // Recuperação do tamanho de lote: depois de um erro de limite o lote cai
-        // para 10; aqui ele volta a crescer (10 → 25 → 50) a cada duas rodadas
-        // sem erro, evitando drenar backlog grande de 10 em 10.
         track.hopsSemErro = (track.hopsSemErro ?? 0) + 1;
-        if (track.hopsSemErro >= HOPS_PARA_CRESCER && track.loteSize < MAX_LOTE_SIZE) {
-          const proximo = LOTE_STEPS.find((step) => step > track.loteSize) ?? MAX_LOTE_SIZE;
-          track.loteSize = proximo;
-          track.maxLotes = DEFAULT_MAX_LOTES;
-          track.hopsSemErro = 0;
-        }
         track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
         const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog && !state.opts.drenagem
           || result.fila_vazia === true
