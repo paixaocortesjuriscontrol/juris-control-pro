@@ -1,0 +1,30 @@
+# Roadmap — Considerações 02/09
+
+Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criação/desduplicação de usuários.
+
+## Leva 1 — Bugs que quebram uso
+- [x] 01 Nova tela "Reatribuir Processos" (paginação no servidor, filtros, seleção em massa, destino, gravação em lotes) + diálogo de Coordenações lendo `processos_responsaveis`
+- [x] 17 "Marcar como ciente" não pode sumir da tela (divergências ficam visíveis com aparência de já visto, filtro pendentes/todas, contagem só de pendentes, botão Reabrir)
+- [x] 08 Botão "Buscar mais do servidor" com número correto e só quando há mais no servidor
+- [~] 10 Ranking TST — RPC conferida no banco (retorna dados em <1s); a tela passou a exibir o erro real com "Tentar novamente". Aguarda o print/mensagem do erro para fechar a causa.
+
+## Leva 2 — Agenda e recorrências
+- [ ] 12 Divergência de calendário Dra. Janaina x Admin
+- [ ] 13 Recorrente alterado de dias corridos para dias úteis recalcula ocorrências futuras
+- [ ] 11 Nova situação "Cancelar e ocultar da agenda"
+- [ ] 14 Definir a data direto no calendário
+- [ ] 18 Baixar a pendência pela tela principal com pop-up completo estilo Ástrea
+
+## Leva 3 — Análise DJEN e processos
+- [ ] 02 Preservar filtros ao voltar da Análise DJEN
+- [ ] 05 "Ver processo" abrindo em nova aba
+- [ ] 06 Partes logo abaixo do número do processo
+- [ ] 09 Pesquisa global sem trazer todas as publicações fora da Análise DJEN
+- [ ] 03 Processos e casos com pendentes primeiro
+- [ ] 04 Balãozinho de comentários no Painel de Controle com bolinha de não vistos
+
+## Leva 4 — Complementos
+- [ ] 07 Processos em comum Dr. Thonmás / Dra. Janaina em planilha
+- [ ] 17b Exportar comentários em XLSX
+- [ ] 16 Botão "Acatar" ao lado de cada sugestão da Judit
+- [ ] 19 Diagnóstico do erro ao criar/editar usuário

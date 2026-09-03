@@ -159,6 +159,7 @@ export default function RankingAtendimento() {
       if (error) throw error;
       return (data || []) as unknown as LinhaTst[];
     },
+    retry: 1,
   });
 
   const geral = geralQuery.data || [];
@@ -1175,6 +1176,20 @@ export default function RankingAtendimento() {
                       <TableRow>
                         <TableCell colSpan={9}>
                           <Skeleton className="h-24 w-full" />
+                        </TableCell>
+                      </TableRow>
+                    ) : tstQuery.isError ? (
+                      <TableRow>
+                        <TableCell colSpan={9} className="text-center py-10">
+                          <p className="text-sm text-destructive font-medium">
+                            Falha ao carregar o ranking do TST
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {(tstQuery.error as any)?.message || "Erro desconhecido"}
+                          </p>
+                          <Button size="sm" variant="outline" className="mt-3" onClick={() => tstQuery.refetch()}>
+                            Tentar novamente
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ) : tstOrdenado.length === 0 ? (
