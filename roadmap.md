@@ -16,7 +16,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] 18 Baixa da pendência pela tela principal com pop-up completo (situação, data de cumprimento, comentário e, em recorrentes, somente esta / toda a série)
 
 ## Leva 3 — Análise DJEN e processos
-- [ ] 02 Preservar filtros ao voltar da Análise DJEN
+- [x] 02 Preservar filtros ao voltar da Análise DJEN
 - [x] 05 "Ver processo" abrindo em nova aba
 - [x] 06 Partes logo abaixo do número do processo
 - [x] 09 Pesquisa global sem trazer todas as publicações fora da Análise DJEN
