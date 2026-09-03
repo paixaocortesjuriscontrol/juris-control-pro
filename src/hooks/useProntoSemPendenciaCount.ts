@@ -99,5 +99,14 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, reloadTick]);
 
-  return { count, ids, loading, refetch: () => setReloadTick((tick) => tick + 1) };
+  return {
+    count,
+    ids,
+    loading,
+    refetch: () => {
+      invalidateDistribuicaoTstCache();
+      setReloadTick((tick) => tick + 1);
+    },
+  };
+
 }

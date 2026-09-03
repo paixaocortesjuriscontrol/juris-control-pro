@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
+import { fetchResponsaveisPorItemCached } from "@/utils/distribuicaoTstCache";
+
 
 export const SEM_RESPONSAVEL_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -28,25 +29,22 @@ export function useProntoSemPendenciaPorResponsavel(filters: DistribuicaoTstFilt
       }
       setLoading(true);
       try {
-        const PAGE = 500;
+        const respPorItem = await fetchResponsaveisPorItemCached();
         const porUsuario: Record<string, number> = {};
-        const comResponsavel = new Set<string>();
-        for (let i = 0; i < ids.length; i += PAGE) {
-          const batch = ids.slice(i, i + PAGE);
-          const { data, error } = await supabase
-            .from("dados_benner_responsaveis" as any)
-            .select("dados_benner_id, usuario_id")
-            .in("dados_benner_id", batch);
-          if (error) throw error;
-          for (const row of (data as any[]) || []) {
-            if (!row?.usuario_id || !row?.dados_benner_id) continue;
-            comResponsavel.add(row.dados_benner_id);
-            porUsuario[row.usuario_id] = (porUsuario[row.usuario_id] || 0) + 1;
+        let sem = 0;
+        for (const id of ids) {
+          const usuarios = respPorItem.get(id);
+          if (!usuarios || usuarios.length === 0) {
+            sem += 1;
+            continue;
+          }
+          for (const usuarioId of usuarios) {
+            porUsuario[usuarioId] = (porUsuario[usuarioId] || 0) + 1;
           }
         }
-        const sem = ids.filter((id) => !comResponsavel.has(id)).length;
         if (sem > 0) porUsuario[SEM_RESPONSAVEL_ID] = sem;
         if (!cancelled) setMap(porUsuario);
+
       } catch (e) {
         console.warn("[useProntoSemPendenciaPorResponsavel] falhou:", e);
         if (!cancelled) setMap({});
