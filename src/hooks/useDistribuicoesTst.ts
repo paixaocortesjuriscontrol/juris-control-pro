@@ -473,7 +473,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     const all = new Set<string>();
     for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
       const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
-      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice }, opts);
+      const ids = await fetchAllDistribuicaoTstIdsUncached({ ...filters, idsAllowed: slice }, opts);
       ids.forEach((id) => all.add(id));
     }
     return Array.from(all);
