@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Users, X, Filter } from "lucide-react";
+import { Users, X, Filter, Lock } from "lucide-react";
 
 interface Advogado {
   id: string;
@@ -29,9 +29,11 @@ interface Coordenacao {
 interface Props {
   selectedAdvogados: string[];
   onSelectionChange: (advogados: string[]) => void;
+  /** Responsáveis fixos da coordenação: não podem ser removidos */
+  lockedIds?: string[];
 }
 
-export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionChange }: Props) {
+export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionChange, lockedIds = [] }: Props) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
@@ -114,7 +116,10 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
     return todosAdvogados.filter(a => membrosIds.includes(a.id));
   }, [todosAdvogados, coordenacoes, coordenacaoFiltro, isAdmin]);
 
+  const isLocked = (id: string) => lockedIds.includes(id);
+
   const toggleAdvogado = (advogadoId: string) => {
+    if (isLocked(advogadoId)) return;
     if (selectedAdvogados.includes(advogadoId)) {
       onSelectionChange(selectedAdvogados.filter(id => id !== advogadoId));
     } else {
@@ -123,10 +128,12 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
   };
 
   const removerAdvogado = (advogadoId: string) => {
+    if (isLocked(advogadoId)) return;
     onSelectionChange(selectedAdvogados.filter(id => id !== advogadoId));
   };
 
   const handleCheckedChange = (advogadoId: string, checked: boolean | "indeterminate") => {
+    if (isLocked(advogadoId)) return;
     if (checked === true) {
       if (!selectedAdvogados.includes(advogadoId)) {
         onSelectionChange([...selectedAdvogados, advogadoId]);
@@ -153,6 +160,9 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
             <Badge key={adv.id} variant="secondary" className="flex items-center gap-1">
               {adv.nome}
               {adv.oab && <span className="text-xs opacity-70">({adv.oab})</span>}
+              {isLocked(adv.id) ? (
+                <Lock className="h-3 w-3 opacity-70" />
+              ) : (
               <Button
                 type="button"
                 variant="ghost"
@@ -162,6 +172,7 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
               >
                 <X className="h-3 w-3" />
               </Button>
+              )}
             </Badge>
           ))}
         </div>
@@ -210,10 +221,14 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
                 <Checkbox
                   id={`audiencia-advogado-${advogado.id}`}
                   checked={selectedAdvogados.includes(advogado.id)}
+                  disabled={isLocked(advogado.id)}
                   onCheckedChange={(checked) => handleCheckedChange(advogado.id, checked)}
                 />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{advogado.nome}</p>
+                  <p className="text-sm font-medium truncate flex items-center gap-1">
+                    {advogado.nome}
+                    {isLocked(advogado.id) && <Lock className="h-3 w-3 text-muted-foreground shrink-0" />}
+                  </p>
                   <p className="text-xs text-muted-foreground truncate">
                     {advogado.oab && `OAB: ${advogado.oab} • `}
                     {advogado.email}
@@ -228,6 +243,11 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
       {selectedAdvogados.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {selectedAdvogados.length} advogado(s) selecionado(s)
+        </p>
+      )}
+      {lockedIds.length > 0 && (
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Lock className="h-3 w-3" /> Responsáveis fixos configurados para Audiência não podem ser removidos.
         </p>
       )}
     </div>
