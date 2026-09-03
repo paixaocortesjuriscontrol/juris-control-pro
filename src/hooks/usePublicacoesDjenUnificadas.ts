@@ -1691,6 +1691,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     isFetching,
     loadingStats: isLoadingStats,
+    // Erro real das consultas (lista/totalizadores). Antes ficava silencioso e
+    // a tela mostrava tudo zerado sem explicar o motivo.
+    erro: (erroLista as Error | null) ?? (erroStats as Error | null) ?? null,
+    recarregar: async () => {
+      await Promise.all([refetchLista(), refetchStats()]);
+    },
     marcarComoLida,
     descartarManualmente,
     // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
