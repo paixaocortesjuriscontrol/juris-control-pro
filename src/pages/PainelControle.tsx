@@ -2913,6 +2913,56 @@ export default function PainelControle() {
         )}
       </div>
 
+      {/* Painel sobreposto: edição do item selecionado */}
+      <ItemDrawer
+        open={!!selectedItem}
+        onOpenChange={(o) => { if (!o) setSelectedItem(null); }}
+        titulo={selectedItem?.titulo || "Detalhe do item"}
+        subtitulo={selectedItem?.processo?.numero ?? null}
+      >
+        {selectedItem && (
+          <EdicaoItemPanel
+            key={selectedItem.id}
+            item={selectedItem}
+            hideHeader
+            onClose={() => setSelectedItem(null)}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+            }}
+          />
+        )}
+      </ItemDrawer>
+
+      {/* Painel sobreposto: novo item */}
+      <ItemDrawer
+        open={!selectedItem && !!novoItemTipo}
+        onOpenChange={(o) => { if (!o) { setNovoItemTipo(null); setNovoItemData(null); } }}
+        titulo={
+          novoItemTipo === "evento" ? "Novo evento"
+            : novoItemTipo === "prazo" ? "Novo prazo"
+            : novoItemTipo === "audiencia" ? "Nova audiência"
+            : novoItemTipo === "parcelamento" ? "Novo parcelamento"
+            : "Nova tarefa"
+        }
+        subtitulo={novoItemData}
+      >
+        {novoItemTipo && (
+          <NovoItemPanel
+            tipo={novoItemTipo}
+            dataPadrao={novoItemData ?? undefined}
+            hideHeader
+            onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
+            onSuccess={async () => {
+              setNovoItemTipo(null);
+              setNovoItemData(null);
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+              await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+              await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+            }}
+          />
+        )}
+      </ItemDrawer>
+
       {/* EventoDialog para edição de eventos */}
       <EventoDialog
         open={dialogOpen}
