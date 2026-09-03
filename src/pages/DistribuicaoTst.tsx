@@ -295,7 +295,15 @@ export default function DistribuicaoTst() {
   const [filtroMesAno, setFiltroMesAno] = useState<string>("todos");
   const [filtroJudit, setFiltroJudit] = useState<string>("todos");
   const [filtroErroJudit, setFiltroErroJudit] = useState<string>("todos");
-  const [filtroSituacaoProcesso, setFiltroSituacaoProcesso] = useState<string>("todos");
+  // Situação do processo: seleção múltipla (vazio = todas).
+  const [filtroSituacoesProcesso, setFiltroSituacoesProcesso] = useState<string[]>([]);
+  const filtroSituacaoProcesso =
+    filtroSituacoesProcesso.length === 0
+      ? "todos"
+      : filtroSituacoesProcesso.length === 1
+        ? filtroSituacoesProcesso[0]
+        : "__multi__";
+  const setFiltroSituacaoProcesso = (v: string) => setFiltroSituacoesProcesso(v === "todos" ? [] : [v]);
   const [filtroSubidaMassa, setFiltroSubidaMassa] = useState<string>("todos");
 
   const [filtroResponsavelIds, setFiltroResponsavelIds] = useState<string[]>([]);
