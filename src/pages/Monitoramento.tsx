@@ -1323,26 +1323,43 @@ export default function Monitoramento() {
                               </TableCell>
                               <TableCell className="text-right">
                                 {!d.resolvido_em ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={resolvendo}
-                                    onClick={() => marcarCiente({ ...grupoDivAtivo, divergencias: [d], pendentes: 1 })}
-                                  >
-                                    {resolvendo ? (
-                                      <Loader2 className="h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <Check className="mr-1 h-3 w-3" /> Ciente
-                                      </>
-                                    )}
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-1.5">
+                                    <Button
+                                      size="sm"
+                                      disabled={acatandoId === d.id || !d.valor_judit}
+                                      title="Gravar a sugestão da Judit no cadastro do processo"
+                                      onClick={() => acatarDivergencia(d)}
+                                    >
+                                      {acatandoId === d.id ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <CheckCheck className="mr-1 h-3 w-3" /> Acatar
+                                        </>
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={resolvendo}
+                                      onClick={() => marcarCiente({ ...grupoDivAtivo, divergencias: [d], pendentes: 1 })}
+                                    >
+                                      {resolvendo ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Check className="mr-1 h-3 w-3" /> Ciente
+                                        </>
+                                      )}
+                                    </Button>
+                                  </div>
                                 ) : (
                                   <Badge variant="outline" className="text-[10px]">
                                     Ciente
                                   </Badge>
                                 )}
                               </TableCell>
+
                             </TableRow>
                           ))}
                         </TableBody>
