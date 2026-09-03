@@ -24,6 +24,8 @@ import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioParte
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
@@ -316,7 +318,7 @@ export default function DistribuicaoTst() {
   const [filtroComPendencia, setFiltroComPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
   // ===== TAGs (admin/coord) =====
-  const [filtroTagId, setFiltroTagId] = useState<string>("todas");
+  const [filtroTagIds, setFiltroTagIds] = useState<string[]>([]);
   const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
   // O filtro por TAG é resolvido diretamente no banco (índice por tag_id),
   // sem trafegar milhares de ids do navegador.
@@ -364,11 +366,11 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
-        tagId: filtroTagId !== "todas" && filtroTagId !== "__sem__" ? filtroTagId : undefined,
+        tagId: filtroTagIds.length > 0 ? filtroTagIds : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, filtroTagId]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, filtroSituacaoProcesso, filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -648,7 +650,7 @@ export default function DistribuicaoTst() {
     filtroAba !== "todas" || filtroBenner !== "todos" || filtroMesAno !== "todos" || filtroDossieStatus !== "todos" || filtroProcessoStatus !== "todos" ||
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
-    filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagId !== "todas" ||
+    filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagIds.length > 0 ||
     filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
@@ -667,7 +669,7 @@ export default function DistribuicaoTst() {
     setFiltroFonteImportacao("todas");
     setFiltroProvasDigitais("todos");
     setFiltroSituacaoCarga("todas");
-    setFiltroTagId("todas");
+    setFiltroTagIds([]);
     setFiltroSubidaMassa("todos");
     setFiltroAcordo("todos");
     setFiltroSemPendencia(false);
@@ -2373,25 +2375,63 @@ export default function DistribuicaoTst() {
               {/* VERMELHO — visível a todos (RLS entrega só as TAGs públicas para não-admin) */}
               <div className="space-y-1">
                   <Label className="text-[10px] font-semibold text-red-600">TAGs</Label>
-                  <Select value={filtroTagId} onValueChange={setFiltroTagId}>
-                    <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="TAGs" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas</SelectItem>
-                      {tagsCatalogo.map((t) => (
-                        <SelectItem key={t.id} value={t.id}>
-                          <span className="inline-flex items-center gap-2">
-                            <span
-                              className="inline-block w-2 h-2 rounded-full"
-                              style={{ backgroundColor: t.cor }}
-                            />
-                            {t.nome}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="h-8 w-full justify-between px-3 text-xs font-normal"
+                      >
+                        <span className="truncate">
+                          {filtroTagIds.length === 0
+                            ? "Todas"
+                            : filtroTagIds.length === 1
+                              ? (tagsCatalogo.find((t) => t.id === filtroTagIds[0])?.nome ?? "1 TAG")
+                              : `${filtroTagIds.length} TAGs`}
+                        </span>
+                        <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-64 p-2">
+                      <div className="flex items-center justify-between pb-2">
+                        <span className="text-[11px] font-semibold text-muted-foreground">Selecione as TAGs</span>
+                        {filtroTagIds.length > 0 && (
+                          <button
+                            type="button"
+                            className="text-[11px] text-primary hover:underline"
+                            onClick={() => setFiltroTagIds([])}
+                          >
+                            Limpar
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-64 space-y-1 overflow-y-auto">
+                        {tagsCatalogo.map((t) => {
+                          const checked = filtroTagIds.includes(t.id);
+                          return (
+                            <label
+                              key={t.id}
+                              className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted"
+                            >
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={(v) =>
+                                  setFiltroTagIds((prev) =>
+                                    v === true ? [...prev, t.id] : prev.filter((id) => id !== t.id),
+                                  )
+                                }
+                              />
+                              <span
+                                className="inline-block h-2 w-2 shrink-0 rounded-full"
+                                style={{ backgroundColor: t.cor }}
+                              />
+                              <span className="truncate">{t.nome}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
               </div>
               {/* LARANJA */}
               <div className="space-y-1">

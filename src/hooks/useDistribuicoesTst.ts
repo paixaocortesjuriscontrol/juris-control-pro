@@ -271,20 +271,29 @@ export interface DistribuicaoTstFilters {
    * Filtro por TAG resolvido no banco (evita trafegar milhares de ids).
    * "todas" = sem filtro. "__sem__" ainda não é suportado nativamente.
    */
-  tagId?: string | null;
+  tagId?: string | string[] | null;
+}
+
+/** Normaliza o filtro de TAGs para uma lista de ids válidos. */
+export function normalizeTagIds(tagId?: string | string[] | null): string[] {
+  const arr = Array.isArray(tagId) ? tagId : tagId ? [tagId] : [];
+  return Array.from(new Set(arr.filter((t) => !!t && t !== "todas" && t !== "__sem__")));
 }
 
 /** Parte do select necessária para filtrar por TAG via join no banco. */
-export function tagSelectPart(tagId?: string | null): string | null {
-  if (!tagId || tagId === "todas" || tagId === "__sem__") return null;
+export function tagSelectPart(tagId?: string | string[] | null): string | null {
+  if (normalizeTagIds(tagId).length === 0) return null;
   return "dados_benner_processo_tags!inner(tag_id)";
 }
 
 /** Aplica o filtro por TAG na query (usa o índice idx_dbpt_tag_dado). */
-export function applyTagFilter(query: any, tagId?: string | null) {
-  if (!tagSelectPart(tagId)) return query;
-  return query.eq("dados_benner_processo_tags.tag_id", tagId);
+export function applyTagFilter(query: any, tagId?: string | string[] | null) {
+  const ids = normalizeTagIds(tagId);
+  if (ids.length === 0) return query;
+  if (ids.length === 1) return query.eq("dados_benner_processo_tags.tag_id", ids[0]);
+  return query.in("dados_benner_processo_tags.tag_id", ids);
 }
+
 
 export function bennerToDistribuicao(b: any): DistribuicaoTst {
   const relatorFav = b.posicao_relator_favoravel ? "POSITIVO" : b.posicao_relator_desfavoravel ? "NEGATIVO" : null;
@@ -683,7 +692,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
   if (filters.equipe && filters.equipe !== "todos") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
-  if (filters.tagId && filters.tagId !== "todas") return true;
+  if (normalizeTagIds(filters.tagId).length > 0) return true;
   return false;
 }
 
