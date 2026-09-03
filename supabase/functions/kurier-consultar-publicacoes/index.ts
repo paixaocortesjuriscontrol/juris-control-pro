@@ -811,6 +811,9 @@ Deno.serve(async (req: Request) => {
     // Sinaliza ao worker que não há mais nada na fila desta credencial, para ele
     // parar de fatiar novas chamadas pequenas.
     let filaVazia = false;
+    // Quantos itens a API devolveu no último lote (antes do corte por lote_size).
+    // O orquestrador usa isso para decidir se pode aumentar o tamanho do lote.
+    let ultimaRecebidasDaApi = 0;
     let totalForaJanelaAntes = 0;
     let totalForaJanelaDepois = 0;
 
