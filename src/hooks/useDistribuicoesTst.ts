@@ -248,7 +248,8 @@ export interface DistribuicaoTstFilters {
   processoStatus?: "todos" | "valido" | "invalido";
   judit?: "todos" | "sim" | "nao";
   erroJudit?: "todos" | "sim" | "nao";
-  situacaoProcesso?: "todos" | "ativo" | "transito" | "outros" | "outro_escritorio" | "segredo_justica" | "cejusc" | "a_fazer" | "nao_precisa_fazer";
+  /** Situação do processo: aceita uma opção ou várias (combinadas em OR). */
+  situacaoProcesso?: string | string[];
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
@@ -710,7 +711,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.processoStatus && filters.processoStatus !== "todos") return true;
   if (filters.judit && filters.judit !== "todos") return true;
   if (filters.erroJudit && filters.erroJudit !== "todos") return true;
-  if (filters.situacaoProcesso && filters.situacaoProcesso !== "todos") return true;
+  if (normalizarSituacoesProcesso(filters.situacaoProcesso).length > 0) return true;
   if (filters.subidaMassa && filters.subidaMassa !== "todos") return true;
   if (filters.mesAno && filters.mesAno !== "todos") return true;
   if (filters.dataInicio) return true;
@@ -840,30 +841,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
-    if (filters.situacaoProcesso === "ativo") {
-      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (filters.situacaoProcesso === "transito") {
-      query = query.eq("transito_julgado", true);
-    } else if (filters.situacaoProcesso === "outros") {
-      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (filters.situacaoProcesso === "outro_escritorio") {
-      query = query.eq("processo_outro_escritorio", true);
-    } else if (filters.situacaoProcesso === "segredo_justica") {
-      query = query.eq("segredo_justica", true);
-    } else if (filters.situacaoProcesso === "cejusc") {
-      query = query.eq("cejusc", true);
-    } else if (filters.situacaoProcesso === "a_fazer") {
-      query = query
-        .or("transito_julgado.is.null,transito_julgado.eq.false")
-        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
-        .or("segredo_justica.is.null,segredo_justica.eq.false")
-        .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
-    } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
-      query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
-      );
-    }
+    query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -1294,30 +1272,7 @@ export async function fetchMesesDataRealFiltered(
     else if (f.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
-    if (f.situacaoProcesso === "ativo") {
-      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (f.situacaoProcesso === "transito") {
-      query = query.eq("transito_julgado", true);
-    } else if (f.situacaoProcesso === "outros") {
-      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (f.situacaoProcesso === "outro_escritorio") {
-      query = query.eq("processo_outro_escritorio", true);
-    } else if (f.situacaoProcesso === "segredo_justica") {
-      query = query.eq("segredo_justica", true);
-    } else if (f.situacaoProcesso === "cejusc") {
-      query = query.eq("cejusc", true);
-    } else if (f.situacaoProcesso === "a_fazer") {
-      query = query
-        .or("transito_julgado.is.null,transito_julgado.eq.false")
-        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
-        .or("segredo_justica.is.null,segredo_justica.eq.false")
-        .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
-    } else if (f.situacaoProcesso === "nao_precisa_fazer") {
-      query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
-      );
-    }
+    query = applySituacaoProcessoFilter(query, f.situacaoProcesso);
 
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
