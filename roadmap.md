@@ -9,11 +9,11 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [~] 10 Ranking TST — RPC conferida no banco (retorna dados em <1s); a tela passou a exibir o erro real com "Tentar novamente". Aguarda o print/mensagem do erro para fechar a causa.
 
 ## Leva 2 — Agenda e recorrências
-- [ ] 12 Divergência de calendário Dra. Janaina x Admin
-- [ ] 13 Recorrente alterado de dias corridos para dias úteis recalcula ocorrências futuras
-- [ ] 11 Nova situação "Cancelar e ocultar da agenda"
-- [ ] 14 Definir a data direto no calendário
-- [ ] 18 Baixar a pendência pela tela principal com pop-up completo estilo Ástrea
+- [x] 12 Divergência de calendário Dra. Janaina x Admin (admin com coordenação selecionada agora usa também os responsáveis/membros, igual ao perfil do coordenador)
+- [x] 13 Recorrente em dias úteis: série começa em dia útil e o intervalo conta dias úteis (tarefas, prazos e eventos)
+- [x] 11 Nova situação "Cancelar e ocultar da agenda" (`cancelado_oculto`, registro preservado no banco)
+- [x] 14 Definir a data direto no calendário ("Criar nesta data" no painel do dia, pré-preenchendo tarefa/prazo/evento)
+- [x] 18 Baixa da pendência pela tela principal com pop-up completo (situação, data de cumprimento, comentário e, em recorrentes, somente esta / toda a série)
 
 ## Leva 3 — Análise DJEN e processos
 - [ ] 02 Preservar filtros ao voltar da Análise DJEN
