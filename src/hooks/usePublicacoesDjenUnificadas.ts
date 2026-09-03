@@ -412,7 +412,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     && !filtros.desabilitarStats;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
-  const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
+  const { data: statsIndependentes, isLoading: isLoadingStats, error: erroStats, refetch: refetchStats } = useQuery({
     queryKey: [
       'publicacoes-unificadas-stats-header',
       user?.id,
@@ -586,7 +586,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
   const pageSize = Math.max(1, filtros.pageSize ?? 500);
   const offsetGlobal = (page - 1) * pageSize;
 
-  const { data: queryResult, isLoading, isFetching } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
+  const { data: queryResult, isLoading, isFetching, error: erroLista, refetch: refetchLista } = useQuery<{ rows: PublicacaoUnificada[]; lastChunkSize: number }>({
     queryKey: ['publicacoes-unificadas', user?.id, filtros],
     staleTime: 0,
     queryFn: async ({ signal }) => {
@@ -1691,6 +1691,12 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     isLoading,
     isFetching,
     loadingStats: isLoadingStats,
+    // Erro real das consultas (lista/totalizadores). Antes ficava silencioso e
+    // a tela mostrava tudo zerado sem explicar o motivo.
+    erro: (erroLista as Error | null) ?? (erroStats as Error | null) ?? null,
+    recarregar: async () => {
+      await Promise.all([refetchLista(), refetchStats()]);
+    },
     marcarComoLida,
     descartarManualmente,
     // Totais GLOBAIS (independem da paginação) — vêm das count queries do servidor.
