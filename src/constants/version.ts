@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.5.5";
+export const APP_VERSION = "6.0.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
