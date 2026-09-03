@@ -4353,9 +4353,25 @@ const AnaliseDjen = () => {
           </div>
         )}
 
+        {/* Falha de carregamento: antes a tela apenas mostrava tudo zerado */}
+        {erroPublicacoes && (
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
+            <div className="text-sm text-destructive">
+              <strong>Não foi possível carregar as publicações.</strong>{" "}
+              {/not authenticated|jwt|28000|401/i.test(String((erroPublicacoes as any)?.message || ""))
+                ? "Sua sessão expirou — saia e entre novamente no sistema."
+                : String((erroPublicacoes as any)?.message || "Erro desconhecido.")}
+            </div>
+            <Button size="sm" variant="outline" onClick={() => recarregarPublicacoes()}>
+              Tentar novamente
+            </Button>
+          </div>
+        )}
+
         {/* Stats Cards - Mobile optimized */}
         <div className="grid grid-cols-2 md:grid-cols-8 gap-2 md:gap-4">
           <Card
+
             className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800 cursor-pointer hover:shadow-md transition-shadow"
             onClick={() => { setTipoOrigem('todos'); setReadStatus('todas'); setOcultarDuplicadas(false); }}
           >
