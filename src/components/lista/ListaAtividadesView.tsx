@@ -1177,26 +1177,38 @@ export default function ListaAtividadesView({
             </div>
           </Card>
 
-          {/* Edição via painel lateral (mesmo formulário do "Adicionar") */}
-          {detalhesPrazo && (
-            <aside className="hidden lg:flex flex-col border rounded-md bg-background min-h-0 overflow-hidden">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <EdicaoItemPanel
-                  item={detalhesPrazo}
-                  onClose={() => {
-                    setDetalhesPrazo(null);
-                    setDetalhesEditOnOpen(false);
-                  }}
-                  onUpdate={() => {
-                    queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-                    queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                  }}
-                />
-              </div>
-            </aside>
-          )}
         </div>
       </div>
+
+      {/* Edição em painel sobreposto (igual ao modo Agenda) */}
+      <ItemDrawer
+        open={!!detalhesPrazo}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDetalhesPrazo(null);
+            setDetalhesEditOnOpen(false);
+          }
+        }}
+        titulo={detalhesPrazo?.titulo || "Detalhe do item"}
+        subtitulo={detalhesPrazo?.processo?.numero ?? null}
+      >
+        {detalhesPrazo && (
+          <EdicaoItemPanel
+            key={detalhesPrazo.id}
+            item={detalhesPrazo}
+            hideHeader
+            onClose={() => {
+              setDetalhesPrazo(null);
+              setDetalhesEditOnOpen(false);
+            }}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+              queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+            }}
+          />
+        )}
+      </ItemDrawer>
     </>
+
   );
 }
