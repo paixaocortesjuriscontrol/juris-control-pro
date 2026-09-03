@@ -162,7 +162,9 @@ export function MonitoramentoDialog({ open, onOpenChange, monitoramento, duplica
       );
       setNovaCondicao('');
       setTermosOr(src.termos_or || []);
-      setCriarTermosOrSeparados(Boolean(duplicateFrom && !monitoramento && src.tipo !== 'advogado' && src.termos_or?.length));
+      // Duplicar deve criar apenas UMA cópia. Quebrar em vários monitoramentos
+      // é opt-in pelo checkbox "Criar termos OR separados".
+      setCriarTermosOrSeparados(false);
       
       // Expandir IDs sintéticos ao carregar
       const tribunaisCarregados = normalizeTribunais(src.tribunais) ?? [];
