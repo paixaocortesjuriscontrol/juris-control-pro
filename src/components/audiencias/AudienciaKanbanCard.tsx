@@ -16,9 +16,12 @@ interface Props {
   onMarcarTratado: (id: string) => void;
   onIgnorar: (id: string) => void;
   isPending: boolean;
+  /** Nomes de responsáveis/envolvidos, carregados em lote pelo board */
+  pessoas?: { responsaveis: string[]; envolvidos: string[] };
 }
 
-export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTarefa, onMarcarTratado, onIgnorar, isPending }: Props) {
+export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTarefa, onMarcarTratado, onIgnorar, isPending, pessoas }: Props) {
+
   const daysUntil = getDaysUntil(audiencia.data_audiencia);
 
   const formatDate = (dateStr: string | null) => {
