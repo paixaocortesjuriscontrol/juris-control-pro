@@ -1208,7 +1208,7 @@ const AnaliseDjen = () => {
       toast.success("Publicação salva no processo!", {
         action: {
           label: "Ver processo",
-          onClick: () => navigate(`/processos/${processoId}`),
+          onClick: () => window.open(`/processos/${processoId}`, "_blank", "noopener,noreferrer"),
         },
       });
     } catch (error: any) {
@@ -1326,7 +1326,7 @@ const AnaliseDjen = () => {
       toast.success("Processo e pasta criados com sucesso!", {
         action: {
           label: "Ver processo",
-          onClick: () => navigate(`/processos/${processo.id}`),
+          onClick: () => window.open(`/processos/${processo.id}`, "_blank", "noopener,noreferrer"),
         },
       });
       // Registra localmente para trocar o botão para "Salvar" e exibir "Ver processo"
@@ -5412,8 +5412,11 @@ const AnaliseDjen = () => {
                                       {(pub.processo_id || importedProcessos[pub.id]) && (
                                         <Link 
                                           to={`/processos/${pub.processo_id || importedProcessos[pub.id]}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
                                           onClick={(e) => e.stopPropagation()}
+                                          title="Abrir processo em nova aba"
                                         >
                                           <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                           <span className="hidden sm:inline">Ver processo</span>
