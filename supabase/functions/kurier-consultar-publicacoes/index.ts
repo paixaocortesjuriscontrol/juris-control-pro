@@ -1230,8 +1230,22 @@ Deno.serve(async (req: Request) => {
             // pulamos para não duplicar a mesma linha desnecessariamente. Mas
             // se o match não inseriu (ex.: 23505 por já existir vindo do DJEN
             // Termos OU sem_match), seguimos com a captura total.
-            if (matched && (matched.coordenacao_id ?? null) === ct.id && publicacaoDjenId) continue;
+            if (matched && (matched.coordenacao_id ?? null) === ct.id && (publicacaoDjenId || batchMode)) continue;
+            if (batchMode) {
+              const chave = `${String(ct.id)}|${hashConteudo}`;
+              pendentesInsert.push({
+                ...basePayload,
+                id_djen: idDjen,
+                hash_conteudo: hashConteudo,
+                monitoramento_id: ct.monit_id,
+                coordenacao_id: ct.id,
+              });
+              chaves.push(chave);
+              qtdInsercoes++;
+              continue;
+            }
             // Backfill: evita reinserir publicação já existente na mesma
+
             // coord (mesmo processo + mesma data de disponibilização).
             if (backfill_raw && digits && basePayload.dedup_data_ref) {
               const { data: dupCt } = await admin
