@@ -1,5 +1,11 @@
 export type TipoSituacaoItem = "tarefa" | "prazo" | "evento" | "parcelamento" | "audiencia";
 
+/**
+ * Situação especial: cancela a atividade E a esconde da agenda/calendário,
+ * sem apagar o registro (o histórico continua no banco).
+ */
+export const STATUS_CANCELADO_OCULTO = "cancelado_oculto";
+
 export interface SituacaoOption {
   value: string;
   label: string;
@@ -48,6 +54,7 @@ export function situacoesBase(tipo: TipoSituacaoItem): SituacaoOption[] {
     { value: sucesso, label: "✔️ Concluído com sucesso", restrita: true },
     { value: "concluido_sem_sucesso", label: "⚠️ Concluído sem sucesso", restrita: true },
     { value: "cancelado", label: "❌ Cancelado", restrita: true },
+    { value: STATUS_CANCELADO_OCULTO, label: "🙈 Cancelar e ocultar da agenda", restrita: true },
   ];
   if (tipo === "audiencia") lista.push(...EXTRAS_AUDIENCIA);
   if (tipo === "tarefa" || tipo === "prazo") lista.push(...EXTRAS_PRAZO_TAREFA);

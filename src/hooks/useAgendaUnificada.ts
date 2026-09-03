@@ -1200,6 +1200,9 @@ export async function fetchAgendaPage(
       const dedupedItems: ItemAgendaUnificado[] = [];
       const seenKeys = new Set<string>();
       for (const item of resultItems) {
+        // "Cancelar e ocultar da agenda": o registro permanece no banco (histórico),
+        // mas não aparece mais na agenda/calendário/listas.
+        if (String(item.status ?? "").toLowerCase() === "cancelado_oculto") continue;
         const key = getAgendaDedupKey(item);
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);
