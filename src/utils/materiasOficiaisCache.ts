@@ -12,6 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeMateriaNome } from "./outraMateria";
 
 let cache: Set<string> | null = null;
+/** normalizado -> nome com a grafia exata da lista oficial */
+let nomesCache: Map<string, string> | null = null;
 let inflight: Promise<Set<string>> | null = null;
 
 export function materiasOficiaisCarregadas(): boolean {
@@ -25,6 +27,7 @@ export function materiasOficiaisCarregadas(): boolean {
  */
 export function resetMateriasOficiais(): void {
   cache = null;
+  nomesCache = null;
   inflight = null;
 }
 
@@ -34,6 +37,7 @@ export function ensureMateriasOficiais(): Promise<Set<string>> {
   if (inflight) return inflight;
   inflight = (async () => {
     const set = new Set<string>();
+    const nomes = new Map<string, string>();
     const PAGE = 1000;
     let from = 0;
     while (true) {
@@ -47,12 +51,18 @@ export function ensureMateriasOficiais(): Promise<Set<string>> {
       const rows = (data as any[]) || [];
       for (const r of rows) {
         const n = normalizeMateriaNome(r?.nome);
-        if (n) set.add(n);
+        if (!n) continue;
+        set.add(n);
+        const original = String(r?.nome || "").trim();
+        if (original && !nomes.has(n)) nomes.set(n, original);
       }
       if (rows.length < PAGE) break;
       from += PAGE;
     }
-    if (set.size > 0) cache = set;
+    if (set.size > 0) {
+      cache = set;
+      nomesCache = nomes;
+    }
     inflight = null;
     return set;
   })().catch((e) => {
@@ -69,4 +79,15 @@ export function ensureMateriasOficiais(): Promise<Set<string>> {
 export function isMateriaOficialSync(nome: string | null | undefined): boolean {
   if (!cache || cache.size === 0) return true;
   return cache.has(normalizeMateriaNome(nome));
+}
+
+/**
+ * Grafia exata da matéria na lista oficial de pedidos, ou `null` se o cache
+ * não carregou ou a matéria não consta na lista.
+ */
+export function nomeOficialCanonicoSync(
+  nome: string | null | undefined,
+): string | null {
+  if (!nomesCache || nomesCache.size === 0) return null;
+  return nomesCache.get(normalizeMateriaNome(nome)) || null;
 }

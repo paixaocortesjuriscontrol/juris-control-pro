@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeMateriaNome } from "./outraMateria";
 
 let cache: Map<string, Set<string>> | null = null;
+/** dossiê -> (pedido normalizado -> pedido com a grafia exata do cadastro) */
+let nomesCache: Map<string, Map<string, string>> | null = null;
 let inflight: Promise<Map<string, Set<string>>> | null = null;
 
 export function pedidosPorDossieCarregados(): boolean {
@@ -19,8 +21,10 @@ export function pedidosPorDossieCarregados(): boolean {
 
 export function resetPedidosPorDossie(): void {
   cache = null;
+  nomesCache = null;
   inflight = null;
 }
+
 
 /** Carrega (uma única vez) o mapa dossiê -> Set de pedidos normalizados. */
 export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
@@ -28,6 +32,7 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
   if (inflight) return inflight;
   inflight = (async () => {
     const mapa = new Map<string, Set<string>>();
+    const nomes = new Map<string, Map<string, string>>();
     const PAGE = 1000;
     let from = 0;
     while (true) {
@@ -41,14 +46,24 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
       for (const r of rows) {
         const dossie = String(r?.dossie || "").trim();
         if (!dossie) continue;
+        const norm = String(r?.pedido_normalizado || normalizeMateriaNome(r?.pedido));
         const set = mapa.get(dossie) || new Set<string>();
-        set.add(String(r?.pedido_normalizado || normalizeMateriaNome(r?.pedido)));
+        set.add(norm);
         mapa.set(dossie, set);
+        const original = String(r?.pedido || "").trim();
+        if (original) {
+          const nm = nomes.get(dossie) || new Map<string, string>();
+          if (!nm.has(norm)) nm.set(norm, original);
+          nomes.set(dossie, nm);
+        }
       }
       if (rows.length < PAGE) break;
       from += PAGE;
     }
-    if (mapa.size > 0) cache = mapa;
+    if (mapa.size > 0) {
+      cache = mapa;
+      nomesCache = nomes;
+    }
     inflight = null;
     return mapa;
   })().catch((e) => {
@@ -57,6 +72,23 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
   });
   return inflight;
 }
+
+/**
+ * Grafia exata cadastrada em `pedidos_por_dossie` para a matéria informada,
+ * ou `null` quando o cache não carregou ou a matéria não consta na lista.
+ */
+export function nomeCanonicoDoDossieSync(
+  dossie: string | null | undefined,
+  materia: string | null | undefined,
+): string | null {
+  if (!nomesCache || nomesCache.size === 0) return null;
+  const key = String(dossie || "").trim();
+  if (!key) return null;
+  const nm = nomesCache.get(key);
+  if (!nm) return null;
+  return nm.get(normalizeMateriaNome(materia)) || null;
+}
+
 
 /**
  * Pedidos cadastrados para o dossiê, ou `null` quando o cache não carregou
