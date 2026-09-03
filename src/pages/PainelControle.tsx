@@ -174,6 +174,8 @@ export default function PainelControle() {
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
   const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
+  /** Data (yyyy-MM-dd) escolhida no calendário para pré-preencher a criação do item. */
+  const [novoItemData, setNovoItemData] = useState<string | null>(null);
   const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
@@ -502,9 +504,11 @@ export default function PainelControle() {
     // Admin no escritório
     if (isAdmin) {
       if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
+        // Mesmo conjunto que o coordenador vê no perfil dele: itens da coordenação
+        // MAIS itens em que os membros são responsáveis/participantes (inclusive sem processo).
         return {
           coordenacaoId: adminCoordFilter,
-          strictCoordenacaoIsolation: true,
+          responsavelIds: responsavelIdsSelecionados ?? membrosCoordFiltrada,
           fetchAll: false,
           ...dateRange,
         };
@@ -2125,19 +2129,19 @@ export default function PainelControle() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}>
                     <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("evento"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("evento"); }}>
                     <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("prazo"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("prazo"); }}>
                     <Clock className="w-4 h-4 mr-2" /> Prazo
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("audiencia"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("audiencia"); }}>
                     <Gavel className="w-4 h-4 mr-2" /> Audiência
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("parcelamento"); }}>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("parcelamento"); }}>
                     <Coins className="w-4 h-4 mr-2" /> Parcelamento recorrente
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -2538,7 +2542,7 @@ export default function PainelControle() {
             <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
-              onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemTipo("tarefa"); }}
+              onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
               externalItems={itensListaEquipe}
               externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
               forcedCoordenacaoId={
@@ -2850,6 +2854,12 @@ export default function PainelControle() {
                 onSelectAtividade={(a) => {
                   void abrirPaiDaAtividade(a);
                 }}
+                onCriarNesteDia={(tipo) => {
+                  setSelectedItem(null);
+                  setNovoItemData(diaLateralKey);
+                  setNovoItemTipo(tipo);
+                  setDiaLateralKey(null);
+                }}
                 onClose={() => setDiaLateralKey(null)}
               />
             </aside>
@@ -2872,9 +2882,11 @@ export default function PainelControle() {
             <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
               <NovoItemPanel
                 tipo={novoItemTipo}
-                onClose={() => setNovoItemTipo(null)}
+                dataPadrao={novoItemData ?? undefined}
+                onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
                 onSuccess={async () => {
                   setNovoItemTipo(null);
+                  setNovoItemData(null);
                   await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
                   await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
                   await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
@@ -2971,10 +2983,12 @@ function NovaTarefaDialogWrapper({
 
 function NovoItemPanel({
   tipo,
+  dataPadrao,
   onClose,
   onSuccess,
 }: {
   tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
+  dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
 }) {
@@ -3030,6 +3044,7 @@ function NovoItemPanel({
         {tipo === "tarefa" && (
           <NovaTarefaDialog
             inline
+            dataPadrao={dataPadrao}
             open
             onOpenChange={handleOpenChange}
             coordenacoes={coordenacoes}
@@ -3039,6 +3054,7 @@ function NovoItemPanel({
         {tipo === "evento" && (
           <EventoDialog
             inline
+            dataPadrao={dataPadrao}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             evento={null}
@@ -3047,6 +3063,7 @@ function NovoItemPanel({
         {tipo === "prazo" && (
           <PrazoDialog
             inline
+            dataPadrao={dataPadrao}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             prazo={null}
