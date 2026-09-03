@@ -5,6 +5,10 @@
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const MAX_LOTES = parseInt(process.env.KURIER_MAX_LOTES || "5", 10);
+// Cada chamada à edge function processa poucos lotes: chamadas longas estouram o
+// limite de recurso do worker da Supabase (HTTP 546 WORKER_RESOURCE_LIMIT).
+const LOTES_POR_CHAMADA = Math.max(1, parseInt(process.env.KURIER_LOTES_POR_CHAMADA || "2", 10));
+const MAX_CHAMADAS_POR_CRED = Math.max(1, parseInt(process.env.KURIER_MAX_CHAMADAS || "12", 10));
 const PER_CRED_DELAY_MS = parseInt(process.env.KURIER_DELAY_MS || "1200", 10);
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 const TIPO_ENGINE = "kurier_servidor";
@@ -32,6 +36,46 @@ async function invokeKurier(credencialId, maxLotes) {
     clearTimeout(to);
   }
 }
+
+// Drena a fila de uma credencial em várias chamadas curtas. Ao receber 546
+// (estouro de recurso do worker) reduz o tamanho do lote pela metade e tenta de
+// novo; só desiste se estourar já com 1 lote por chamada.
+async function drenarCredencial(credencialId, log) {
+  let lotesPorChamada = Math.max(1, Math.min(LOTES_POR_CHAMADA, MAX_LOTES));
+  let novas = 0;
+  let processadas = 0;
+  let chamadas = 0;
+  let ultimoStatus = 200;
+
+  while (chamadas < MAX_CHAMADAS_POR_CRED) {
+    chamadas++;
+    const { status, body } = await invokeKurier(credencialId, lotesPorChamada);
+    ultimoStatus = status;
+
+    if (status === 546 || status === 503 || status === 504) {
+      if (lotesPorChamada > 1) {
+        lotesPorChamada = Math.max(1, Math.floor(lotesPorChamada / 2));
+        log?.("kurier.reduz_lote", { credencial_id: credencialId, status, lotesPorChamada });
+        continue;
+      }
+      throw new Error(`HTTP ${status}: limite de recurso da função mesmo com 1 lote`);
+    }
+    if (status < 200 || status >= 300) {
+      throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0, 200)}`);
+    }
+
+    novas += Number(body?.total_novas || body?.totalNovas || body?.inseridas || 0);
+    processadas += Number(body?.total_recebidas || body?.totalProcessadas || body?.processadas || 0);
+
+    if (body?.erro) throw new Error(String(body.erro).slice(0, 200));
+    // Sem o indicador (função antiga) paramos após a primeira chamada bem-sucedida.
+    if (body?.fila_vazia !== false) break;
+    if (PER_CRED_DELAY_MS > 0) await new Promise((r) => setTimeout(r, PER_CRED_DELAY_MS));
+  }
+
+  return { status: ultimoStatus, novas, processadas, chamadas };
+}
+
 
 async function run({ sb, payload, log, job }) {
   if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -69,13 +113,10 @@ async function run({ sb, payload, log, job }) {
           continue;
         }
         try {
-          const { status, body } = await invokeKurier(credId, maxLotes);
-          const novas = Number(body?.totalNovas || body?.inseridas || 0);
-          const proc = Number(body?.totalProcessadas || body?.processadas || 0);
-          if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
+          const { status, novas, processadas: proc, chamadas } = await drenarCredencial(credId, log);
           totalNovas += novas;
           totalProcessadas += proc;
-          results.push({ credencial_id: credId, login: cred.login, status, novas, processadas: proc, ok: true, retry: true });
+          results.push({ credencial_id: credId, login: cred.login, status, novas, processadas: proc, chamadas, ok: true, retry: true });
           await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
         } catch (e) {
           await recordFalha(sb, {
@@ -98,14 +139,11 @@ async function run({ sb, payload, log, job }) {
     log("kurier.cred_start", { credencial_id: c.id, login: c.login });
     const itemKeyFalha = `kurier|${c.id}`;
     try {
-      const { status, body } = await invokeKurier(c.id, maxLotes);
-      const novas = Number(body?.totalNovas || body?.inseridas || 0);
-      const proc = Number(body?.totalProcessadas || body?.processadas || 0);
-      if (status < 200 || status >= 300) throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0,200)}`);
+      const { status, novas, processadas: proc, chamadas } = await drenarCredencial(c.id, log);
       totalNovas += novas;
       totalProcessadas += proc;
-      results.push({ credencial_id: c.id, login: c.login, status, novas, processadas: proc, ok: status >= 200 && status < 300 });
-      log("kurier.cred_done", { credencial_id: c.id, status, novas, processadas: proc });
+      results.push({ credencial_id: c.id, login: c.login, status, novas, processadas: proc, chamadas, ok: true });
+      log("kurier.cred_done", { credencial_id: c.id, status, novas, processadas: proc, chamadas });
       await marcarFalhaResolvida(sb, TIPO_ENGINE, itemKeyFalha).catch(() => {});
     } catch (e) {
       results.push({ credencial_id: c.id, login: c.login, error: String(e.message || e) });

@@ -799,6 +799,9 @@ Deno.serve(async (req: Request) => {
     let ultimoErro: string | null = null;
     let lotesProcessados = 0;
     let janelaUltrapassada = false;
+    // Sinaliza ao worker que não há mais nada na fila desta credencial, para ele
+    // parar de fatiar novas chamadas pequenas.
+    let filaVazia = false;
     let totalForaJanelaAntes = 0;
     let totalForaJanelaDepois = 0;
 
@@ -885,14 +888,15 @@ Deno.serve(async (req: Request) => {
       if (!pubs.length) {
         // Em modo data, dia sem publicações é normal — só pula para o próximo.
         if (useDateMode) continue;
+        filaVazia = true;
         break; // Fila: ausência = fim do backlog
       }
 
       // Log do shape da primeira publicação do primeiro lote para diagnóstico
+      // (só as chaves — imprimir o payload inteiro custa memória/CPU do worker).
       if (lote === 0 && pubs[0]) {
         try {
           console.log(`[kurier] payload keys lote0:`, Object.keys(pubs[0]).join(","));
-          console.log(`[kurier] payload sample lote0:`, JSON.stringify(pubs[0]).slice(0, 1500));
         } catch {}
       }
 
@@ -1334,7 +1338,10 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      if (!useDateMode && pubs.length < LOTE_SIZE) break; // último lote da fila
+      if (!useDateMode && pubs.length < LOTE_SIZE) {
+        filaVazia = true;
+        break; // último lote da fila
+      }
       // Se TODOS os itens deste lote são posteriores à janela, paramos: a fila
       // ultrapassou o dia atual e seguir consumiria itens futuros sem necessidade
       // (eles não devem ser confirmados nem persistidos).
@@ -1347,8 +1354,15 @@ Deno.serve(async (req: Request) => {
         break;
       }
       console.log(`[kurier] lote ${lote+1}: recebidos=${pubs.length} naJanela=${itensNaJanelaNesteLote} antes=${pubs.length - itensNaJanelaNesteLote - itensDepoisDaJanelaNesteLote} depois=${itensDepoisDaJanelaNesteLote}`);
+      // Libera os acumuladores deste lote antes de seguir: sem isso o worker
+      // acumula textos integrais de todos os lotes e estoura o limite de recurso.
+      pubs = [];
+      rawRows.length = 0;
+      idsConfirmar.length = 0;
+      confirmacoes.length = 0;
       await delay(DELAY_MS);
     }
+
 
     await admin
       .from("kurier_credenciais")
@@ -1389,6 +1403,7 @@ Deno.serve(async (req: Request) => {
       total_fora_janela_antes: totalForaJanelaAntes,
       total_fora_janela_depois: totalForaJanelaDepois,
       janela_ultrapassada: janelaUltrapassada,
+      fila_vazia: filaVazia || janelaUltrapassada,
       erro: ultimoErro,
     });
   } catch (e) {
