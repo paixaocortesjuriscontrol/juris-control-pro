@@ -57,6 +57,29 @@ export function KurierCredenciaisPanel() {
   const { data: creds = [], isLoading, update, create, remove, salvarSenha, testar } = useKurierCredenciais();
   const [novoLogin, setNovoLogin] = useState("");
   const [testandoId, setTestandoId] = useState<string | null>(null);
+  const [drenandoId, setDrenandoId] = useState<string | null>(null);
+
+  async function drenarFila(id: string, login: string) {
+    if (!confirm(`Drenar a fila acumulada do login ${login}?\n\nO sistema vai consultar esse login em etapas até a fila esvaziar, processando tudo normalmente.`)) return;
+    setDrenandoId(id);
+    try {
+      const { data, error } = await supabase.functions.invoke("executar-kurier-agendado", {
+        body: { force: true, manual: true, credencial_id: id, drenagem: true },
+      });
+      if (error) throw error;
+      const skipped = (data as { skipped?: string } | null)?.skipped;
+      if (skipped) {
+        toast.warning(`Drenagem não iniciada: ${skipped}`);
+      } else {
+        toast.success(`Drenagem iniciada para ${login}. Acompanhe em DJEN Termos (Servidor).`);
+      }
+    } catch (e) {
+      toast.error(`Falha ao iniciar drenagem: ${(e as Error)?.message ?? e}`);
+    } finally {
+      setDrenandoId(null);
+    }
+  }
+
   const { data: coordenacoes = [] } = useCoordenacoesFull();
   const qc = useQueryClient();
   const { data: vinculos = [] } = useQuery({
