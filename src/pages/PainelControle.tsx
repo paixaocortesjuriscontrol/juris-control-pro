@@ -2665,7 +2665,7 @@ export default function PainelControle() {
           <div
             className={cn(
               "flex-col border-r border-border bg-card flex-1 min-w-0 lg:flex",
-              (selectedItem || novoItemTipo) ? "hidden lg:flex" : "flex"
+              "flex"
             )}
           >
             {/* Cabeçalho calendário */}
