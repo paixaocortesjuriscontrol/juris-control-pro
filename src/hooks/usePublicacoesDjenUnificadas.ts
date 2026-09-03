@@ -412,7 +412,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
     && !filtros.desabilitarStats;
 
   // Query separada para contar TOTAL e NÃO LIDAS independente do filtro apenasNaoLidas
-  const { data: statsIndependentes, isLoading: isLoadingStats } = useQuery({
+  const { data: statsIndependentes, isLoading: isLoadingStats, error: erroStats, refetch: refetchStats } = useQuery({
     queryKey: [
       'publicacoes-unificadas-stats-header',
       user?.id,
