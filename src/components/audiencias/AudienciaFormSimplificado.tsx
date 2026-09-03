@@ -162,7 +162,8 @@ export function AudienciaFormSimplificado({
     (audienciaParaEditar as any)?.originada_de ?? "",
   );
   const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
-  const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
+  // O campo de envolvidos fica sempre visível (junto com os responsáveis)
+  const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(true);
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
   const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
