@@ -46,7 +46,7 @@ async function drenarCredencial(credencialId, log) {
   let processadas = 0;
   let chamadas = 0;
   let ultimoStatus = 200;
-  let loteSize = 25;
+  let loteSize = Math.max(10, parseInt(process.env.KURIER_LOTE_SIZE || "50", 10));
 
   while (chamadas < MAX_CHAMADAS_POR_CRED) {
     chamadas++;
@@ -60,12 +60,13 @@ async function drenarCredencial(credencialId, log) {
         continue;
       }
       if (loteSize > 10) {
-        loteSize = 10;
+        loteSize = loteSize > 25 ? 25 : 10;
         log?.("kurier.reduz_publicacoes", { credencial_id: credencialId, status, loteSize });
         continue;
       }
       throw new Error(`HTTP ${status}: limite de recurso da função mesmo com 1 lote`);
     }
+
     if (status < 200 || status >= 300) {
       throw new Error(`HTTP ${status}: ${JSON.stringify(body).slice(0, 200)}`);
     }

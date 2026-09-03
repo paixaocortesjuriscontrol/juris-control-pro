@@ -23,10 +23,15 @@ const corsHeaders = {
 };
 
 const WINDOW_MIN = 30;
-const MAX_CONCURRENCY = 3;
+const MAX_CONCURRENCY = 4;
 const MAX_CALLS_PER_CREDENCIAL = 200;
-const DEFAULT_LOTE_SIZE = 25;
+// Lote adaptativo: começa rápido (2 lotes de 50) e só encolhe se a função
+// estourar recurso (546). Depois de algumas chamadas boas volta a crescer.
+const DEFAULT_LOTE_SIZE = 50;
 const MIN_LOTE_SIZE = 10;
+const DEFAULT_MAX_LOTES = 2;
+const SUCESSOS_PARA_SUBIR = 3;
+
 
 function brtNow(): { ymd: string; hour: number; minute: number } {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -134,6 +139,8 @@ async function processarCredencial(
   await onTick();
   try {
     let loteSize = DEFAULT_LOTE_SIZE;
+    let maxLotes = DEFAULT_MAX_LOTES;
+    let sucessosSeguidos = 0;
     for (let chamada = 1; chamada <= MAX_CALLS_PER_CREDENCIAL; chamada++) {
       if (cancelState.cancelled) break;
       if (await isExecCancelada(supabase, execId)) {
@@ -149,7 +156,7 @@ async function processarCredencial(
         },
         body: JSON.stringify({
           credencial_id: track.credencialId,
-          max_lotes: 1,
+          max_lotes: maxLotes,
           lote_size: loteSize,
           monitoramento_ids: opts.monitoramentoIds?.length ? opts.monitoramentoIds : undefined,
           coordenacao_id: opts.coordenacaoId || undefined,
@@ -161,9 +168,12 @@ async function processarCredencial(
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
-        if ([546, 503, 504].includes(resp.status) && loteSize > MIN_LOTE_SIZE) {
-          loteSize = MIN_LOTE_SIZE;
-          track.mensagem = `Limite do servidor; retomando em lotes de ${loteSize}...`;
+        if ([546, 503, 504].includes(resp.status) && (maxLotes > 1 || loteSize > MIN_LOTE_SIZE)) {
+          sucessosSeguidos = 0;
+          if (maxLotes > 1) maxLotes = 1;
+          else if (loteSize > 25) loteSize = 25;
+          else loteSize = MIN_LOTE_SIZE;
+          track.mensagem = `Limite do servidor; retomando em ${maxLotes}x${loteSize}...`;
           await onTick();
           continue;
         }
@@ -172,7 +182,15 @@ async function processarCredencial(
       const r = await resp.json() as Record<string, unknown>;
       if (r?.error) throw new Error(String(r.error));
 
+      sucessosSeguidos++;
+      if (sucessosSeguidos >= SUCESSOS_PARA_SUBIR) {
+        sucessosSeguidos = 0;
+        if (loteSize < DEFAULT_LOTE_SIZE) loteSize = Math.min(DEFAULT_LOTE_SIZE, loteSize * 2);
+        else if (maxLotes < DEFAULT_MAX_LOTES) maxLotes = DEFAULT_MAX_LOTES;
+      }
+
       const recebidas = Number(r?.total_recebidas ?? 0);
+
       track.novas += Number(r?.total_novas ?? 0);
       track.duplicadas += Number(r?.total_duplicadas ?? 0);
       track.descartadas += Number(r?.total_descartadas ?? 0);
