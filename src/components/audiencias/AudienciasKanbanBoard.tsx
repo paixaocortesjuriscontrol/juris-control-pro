@@ -71,6 +71,7 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
                         onMarcarTratado={onMarcarTratado}
                         onIgnorar={onIgnorar}
                         isPending={isPending}
+                        pessoas={pessoasPorAudiencia[a.id]}
                       />
                     ))}
                   {items.length === 0 && (
