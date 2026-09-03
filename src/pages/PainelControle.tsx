@@ -94,7 +94,8 @@ import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
-import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem, ultimoComentarioItem, chaveComentarioItem } from "@/hooks/useItensComComentarios";
+import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
@@ -1726,7 +1727,8 @@ export default function PainelControle() {
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgenda);
 
   // Itens que possuem comentários (indicador âmbar "C")
-  const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itensAgenda);
+  const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensAgenda);
+  const { marcarVisto, temNaoVisto } = useComentariosVistos();
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
     handleEditItem(item);
