@@ -178,7 +178,23 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
         ? new Date(`${dataCumprimento || format(new Date(), "yyyy-MM-dd")}T12:00:00`).toISOString()
         : null;
 
-      if ((info?.origem ?? item.origem) === "tarefa") {
+      if (rawId.startsWith("prazo-tst-")) {
+        toast.error("Prazo fatal do TST não é baixado por aqui — use a tela do processo.");
+        return;
+      }
+
+      if (rawId.startsWith("audiencia-det-")) {
+        const audId = rawId.replace(/^audiencia-det-/, "");
+        const { error } = await supabase
+          .from("audiencias_detectadas")
+          .update({
+            status: situacao as any,
+            observacoes: comentario.trim() || null,
+            updated_at: new Date().toISOString(),
+          } as any)
+          .eq("id", audId);
+        if (error) throw error;
+      } else if ((info?.origem ?? item.origem) === "tarefa") {
         const { error } = await supabase
           .from("tarefas")
           .update({ status: situacao as any, concluido_em: concluidoEm } as any)
@@ -192,6 +208,7 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
           .eq("id", rawId);
         if (error) throw error;
       }
+
 
       if (recorrente) {
         await supabase
