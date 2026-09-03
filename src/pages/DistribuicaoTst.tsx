@@ -217,6 +217,7 @@ export default function DistribuicaoTst() {
   const [cargaDistribuicoes, setCargaDistribuicoes] = useState<any[] | null>(null);
   const [cargaIdsAllowed, setCargaIdsAllowed] = useState<string[] | null>(null);
   const [cargaLoading, setCargaLoading] = useState(false);
+  const [dossiesXlsxRunning, setDossiesXlsxRunning] = useState(false);
   
   // Loading flag para os botões "Dados Benner" da tabela (abrem o detalhe na aba Benner).
   const [loadingBenner, setLoadingBenner] = useState<string | null>(null);
