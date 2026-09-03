@@ -9,8 +9,14 @@ const corsHeaders = {
 const WINDOW_MIN = 30;
 const DEFAULT_LOTE_SIZE = 25;
 const MIN_LOTE_SIZE = 10;
+const MAX_LOTE_SIZE = 50;
+const LOTE_STEPS = [MIN_LOTE_SIZE, DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE];
+/** Rodadas consecutivas sem erro necessárias para aumentar o lote de novo. */
+const HOPS_PARA_CRESCER = 2;
 const DEFAULT_MAX_LOTES = 2;
 const MAX_HOPS = 300;
+/** A partir deste número de lotes na mesma credencial, os outros logins passam na frente. */
+const ADIAR_APOS_LOTES = 6;
 const MAX_LIMIT_ERRORS = 3;
 const INNER_TIMEOUT_MS = 75_000;
 const NEXT_HOP_DELAY_MS = 1_500;
