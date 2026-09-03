@@ -302,6 +302,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
                 if (!o) closeAfter();
               }}
               evento={evento}
+              ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
         ) : isPrazo ? (
@@ -313,6 +314,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
                 if (!o) closeAfter();
               }}
               prazo={tarefa}
+              ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
         ) : (
@@ -326,6 +328,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
               coordenacoes={coordenacoes}
               tarefaParaEditar={tarefa}
               onSuccess={onUpdate}
+              ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
         )}

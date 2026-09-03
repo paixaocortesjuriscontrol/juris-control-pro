@@ -171,9 +171,8 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">
-        Use esta barra apenas se quiser baixar <strong>somente este dia</strong>. Os botões e o campo
-        <strong> Situação</strong> do formulário abaixo continuam liberados e valem para
-        <strong> toda a série</strong>.
+        Escolha se a situação vale somente para este dia ou para todas as ocorrências da série.
+        Os documentos anexados no formulário abaixo são salvos automaticamente ao serem escolhidos.
       </p>
 
       <div className="flex flex-wrap items-end gap-2">
