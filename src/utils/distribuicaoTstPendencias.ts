@@ -494,14 +494,23 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
   // Matérias que não constam na LISTA DE PEDIDOS DO DOSSIÊ ("verdes") não vão
   // para a planilha. Se nenhuma matéria estiver na lista, a linha é rejeitada.
   const dossieInfo = getMateriasForaDoDossie(row);
-  if (dossieInfo.temLista && dossieInfo.total > 0 && dossieInfo.validas === 0) {
+  if (!dossieInfo.temLista) {
     out.push({
       key: "revisar_lista_materias",
       label:
-        "Revisar lista de matérias — nenhuma matéria consta na lista de pedidos do dossiê; NÃO irá para a planilha de Carga Benner",
+        "Sem matérias cadastradas para o dossiê — revisar lista de matérias; NÃO irá para a planilha de Carga Benner",
       quadrinho: "III. Recurso do Reclamante",
     });
-  } else if (dossieInfo.temLista && dossieInfo.total > 0) {
+  } else if (dossieInfo.partesSemMateriaValida.length > 0) {
+    out.push({
+      key: "revisar_lista_materias",
+      label:
+        "Revisar lista de matérias — sem matéria da lista de pedidos do dossiê em: " +
+        dossieInfo.partesSemMateriaValida.join(", ") +
+        "; NÃO irá para a planilha de Carga Benner",
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (dossieInfo.total > 0) {
     out.push({
       key: "materias_fora_lista_dossie_parcial",
       aviso: true,
