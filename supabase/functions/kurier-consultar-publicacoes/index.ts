@@ -1500,6 +1500,9 @@ Deno.serve(async (req: Request) => {
       // acumula textos integrais de todos os lotes e estoura o limite de recurso.
       pubs = [];
       rawRows.length = 0;
+      pendentesInsert.length = 0;
+      pendentesEntradas.length = 0;
+
       idsConfirmar.length = 0;
       confirmacoes.length = 0;
       await delay(DELAY_MS);
