@@ -4,6 +4,7 @@ import { DadoBenner } from "@/hooks/useDadosBenner";
 import * as XLSX from "xlsx";
 import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria } from "@/utils/outraMateria";
+import { canonicalizarMateria } from "@/utils/materiaCanonica";
 import { ajustarGrupoChanceExito, addMergeCell } from "@/utils/cargaBennerHeader";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 
@@ -225,7 +226,7 @@ function getValuesFromDado(d: DadoBenner): string[] {
       const k = norm(it.materia);
       if (!k || seen.has(k)) continue;
       seen.add(k);
-      out.push(String(it.materia).trim());
+      out.push(canonicalizarMateria(d.dossie, it.materia));
     }
     return out.join(",");
   };
