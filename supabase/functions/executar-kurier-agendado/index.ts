@@ -25,6 +25,8 @@ const corsHeaders = {
 const WINDOW_MIN = 30;
 const MAX_CONCURRENCY = 3;
 const MAX_CALLS_PER_CREDENCIAL = 200;
+const DEFAULT_LOTE_SIZE = 25;
+const MIN_LOTE_SIZE = 10;
 
 function brtNow(): { ymd: string; hour: number; minute: number } {
   const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -131,6 +133,7 @@ async function processarCredencial(
   track.mensagem = "Consultando lotes...";
   await onTick();
   try {
+    let loteSize = DEFAULT_LOTE_SIZE;
     for (let chamada = 1; chamada <= MAX_CALLS_PER_CREDENCIAL; chamada++) {
       if (cancelState.cancelled) break;
       if (await isExecCancelada(supabase, execId)) {
@@ -146,7 +149,8 @@ async function processarCredencial(
         },
         body: JSON.stringify({
           credencial_id: track.credencialId,
-          max_lotes: 5,
+          max_lotes: 1,
+          lote_size: loteSize,
           monitoramento_ids: opts.monitoramentoIds?.length ? opts.monitoramentoIds : undefined,
           coordenacao_id: opts.coordenacaoId || undefined,
           data_inicio: opts.dataInicio || undefined,
@@ -157,6 +161,12 @@ async function processarCredencial(
       });
       if (!resp.ok) {
         const text = await resp.text().catch(() => "");
+        if ([546, 503, 504].includes(resp.status) && loteSize > MIN_LOTE_SIZE) {
+          loteSize = MIN_LOTE_SIZE;
+          track.mensagem = `Limite do servidor; retomando em lotes de ${loteSize}...`;
+          await onTick();
+          continue;
+        }
         throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
       }
       const r = await resp.json() as Record<string, unknown>;
