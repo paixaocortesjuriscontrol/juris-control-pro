@@ -59,4 +59,5 @@ export const VERSION_HISTORY = [
   { version: "5.5.0", date: "2026-09-02", notes: "Relatório de usuários cadastrados em PDF e ajustes no Painel de Controle" },
   { version: "5.5.1", date: "2026-09-03", notes: "Otimização de performance da Distribuição TST (cache compartilhado) e regra de pendências de matérias por dossiê" },
   { version: "5.5.5", date: "2026-09-03", notes: "Drawer sobreposto para tarefas nos modos Lista/Kanban/Equipe, correção de cancelamento de audiência e filtro de tipos no calendário" },
+  { version: "6.0.0", date: "2026-09-03", notes: "Marco 6.0.0: republish after site outage" },
 ];
