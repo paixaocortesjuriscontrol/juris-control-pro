@@ -114,7 +114,9 @@ function splitKurierSlashList(value: string): string[] {
 }
 
 function extractKurierCompactPartesAdvogados(texto: string): { partes: string[]; advogados: string[] } {
-  const plain = String(texto || "").replace(/\s+/g, " ").trim();
+  // Partes/advogados ficam no cabeçalho. Não percorremos inteiro teor gigante:
+  // além de desnecessário, regexes sobre acórdãos extensos podem esgotar CPU.
+  const plain = String(texto || "").slice(0, 20_000).replace(/\s+/g, " ").trim();
   const partes: string[] = [];
   const advogados: string[] = [];
   const seenPartes = new Set<string>();
@@ -183,7 +185,7 @@ function extractKurierCompactPartesAdvogados(texto: string): { partes: string[];
 
   // ---- TJDFT_DJEN blob: "PARTES NOME<Nome> POLO<letra> ID COMUNICAÇÃO... ADVOGADOS NOME<Nome> Nº OAB<num> UF<uf>"
   // Pode ter múltiplos "NOME" seguidos em cada seção.
-  const partesBlockTjdft = plain.match(/\bPARTES\s+((?:NOME[\s\S]*?)+?)(?=\s+ADVOGADOS?\b|\s+ID\s+COMUNICA|$)/i)?.[1];
+  const partesBlockTjdft = plain.match(/\bPARTES\s+([\s\S]*?)(?=\s+ADVOGADOS?\b|\s+ID\s+COMUNICA|$)/i)?.[1];
   if (partesBlockTjdft) {
     const re = /NOME([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s'.]{2,120}?)(?=\s+(?:POLO|NOME|ID\s+COMUNICA|Nº\s*OAB)\b|$)/gi;
     let pm: RegExpExecArray | null;
@@ -191,7 +193,7 @@ function extractKurierCompactPartesAdvogados(texto: string): { partes: string[];
       addParte("Parte", pm[1].trim());
     }
   }
-  const advBlockTjdft = plain.match(/\bADVOGADOS?\s+((?:NOME[\s\S]*?)+)$/i)?.[1];
+  const advBlockTjdft = plain.match(/\bADVOGADOS?\s+([\s\S]*)$/i)?.[1];
   if (advBlockTjdft) {
     const re = /NOME([A-ZÁÉÍÓÚÂÊÔÃÕÇ][A-ZÁÉÍÓÚÂÊÔÃÕÇ\s'.]{2,120}?)\s+Nº\s*OAB\s*(\d{2,7})\s+UF\s*([A-Z]{2})/gi;
     let am: RegExpExecArray | null;
@@ -520,7 +522,10 @@ function normalizeProcesso(n: string | null): string | null {
 
 const LOTE_SIZE = 50;
 const DEFAULT_PROCESSING_BATCH_SIZE = 25;
-const MIN_PROCESSING_BATCH_SIZE = 10;
+// Algumas credenciais retornam publicações com textos muito grandes e replicam
+// cada item para várias coordenações de captura total. Nesses casos até 10 itens
+// podem exceder a CPU do worker; o orquestrador precisa conseguir descer até 1.
+const MIN_PROCESSING_BATCH_SIZE = 1;
 const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
 const MAX_LOTES_PER_CALL = 20;

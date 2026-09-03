@@ -8,16 +8,16 @@ const corsHeaders = {
 
 const WINDOW_MIN = 30;
 const DEFAULT_LOTE_SIZE = 25;
-const MIN_LOTE_SIZE = 10;
+const MIN_LOTE_SIZE = 1;
 const MAX_LOTE_SIZE = 50;
-const LOTE_STEPS = [MIN_LOTE_SIZE, DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE];
+const LOTE_STEPS = [MIN_LOTE_SIZE, 5, 10, DEFAULT_LOTE_SIZE, MAX_LOTE_SIZE];
 /** Rodadas consecutivas sem erro necessárias para aumentar o lote de novo. */
 const HOPS_PARA_CRESCER = 2;
 const DEFAULT_MAX_LOTES = 2;
 const MAX_HOPS = 300;
 /** A partir deste número de lotes na mesma credencial, os outros logins passam na frente. */
 const ADIAR_APOS_LOTES = 6;
-const MAX_LIMIT_ERRORS = 3;
+const MAX_LIMIT_ERRORS = 6;
 const INNER_TIMEOUT_MS = 75_000;
 const NEXT_HOP_DELAY_MS = 1_500;
 const STALE_MINUTES = 10;
@@ -249,7 +249,12 @@ async function processHop(
       if ([546, 503, 504].includes(response.status)) {
         track.errosLimite++;
         track.maxLotes = 1;
-        track.loteSize = MIN_LOTE_SIZE;
+        // Redução gradual preserva vazão em falhas ocasionais e ainda permite
+        // chegar a uma única publicação para logins com textos excepcionalmente
+        // grandes (paixaoc.02). Antes todas as tentativas repetiam 1×10.
+        if (track.loteSize > 10) track.loteSize = 10;
+        else if (track.loteSize > 5) track.loteSize = 5;
+        else track.loteSize = MIN_LOTE_SIZE;
         track.hopsSemErro = 0;
         if (track.errosLimite >= MAX_LIMIT_ERRORS) {
           track.status = "erro";
@@ -257,7 +262,7 @@ async function processHop(
           track.mensagem = track.erro;
           state.currentIndex++;
         } else {
-          track.mensagem = `Limite do servidor; nova tentativa ${track.errosLimite}/${MAX_LIMIT_ERRORS} em 1×10`;
+          track.mensagem = `Limite do servidor; nova tentativa ${track.errosLimite}/${MAX_LIMIT_ERRORS} em 1×${track.loteSize}`;
         }
       } else {
         track.status = "erro";
