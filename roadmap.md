@@ -26,5 +26,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Leva 4 — Complementos
 - [x] 07 Processos em comum Dr. Thonmás / Dra. Janaina em planilha
 - [~] 17b Exportar comentários em XLSX (pulado pelo usuário)
-- [ ] 16 Botão "Acatar" ao lado de cada sugestão da Judit
+- [x] 16 Botão "Acatar" ao lado de cada sugestão da Judit (Monitoramento → Divergências Judit)
 - [ ] 19 Diagnóstico do erro ao criar/editar usuário
