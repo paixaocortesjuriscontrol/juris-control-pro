@@ -1551,6 +1551,7 @@ Deno.serve(async (req: Request) => {
       total_confirmadas: totalConfirmadas,
       total_fora_janela_antes: totalForaJanelaAntes,
       total_fora_janela_depois: totalForaJanelaDepois,
+      recebidas_da_api: ultimaRecebidasDaApi,
       janela_ultrapassada: janelaUltrapassada,
       fila_vazia: filaVazia || janelaUltrapassada,
       erro: ultimoErro,
