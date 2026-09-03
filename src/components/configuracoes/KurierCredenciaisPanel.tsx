@@ -373,6 +373,19 @@ export function KurierCredenciaisPanel() {
                       </Button>
                       <Button
                         size="sm"
+                        variant="secondary"
+                        className="gap-1"
+                        title="Roda somente este login, em etapas, até a fila da Kurier esvaziar"
+                        disabled={!c.senha_encrypted || !c.ativo || drenandoId === c.id}
+                        onClick={() => drenarFila(c.id, c.login)}
+                      >
+                        {drenandoId === c.id
+                          ? <Loader2 className="h-3 w-3 animate-spin" />
+                          : <Waves className="h-3 w-3" />}
+                        Drenar fila
+                      </Button>
+                      <Button
+                        size="sm"
                         variant="ghost"
                         onClick={() => {
                           if (confirm(`Remover login ${c.login}?`)) remove.mutate(c.id);
