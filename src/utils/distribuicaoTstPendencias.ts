@@ -626,6 +626,10 @@ export type MateriasForaDoDossie = {
   total: number;
   /** Matérias selecionadas que estão na lista do dossiê ("verdes"). */
   validas: number;
+  /** Válidas por parte marcada em "Parte Recorrente". */
+  validasPorParte: Record<string, number>;
+  /** Rótulos das partes marcadas SEM nenhuma matéria da lista do dossiê. */
+  partesSemMateriaValida: string[];
   resumo: string;
 };
 
@@ -633,12 +637,21 @@ export type MateriasForaDoDossie = {
  * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
  * (`pedidos_por_dossie`). Mesmo critério da geração da Carga Benner: só as
  * "verdes" podem ser exportadas. "Outra Matéria" continua neutra.
+ *
+ * Quando o dossiê não tem lista cadastrada, `temLista` fica `false` — nesse
+ * caso nenhuma matéria pode ser validada e o processo é considerado pendente.
  */
 export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
-  const res: MateriasForaDoDossie = { temLista: false, total: 0, validas: 0, resumo: "" };
+  const res: MateriasForaDoDossie = {
+    temLista: false,
+    total: 0,
+    validas: 0,
+    validasPorParte: {},
+    partesSemMateriaValida: [],
+    resumo: "",
+  };
   const dossie = String(row?.dossie ?? "").trim();
-  if (!pedidosDoDossieSync(dossie)) return res;
-  res.temLista = true;
+  res.temLista = !!pedidosDoDossieSync(dossie);
 
   const blocos: Array<[string, string, string]> = [
     ["reclamante", "materias_analise_reclamante", "Reclamante"],
@@ -656,12 +669,20 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
       (i: any) => i && i.materia && String(i.materia).trim(),
     );
     const foraBloco: string[] = [];
+    let validasBloco = 0;
     for (const i of itens) {
       const nome = String(i.materia).trim();
-      if (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome)) res.validas++;
-      else foraBloco.push(nome);
+      if (res.temLista && (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome))) {
+        validasBloco++;
+      } else {
+        foraBloco.push(nome);
+      }
     }
+    res.validasPorParte[chave] = validasBloco;
+    res.validas += validasBloco;
     res.total += foraBloco.length;
+    // Cada parte marcada precisa de pelo menos UMA matéria da lista do dossiê.
+    if (validasBloco === 0) res.partesSemMateriaValida.push(rotulo);
     if (foraBloco.length > 0) partes.push(`${rotulo}: ${foraBloco.join(", ")}`);
   }
   res.resumo = partes.join(" | ");
@@ -669,12 +690,14 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
 }
 
 /**
- * `true` quando o processo tem matérias selecionadas e NENHUMA delas consta na
- * lista de pedidos do dossiê → precisa "Revisar lista de matérias".
+ * `true` quando o dossiê não tem lista de pedidos cadastrada OU quando alguma
+ * parte marcada em "Parte Recorrente" não tem nenhuma matéria da lista do
+ * dossiê → precisa "Revisar lista de matérias".
  */
 export function precisaRevisarListaMaterias(row: any): boolean {
   const info = getMateriasForaDoDossie(row);
-  return info.temLista && info.total > 0 && info.validas === 0;
+  if (!info.temLista) return true;
+  return info.partesSemMateriaValida.length > 0;
 }
 
 
