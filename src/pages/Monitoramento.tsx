@@ -896,7 +896,7 @@ export default function Monitoramento() {
           <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "border-b lg:border-b-0 lg:border-r border-border",
+                "border-b lg:border-b-0 lg:border-r border-border min-w-0",
                 grupoAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
