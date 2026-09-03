@@ -35,6 +35,7 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
   // Oculta audiências já tratadas do Kanban (retiradas do fluxo ativo).
   const ativas = audiencias.filter((a) => a.status !== "tratado");
+  const { data: pessoasPorAudiencia = {} } = useAudienciasPessoas(ativas.map((a) => a.id));
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden pb-2">
