@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "5.5.0";
+export const APP_VERSION = "5.5.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -57,4 +57,5 @@ export const VERSION_HISTORY = [
   { version: "5.3.0", date: "2026-09-01", notes: "Distribuição TST: cards por responsável com total/prontos/sem pendência/com pendências/faltam, clique nos números para filtrar; remoção de frase descritiva" },
   { version: "5.4.0", date: "2026-09-02", notes: "Distribuição TST: chance de êxito restrita a SIM/NÃO (matérias, terceiro e geral); descarte de publicações avisa sobre audiências/tarefas vinculadas e preserva vínculo" },
   { version: "5.5.0", date: "2026-09-02", notes: "Relatório de usuários cadastrados em PDF e ajustes no Painel de Controle" },
+  { version: "5.5.1", date: "2026-09-03", notes: "Otimização de performance da Distribuição TST (cache compartilhado) e regra de pendências de matérias por dossiê" },
 ];
