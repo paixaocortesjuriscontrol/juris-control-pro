@@ -1,10 +1,11 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, Trash2, Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { registrarFlushAnexos } from "@/lib/anexosPendentes";
 
 export type ItemAnexosTipo = "tarefa" | "evento" | "audiencia";
 
@@ -156,6 +157,19 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
       await enviarArquivos(anexos, novoItemId, procId);
     };
 
+    // Mantém os valores atuais acessíveis ao flush global (registrado uma vez).
+    const estadoRef = useRef({ anexos, itemId, processoId });
+    estadoRef.current = { anexos, itemId, processoId };
+
+    useEffect(
+      () =>
+        registrarFlushAnexos(async () => {
+          const { anexos: lista, itemId: id, processoId: pid } = estadoRef.current;
+          if (!id || !lista.some((a) => !a.uploaded)) return;
+          await enviarArquivos(lista, id, pid);
+        }),
+      [],
+    );
 
     useImperativeHandle(ref, () => ({
       uploadPendentes,
