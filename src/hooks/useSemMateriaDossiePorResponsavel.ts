@@ -107,5 +107,14 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, reloadTick]);
 
-  return { map, idsPorUsuario, loading, refetch: () => setReloadTick((t) => t + 1) };
+  return {
+    map,
+    idsPorUsuario,
+    loading,
+    refetch: () => {
+      invalidateDistribuicaoTstCache();
+      setReloadTick((t) => t + 1);
+    },
+  };
+
 }
