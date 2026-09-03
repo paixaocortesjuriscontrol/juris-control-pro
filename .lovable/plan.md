@@ -1,6 +1,6 @@
 # Considerações 02/09 — 16 itens
 
-Pulados por sua decisão: item 15 do documento (tarefas do Ástrea), criação/desduplicação de usuários (fica para depois; só o diagnóstico do erro entra na Leva 4) e o item 18 abaixo (acatar sugestão da Judit — "não precisa agora").
+Pulados por sua decisão: item 15 do documento (tarefas do Ástrea) e a criação/desduplicação de usuários (fica para depois; só o diagnóstico do erro entra na Leva 4).
 
 A lista vai para `roadmap.md` na raiz, incluindo os ajustes desta última mensagem, e é executada nas levas abaixo. Onde a causa ainda não está confirmada, o primeiro passo é diagnosticar antes de mexer.
 
