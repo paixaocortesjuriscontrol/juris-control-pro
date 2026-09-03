@@ -3951,7 +3951,15 @@ const AnaliseDjen = () => {
       : tipoOrigem === 'descartada' ? descartadasStats.total : totalDescartadasHoje;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
-  const temMaisResultados = totalFiltradoGeral > totalExibidoNaPagina;
+  // Só considera que há mais no servidor quando a página veio cheia (bateu o
+  // limite pedido) ou quando o total filtrado realmente supera o carregado.
+  const restantesNoServidor = Math.max(0, totalFiltradoGeral - totalExibidoNaPagina);
+  const paginaVeioCheia = totalExibidoNaPagina >= listLimit;
+  const temMaisResultados = restantesNoServidor > 0 || paginaVeioCheia;
+  // Rótulo com o número correto, nunca um "+500" fixo.
+  const incrementoServidor = restantesNoServidor > 0
+    ? Math.min(LOAD_MORE_INCREMENT, restantesNoServidor)
+    : LOAD_MORE_INCREMENT;
 
   // Se houver seleção, gera apenas as selecionadas; senão, todas (já filtradas).
   const getPubsParaGerar = () => {
@@ -5850,7 +5858,7 @@ const AnaliseDjen = () => {
                 disabled={isFetchingPublicacoes}
               >
                 {isFetchingPublicacoes ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-                Buscar mais do servidor (+{LOAD_MORE_INCREMENT})
+                Buscar mais do servidor (+{incrementoServidor})
               </Button>
             )}
           </div>
