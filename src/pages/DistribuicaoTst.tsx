@@ -2245,6 +2245,20 @@ export default function DistribuicaoTst() {
                     : selectedIds.size > 0
                       ? `Carga Benner (${selectedIds.size})`
                       : "Gerar Carga Benner"}
+                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  onClick={handleGerarPlanilhaDossies}
+                  disabled={dossiesXlsxRunning}
+                >
+                  {dossiesXlsxRunning ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <FileSpreadsheet className="w-3 h-3 mr-1" />}
+                  {dossiesXlsxRunning
+                    ? "Gerando..."
+                    : selectedIds.size > 0
+                      ? `Planilha Dossiês (${selectedIds.size})`
+                      : "Planilha Dossiês"}
                 </Button>
               </>
             )}
