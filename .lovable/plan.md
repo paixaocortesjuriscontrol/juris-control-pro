@@ -1,6 +1,6 @@
 # Considerações 02/09 — 16 itens
 
-Pulados por sua decisão: item 15 do documento (tarefas do Ástrea), criação/desduplicação de usuários (fica para depois; só o diagnóstico do erro entra na Leva 4) e o item 18 abaixo (acatar sugestão da Judit — "não precisa agora").
+Pulados por sua decisão: item 15 do documento (tarefas do Ástrea) e a criação/desduplicação de usuários (fica para depois; só o diagnóstico do erro entra na Leva 4).
 
 A lista vai para `roadmap.md` na raiz, incluindo os ajustes desta última mensagem, e é executada nas levas abaixo. Onde a causa ainda não está confirmada, o primeiro passo é diagnosticar antes de mexer.
 
@@ -38,7 +38,7 @@ A lista vai para `roadmap.md` na raiz, incluindo os ajustes desta última mensag
 
 16. **Processos em comum Dr. Thonmás / Dra. Janaina (item 07)** — levanto a lista no banco e entrego em planilha.
 17. **Exportar os comentários das tarefas** — exportação XLSX dos comentários por processo/período.
-18. ~~Acatar a sugestão da Judit~~ — fora desta rodada, conforme sua mensagem.
+18. **Acatar a sugestão da Judit (item 16 do doc)** — botão "Acatar" ao lado de cada sugestão, junto do "Ciente": aplica o valor da Judit ao campo correspondente do processo (Tribunal, Classe, Assunto, Vara/Câmara, Instância, Pedidos, Fase) e marca a divergência como resolvida, mantendo a linha visível com a marca de aplicada.
 19. **Erro ao criar/editar usuário** — diagnóstico do "Edge Function returned a non-2xx status code" e relatório do motivo; cadastros e a duplicidade da Julia Rocha ficam para depois.
 
 ## Notas técnicas
