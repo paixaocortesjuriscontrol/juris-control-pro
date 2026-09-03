@@ -520,7 +520,10 @@ function normalizeProcesso(n: string | null): string | null {
 
 const LOTE_SIZE = 50;
 const DEFAULT_PROCESSING_BATCH_SIZE = 25;
-const MIN_PROCESSING_BATCH_SIZE = 10;
+// Algumas credenciais retornam publicações com textos muito grandes e replicam
+// cada item para várias coordenações de captura total. Nesses casos até 10 itens
+// podem exceder a CPU do worker; o orquestrador precisa conseguir descer até 1.
+const MIN_PROCESSING_BATCH_SIZE = 1;
 const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
 const MAX_LOTES_PER_CALL = 20;
