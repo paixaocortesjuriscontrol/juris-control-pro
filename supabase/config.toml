@@ -213,3 +213,6 @@ verify_jwt = false
 
 [functions.alertar-dejt-fonte-atrasada]
 verify_jwt = false
+
+[functions.cadastrar-usuarios-santander-civel]
+verify_jwt = true
