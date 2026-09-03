@@ -157,9 +157,11 @@ interface EdicaoItemPanelProps {
   item: ItemAgendaUnificado;
   onClose: () => void;
   onUpdate?: () => void;
+  /** Oculta a barra de fechar interna (quando exibido dentro do drawer). */
+  hideHeader?: boolean;
 }
 
-export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProps) {
+export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [tarefa, setTarefa] = useState<any | null>(null);
@@ -248,11 +250,13 @@ export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProp
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       {isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento && (
         <div className="flex-shrink-0">
           <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />

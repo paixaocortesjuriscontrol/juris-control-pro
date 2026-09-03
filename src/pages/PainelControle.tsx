@@ -77,6 +77,7 @@ import { useUpdateEvento, useDeleteEvento, EventoAgenda } from "@/hooks/useEvent
 import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
@@ -2574,38 +2575,13 @@ export default function PainelControle() {
             <TstPrazos embedded />
           </div>
         ) : viewMode === "kanban" ? (
-          selectedItem ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <EdicaoItemPanel
-                key={selectedItem.id}
-                item={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </div>
-          ) : (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <KanbanItensAgenda
               itens={itensPainelFiltrados}
               onItemClick={handleItemClick}
             />
           </div>
-          )
         ) : viewMode === "equipe" ? (
-          selectedItem ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <EdicaoItemPanel
-                key={selectedItem.id}
-                item={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </div>
-          ) : (
             <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
               <EquipeItensAgenda
                 itens={itensListaEquipe}
@@ -2618,24 +2594,11 @@ export default function PainelControle() {
                 onPaginaChange={setEquipePagina}
               />
             </div>
-          )
         ) : viewMode === "audiencias" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <PainelAudiencias embedded statusFilter={situacaoFilter} onStatusFilterChange={setSituacaoFilter} />
           </div>
         ) : viewMode === "notificacoes" ? (
-          selectedItem ? (
-            <div className="flex-1 min-h-0 overflow-hidden">
-              <EdicaoItemPanel
-                key={selectedItem.id}
-                item={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </div>
-          ) : (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <MinhasMensagensRecebidas
               coordenacaoId={adminCoordFilter}
@@ -2657,7 +2620,6 @@ export default function PainelControle() {
               }
             />
           </div>
-          )
         ) : (
         <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
@@ -2665,7 +2627,7 @@ export default function PainelControle() {
           <div
             className={cn(
               "flex-col border-r border-border bg-card flex-1 min-w-0 lg:flex",
-              (selectedItem || novoItemTipo) ? "hidden lg:flex" : "flex"
+              "flex"
             )}
           >
             {/* Cabeçalho calendário */}
@@ -2879,39 +2841,59 @@ export default function PainelControle() {
             </aside>
           )}
 
-          {selectedItem && (
-            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
-              <EdicaoItemPanel
-                key={selectedItem.id}
-                item={selectedItem}
-                onClose={() => setSelectedItem(null)}
-                onUpdate={() => {
-                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                }}
-              />
-            </aside>
-          )}
-
-          {!selectedItem && novoItemTipo && (
-            <aside className="flex flex-none w-full lg:w-[640px] xl:w-[720px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
-              <NovoItemPanel
-                tipo={novoItemTipo}
-                dataPadrao={novoItemData ?? undefined}
-                onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
-                onSuccess={async () => {
-                  setNovoItemTipo(null);
-                  setNovoItemData(null);
-                  await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                  await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
-                  await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
-                }}
-              />
-            </aside>
-          )}
-
         </div>
         )}
       </div>
+
+      {/* Painel sobreposto: edição do item selecionado */}
+      <ItemDrawer
+        open={!!selectedItem}
+        onOpenChange={(o) => { if (!o) setSelectedItem(null); }}
+        titulo={selectedItem?.titulo || "Detalhe do item"}
+        subtitulo={selectedItem?.processo?.numero ?? null}
+      >
+        {selectedItem && (
+          <EdicaoItemPanel
+            key={selectedItem.id}
+            item={selectedItem}
+            hideHeader
+            onClose={() => setSelectedItem(null)}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+            }}
+          />
+        )}
+      </ItemDrawer>
+
+      {/* Painel sobreposto: novo item */}
+      <ItemDrawer
+        open={!selectedItem && !!novoItemTipo}
+        onOpenChange={(o) => { if (!o) { setNovoItemTipo(null); setNovoItemData(null); } }}
+        titulo={
+          novoItemTipo === "evento" ? "Novo evento"
+            : novoItemTipo === "prazo" ? "Novo prazo"
+            : novoItemTipo === "audiencia" ? "Nova audiência"
+            : novoItemTipo === "parcelamento" ? "Novo parcelamento"
+            : "Nova tarefa"
+        }
+        subtitulo={novoItemData}
+      >
+        {novoItemTipo && (
+          <NovoItemPanel
+            tipo={novoItemTipo}
+            dataPadrao={novoItemData ?? undefined}
+            hideHeader
+            onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
+            onSuccess={async () => {
+              setNovoItemTipo(null);
+              setNovoItemData(null);
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+              await queryClient.invalidateQueries({ queryKey: ["audiencias-detectadas"] });
+              await queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] });
+            }}
+          />
+        )}
+      </ItemDrawer>
 
       {/* EventoDialog para edição de eventos */}
       <EventoDialog
@@ -3000,11 +2982,13 @@ function NovoItemPanel({
   dataPadrao,
   onClose,
   onSuccess,
+  hideHeader,
 }: {
   tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
   dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
+  hideHeader?: boolean;
 }) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
@@ -3048,12 +3032,14 @@ function NovoItemPanel({
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
-          <span className="sr-only">Fechar</span>
-          ×
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
+            <span className="sr-only">Fechar</span>
+            ×
+          </Button>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tipo === "tarefa" && (
           <NovaTarefaDialog
