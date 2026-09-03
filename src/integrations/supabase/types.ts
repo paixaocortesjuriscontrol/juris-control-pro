@@ -11002,6 +11002,7 @@ export type Database = {
         Returns: boolean
       }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
+      jsonb_text_array: { Args: { j: Json }; Returns: string[] }
       kurier_normalize_conteudo_sem_parte_intimacao: {
         Args: { p_text: string }
         Returns: string
