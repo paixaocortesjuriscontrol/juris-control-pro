@@ -896,7 +896,7 @@ export default function Monitoramento() {
           <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "border-b lg:border-b-0 lg:border-r border-border",
+                "border-b lg:border-b-0 lg:border-r border-border min-w-0",
                 grupoAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
@@ -987,15 +987,15 @@ export default function Monitoramento() {
             </div>
 
             {grupoAtivo && (
-              <div className="flex-1 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
-                <div className="px-4 py-3 border-b border-border flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+              <div className="flex-1 min-w-0 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
+                <div className="px-4 py-3 border-b border-border flex flex-wrap items-start gap-2">
+                  <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                     <p className="font-mono text-sm truncate">{grupoAtivo.numero}</p>
                     {grupoAtivo.parte && (
                       <p className="text-xs text-muted-foreground truncate">{grupoAtivo.parte}</p>
                     )}
                   </div>
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" size="sm" className="flex-shrink-0" asChild>
                     <Link to={`/processos/${grupoAtivo.processoId}`}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                       Abrir processo
@@ -1004,6 +1004,7 @@ export default function Monitoramento() {
                   {grupoAtivo.naoLidos > 0 && (
                     <Button
                       size="sm"
+                      className="flex-shrink-0"
                       onClick={() => marcarLidas(grupoAtivo)}
                       disabled={marcando}
                     >
@@ -1173,7 +1174,7 @@ export default function Monitoramento() {
           <div className="flex flex-col lg:flex-row lg:items-start">
             <div
               className={cn(
-                "border-b lg:border-b-0 lg:border-r border-border",
+                "border-b lg:border-b-0 lg:border-r border-border min-w-0",
                 grupoDivAtivo ? "lg:w-[38%]" : "w-full"
               )}
             >
@@ -1264,22 +1265,22 @@ export default function Monitoramento() {
             </div>
 
             {grupoDivAtivo && (
-              <div className="flex-1 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
-                <div className="px-4 py-3 border-b border-border flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+              <div className="flex-1 min-w-0 flex flex-col bg-background animate-fade-in lg:sticky lg:top-4">
+                <div className="px-4 py-3 border-b border-border flex flex-wrap items-start gap-2">
+                  <div className="min-w-0 flex-1 basis-full sm:basis-auto">
                     <p className="font-mono text-sm truncate">{grupoDivAtivo.numero}</p>
                     {grupoDivAtivo.parte && (
                       <p className="text-xs text-muted-foreground truncate">{grupoDivAtivo.parte}</p>
                     )}
                   </div>
-                  <Button variant="outline" size="sm" asChild>
+                  <Button variant="outline" size="sm" className="flex-shrink-0" asChild>
                     <Link to={`/processos/${grupoDivAtivo.processoId}`}>
                       <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
                       Abrir processo
                     </Link>
                   </Button>
                   {grupoDivAtivo.pendentes > 0 && (
-                    <Button size="sm" onClick={() => marcarCiente(grupoDivAtivo)} disabled={resolvendo}>
+                    <Button size="sm" className="flex-shrink-0" onClick={() => marcarCiente(grupoDivAtivo)} disabled={resolvendo}>
                       {resolvendo ? (
                         <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
                       ) : (
