@@ -379,7 +379,9 @@ async function createInitialState(supabase: SupabaseClient, opts: JobOptions): P
     .eq("ativo", true)
     .not("senha_encrypted", "is", null)
     .order("prioridade", { ascending: false });
-  if (opts.coordenacaoId) {
+  if (opts.credencialId) {
+    query = query.eq("id", opts.credencialId);
+  } else if (opts.coordenacaoId) {
     const { data: links } = await supabase
       .from("kurier_credencial_coordenacoes")
       .select("credencial_id")
