@@ -19,7 +19,7 @@ import { getPendencias } from "@/utils/distribuicaoTstPendencias";
 import { getMotivoRecursoForaLista, MOTIVO_RECURSO_FORA_LISTA } from "@/utils/tipoRecursoOficial";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 import { getMotivoRejeicaoDossie } from "@/utils/dossieBenner";
-import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+import { ensurePedidosPorDossie, nomeCanonicoDoDossieSync } from "@/utils/pedidosPorDossieCache";
 
 
 
@@ -367,6 +367,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       setPhase("Carregando lista oficial de pedidos...");
       setProgress(5);
       const materiasOficiaisSet = new Set<string>();
+      const materiasOficiaisNomes = new Map<string, string>();
       {
         const PAGE_OFICIAL = 1000;
         let pg = 0;
@@ -380,7 +381,10 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
           const rows = (data as any[]) || [];
           for (const r of rows) {
             const k = normalizeMateriaNome(r?.nome);
-            if (k) materiasOficiaisSet.add(k);
+            if (!k) continue;
+            materiasOficiaisSet.add(k);
+            const original = String(r?.nome || "").trim();
+            if (original && !materiasOficiaisNomes.has(k)) materiasOficiaisNomes.set(k, original);
           }
           if (rows.length < PAGE_OFICIAL) break;
           pg++;
@@ -402,6 +406,19 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         const set = pedidosPorDossie.get(String(dossie || "").trim());
         if (!set || set.size === 0) return true;
         return set.has(normalizeMateriaNome(String(nome ?? "")));
+      };
+
+      // A grafia exportada deve ser exatamente a cadastrada em
+      // `pedidos_por_dossie` (fallback: lista oficial; senão, o texto atual).
+      const canonizarMateria = (dossie: string, nome: any) => {
+        const atual = String(nome ?? "").trim();
+        if (!atual) return atual;
+        const k = normalizeMateriaNome(atual);
+        return (
+          nomeCanonicoDoDossieSync(dossie, atual) ||
+          materiasOficiaisNomes.get(k) ||
+          atual
+        );
       };
 
 
@@ -676,7 +693,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
               materiasForaDossieCount++;
               continue;
             }
-            validas.push(it);
+            validas.push({ ...it, materia: canonizarMateria(dossie, it.materia) });
           }
           return validas;
         };
