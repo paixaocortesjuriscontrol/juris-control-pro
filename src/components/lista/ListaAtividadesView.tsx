@@ -47,6 +47,7 @@ import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas"
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
@@ -684,9 +685,8 @@ export default function ListaAtividadesView({
         <div
           className={cn(
             "grid grid-cols-1 gap-4",
-            showLocalFilters
-              ? (detalhesPrazo ? "lg:grid-cols-[280px_1fr_480px]" : "lg:grid-cols-[280px_1fr]")
-              : (detalhesPrazo ? "lg:grid-cols-[1fr_480px]" : "lg:grid-cols-1"),
+            showLocalFilters ? "lg:grid-cols-[280px_1fr]" : "lg:grid-cols-1",
+
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
         >
@@ -1178,26 +1178,38 @@ export default function ListaAtividadesView({
             </div>
           </Card>
 
-          {/* Edição via painel lateral (mesmo formulário do "Adicionar") */}
-          {detalhesPrazo && (
-            <aside className="hidden lg:flex flex-col border rounded-md bg-background min-h-0 overflow-hidden">
-              <div className="flex-1 min-h-0 overflow-hidden">
-                <EdicaoItemPanel
-                  item={detalhesPrazo}
-                  onClose={() => {
-                    setDetalhesPrazo(null);
-                    setDetalhesEditOnOpen(false);
-                  }}
-                  onUpdate={() => {
-                    queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-                    queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                  }}
-                />
-              </div>
-            </aside>
-          )}
         </div>
       </div>
+
+      {/* Edição em painel sobreposto (igual ao modo Agenda) */}
+      <ItemDrawer
+        open={!!detalhesPrazo}
+        onOpenChange={(o) => {
+          if (!o) {
+            setDetalhesPrazo(null);
+            setDetalhesEditOnOpen(false);
+          }
+        }}
+        titulo={detalhesPrazo?.titulo || "Detalhe do item"}
+        subtitulo={detalhesPrazo?.processo?.numero ?? null}
+      >
+        {detalhesPrazo && (
+          <EdicaoItemPanel
+            key={detalhesPrazo.id}
+            item={detalhesPrazo}
+            hideHeader
+            onClose={() => {
+              setDetalhesPrazo(null);
+              setDetalhesEditOnOpen(false);
+            }}
+            onUpdate={() => {
+              queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
+              queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+            }}
+          />
+        )}
+      </ItemDrawer>
     </>
+
   );
 }
