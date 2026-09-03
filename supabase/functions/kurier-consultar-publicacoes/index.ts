@@ -519,6 +519,8 @@ function normalizeProcesso(n: string | null): string | null {
 }
 
 const LOTE_SIZE = 50;
+const DEFAULT_PROCESSING_BATCH_SIZE = 25;
+const MIN_PROCESSING_BATCH_SIZE = 10;
 const MAX_PUBS_PER_CALL = 20;
 const DELAY_MS = 150;
 const MAX_LOTES_PER_CALL = 20;
@@ -567,6 +569,13 @@ Deno.serve(async (req: Request) => {
     // Edge Functions têm orçamento curto de CPU/tempo; cada chamada processa só 1 lote
     // e o frontend faz novas chamadas pequenas até esvaziar a fila da credencial.
     const max_lotes: number = Math.min(MAX_LOTES_PER_CALL, Math.max(1, Number(body.max_lotes ?? 1)));
+    // A API Kurier pode devolver 50 itens com textos integrais. Processar somente
+    // uma fatia por invocação reduz o pico de CPU/memória; os demais continuam na
+    // fila porque apenas os itens processados são confirmados.
+    const lote_size: number = Math.min(
+      LOTE_SIZE,
+      Math.max(MIN_PROCESSING_BATCH_SIZE, Number(body.lote_size ?? DEFAULT_PROCESSING_BATCH_SIZE)),
+    );
     const monitoramento_ids: string[] | undefined = Array.isArray(body.monitoramento_ids)
       ? body.monitoramento_ids.filter((x: any) => typeof x === "string" && x)
       : undefined;
@@ -828,6 +837,7 @@ Deno.serve(async (req: Request) => {
 
     for (let lote = 0; lote < totalIter; lote++) {
       let pubs: KurierPub[] = [];
+      let recebidasDaApi = 0;
       if (backfill_raw) {
         // Carrega payloads de descartes anteriores (já confirmados na fila Kurier)
         // para reprocessar com a lógica atual. NÃO faz chamada à API.
@@ -879,6 +889,8 @@ Deno.serve(async (req: Request) => {
         try {
           const j = JSON.parse(texto);
           pubs = extractPublicacoes(j);
+          recebidasDaApi = pubs.length;
+          if (!useDateMode && pubs.length > lote_size) pubs = pubs.slice(0, lote_size);
         } catch (e) {
           ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
           break;
@@ -1338,7 +1350,7 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      if (!useDateMode && pubs.length < LOTE_SIZE) {
+      if (!useDateMode && recebidasDaApi < LOTE_SIZE) {
         filaVazia = true;
         break; // último lote da fila
       }

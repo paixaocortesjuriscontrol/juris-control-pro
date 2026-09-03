@@ -13,7 +13,7 @@ const PER_CRED_DELAY_MS = parseInt(process.env.KURIER_DELAY_MS || "1200", 10);
 const { recordFalha, marcarFalhaResolvida, lerFalhasPendentes } = require("../falhasRefila");
 const TIPO_ENGINE = "kurier_servidor";
 
-async function invokeKurier(credencialId, maxLotes) {
+async function invokeKurier(credencialId, maxLotes, loteSize) {
   const url = `${SUPABASE_URL}/functions/v1/kurier-consultar-publicacoes`;
   const ctrl = new AbortController();
   const to = setTimeout(() => ctrl.abort(), 9 * 60_000);
@@ -25,7 +25,7 @@ async function invokeKurier(credencialId, maxLotes) {
         Authorization: `Bearer ${SERVICE_KEY}`,
         apikey: SERVICE_KEY,
       },
-      body: JSON.stringify({ credencial_id: credencialId, max_lotes: maxLotes, persist_mode: "servidor" }),
+      body: JSON.stringify({ credencial_id: credencialId, max_lotes: maxLotes, lote_size: loteSize, persist_mode: "servidor" }),
       signal: ctrl.signal,
     });
     const text = await res.text();
@@ -46,16 +46,22 @@ async function drenarCredencial(credencialId, log) {
   let processadas = 0;
   let chamadas = 0;
   let ultimoStatus = 200;
+  let loteSize = 25;
 
   while (chamadas < MAX_CHAMADAS_POR_CRED) {
     chamadas++;
-    const { status, body } = await invokeKurier(credencialId, lotesPorChamada);
+    const { status, body } = await invokeKurier(credencialId, lotesPorChamada, loteSize);
     ultimoStatus = status;
 
     if (status === 546 || status === 503 || status === 504) {
       if (lotesPorChamada > 1) {
         lotesPorChamada = Math.max(1, Math.floor(lotesPorChamada / 2));
         log?.("kurier.reduz_lote", { credencial_id: credencialId, status, lotesPorChamada });
+        continue;
+      }
+      if (loteSize > 10) {
+        loteSize = 10;
+        log?.("kurier.reduz_publicacoes", { credencial_id: credencialId, status, loteSize });
         continue;
       }
       throw new Error(`HTTP ${status}: limite de recurso da função mesmo com 1 lote`);
