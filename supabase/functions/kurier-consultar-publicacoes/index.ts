@@ -1305,9 +1305,13 @@ Deno.serve(async (req: Request) => {
           else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
-        // Se nenhuma publicação foi inserida, grava 1 raw de auditoria
-        // com motivo de descarte e login_usado preservado.
-        if (qtdInsercoes === 0) {
+        // Em modo lote, o raw só pode ser montado depois da gravação em bloco
+        // (precisamos dos ids). Guardamos a entrada e resolvemos adiante.
+        if (batchMode && chaves.length > 0) {
+          pendentesEntradas.push({ p, idKEff, keys: chaves, motivo: motivoDescarte });
+        } else if (qtdInsercoes === 0) {
+          // Se nenhuma publicação foi inserida, grava 1 raw de auditoria
+          // com motivo de descarte e login_usado preservado.
           rawRows.push({
             id_kurier: idKEff,
             credencial_id: cred.id,
@@ -1318,6 +1322,7 @@ Deno.serve(async (req: Request) => {
             recebida_em: new Date().toISOString(),
           });
         }
+
 
         // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
         // e queremos preservar a fila para o monitoramento normal.
