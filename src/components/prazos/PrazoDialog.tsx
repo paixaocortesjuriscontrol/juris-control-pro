@@ -1271,16 +1271,14 @@ export function PrazoDialog({
             Reabrir
           </Button>
         )}
-        {!ocultarSituacao && (
-          <Button
-            type="submit"
-            disabled={isLoading}
-            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
-          >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar
-          </Button>
-        )}
+        <Button
+          type="submit"
+          disabled={isLoading}
+          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
+        >
+          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Salvar
+        </Button>
         {secondarySave && !prazo?.id && (
           <Button
             type="submit"
