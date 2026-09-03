@@ -47,6 +47,7 @@ import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas"
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
