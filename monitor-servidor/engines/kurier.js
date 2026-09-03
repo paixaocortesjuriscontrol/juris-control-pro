@@ -113,13 +113,10 @@ async function run({ sb, payload, log, job }) {
           continue;
         }
         try {
-          const { status, body } = await invokeKurier(credId, maxLotes);
-          const novas = Number(body?.totalNovas || body?.inseridas || 0);
-          const proc = Number(body?.totalProcessadas || body?.processadas || 0);
-          if (status < 200 || status >= 300) throw new Error(`HTTP ${status}`);
+          const { status, novas, processadas: proc, chamadas } = await drenarCredencial(credId, log);
           totalNovas += novas;
           totalProcessadas += proc;
-          results.push({ credencial_id: credId, login: cred.login, status, novas, processadas: proc, ok: true, retry: true });
+          results.push({ credencial_id: credId, login: cred.login, status, novas, processadas: proc, chamadas, ok: true, retry: true });
           await marcarFalhaResolvida(sb, TIPO_ENGINE, f.item_key);
         } catch (e) {
           await recordFalha(sb, {
