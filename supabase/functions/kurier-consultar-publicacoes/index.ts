@@ -1335,6 +1335,88 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // Gravação em bloco das publicações do lote (modo normal). Troca ~150
+      // round trips por 1–2 chamadas: é o que fazia o Kurier levar ~1s por
+      // publicação.
+      if (batchMode && pendentesInsert.length > 0) {
+        const idsPorChave = new Map<string, string>();
+        for (let i = 0; i < pendentesInsert.length; i += 100) {
+          const bloco = pendentesInsert.slice(i, i + 100);
+          const { data: ins, error: insErr } = await admin
+            .from(pubTable)
+            .insert(bloco)
+            .select("id, hash_conteudo, coordenacao_id");
+          if (insErr) {
+            if ((insErr as any).code === "23505") {
+              // Algum item do bloco colidiu com o unique — refaz item a item
+              // para não perder as publicações novas do bloco.
+              for (const row of bloco) {
+                const { data: one, error: oneErr } = await admin
+                  .from(pubTable)
+                  .insert(row)
+                  .select("id, hash_conteudo, coordenacao_id")
+                  .maybeSingle();
+                if (oneErr) {
+                  if ((oneErr as any).code === "23505") totalDuplicadas++;
+                  else console.warn(`[kurier] erro insert ${pubTable}:`, oneErr.message);
+                  continue;
+                }
+                if (one) {
+                  totalNovas++;
+                  idsPorChave.set(`${String(one.coordenacao_id ?? "null")}|${one.hash_conteudo}`, one.id);
+                } else {
+                  totalDuplicadas++;
+                }
+              }
+              continue;
+            }
+            console.warn(`[kurier] erro insert bloco ${pubTable}:`, insErr.message);
+            continue;
+          }
+          const retornadas = ins ?? [];
+          totalNovas += retornadas.length;
+          if (retornadas.length < bloco.length) {
+            totalDuplicadas += bloco.length - retornadas.length;
+          }
+          for (const r of retornadas as any[]) {
+            idsPorChave.set(`${String(r.coordenacao_id ?? "null")}|${r.hash_conteudo}`, r.id);
+          }
+        }
+
+        // Agora sim os raws: 1 por publicação inserida, ou 1 de auditoria
+        // quando nenhuma linha do item entrou (duplicada/erro).
+        for (const e of pendentesEntradas) {
+          const idsDoItem = e.keys
+            .map((k) => idsPorChave.get(k))
+            .filter((v): v is string => !!v);
+          if (idsDoItem.length === 0) {
+            rawRows.push({
+              id_kurier: e.idKEff,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: e.p,
+              publicacao_djen_id: null,
+              motivo_descarte: e.motivo ?? "duplicada",
+              recebida_em: new Date().toISOString(),
+            });
+            continue;
+          }
+          for (const pid of Array.from(new Set(idsDoItem))) {
+            rawRows.push({
+              id_kurier: e.idKEff,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: e.p,
+              publicacao_djen_id: pid,
+              motivo_descarte: null,
+              recebida_em: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+
+
       if (rawRows.length) {
         // Insere todas as linhas raw — sem unique(id_kurier), múltiplas
         // linhas por id_kurier são permitidas (uma por publicação inserida
