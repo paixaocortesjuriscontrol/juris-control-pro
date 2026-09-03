@@ -225,7 +225,7 @@ export function KurierCredenciaisPanel() {
                 <TableHead>Coordenações</TableHead>
                 <TableHead>Último uso</TableHead>
                 <TableHead>Último status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead className="text-right sticky right-0 bg-background shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.2)]">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -358,7 +358,7 @@ export function KurierCredenciaisPanel() {
                     {c.ultimo_uso ? new Date(c.ultimo_uso).toLocaleString("pt-BR") : "—"}
                   </TableCell>
                   <TableCell><StatusBadge status={c.ultimo_status} /></TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="text-right sticky right-0 bg-background shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.2)]">
                     <div className="flex justify-end gap-1">
                       <Button
                         size="sm"
