@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { ListChecks, Plus, X } from "lucide-react";
+import { CheckCircle2, ListChecks, Plus, X } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -124,6 +124,7 @@ export function AgendaItemRow({
   item,
   userId,
   onSelect,
+  onBaixar,
   temAtividade,
   veioDeWorkflow,
   temComentario,
@@ -131,6 +132,8 @@ export function AgendaItemRow({
   item: ItemAgendaUnificado;
   userId?: string;
   onSelect: (item: ItemAgendaUnificado) => void;
+  /** Quando informado, exibe o atalho de baixa rápida na linha. */
+  onBaixar?: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
   temComentario?: boolean;
@@ -146,6 +149,7 @@ export function AgendaItemRow({
       item.participantes?.some((p) => p.usuario_id === userId));
 
   return (
+    <div className="relative group">
     <button
       onClick={() => onSelect(item)}
       className="w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/50 transition-colors"
@@ -205,6 +209,21 @@ export function AgendaItemRow({
         </span>
       )}
     </button>
+    {onBaixar && !concluido && (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onBaixar(item);
+        }}
+        title="Dar baixa nesta pendência"
+        className="absolute right-2 bottom-2 flex items-center gap-1 rounded border border-border bg-background/90 px-1.5 py-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-primary hover:border-primary/50"
+      >
+        <CheckCircle2 className="w-3 h-3" />
+        Baixar
+      </button>
+    )}
+    </div>
   );
 }
 
@@ -217,6 +236,8 @@ interface DiaAgendaLateralProps {
   onSelectAtividade?: (atividade: any) => void;
   /** Criar um novo item já com a data deste dia. */
   onCriarNesteDia?: (tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento") => void;
+  /** Baixa rápida direto da lista do dia (pop-up). */
+  onBaixarItem?: (item: ItemAgendaUnificado) => void;
   onClose: () => void;
 }
 
@@ -228,6 +249,7 @@ export function DiaAgendaLateral({
   onSelectItem,
   onSelectAtividade,
   onCriarNesteDia,
+  onBaixarItem,
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
@@ -288,6 +310,7 @@ export function DiaAgendaLateral({
               item={item}
               userId={userId}
               onSelect={onSelectItem}
+              onBaixar={onBaixarItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
               temComentario={temComentarioItem(itensComComentarios, item)}
