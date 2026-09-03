@@ -570,6 +570,8 @@ const AnaliseDjen = () => {
     estatisticas, 
     isLoading: isLoadingPublicacoes, 
     isFetching: isFetchingPublicacoes,
+    erro: erroPublicacoes,
+    recarregar: recarregarPublicacoes,
     loadingStats,
     marcarComoLida,
     descartarManualmente,
