@@ -302,7 +302,6 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
                 if (!o) closeAfter();
               }}
               evento={evento}
-              ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
         ) : isPrazo ? (
