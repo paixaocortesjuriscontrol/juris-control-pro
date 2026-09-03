@@ -115,9 +115,44 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       condicao: "sempre",
       responsavel_id: null,
       responsaveis: [] as string[],
+      atividades: [] as WorkflowEtapaAtividade[],
     });
     setEditing(null);
   };
+
+  const adicionarAtividade = () =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: [
+        ...((prev.atividades || []) as WorkflowEtapaAtividade[]),
+        { titulo: "", responsavel_id: null, observacao: null, ordem: (prev.atividades || []).length + 1 },
+      ],
+    }));
+
+  const atualizarAtividade = (idx: number, patch: Partial<WorkflowEtapaAtividade>) =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: ((prev.atividades || []) as WorkflowEtapaAtividade[]).map((a, i) =>
+        i === idx ? { ...a, ...patch } : a
+      ),
+    }));
+
+  const removerAtividade = (idx: number) =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: ((prev.atividades || []) as WorkflowEtapaAtividade[]).filter(
+        (_, i) => i !== idx
+      ),
+    }));
+
+  const moverAtividade = (idx: number, delta: number) =>
+    setForm((prev: any) => {
+      const lista = [...((prev.atividades || []) as WorkflowEtapaAtividade[])];
+      const destino = idx + delta;
+      if (destino < 0 || destino >= lista.length) return prev;
+      [lista[idx], lista[destino]] = [lista[destino], lista[idx]];
+      return { ...prev, atividades: lista };
+    });
 
   const handleOpen = () => {
     resetForm();
@@ -132,9 +167,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       ...etapa,
       dias_fatal: etapa.dias_fatal ?? null,
       responsaveis: respMap[etapa.id] || (etapa.responsavel_id ? [etapa.responsavel_id] : []),
+      atividades: (atividadesMap[etapa.id] || []).map((a) => ({ ...a })),
     });
     setDialogOpen(true);
   };
+
 
   const handleSubmit = async () => {
     if (!form.titulo.trim() || !form.tipo_item) {
