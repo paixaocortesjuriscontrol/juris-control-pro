@@ -164,15 +164,17 @@ export function BuscaGlobalPainel() {
             .order("data_audiencia", { ascending: false })
             .limit(20),
 
-          supabase
-            .from("publicacoes_djen")
-            .select("id, processo_numero, data_disponibilizacao, tribunal")
-            .or(
-              numeroVariantes.length > 0
-                ? `${numeroOr("processo_numero")},tribunal.ilike.${like}`
-                : `tribunal.ilike.${like}`
-            )
-            .limit(5),
+          // Item 09: fora da Análise DJEN a busca global só traz publicações
+          // quando o termo é um número de processo. Buscar por texto livre
+          // (ex.: sigla do tribunal) inundava o resultado com publicações.
+          numeroVariantes.length > 0
+            ? supabase
+                .from("publicacoes_djen")
+                .select("id, processo_numero, data_disponibilizacao, tribunal")
+                .or(numeroOr("processo_numero"))
+                .limit(5)
+            : Promise.resolve({ data: [] as any[], error: null } as any),
+
         ]);
 
         const out: Resultado[] = [];

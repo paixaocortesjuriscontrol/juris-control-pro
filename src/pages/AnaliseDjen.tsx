@@ -107,11 +107,16 @@ import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudiencia
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
+import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
+import { useFiltrosDjenIniciais, usePersistirFiltrosDjen } from "@/hooks/useFiltrosPersistidosDjen";
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
 import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCard";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
+
+/** Chave de persistência dos filtros da Análise DJEN (Browser). */
+const FILTROS_DJEN_KEY = "analise-djen:filtros-v1";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
@@ -200,19 +205,45 @@ const AnaliseDjen = () => {
   const userCoordenacaoIds = userCoordenacaoData?.ids ?? [];
   const userCoordenacao = userCoordenacaoData?.first ?? null;
 
-  // Filtros - inicializar com coordenação do usuário
+  // Filtros - inicializar com coordenação do usuário.
+  // Item 02: os filtros são preservados ao sair e voltar da tela (sessionStorage).
+  const filtrosIniciais = useFiltrosDjenIniciais(FILTROS_DJEN_KEY, {
+    dataInicio: "",
+    dataFim: "",
+    dataDisponibilizacao: "",
+    dataPublicacao: "",
+    termoBusca: "",
+    monitoramentoId: "",
+    tribunalFiltro: "",
+    filtroDia: "hoje" as FiltroDiaDjen,
+    readStatus: "nao_lidas" as FiltroLeituraDjen,
+    tipoOrigem: "todos" as TipoFiltroOrigem,
+  });
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
   const [preagendarIaOpen, setPreagendarIaOpen] = useState(false);
-  const [dataInicio, setDataInicio] = useState<string>("");
-  const [dataFim, setDataFim] = useState<string>("");
-  const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
-  const [dataPublicacao, setDataPublicacao] = useState<string>("");
-  const [termoBusca, setTermoBusca] = useState<string>("");
-  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
-  const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
-  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
-  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
-  const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  const [dataInicio, setDataInicio] = useState<string>(filtrosIniciais.dataInicio);
+  const [dataFim, setDataFim] = useState<string>(filtrosIniciais.dataFim);
+  const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>(filtrosIniciais.dataDisponibilizacao);
+  const [dataPublicacao, setDataPublicacao] = useState<string>(filtrosIniciais.dataPublicacao);
+  const [termoBusca, setTermoBusca] = useState<string>(filtrosIniciais.termoBusca);
+  const [monitoramentoId, setMonitoramentoId] = useState<string>(filtrosIniciais.monitoramentoId);
+  const [tribunalFiltro, setTribunalFiltro] = useState<string>(filtrosIniciais.tribunalFiltro);
+  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>(filtrosIniciais.filtroDia);
+  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>(filtrosIniciais.readStatus);
+  const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>(filtrosIniciais.tipoOrigem);
+  usePersistirFiltrosDjen(FILTROS_DJEN_KEY, {
+    dataInicio,
+    dataFim,
+    dataDisponibilizacao,
+    dataPublicacao,
+    termoBusca,
+    monitoramentoId,
+    tribunalFiltro,
+    filtroDia,
+    readStatus,
+    tipoOrigem,
+  });
+
   // Execução do dia selecionada no card "Execuções do dia" (DJEN Local).
   // Quando setada, filtra a listagem por novasIds (as publicações vistas pela 1ª vez nesta execução).
   const [execucaoFocada, setExecucaoFocada] = useState<import("@/hooks/useExecucoesDoDiaLocal").ExecucaoLocalDoDia | null>(null);
@@ -1208,7 +1239,7 @@ const AnaliseDjen = () => {
       toast.success("Publicação salva no processo!", {
         action: {
           label: "Ver processo",
-          onClick: () => navigate(`/processos/${processoId}`),
+          onClick: () => window.open(`/processos/${processoId}`, "_blank", "noopener,noreferrer"),
         },
       });
     } catch (error: any) {
@@ -1326,7 +1357,7 @@ const AnaliseDjen = () => {
       toast.success("Processo e pasta criados com sucesso!", {
         action: {
           label: "Ver processo",
-          onClick: () => navigate(`/processos/${processo.id}`),
+          onClick: () => window.open(`/processos/${processo.id}`, "_blank", "noopener,noreferrer"),
         },
       });
       // Registra localmente para trocar o botão para "Salvar" e exibir "Ver processo"
@@ -5412,8 +5443,11 @@ const AnaliseDjen = () => {
                                       {(pub.processo_id || importedProcessos[pub.id]) && (
                                         <Link 
                                           to={`/processos/${pub.processo_id || importedProcessos[pub.id]}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
                                           className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
                                           onClick={(e) => e.stopPropagation()}
+                                          title="Abrir processo em nova aba"
                                         >
                                           <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
                                           <span className="hidden sm:inline">Ver processo</span>
@@ -5689,6 +5723,14 @@ const AnaliseDjen = () => {
                                     </div>
                                   )}
 
+                                  {/* Partes — logo abaixo do número do processo */}
+                                  <PartesResumoLinha
+                                    poloAtivo={pub.polo_ativo}
+                                    poloPassivo={pub.polo_passivo}
+                                    partesJson={pub.partes_json}
+                                    className="ml-4 md:ml-6"
+                                  />
+
                                   {/* Datas inline - sempre visíveis */}
                                   <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs ml-4 md:ml-6 mb-1.5">
                                     {pub.tribunal && (
@@ -5716,14 +5758,6 @@ const AnaliseDjen = () => {
                                     )}
                                   </div>
 
-                                  {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
-                                    <p className="text-[10px] md:text-xs text-muted-foreground mb-1 ml-4 md:ml-6 break-words">
-                                      {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
-                                      {pub.polo_ativo && pub.polo_passivo && <br className="md:hidden" />}
-                                      {pub.polo_ativo && pub.polo_passivo && <span className="hidden md:inline"> | </span>}
-                                      {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
-                                    </p>
-                                  )}
 
                                   {!isExpanded && (
                                     <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
