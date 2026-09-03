@@ -494,14 +494,23 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
   // Matérias que não constam na LISTA DE PEDIDOS DO DOSSIÊ ("verdes") não vão
   // para a planilha. Se nenhuma matéria estiver na lista, a linha é rejeitada.
   const dossieInfo = getMateriasForaDoDossie(row);
-  if (dossieInfo.temLista && dossieInfo.total > 0 && dossieInfo.validas === 0) {
+  if (!dossieInfo.temLista) {
     out.push({
       key: "revisar_lista_materias",
       label:
-        "Revisar lista de matérias — nenhuma matéria consta na lista de pedidos do dossiê; NÃO irá para a planilha de Carga Benner",
+        "Sem matérias cadastradas para o dossiê — revisar lista de matérias; NÃO irá para a planilha de Carga Benner",
       quadrinho: "III. Recurso do Reclamante",
     });
-  } else if (dossieInfo.temLista && dossieInfo.total > 0) {
+  } else if (dossieInfo.partesSemMateriaValida.length > 0) {
+    out.push({
+      key: "revisar_lista_materias",
+      label:
+        "Revisar lista de matérias — sem matéria da lista de pedidos do dossiê em: " +
+        dossieInfo.partesSemMateriaValida.join(", ") +
+        "; NÃO irá para a planilha de Carga Benner",
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (dossieInfo.total > 0) {
     out.push({
       key: "materias_fora_lista_dossie_parcial",
       aviso: true,
@@ -626,6 +635,10 @@ export type MateriasForaDoDossie = {
   total: number;
   /** Matérias selecionadas que estão na lista do dossiê ("verdes"). */
   validas: number;
+  /** Válidas por parte marcada em "Parte Recorrente". */
+  validasPorParte: Record<string, number>;
+  /** Rótulos das partes marcadas SEM nenhuma matéria da lista do dossiê. */
+  partesSemMateriaValida: string[];
   resumo: string;
 };
 
@@ -633,12 +646,21 @@ export type MateriasForaDoDossie = {
  * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
  * (`pedidos_por_dossie`). Mesmo critério da geração da Carga Benner: só as
  * "verdes" podem ser exportadas. "Outra Matéria" continua neutra.
+ *
+ * Quando o dossiê não tem lista cadastrada, `temLista` fica `false` — nesse
+ * caso nenhuma matéria pode ser validada e o processo é considerado pendente.
  */
 export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
-  const res: MateriasForaDoDossie = { temLista: false, total: 0, validas: 0, resumo: "" };
+  const res: MateriasForaDoDossie = {
+    temLista: false,
+    total: 0,
+    validas: 0,
+    validasPorParte: {},
+    partesSemMateriaValida: [],
+    resumo: "",
+  };
   const dossie = String(row?.dossie ?? "").trim();
-  if (!pedidosDoDossieSync(dossie)) return res;
-  res.temLista = true;
+  res.temLista = !!pedidosDoDossieSync(dossie);
 
   const blocos: Array<[string, string, string]> = [
     ["reclamante", "materias_analise_reclamante", "Reclamante"],
@@ -656,12 +678,20 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
       (i: any) => i && i.materia && String(i.materia).trim(),
     );
     const foraBloco: string[] = [];
+    let validasBloco = 0;
     for (const i of itens) {
       const nome = String(i.materia).trim();
-      if (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome)) res.validas++;
-      else foraBloco.push(nome);
+      if (res.temLista && (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome))) {
+        validasBloco++;
+      } else {
+        foraBloco.push(nome);
+      }
     }
+    res.validasPorParte[chave] = validasBloco;
+    res.validas += validasBloco;
     res.total += foraBloco.length;
+    // Cada parte marcada precisa de pelo menos UMA matéria da lista do dossiê.
+    if (validasBloco === 0) res.partesSemMateriaValida.push(rotulo);
     if (foraBloco.length > 0) partes.push(`${rotulo}: ${foraBloco.join(", ")}`);
   }
   res.resumo = partes.join(" | ");
@@ -669,12 +699,14 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
 }
 
 /**
- * `true` quando o processo tem matérias selecionadas e NENHUMA delas consta na
- * lista de pedidos do dossiê → precisa "Revisar lista de matérias".
+ * `true` quando o dossiê não tem lista de pedidos cadastrada OU quando alguma
+ * parte marcada em "Parte Recorrente" não tem nenhuma matéria da lista do
+ * dossiê → precisa "Revisar lista de matérias".
  */
 export function precisaRevisarListaMaterias(row: any): boolean {
   const info = getMateriasForaDoDossie(row);
-  return info.temLista && info.total > 0 && info.validas === 0;
+  if (!info.temLista) return true;
+  return info.partesSemMateriaValida.length > 0;
 }
 
 
