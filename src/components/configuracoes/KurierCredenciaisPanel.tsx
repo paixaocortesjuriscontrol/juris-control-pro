@@ -291,12 +291,15 @@ export function KurierCredenciaisPanel() {
       </CardHeader>
       <CardContent className="p-0">
         {drenagemAtiva && (
-        <DrenagemProgresso
-          execId={drenagemAtiva.execId}
-          login={drenagemAtiva.login}
-          onFechar={() => setDrenagemAtiva(null)}
-        />
-      )}
+          <div className="px-4 pt-4">
+            <DrenagemProgresso
+              execId={drenagemAtiva.execId}
+              login={drenagemAtiva.login}
+              onFechar={() => setDrenagemAtiva(null)}
+            />
+          </div>
+        )}
+
       {isLoading ? (
           <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
