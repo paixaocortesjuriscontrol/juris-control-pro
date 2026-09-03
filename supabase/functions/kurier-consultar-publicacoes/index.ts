@@ -1338,7 +1338,10 @@ Deno.serve(async (req: Request) => {
         }
       }
 
-      if (!useDateMode && pubs.length < LOTE_SIZE) break; // último lote da fila
+      if (!useDateMode && pubs.length < LOTE_SIZE) {
+        filaVazia = true;
+        break; // último lote da fila
+      }
       // Se TODOS os itens deste lote são posteriores à janela, paramos: a fila
       // ultrapassou o dia atual e seguir consumiria itens futuros sem necessidade
       // (eles não devem ser confirmados nem persistidos).
@@ -1351,8 +1354,15 @@ Deno.serve(async (req: Request) => {
         break;
       }
       console.log(`[kurier] lote ${lote+1}: recebidos=${pubs.length} naJanela=${itensNaJanelaNesteLote} antes=${pubs.length - itensNaJanelaNesteLote - itensDepoisDaJanelaNesteLote} depois=${itensDepoisDaJanelaNesteLote}`);
+      // Libera os acumuladores deste lote antes de seguir: sem isso o worker
+      // acumula textos integrais de todos os lotes e estoura o limite de recurso.
+      pubs = [];
+      rawRows.length = 0;
+      idsConfirmar.length = 0;
+      confirmacoes.length = 0;
       await delay(DELAY_MS);
     }
+
 
     await admin
       .from("kurier_credenciais")
