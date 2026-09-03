@@ -265,6 +265,10 @@ export interface DistribuicaoTstFilters {
   provasDigitais?: "todos" | "sim" | "nao" | "nao_selecionado";
   situacaoEnvioCargaId?: string;
   equipe?: "todos" | "sim" | "nao";
+  /** Filtro por existência de matérias (pedidos) cadastradas para o dossiê. */
+  pedidosDossie?: "todos" | "com" | "sem";
+  /** Lista de dossiês que possuem matérias cadastradas (usada por `pedidosDossie`). */
+  dossiesComPedidos?: string[];
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
   /**
@@ -556,6 +560,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     }
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+    query = applyPedidosDossieFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -660,6 +665,22 @@ async function fetchAllDistribuicaoTstIdsUncached(
   return Array.from(new Set(all));
 }
 
+
+/** Aplica no banco o filtro "com/sem matérias cadastradas por dossiê". */
+function applyPedidosDossieFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
+  const modo = filters.pedidosDossie;
+  if (!modo || modo === "todos") return query;
+  const lista = (filters.dossiesComPedidos || []).filter((d) => !!d && d.trim() !== "");
+  const q = query as any;
+  if (lista.length === 0) {
+    // Sem nenhuma lista cadastrada: "com" não retorna nada, "sem" retorna tudo.
+    return (modo === "com" ? q.eq("id", "00000000-0000-0000-0000-000000000000") : q) as T;
+  }
+  if (modo === "com") return q.in("dossie", lista) as T;
+  const quoted = lista.map((d) => `"${d.replace(/"/g, '\\"')}"`).join(",");
+  return q.or(`dossie.is.null,dossie.eq.,dossie.not.in.(${quoted})`) as T;
+}
+
 function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.processo) return true;
   if (filters.dossie) return true;
@@ -691,6 +712,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.provasDigitais && filters.provasDigitais !== "todos") return true;
   if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
   if (filters.equipe && filters.equipe !== "todos") return true;
+  if (filters.pedidosDossie && filters.pedidosDossie !== "todos") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
   if (normalizeTagIds(filters.tagId).length > 0) return true;
   return false;
@@ -789,6 +811,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+    query = applyPedidosDossieFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -1243,6 +1266,7 @@ export async function fetchMesesDataRealFiltered(
     }
     if (f.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (f.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
+    query = applyPedidosDossieFilter(query, f);
     if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");

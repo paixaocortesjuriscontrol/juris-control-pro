@@ -61,7 +61,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { buildJuditPatch, persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
 import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
-import { useIdsPorPedidosDossie, type FiltroPedidosDossie } from "@/hooks/useIdsPorPedidosDossie";
+import { usePedidosDossieFiltro, type FiltroPedidosDossie } from "@/hooks/useIdsPorPedidosDossie";
 import { useSituacoesEnvioCarga } from "@/hooks/useSituacoesEnvioCarga";
 import {
   useProcessoTagsCatalogo,
@@ -408,7 +408,7 @@ export default function DistribuicaoTst() {
   });
 
 
-  const { ids: idsPedidosDossie } = useIdsPorPedidosDossie(filtroPedidosDossie);
+  const { dossiesComPedidos } = usePedidosDossieFiltro(filtroPedidosDossie);
 
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
@@ -432,11 +432,8 @@ export default function DistribuicaoTst() {
         : semMateriaDossieIds;
       f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
-    if (idsPedidosDossie) {
-      const base = f.idsAllowed && f.idsAllowed.length > 0
-        ? idsPedidosDossie.filter((id) => f.idsAllowed!.includes(id))
-        : idsPedidosDossie;
-      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+    if (filtroPedidosDossie !== "todos" && dossiesComPedidos) {
+      f = { ...f, pedidosDossie: filtroPedidosDossie, dossiesComPedidos };
     }
     if (filtroComPendencia) {
       // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
@@ -447,7 +444,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), JSON.stringify(idsPedidosDossie)]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), filtroPedidosDossie, dossiesComPedidos?.length]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
