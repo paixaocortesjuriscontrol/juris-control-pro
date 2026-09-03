@@ -32,6 +32,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
+import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell } from "lucide-react";
 import { PessoasEmLoteDialog } from "@/components/painel/PessoasEmLoteDialog";
 import {
@@ -2103,6 +2104,14 @@ export default function PainelControle() {
                 Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
               </Button>
 
+              <BaixaRapidaDialog
+                item={itemBaixaRapida}
+                open={!!itemBaixaRapida}
+                onOpenChange={(o) => { if (!o) setItemBaixaRapida(null); }}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
               <ExportarAtividadesDialog
                 open={exportOpen}
                 onOpenChange={setExportOpen}
