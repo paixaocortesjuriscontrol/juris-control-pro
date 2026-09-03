@@ -107,6 +107,7 @@ import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudiencia
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
+import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
 import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCard";
 import { jsPDF } from "jspdf";
