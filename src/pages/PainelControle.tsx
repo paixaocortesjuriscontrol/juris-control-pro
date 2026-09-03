@@ -3048,12 +3048,14 @@ function NovoItemPanel({
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
-          <span className="sr-only">Fechar</span>
-          ×
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
+            <span className="sr-only">Fechar</span>
+            ×
+          </Button>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-hidden">
         {tipo === "tarefa" && (
           <NovaTarefaDialog
