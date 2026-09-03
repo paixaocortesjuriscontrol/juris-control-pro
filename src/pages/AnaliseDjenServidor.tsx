@@ -97,6 +97,10 @@ import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
+import { useFiltrosDjenIniciais, usePersistirFiltrosDjen } from "@/hooks/useFiltrosPersistidosDjen";
+
+/** Chave de persistência dos filtros da Análise DJEN (Servidor). */
+const FILTROS_DJEN_SERVIDOR_KEY = "analise-djen-servidor:filtros-v1";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 
@@ -186,16 +190,41 @@ const AnaliseDjenServidor = () => {
 
   // Filtros - inicializar com coordenação do usuário
   const [coordenacaoId, setCoordenacaoId] = useState<string | null>(null); // null = ainda não inicializado
-  const [dataInicio, setDataInicio] = useState<string>("");
-  const [dataFim, setDataFim] = useState<string>("");
-  const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>("");
-  const [dataPublicacao, setDataPublicacao] = useState<string>("");
-  const [termoBusca, setTermoBusca] = useState<string>("");
-  const [monitoramentoId, setMonitoramentoId] = useState<string>("");
-  const [tribunalFiltro, setTribunalFiltro] = useState<string>("");
-  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>('hoje');
-  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>('nao_lidas');
-  const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>('todos');
+  // Item 02: filtros preservados ao sair e voltar da tela (sessionStorage).
+  const filtrosIniciais = useFiltrosDjenIniciais(FILTROS_DJEN_SERVIDOR_KEY, {
+    dataInicio: "",
+    dataFim: "",
+    dataDisponibilizacao: "",
+    dataPublicacao: "",
+    termoBusca: "",
+    monitoramentoId: "",
+    tribunalFiltro: "",
+    filtroDia: "hoje" as FiltroDiaDjen,
+    readStatus: "nao_lidas" as FiltroLeituraDjen,
+    tipoOrigem: "todos" as TipoFiltroOrigem,
+  });
+  const [dataInicio, setDataInicio] = useState<string>(filtrosIniciais.dataInicio);
+  const [dataFim, setDataFim] = useState<string>(filtrosIniciais.dataFim);
+  const [dataDisponibilizacao, setDataDisponibilizacao] = useState<string>(filtrosIniciais.dataDisponibilizacao);
+  const [dataPublicacao, setDataPublicacao] = useState<string>(filtrosIniciais.dataPublicacao);
+  const [termoBusca, setTermoBusca] = useState<string>(filtrosIniciais.termoBusca);
+  const [monitoramentoId, setMonitoramentoId] = useState<string>(filtrosIniciais.monitoramentoId);
+  const [tribunalFiltro, setTribunalFiltro] = useState<string>(filtrosIniciais.tribunalFiltro);
+  const [filtroDia, setFiltroDia] = useState<FiltroDiaDjen>(filtrosIniciais.filtroDia);
+  const [readStatus, setReadStatus] = useState<FiltroLeituraDjen>(filtrosIniciais.readStatus);
+  const [tipoOrigem, setTipoOrigem] = useState<TipoFiltroOrigem>(filtrosIniciais.tipoOrigem);
+  usePersistirFiltrosDjen(FILTROS_DJEN_SERVIDOR_KEY, {
+    dataInicio,
+    dataFim,
+    dataDisponibilizacao,
+    dataPublicacao,
+    termoBusca,
+    monitoramentoId,
+    tribunalFiltro,
+    filtroDia,
+    readStatus,
+    tipoOrigem,
+  });
   // Execução servidor focada: quando definida, mostra apenas as publicações
   // que apareceram pela 1ª vez nesta execução (vs. execuções anteriores do mesmo dia).
   const [execucaoFocada, setExecucaoFocada] = useState<ExecucaoDoDia | null>(null);

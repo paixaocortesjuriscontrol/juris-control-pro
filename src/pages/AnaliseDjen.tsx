@@ -109,14 +109,14 @@ import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/compo
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
 import { useFiltrosDjenIniciais, usePersistirFiltrosDjen } from "@/hooks/useFiltrosPersistidosDjen";
-
-/** Chave de persistência dos filtros da Análise DJEN (Browser). */
-const FILTROS_DJEN_KEY = "analise-djen:filtros-v1";
 import { ExecucoesDoDiaLocalCard } from "@/components/djen/ExecucoesDoDiaLocalCard";
 import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCard";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
+
+/** Chave de persistência dos filtros da Análise DJEN (Browser). */
+const FILTROS_DJEN_KEY = "analise-djen:filtros-v1";
 
 type TipoOrigemPublicacao = 'termo' | 'processo' | 'descartada' | 'datajud';
 type TipoFiltroOrigem = 'todos' | 'normal' | 'termo' | 'parte' | 'processo' | 'descartada' | 'datajud' | 'djet-pautas' | 'kurier' | 'stf';
