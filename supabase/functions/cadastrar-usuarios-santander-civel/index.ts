@@ -51,34 +51,42 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Autorização: token interno de setup OU JWT de administrador
+    const setupToken = Deno.env.get("SETUP_TOKEN_SANTANDER_CIVEL");
+    const headerToken = req.headers.get("x-setup-token");
+    const autorizadoPorToken = !!setupToken && headerToken === setupToken;
+
+    if (!autorizadoPorToken) {
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: { user }, error: authError } = await admin.auth.getUser(
+        authHeader.replace("Bearer ", ""),
+      );
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: "Não autorizado" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roleAdmin } = await admin
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("role", "admin")
+        .maybeSingle();
+      if (!roleAdmin) {
+        return new Response(JSON.stringify({ error: "Apenas administradores" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
-    const { data: { user }, error: authError } = await admin.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: "Não autorizado" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const { data: roleAdmin } = await admin
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id)
-      .eq("role", "admin")
-      .maybeSingle();
-    if (!roleAdmin) {
-      return new Response(JSON.stringify({ error: "Apenas administradores" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+
 
     const criados: string[] = [];
     const existentes: string[] = [];
