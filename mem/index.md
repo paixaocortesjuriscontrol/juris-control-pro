@@ -4,3 +4,4 @@
 - [Pendências = rejeições da Carga](mem://features/distribuicao-tst/pendencias-espelham-rejeicao-carga) — Tipo de recurso fora da lista e dossiê inválido geram pendência na lista
 
 - [Sem criação automática de tarefas](mem://constraints/no-auto-task-creation-triggers) — Gatilhos de tarefa por intimação/audiência removidos do banco; não reintroduzir
+- [Distribuição TST perf](mem://performance/distribuicao-tst-shared-cache) — Cards devem reutilizar distribuicaoTstCache (dedupe + TTL) em vez de varrer dados_benner

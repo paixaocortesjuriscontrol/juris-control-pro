@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { cachedAsync, invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
+
 
 /** Status que indicam trabalho concluído (não contam mais como "A fazer"). */
 export const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"] as const;
@@ -447,17 +449,31 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
  * que selecciona apenas `id`. Reutilizado pela distribuição automática para
  * carregar TODOS os ids que batem com os filtros (sem paginação).
  */
-export async function fetchAllDistribuicaoTstIds(
+/**
+ * Versão cacheada (30s / dedupe de chamadas simultâneas). Vários hooks da tela
+ * pedem os MESMOS IDs ao mesmo tempo; sem isso a base de ~26 mil linhas era
+ * varrida uma vez por hook.
+ */
+export function fetchAllDistribuicaoTstIds(
+  filters: DistribuicaoTstFilters,
+  opts?: { matchListOrder?: boolean }
+): Promise<string[]> {
+  const key = `ids:${JSON.stringify(filters)}:${opts?.matchListOrder ? 1 : 0}`;
+  return cachedAsync(key, () => fetchAllDistribuicaoTstIdsUncached(filters, opts));
+}
+
+async function fetchAllDistribuicaoTstIdsUncached(
   filters: DistribuicaoTstFilters,
   opts?: { matchListOrder?: boolean }
 ): Promise<string[]> {
   if (filters.idsAllowed && filters.idsAllowed.length === 0) return [];
 
+
   if (filters.idsAllowed && filters.idsAllowed.length > LARGE_ID_FILTER_CHUNK) {
     const all = new Set<string>();
     for (let i = 0; i < filters.idsAllowed.length; i += LARGE_ID_FILTER_CHUNK) {
       const slice = filters.idsAllowed.slice(i, i + LARGE_ID_FILTER_CHUNK);
-      const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: slice }, opts);
+      const ids = await fetchAllDistribuicaoTstIdsUncached({ ...filters, idsAllowed: slice }, opts);
       ids.forEach((id) => all.add(id));
     }
     return Array.from(all);
@@ -1067,7 +1083,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   }, [fetchDados]);
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
+    // Gravação altera os totais dos cards: descarta o cache compartilhado.
+    invalidateDistribuicaoTstCache();
     const payload = distribuicaoToBenner(dado);
+
     const shouldPersistResponsaveis = Array.isArray(dado.responsaveis_ids);
     const responsaveisIds = shouldPersistResponsaveis ? (dado.responsaveis_ids || []) : [];
     let rowId = id;
@@ -1133,6 +1152,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   };
 
   const deleteDado = async (id: string) => {
+    invalidateDistribuicaoTstCache();
+
     const { error } = await supabase.rpc("arquivar_dados_benner" as any, { _id: id });
     if (error) { toast.error("Erro ao arquivar: " + error.message); return false; }
     toast.success("Registro arquivado! Apenas administradores podem restaurá-lo.");
