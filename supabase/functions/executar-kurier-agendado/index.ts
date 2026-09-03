@@ -1,20 +1,4 @@
-/**
- * executar-kurier-agendado
- *
- * Motor Kurier no servidor. Espelha o loop do antigo engine cliente
- * (`useDjenTermosKurierEngine.ts`), rodando via edge function:
- *   1) Lê `configuracoes_monitoramento` (tipo='kurier') para validar
- *      janela BRT / dias / última execução — pulado quando `force=true`.
- *   2) Cria linha em `execucoes_agendadas` (tipo='djen_kurier') e
- *      atualiza `detalhes.progresso` a cada credencial processada.
- *   3) Enumera credenciais Kurier ativas (opcionalmente filtradas por
- *      coordenação) e chama `kurier-consultar-publicacoes` em pool de
- *      concorrência 3 — a edge existente já persiste em `publicacoes_djen`
- *      (tabela oficial do Browser) com origem='kurier'.
- *
- * Este motor NUNCA grava em `publicacoes_djen_servidor`.
- */
-
+/** Motor Kurier em etapas curtas, retomáveis e protegidas por lease. */
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
@@ -23,41 +7,22 @@ const corsHeaders = {
 };
 
 const WINDOW_MIN = 30;
-const MAX_CONCURRENCY = 4;
-const MAX_CALLS_PER_CREDENCIAL = 200;
-// Lote adaptativo: começa rápido (2 lotes de 50) e só encolhe se a função
-// estourar recurso (546). Depois de algumas chamadas boas volta a crescer.
-const DEFAULT_LOTE_SIZE = 50;
+const DEFAULT_LOTE_SIZE = 25;
 const MIN_LOTE_SIZE = 10;
-const DEFAULT_MAX_LOTES = 4;
-const SUCESSOS_PARA_SUBIR = 3;
+const DEFAULT_MAX_LOTES = 2;
+const MAX_HOPS = 300;
+const MAX_LIMIT_ERRORS = 3;
+const INNER_TIMEOUT_MS = 75_000;
+const NEXT_HOP_DELAY_MS = 1_500;
+const STALE_MINUTES = 10;
 
-
-function brtNow(): { ymd: string; hour: number; minute: number } {
-  const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-  const t = new Date()
-    .toLocaleString("en-US", { timeZone: "America/Sao_Paulo", hour12: false })
-    .split(", ")[1];
-  const [h, m] = t.split(":").map(Number);
-  return { ymd, hour: h === 24 ? 0 : h, minute: m };
-}
-
-function brtWeekday(ymd: string): number {
-  const [y, mo, d] = ymd.split("-").map(Number);
-  return new Date(Date.UTC(y, mo - 1, d, 12, 0, 0)).getUTCDay();
-}
-
-function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number): string | null {
-  if (!horarios || horarios.length === 0) return null;
-  if (horarios.length === 1) return horarios[0] || null;
-  const v = horarios[weekday];
-  return v && v.trim() !== "" ? v : null;
-}
+type SupabaseClient = ReturnType<typeof createClient>;
+type TrackStatus = "pendente" | "executando" | "concluido" | "erro" | "cancelado";
 
 interface KurierTrack {
   credencialId: string;
   login: string;
-  status: "pendente" | "executando" | "concluido" | "erro" | "cancelado";
+  status: TrackStatus;
   novas: number;
   duplicadas: number;
   descartadas: number;
@@ -66,205 +31,335 @@ interface KurierTrack {
   lotes: number;
   mensagem: string;
   erro: string | null;
+  loteSize: number;
+  maxLotes: number;
+  errosLimite: number;
 }
 
-async function isExecCancelada(supabase: ReturnType<typeof createClient>, execId: string) {
-  const { data } = await supabase
-    .from("execucoes_agendadas")
-    .select("status, detalhes")
-    .eq("id", execId)
-    .maybeSingle();
-  if (!data) return false;
-  if (data.status === "cancelado" || data.status === "falhou") return true;
-  const d = (data.detalhes as Record<string, unknown>) || {};
-  return d.cancel_request === true;
+interface JobOptions {
+  coordenacaoId?: string;
+  monitoramentoIds?: string[];
+  dataInicio?: string;
+  dataFim?: string;
+  modoPersonalizado: boolean;
+  drenarBacklog: boolean;
 }
 
-async function flushProgresso(
-  supabase: ReturnType<typeof createClient>,
+interface JobState {
+  tracks: KurierTrack[];
+  currentIndex: number;
+  hop: number;
+  opts: JobOptions;
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function brtNow(): { ymd: string; hour: number; minute: number } {
+  const ymd = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const t = new Date().toLocaleString("en-US", {
+    timeZone: "America/Sao_Paulo",
+    hour12: false,
+  }).split(", ")[1];
+  const [h, m] = t.split(":").map(Number);
+  return { ymd, hour: h === 24 ? 0 : h, minute: m };
+}
+
+function brtWeekday(ymd: string): number {
+  const [y, mo, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, d, 12)).getUTCDay();
+}
+
+function resolveHorarioDoDia(horarios: (string | null)[] | null, weekday: number) {
+  if (!horarios?.length) return null;
+  if (horarios.length === 1) return horarios[0] || null;
+  const value = horarios[weekday];
+  return value?.trim() ? value : null;
+}
+
+function totals(tracks: KurierTrack[]) {
+  return {
+    novas: tracks.reduce((sum, item) => sum + item.novas, 0),
+    duplicadas: tracks.reduce((sum, item) => sum + item.duplicadas, 0),
+    descartadas: tracks.reduce((sum, item) => sum + item.descartadas, 0),
+    confirmadas: tracks.reduce((sum, item) => sum + item.confirmadas, 0),
+    recebidas: tracks.reduce((sum, item) => sum + item.recebidas, 0),
+    credenciaisConcluidas: tracks.filter((item) => ["concluido", "erro", "cancelado"].includes(item.status)).length,
+  };
+}
+
+async function saveState(
+  supabase: SupabaseClient,
   execId: string,
-  tracks: KurierTrack[],
-  extra: Record<string, unknown> = {},
+  state: JobState,
+  leaseToken: string,
+  status = "executando",
+  finalizado = false,
 ) {
-  const novas = tracks.reduce((s, t) => s + t.novas, 0);
-  const duplicadas = tracks.reduce((s, t) => s + t.duplicadas, 0);
-  const descartadas = tracks.reduce((s, t) => s + t.descartadas, 0);
-  const confirmadas = tracks.reduce((s, t) => s + t.confirmadas, 0);
-  const recebidas = tracks.reduce((s, t) => s + t.recebidas, 0);
-  const concluidas = tracks.filter((t) =>
-    ["concluido", "erro", "cancelado"].includes(t.status)
-  ).length;
-
-  await supabase
-    .from("execucoes_agendadas")
-    .update({
-      registros_encontrados: novas,
-      registros_processados: recebidas,
-      detalhes: {
-        ...extra,
-        totalCredenciais: tracks.length,
-        credenciaisConcluidas: concluidas,
-        novas,
-        duplicadas,
-        descartadas,
-        confirmadas,
-        recebidas,
-        tracks: tracks.slice(-100),
-        atualizado_em: new Date().toISOString(),
-      },
-    })
-    .eq("id", execId)
-    .neq("status", "cancelado");
+  const sum = totals(state.tracks);
+  const { error } = await supabase.from("execucoes_agendadas").update({
+    status,
+    registros_encontrados: sum.novas,
+    registros_processados: sum.recebidas,
+    finalizado_em: finalizado ? new Date().toISOString() : null,
+    ultimo_erro: status === "falhou"
+      ? state.tracks.find((item) => item.status === "erro")?.erro || "Execução Kurier interrompida"
+      : null,
+    detalhes: {
+      ...sum,
+      totalCredenciais: state.tracks.length,
+      tracks: state.tracks,
+      currentIndex: state.currentIndex,
+      hop: state.hop,
+      opts: state.opts,
+      atualizado_em: new Date().toISOString(),
+      lease_token: leaseToken,
+      lease_until: new Date(Date.now() + 120_000).toISOString(),
+    },
+  }).eq("id", execId).neq("status", "cancelado");
+  if (error) throw error;
 }
 
-async function processarCredencial(
-  supabase: ReturnType<typeof createClient>,
+function parseState(details: unknown): JobState | null {
+  const value = (details || {}) as Record<string, unknown>;
+  if (!Array.isArray(value.tracks) || !value.opts) return null;
+  return {
+    tracks: value.tracks as KurierTrack[],
+    currentIndex: Number(value.currentIndex || 0),
+    hop: Number(value.hop || 0),
+    opts: value.opts as JobOptions,
+  };
+}
+
+async function invokeNextHop(supabaseUrl: string, serviceKey: string, execId: string) {
+  await new Promise((resolve) => setTimeout(resolve, NEXT_HOP_DELAY_MS));
+  const response = await fetch(`${supabaseUrl}/functions/v1/executar-kurier-agendado`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+      apikey: serviceKey,
+    },
+    body: JSON.stringify({ resume: true, exec_id: execId }),
+  });
+  if (!response.ok) throw new Error(`Falha ao agendar próxima etapa: HTTP ${response.status}`);
+}
+
+async function processHop(
+  supabase: SupabaseClient,
   supabaseUrl: string,
   serviceKey: string,
   execId: string,
-  track: KurierTrack,
-  opts: {
-    monitoramentoIds?: string[];
-    coordenacaoId?: string;
-    dataInicio?: string;
-    dataFim?: string;
-    modoPersonalizado: boolean;
-    drenarBacklog: boolean;
-  },
-  cancelState: { cancelled: boolean },
-  onTick: () => Promise<void>,
 ) {
-  track.status = "executando";
-  track.mensagem = "Consultando lotes...";
-  await onTick();
+  const leaseToken = crypto.randomUUID();
+  const { data: acquired, error: leaseError } = await supabase.rpc("acquire_kurier_execution_lease", {
+    _exec_id: execId,
+    _lease_token: leaseToken,
+    _lease_seconds: 120,
+  });
+  if (leaseError) throw leaseError;
+  if (!acquired) return;
+
+  let scheduleNext = false;
   try {
-    let loteSize = DEFAULT_LOTE_SIZE;
-    let maxLotes = DEFAULT_MAX_LOTES;
-    let sucessosSeguidos = 0;
-    for (let chamada = 1; chamada <= MAX_CALLS_PER_CREDENCIAL; chamada++) {
-      if (cancelState.cancelled) break;
-      if (await isExecCancelada(supabase, execId)) {
-        cancelState.cancelled = true;
-        break;
+    const { data: execution, error } = await supabase
+      .from("execucoes_agendadas")
+      .select("status, detalhes")
+      .eq("id", execId)
+      .maybeSingle();
+    if (error) throw error;
+    if (!execution || !["pendente", "executando"].includes(execution.status)) return;
+
+    const state = parseState(execution.detalhes);
+    if (!state) throw new Error("Estado de retomada do Kurier inválido");
+    if (state.hop >= MAX_HOPS) {
+      const current = state.tracks[state.currentIndex];
+      if (current) {
+        current.status = "erro";
+        current.erro = "Limite de etapas atingido; retome para continuar";
+        current.mensagem = current.erro;
       }
-      const resp = await fetch(`${supabaseUrl}/functions/v1/kurier-consultar-publicacoes`, {
+      await saveState(supabase, execId, state, leaseToken, "falhou", true);
+      return;
+    }
+
+    while (state.currentIndex < state.tracks.length && state.tracks[state.currentIndex].status === "concluido") {
+      state.currentIndex++;
+    }
+    const track = state.tracks[state.currentIndex];
+    if (!track) {
+      await saveState(supabase, execId, state, leaseToken, "concluido", true);
+      return;
+    }
+
+    track.status = "executando";
+    track.mensagem = `Consultando lote ${track.maxLotes}×${track.loteSize}...`;
+    state.hop++;
+    await saveState(supabase, execId, state, leaseToken);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), INNER_TIMEOUT_MS);
+    let response: Response;
+    try {
+      response = await fetch(`${supabaseUrl}/functions/v1/kurier-consultar-publicacoes`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${serviceKey}`,
-          "apikey": serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          apikey: serviceKey,
         },
         body: JSON.stringify({
           credencial_id: track.credencialId,
-          max_lotes: maxLotes,
-          lote_size: loteSize,
-          monitoramento_ids: opts.monitoramentoIds?.length ? opts.monitoramentoIds : undefined,
-          coordenacao_id: opts.coordenacaoId || undefined,
-          data_inicio: opts.dataInicio || undefined,
-          data_fim: opts.dataFim || undefined,
-          modo_personalizado: opts.modoPersonalizado && !opts.drenarBacklog,
+          max_lotes: track.maxLotes,
+          lote_size: track.loteSize,
+          monitoramento_ids: state.opts.monitoramentoIds?.length ? state.opts.monitoramentoIds : undefined,
+          coordenacao_id: state.opts.coordenacaoId,
+          data_inicio: state.opts.dataInicio,
+          data_fim: state.opts.dataFim,
+          modo_personalizado: state.opts.modoPersonalizado && !state.opts.drenarBacklog,
           execucao_id: execId,
         }),
+        signal: controller.signal,
       });
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => "");
-        if ([546, 503, 504].includes(resp.status) && (maxLotes > 1 || loteSize > MIN_LOTE_SIZE)) {
-          sucessosSeguidos = 0;
-          if (maxLotes > 1) maxLotes = 1;
-          else if (loteSize > 25) loteSize = 25;
-          else loteSize = MIN_LOTE_SIZE;
-          track.mensagem = `Limite do servidor; retomando em ${maxLotes}x${loteSize}...`;
-          await onTick();
-          continue;
-        }
-        throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
-      }
-      const r = await resp.json() as Record<string, unknown>;
-      if (r?.error) throw new Error(String(r.error));
-
-      sucessosSeguidos++;
-      if (sucessosSeguidos >= SUCESSOS_PARA_SUBIR) {
-        sucessosSeguidos = 0;
-        if (loteSize < DEFAULT_LOTE_SIZE) loteSize = Math.min(DEFAULT_LOTE_SIZE, loteSize * 2);
-        else if (maxLotes < DEFAULT_MAX_LOTES) maxLotes = DEFAULT_MAX_LOTES;
-      }
-
-      const recebidas = Number(r?.total_recebidas ?? 0);
-
-      track.novas += Number(r?.total_novas ?? 0);
-      track.duplicadas += Number(r?.total_duplicadas ?? 0);
-      track.descartadas += Number(r?.total_descartadas ?? 0);
-      track.confirmadas += Number(r?.total_confirmadas ?? 0);
-      track.recebidas += recebidas;
-      track.lotes += Number(r?.lotes_processados ?? 0);
-      track.mensagem = opts.modoPersonalizado
-        ? `${track.recebidas} recebidas, ${track.novas} novas, ${track.duplicadas} dup em ${track.lotes} lote(s)`
-        : `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
-      await onTick();
-
-      if (r?.ok === false) throw new Error(String(r?.erro ?? "erro Kurier"));
-      if (opts.modoPersonalizado && !opts.drenarBacklog) break;
-      if (recebidas === 0 || Number(r?.lotes_processados ?? 0) === 0) break;
-      if (r?.janela_ultrapassada === true) break;
+    } catch (fetchError) {
+      if ((fetchError as Error)?.name !== "AbortError") throw fetchError;
+      response = new Response("Tempo limite da consulta excedido", { status: 504 });
+    } finally {
+      clearTimeout(timeout);
     }
-    track.status = cancelState.cancelled ? "cancelado" : "concluido";
-  } catch (e) {
-    track.status = "erro";
-    track.erro = String((e as Error)?.message ?? e).slice(0, 200);
-    track.mensagem = `Erro: ${track.erro?.slice(0, 80)}`;
+
+    if (!response.ok) {
+      const responseText = await response.text().catch(() => "");
+      if ([546, 503, 504].includes(response.status)) {
+        track.errosLimite++;
+        track.maxLotes = 1;
+        track.loteSize = MIN_LOTE_SIZE;
+        if (track.errosLimite >= MAX_LIMIT_ERRORS) {
+          track.status = "erro";
+          track.erro = `Limite do servidor persistiu por ${MAX_LIMIT_ERRORS} tentativas (HTTP ${response.status})`;
+          track.mensagem = track.erro;
+          state.currentIndex++;
+        } else {
+          track.mensagem = `Limite do servidor; nova tentativa ${track.errosLimite}/${MAX_LIMIT_ERRORS} em 1×10`;
+        }
+      } else {
+        track.status = "erro";
+        track.erro = `HTTP ${response.status}: ${responseText.slice(0, 160)}`;
+        track.mensagem = `Erro: ${track.erro}`;
+        state.currentIndex++;
+      }
+    } else {
+      const result = await response.json() as Record<string, unknown>;
+      if (result.error || result.ok === false) {
+        track.status = "erro";
+        track.erro = String(result.error || result.erro || "Erro Kurier").slice(0, 200);
+        track.mensagem = `Erro: ${track.erro}`;
+        state.currentIndex++;
+      } else {
+        const recebidas = Number(result.total_recebidas || 0);
+        const lotes = Number(result.lotes_processados || 0);
+        track.novas += Number(result.total_novas || 0);
+        track.duplicadas += Number(result.total_duplicadas || 0);
+        track.descartadas += Number(result.total_descartadas || 0);
+        track.confirmadas += Number(result.total_confirmadas || 0);
+        track.recebidas += recebidas;
+        track.lotes += lotes;
+        track.errosLimite = 0;
+        track.mensagem = `${track.novas} novas, ${track.duplicadas} dup, ${track.confirmadas} confirm em ${track.lotes} lote(s)`;
+        const terminou = state.opts.modoPersonalizado && !state.opts.drenarBacklog
+          || result.fila_vazia === true
+          || result.janela_ultrapassada === true
+          || recebidas === 0
+          || lotes === 0;
+        if (terminou) {
+          track.status = "concluido";
+          state.currentIndex++;
+        }
+      }
+    }
+
+    const hasRemaining = state.currentIndex < state.tracks.length;
+    const hasErrors = state.tracks.some((item) => item.status === "erro");
+    if (!hasRemaining) {
+      await saveState(supabase, execId, state, leaseToken, hasErrors ? "falhou" : "concluido", true);
+    } else {
+      await saveState(supabase, execId, state, leaseToken);
+      scheduleNext = true;
+    }
+  } catch (error) {
+    console.error("[executar-kurier-agendado] etapa falhou:", error);
+    const message = String((error as Error)?.message || error).slice(0, 300);
+    await supabase.from("execucoes_agendadas").update({
+      status: "falhou",
+      finalizado_em: new Date().toISOString(),
+      ultimo_erro: message,
+    }).eq("id", execId).neq("status", "cancelado");
+  } finally {
+    await supabase.rpc("release_kurier_execution_lease", {
+      _exec_id: execId,
+      _lease_token: leaseToken,
+    });
   }
-  await onTick();
+
+  if (scheduleNext) await invokeNextHop(supabaseUrl, serviceKey, execId);
 }
 
-async function runJob(
-  supabase: ReturnType<typeof createClient>,
-  supabaseUrl: string,
-  serviceKey: string,
-  execId: string,
-  opts: {
-    coordenacaoId?: string;
-    monitoramentoIds?: string[];
-    dataInicio?: string;
-    dataFim?: string;
-    modoPersonalizado: boolean;
-    drenarBacklog: boolean;
-  },
-) {
-  const startedAt = Date.now();
-  const cancelState = { cancelled: false };
-
-  try {
-    let credQuery = supabase
-      .from("kurier_credenciais")
-      .select("id, login")
-      .eq("ativo", true)
-      .not("senha_encrypted", "is", null)
-      .order("prioridade", { ascending: false });
-
-    if (opts.coordenacaoId) {
-      const { data: vinc } = await supabase
-        .from("kurier_credencial_coordenacoes")
-        .select("credencial_id")
-        .eq("coordenacao_id", opts.coordenacaoId);
-      const ids = (vinc || []).map((v: { credencial_id: string }) => v.credencial_id);
-      if (ids.length === 0) {
-        await supabase.from("execucoes_agendadas").update({
-          status: "concluido",
-          finalizado_em: new Date().toISOString(),
-          detalhes: { motivo: "sem_credenciais_para_coordenacao" },
-        }).eq("id", execId);
-        return;
-      }
-      credQuery = credQuery.in("id", ids);
+async function markStaleExecutions(supabase: SupabaseClient) {
+  const cutoff = new Date(Date.now() - STALE_MINUTES * 60_000).toISOString();
+  const { data } = await supabase
+    .from("execucoes_agendadas")
+    .select("id, detalhes, iniciado_em")
+    .eq("tipo", "djen_kurier")
+    .in("status", ["pendente", "executando"]);
+  for (const row of data || []) {
+    const details = (row.detalhes || {}) as Record<string, unknown>;
+    const heartbeat = String(details.atualizado_em || row.iniciado_em || "");
+    if (heartbeat && heartbeat < cutoff) {
+      await supabase.from("execucoes_agendadas").update({
+        status: "falhou",
+        finalizado_em: new Date().toISOString(),
+        ultimo_erro: "Execução interrompida por ausência de atualização do servidor",
+        detalhes: {
+          ...details,
+          interrompida: true,
+          mensagem_interrupcao: "Execução interrompida por ausência de atualização do servidor",
+          interrompida_em: new Date().toISOString(),
+        },
+      }).eq("id", row.id);
     }
+  }
+}
 
-    const { data: creds, error: credErr } = await credQuery;
-    if (credErr) throw credErr;
-
-    const tracks: KurierTrack[] = (creds || []).map((c: { id: string; login: string }) => ({
-      credencialId: c.id,
-      login: c.login,
-      status: "pendente",
+async function createInitialState(supabase: SupabaseClient, opts: JobOptions): Promise<JobState> {
+  let query = supabase
+    .from("kurier_credenciais")
+    .select("id, login")
+    .eq("ativo", true)
+    .not("senha_encrypted", "is", null)
+    .order("prioridade", { ascending: false });
+  if (opts.coordenacaoId) {
+    const { data: links } = await supabase
+      .from("kurier_credencial_coordenacoes")
+      .select("credencial_id")
+      .eq("coordenacao_id", opts.coordenacaoId);
+    const ids = (links || []).map((item: { credencial_id: string }) => item.credencial_id);
+    if (!ids.length) return { tracks: [], currentIndex: 0, hop: 0, opts };
+    query = query.in("id", ids);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return {
+    currentIndex: 0,
+    hop: 0,
+    opts,
+    tracks: (data || []).map((credential: { id: string; login: string }) => ({
+      credencialId: credential.id,
+      login: credential.login,
+      status: "pendente" as const,
       novas: 0,
       duplicadas: 0,
       descartadas: 0,
@@ -273,188 +368,107 @@ async function runJob(
       lotes: 0,
       mensagem: "Aguardando...",
       erro: null,
-    }));
-
-    if (tracks.length === 0) {
-      await supabase.from("execucoes_agendadas").update({
-        status: "concluido",
-        finalizado_em: new Date().toISOString(),
-        detalhes: { motivo: "nenhuma_credencial_ativa" },
-      }).eq("id", execId);
-      return;
-    }
-
-    let lastFlush = 0;
-    const flushIfDue = async () => {
-      const now = Date.now();
-      if (now - lastFlush < 800) return;
-      lastFlush = now;
-      await flushProgresso(supabase, execId, tracks);
-    };
-    await flushProgresso(supabase, execId, tracks);
-
-    let idx = 0;
-    const workers = Array.from({ length: Math.min(MAX_CONCURRENCY, tracks.length) }, async () => {
-      while (!cancelState.cancelled) {
-        const i = idx++;
-        if (i >= tracks.length) return;
-        await processarCredencial(
-          supabase, supabaseUrl, serviceKey, execId, tracks[i], opts, cancelState, flushIfDue,
-        );
-      }
-    });
-    await Promise.all(workers);
-
-    if (cancelState.cancelled) {
-      for (const t of tracks) if (t.status === "pendente") { t.status = "cancelado"; t.mensagem = "Cancelado"; }
-    }
-
-    const houveErro = tracks.some((t) => t.status === "erro");
-    const statusFinal = cancelState.cancelled ? "cancelado" : (houveErro ? "erro" : "concluido");
-    await flushProgresso(supabase, execId, tracks, { duracao_ms: Date.now() - startedAt });
-    await supabase.from("execucoes_agendadas").update({
-      status: statusFinal,
-      finalizado_em: new Date().toISOString(),
-    }).eq("id", execId);
-  } catch (e) {
-    console.error("[executar-kurier-agendado] erro fatal:", e);
-    await supabase.from("execucoes_agendadas").update({
-      status: "falhou",
-      finalizado_em: new Date().toISOString(),
-      ultimo_erro: String((e as Error)?.message ?? e),
-    }).eq("id", execId);
-  }
+      loteSize: DEFAULT_LOTE_SIZE,
+      maxLotes: DEFAULT_MAX_LOTES,
+      errosLimite: 0,
+    })),
+  };
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (!supabaseUrl || !serviceKey) return json({ error: "Configuração Supabase ausente" }, 500);
   const supabase = createClient(supabaseUrl, serviceKey);
 
   try {
     const body = await req.json().catch(() => ({}));
-    const force = body?.force === true || body?.manual === true;
-    const coordenacaoId: string | undefined = typeof body?.coordenacao_id === "string" ? body.coordenacao_id : undefined;
-    const monitoramentoIds: string[] | undefined = Array.isArray(body?.monitoramento_ids) ? body.monitoramento_ids : undefined;
-    const dataInicio: string | undefined = typeof body?.data_inicio === "string" ? body.data_inicio : undefined;
-    const dataFim: string | undefined = typeof body?.data_fim === "string" ? body.data_fim : undefined;
-    const modoPersonalizado = body?.modo_personalizado === true;
-    const drenarBacklog = body?.drenar_backlog === true;
+    if (body.resume === true && typeof body.exec_id === "string") {
+      const task = processHop(supabase, supabaseUrl, serviceKey, body.exec_id);
+      // @ts-ignore EdgeRuntime existe no Supabase Deno Deploy
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(task);
+      else task.catch(console.error);
+      return json({ resumed: true, exec_id: body.exec_id }, 202);
+    }
 
-    // 1) Ler configuração
-    const { data: cfg } = await supabase
+    await markStaleExecutions(supabase);
+    const force = body.force === true || body.manual === true;
+    const now = brtNow();
+    const { data: config } = await supabase
       .from("configuracoes_monitoramento")
       .select("id, ativo, horarios_execucao, metadata")
       .eq("tipo", "kurier")
       .maybeSingle();
+    if (!force && (!config || !config.ativo)) return json({ skipped: "inativo" });
 
-    if (!force && (!cfg || !cfg.ativo)) {
-      return new Response(JSON.stringify({ skipped: "inativo" }), {
-        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    if (!force && config) {
+      const metadata = (config.metadata || {}) as Record<string, unknown>;
+      const days = Array.isArray(metadata.dias_semana) ? metadata.dias_semana as number[] : [1, 2, 3, 4, 5];
+      const weekday = brtWeekday(now.ymd);
+      if (!days.includes(weekday)) return json({ skipped: "dia_desativado", weekday });
+      const schedules = config.horarios_execucao as (string | null)[] | null;
+      const schedule = resolveHorarioDoDia(schedules, weekday) || schedules?.[0] || null;
+      if (!schedule) return json({ skipped: "sem_horario" });
+      const slots = schedules?.filter((item): item is string => !!item && /^\d{2}:\d{2}$/.test(item)) || [schedule];
+      const nowMinutes = now.hour * 60 + now.minute;
+      const insideWindow = slots.some((slot) => {
+        const [hour, minute] = slot.split(":").map(Number);
+        const target = hour * 60 + minute;
+        return nowMinutes >= target && nowMinutes <= target + WINDOW_MIN;
       });
-    }
+      if (!insideWindow) return json({ skipped: "fora_janela", slots });
 
-    const now = brtNow();
-
-    // 2) Janela de horário / dia
-    if (!force && cfg) {
-      const meta = (cfg.metadata as Record<string, unknown>) || {};
-      const dias = Array.isArray(meta.dias_semana) ? (meta.dias_semana as number[]) : [1, 2, 3, 4, 5];
-      const wd = brtWeekday(now.ymd);
-      if (!dias.includes(wd)) {
-        return new Response(JSON.stringify({ skipped: "dia_desativado", weekday: wd }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const horarios = cfg.horarios_execucao as (string | null)[] | null;
-      const horario = resolveHorarioDoDia(horarios, wd) || (horarios && horarios[0]) || null;
-      if (!horario) {
-        return new Response(JSON.stringify({ skipped: "sem_horario" }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      // Casa qualquer um dos horários salvos
-      const slots = Array.isArray(horarios) ? horarios.filter((h): h is string => !!h && /^\d{2}:\d{2}$/.test(h)) : [horario];
-      const nowMin = now.hour * 60 + now.minute;
-      const dentroJanela = slots.some((s) => {
-        const [hh, mm] = s.split(":").map(Number);
-        const tgt = hh * 60 + mm;
-        return nowMin >= tgt && nowMin <= tgt + WINDOW_MIN;
-      });
-      if (!dentroJanela) {
-        return new Response(JSON.stringify({ skipped: "fora_janela", now: `${now.hour}:${now.minute}`, slots }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const start = `${now.ymd}T00:00:00-03:00`;
+      const end = `${now.ymd}T23:59:59-03:00`;
+      const { data: existing } = await supabase.from("execucoes_agendadas")
+        .select("id, status").eq("tipo", "djen_kurier").gte("iniciado_em", start).lte("iniciado_em", end);
+      if ((existing || []).some((item: { status: string }) => item.status !== "falhou")) {
+        return json({ skipped: "ja_executou_hoje" });
       }
     }
 
-    // 3) Trava do dia (para disparos automáticos apenas)
-    if (!force) {
-      const ymdStart = `${now.ymd}T00:00:00-03:00`;
-      const ymdEnd = `${now.ymd}T23:59:59-03:00`;
-      const { data: existentes } = await supabase
-        .from("execucoes_agendadas")
-        .select("id, status")
-        .eq("tipo", "djen_kurier")
-        .gte("iniciado_em", ymdStart)
-        .lte("iniciado_em", ymdEnd);
-      const jaTem = (existentes || []).some((r: { status: string }) => r.status !== "falhou");
-      if (jaTem) {
-        return new Response(JSON.stringify({ skipped: "ja_executou_hoje" }), {
-          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
+    const opts: JobOptions = {
+      coordenacaoId: typeof body.coordenacao_id === "string" ? body.coordenacao_id : undefined,
+      monitoramentoIds: Array.isArray(body.monitoramento_ids) ? body.monitoramento_ids : undefined,
+      dataInicio: typeof body.data_inicio === "string" ? body.data_inicio : undefined,
+      dataFim: typeof body.data_fim === "string" ? body.data_fim : undefined,
+      modoPersonalizado: body.modo_personalizado === true,
+      drenarBacklog: body.drenar_backlog === true,
+    };
+    const state = await createInitialState(supabase, opts);
+    if (!state.tracks.length) return json({ skipped: "nenhuma_credencial_ativa" });
+
+    const initialTotals = totals(state.tracks);
+    const { data: execution, error } = await supabase.from("execucoes_agendadas").insert({
+      tipo: "djen_kurier",
+      status: "executando",
+      job_name: "DJEN Termos Kurier (Servidor)",
+      iniciado_em: new Date().toISOString(),
+      detalhes: {
+        ...initialTotals,
+        totalCredenciais: state.tracks.length,
+        tracks: state.tracks,
+        currentIndex: 0,
+        hop: 0,
+        opts,
+        atualizado_em: new Date().toISOString(),
+      },
+    }).select("id").single();
+    if (error || !execution) throw new Error(`Falha ao criar execução: ${error?.message || "sem id"}`);
+
+    if (config?.id) {
+      await supabase.from("configuracoes_monitoramento")
+        .update({ ultima_execucao: new Date().toISOString() }).eq("id", config.id);
     }
 
-    // 4) Cria execução
-    const { data: exec, error: execErr } = await supabase
-      .from("execucoes_agendadas")
-      .insert({
-        tipo: "djen_kurier",
-        status: "executando",
-        job_name: "DJEN Termos Kurier (Servidor)",
-        iniciado_em: new Date().toISOString(),
-        detalhes: {
-          coordenacao_id: coordenacaoId ?? null,
-          modo_personalizado: modoPersonalizado,
-          drenar_backlog: drenarBacklog,
-          data_inicio: dataInicio ?? null,
-          data_fim: dataFim ?? null,
-        },
-      })
-      .select("id")
-      .single();
-    if (execErr || !exec) throw new Error(`falha ao criar execucao_agendada: ${execErr?.message}`);
-
-    // 5) ultima_execucao para o scheduler ignorar próxima janela
-    if (cfg?.id) {
-      await supabase
-        .from("configuracoes_monitoramento")
-        .update({ ultima_execucao: new Date().toISOString() })
-        .eq("id", cfg.id);
-    }
-
-    // 6) Task em background
-    const task = runJob(supabase, supabaseUrl, serviceKey, exec.id as string, {
-      coordenacaoId, monitoramentoIds, dataInicio, dataFim,
-      modoPersonalizado, drenarBacklog,
-    });
+    const task = processHop(supabase, supabaseUrl, serviceKey, execution.id as string);
     // @ts-ignore EdgeRuntime existe no Supabase Deno Deploy
-    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
-      // @ts-ignore
-      EdgeRuntime.waitUntil(task);
-    } else {
-      task.catch((e) => console.error("[executar-kurier-agendado] task error:", e));
-    }
-
-    return new Response(JSON.stringify({ started: true, exec_id: exec.id }), {
-      status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  } catch (e) {
-    console.error("[executar-kurier-agendado] handler erro:", e);
-    return new Response(JSON.stringify({ error: String((e as Error)?.message ?? e) }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(task);
+    else task.catch(console.error);
+    return json({ started: true, exec_id: execution.id }, 202);
+  } catch (error) {
+    console.error("[executar-kurier-agendado] handler:", error);
+    return json({ error: String((error as Error)?.message || error) }, 500);
   }
 });

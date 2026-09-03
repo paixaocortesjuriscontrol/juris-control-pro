@@ -60,6 +60,7 @@ interface Checkpoint {
 
 const MAX_CONCURRENCY = 3;
 const POLL_INTERVAL_MS = 2000;
+const STALE_HEARTBEAT_MS = 3 * 60 * 1000;
 
 function initialProgress(): KurierProgress {
   return {
@@ -143,6 +144,15 @@ function applyRemoteState(row: {
 
   const s = row.status;
   if (s === "executando" || s === "pendente") {
+    const heartbeatValue = typeof d.atualizado_em === "string" ? Date.parse(d.atualizado_em) : NaN;
+    if (Number.isFinite(heartbeatValue) && Date.now() - heartbeatValue > STALE_HEARTBEAT_MS) {
+      progress.status = "erro";
+      progress.mensagem = "Execução interrompida: o servidor parou de atualizar";
+      running = false;
+      stopPolling();
+      emit();
+      return;
+    }
     progress.status = "executando";
     running = true;
     progress.mensagem = progress.tracks.find((t) => t.status === "executando")?.mensagem
@@ -240,10 +250,10 @@ export async function executarDjenTermosKurier(
 export async function cancelarDjenTermosKurier(): Promise<void> {
   if (!currentExecucaoId) { running = false; return; }
   try {
-    // Sinaliza cancelamento — o motor no servidor consulta a cada iteração.
+      // O status é suficiente para impedir que a próxima etapa seja executada.
     await (supabase as any)
       .from("execucoes_agendadas")
-      .update({ status: "cancelado", detalhes: { cancel_request: true } })
+        .update({ status: "cancelado", finalizado_em: new Date().toISOString() })
       .eq("id", currentExecucaoId);
   } catch (e) {
     console.warn("[DJEN Kurier] cancelar falhou:", e);
