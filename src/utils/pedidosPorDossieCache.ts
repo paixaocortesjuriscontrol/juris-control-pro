@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { normalizeMateriaNome } from "./outraMateria";
 
 let cache: Map<string, Set<string>> | null = null;
+/** dossiê -> (pedido normalizado -> pedido com a grafia exata do cadastro) */
+let nomesCache: Map<string, Map<string, string>> | null = null;
 let inflight: Promise<Map<string, Set<string>>> | null = null;
 
 export function pedidosPorDossieCarregados(): boolean {
@@ -19,8 +21,10 @@ export function pedidosPorDossieCarregados(): boolean {
 
 export function resetPedidosPorDossie(): void {
   cache = null;
+  nomesCache = null;
   inflight = null;
 }
+
 
 /** Carrega (uma única vez) o mapa dossiê -> Set de pedidos normalizados. */
 export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
