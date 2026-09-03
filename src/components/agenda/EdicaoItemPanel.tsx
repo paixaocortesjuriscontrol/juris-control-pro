@@ -250,11 +250,13 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
 
   return (
     <div className="h-full flex flex-col bg-background">
-      <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
-        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
-          <X className="h-4 w-4" />
-        </Button>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       {isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento && (
         <div className="flex-shrink-0">
           <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
