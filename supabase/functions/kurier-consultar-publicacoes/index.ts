@@ -918,8 +918,20 @@ Deno.serve(async (req: Request) => {
       const confirmacoes: Record<string, number | string>[] = [];
 
       const rawRows: any[] = [];
+      // Gravação em lote: fora do modo backfill acumulamos as linhas de
+      // publicação do lote e inserimos em blocos, em vez de 1 round trip por
+      // publicação × coordenação (era o gargalo — ~1s por publicação).
+      const batchMode = !backfill_raw;
+      const pendentesInsert: any[] = [];
+      const pendentesEntradas: {
+        p: any;
+        idKEff: string;
+        keys: string[];
+        motivo: string | null;
+      }[] = [];
       let itensNaJanelaNesteLote = 0;
       let itensDepoisDaJanelaNesteLote = 0;
+
 
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
