@@ -120,7 +120,7 @@ const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
 const getAgendaDedupKey = (item: ItemAgendaUnificado) => `${item.origem}:${item.id}`;
 
 
-export /** Próximo dia útil (Seg–Sex), incluindo o próprio dia quando já é útil. */
+/** Próximo dia útil (Seg–Sex), incluindo o próprio dia quando já é útil. */
 function snapToWeekday(d: Date): Date {
   const out = new Date(d);
   while (out.getDay() === 0 || out.getDay() === 6) out.setDate(out.getDate() + 1);
@@ -138,7 +138,7 @@ function addBusinessDays(d: Date, n: number): Date {
   return out;
 }
 
-async function fetchAgendaPage(
+export async function fetchAgendaPage(
   filters: AgendaUnificadaFilters,
   page: number,
   userId: string | undefined,
