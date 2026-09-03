@@ -32,6 +32,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
+import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell } from "lucide-react";
 import { PessoasEmLoteDialog } from "@/components/painel/PessoasEmLoteDialog";
 import {
@@ -176,6 +177,8 @@ export default function PainelControle() {
   const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
   /** Data (yyyy-MM-dd) escolhida no calendário para pré-preencher a criação do item. */
   const [novoItemData, setNovoItemData] = useState<string | null>(null);
+  /** Item aberto no pop-up de baixa rápida (tela principal). */
+  const [itemBaixaRapida, setItemBaixaRapida] = useState<any | null>(null);
   const [tarefaEditando, setTarefaEditando] = useState<any | null>(null);
   const [prazoEditando, setPrazoEditando] = useState<any | null>(null);
   const [openPopoverKey, setOpenPopoverKey] = useState<string | null>(null);
@@ -2101,6 +2104,14 @@ export default function PainelControle() {
                 Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
               </Button>
 
+              <BaixaRapidaDialog
+                item={itemBaixaRapida}
+                open={!!itemBaixaRapida}
+                onOpenChange={(o) => { if (!o) setItemBaixaRapida(null); }}
+                onUpdate={() => {
+                  queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                }}
+              />
               <ExportarAtividadesDialog
                 open={exportOpen}
                 onOpenChange={setExportOpen}
@@ -2854,6 +2865,7 @@ export default function PainelControle() {
                 onSelectAtividade={(a) => {
                   void abrirPaiDaAtividade(a);
                 }}
+                onBaixarItem={(it) => setItemBaixaRapida(it)}
                 onCriarNesteDia={(tipo) => {
                   setSelectedItem(null);
                   setNovoItemData(diaLateralKey);

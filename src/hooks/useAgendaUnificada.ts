@@ -120,6 +120,24 @@ const normalizeRecorrenciaTipo = (tipo: string | null | undefined) => {
 const getAgendaDedupKey = (item: ItemAgendaUnificado) => `${item.origem}:${item.id}`;
 
 
+/** Próximo dia útil (Seg–Sex), incluindo o próprio dia quando já é útil. */
+function snapToWeekday(d: Date): Date {
+  const out = new Date(d);
+  while (out.getDay() === 0 || out.getDay() === 6) out.setDate(out.getDate() + 1);
+  return out;
+}
+
+/** Avança N dias ÚTEIS (Seg–Sex) a partir de uma data. */
+function addBusinessDays(d: Date, n: number): Date {
+  let out = new Date(d);
+  for (let i = 0; i < Math.max(1, n); i++) {
+    do {
+      out = new Date(out.getFullYear(), out.getMonth(), out.getDate() + 1, out.getHours(), out.getMinutes(), out.getSeconds());
+    } while (out.getDay() === 0 || out.getDay() === 6);
+  }
+  return out;
+}
+
 export async function fetchAgendaPage(
   filters: AgendaUnificadaFilters,
   page: number,
@@ -387,7 +405,8 @@ export async function fetchAgendaPage(
                 ? evento.recorrencia_dias_semana
                 : null;
 
-              let cursor = new Date(dataOriginal);
+              // Dias úteis: a série sempre começa em um dia útil (Seg–Sex).
+              let cursor = tipo === "weekdays" ? snapToWeekday(dataOriginal) : new Date(dataOriginal);
               let safety = 0;
               const MAX = 500;
               while (cursor <= hardStop && safety < MAX) {
@@ -401,22 +420,12 @@ export async function fetchAgendaPage(
                       if (occ >= windowStart && occ <= hardStop) ocorrencias.push(occ);
                     }
                   } else {
-                    if (tipo === "weekdays") {
-                      const dow = cursor.getDay();
-                      if (dow !== 0 && dow !== 6) ocorrencias.push(new Date(cursor));
-                    } else {
-                      ocorrencias.push(new Date(cursor));
-                    }
+                    ocorrencias.push(new Date(cursor));
                   }
                 }
                 // avança conforme a frequência
                 if (tipo === "daily") cursor = addDays(cursor, intervalo);
-                else if (tipo === "weekdays") {
-                  // Avança 1 dia por vez até cair em dia útil (Seg–Sex)
-                  do {
-                    cursor = addDays(cursor, 1);
-                  } while (cursor.getDay() === 0 || cursor.getDay() === 6);
-                }
+                else if (tipo === "weekdays") cursor = addBusinessDays(cursor, intervalo);
                 else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
                 else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
                 else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
@@ -720,23 +729,17 @@ export async function fetchAgendaPage(
               } else {
                 const tipo = normalizeRecorrenciaTipo((tarefa as any).recorrencia_tipo);
                 const intervalo = Math.max(1, Number((tarefa as any).recorrencia_intervalo || 1));
-                let cursor = new Date(dataBase);
+                // Dias úteis: a série sempre começa em um dia útil (Seg–Sex).
+                let cursor = tipo === "weekdays" ? snapToWeekday(dataBase) : new Date(dataBase);
                 let safety = 0;
                 const MAX = 500;
                 while (cursor <= hardStopT && safety < MAX) {
                   safety++;
                   if (cursor >= windowStartT) {
-                    if (tipo === "weekdays") {
-                      const dow = cursor.getDay();
-                      if (dow !== 0 && dow !== 6) ocorrenciasT.push(new Date(cursor));
-                    } else {
-                      ocorrenciasT.push(new Date(cursor));
-                    }
+                    ocorrenciasT.push(new Date(cursor));
                   }
                   if (tipo === "daily") cursor = addDays(cursor, intervalo);
-                  else if (tipo === "weekdays") {
-                    do { cursor = addDays(cursor, 1); } while (cursor.getDay() === 0 || cursor.getDay() === 6);
-                  } else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
+                  else if (tipo === "weekdays") cursor = addBusinessDays(cursor, intervalo); else if (tipo === "weekly") cursor = addDays(cursor, 7 * intervalo);
                   else if (tipo === "monthly") cursor = addMonths(cursor, intervalo);
                   else if (tipo === "yearly") cursor = addYears(cursor, intervalo);
                   else break;
@@ -1200,6 +1203,9 @@ export async function fetchAgendaPage(
       const dedupedItems: ItemAgendaUnificado[] = [];
       const seenKeys = new Set<string>();
       for (const item of resultItems) {
+        // "Cancelar e ocultar da agenda": o registro permanece no banco (histórico),
+        // mas não aparece mais na agenda/calendário/listas.
+        if (String(item.status ?? "").toLowerCase() === "cancelado_oculto") continue;
         const key = getAgendaDedupKey(item);
         if (seenKeys.has(key)) continue;
         seenKeys.add(key);

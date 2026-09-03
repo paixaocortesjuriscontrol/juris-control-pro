@@ -11100,6 +11100,7 @@ export type Database = {
         | "minutado_revisao"
         | "reagendado"
         | "tratado"
+        | "cancelado_oculto"
       tipo_item_prompt_ia: "prazo" | "tarefa" | "evento" | "audiencia"
     }
     CompositeTypes: {
@@ -11268,6 +11269,7 @@ export const Constants = {
         "minutado_revisao",
         "reagendado",
         "tratado",
+        "cancelado_oculto",
       ],
       tipo_item_prompt_ia: ["prazo", "tarefa", "evento", "audiencia"],
     },
