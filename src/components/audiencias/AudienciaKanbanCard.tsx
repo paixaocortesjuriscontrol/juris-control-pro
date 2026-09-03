@@ -3,7 +3,7 @@ import { differenceInDays, parseISO, isValid, format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, FileText, MapPin, Building, Eye, Pencil, CheckCircle, XCircle, ListChecks, MoreVertical } from "lucide-react";
+import { Calendar, FileText, MapPin, Building, Eye, Pencil, CheckCircle, XCircle, ListChecks, MoreVertical, Users, UserCheck } from "lucide-react";
 import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { AudienciaVinculoBadges } from "./AudienciaVinculoBadges";
@@ -16,9 +16,12 @@ interface Props {
   onMarcarTratado: (id: string) => void;
   onIgnorar: (id: string) => void;
   isPending: boolean;
+  /** Nomes de responsáveis/envolvidos, carregados em lote pelo board */
+  pessoas?: { responsaveis: string[]; envolvidos: string[] };
 }
 
-export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTarefa, onMarcarTratado, onIgnorar, isPending }: Props) {
+export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTarefa, onMarcarTratado, onIgnorar, isPending, pessoas }: Props) {
+
   const daysUntil = getDaysUntil(audiencia.data_audiencia);
 
   const formatDate = (dateStr: string | null) => {
@@ -111,6 +114,30 @@ export function AudienciaKanbanCard({ audiencia, onDetalhes, onEditar, onCriarTa
       {audiencia.advogado && (
         <p className="text-[10px] text-muted-foreground truncate">Adv: {audiencia.advogado}</p>
       )}
+
+      {/* Responsáveis e envolvidos */}
+      {((pessoas?.responsaveis?.length ?? 0) > 0 || (pessoas?.envolvidos?.length ?? 0) > 0) && (
+        <div className="space-y-1">
+          {(pessoas?.responsaveis?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <UserCheck className="w-3 h-3 text-muted-foreground shrink-0" />
+              {pessoas!.responsaveis.map((nome) => (
+                <Badge key={`r-${nome}`} variant="secondary" className="text-[10px] px-1.5 py-0">{nome}</Badge>
+              ))}
+            </div>
+          )}
+          {(pessoas?.envolvidos?.length ?? 0) > 0 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <Users className="w-3 h-3 text-muted-foreground shrink-0" />
+              {pessoas!.envolvidos.map((nome) => (
+                <Badge key={`e-${nome}`} variant="outline" className="text-[10px] px-1.5 py-0">{nome}</Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+
 
       {/* Actions */}
       <div className="pt-1 border-t border-border" onClick={(e) => e.stopPropagation()}>

@@ -2,6 +2,7 @@ import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaKanbanCard, getDaysUntil } from "./AudienciaKanbanCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAudienciasPessoas } from "@/hooks/useAudienciasPessoas";
 
 interface Column {
   key: string;
@@ -34,6 +35,7 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
   const orderedColumns = isMobile ? [...columns].reverse() : columns;
   // Oculta audiências já tratadas do Kanban (retiradas do fluxo ativo).
   const ativas = audiencias.filter((a) => a.status !== "tratado");
+  const { data: pessoasPorAudiencia = {} } = useAudienciasPessoas(ativas.map((a) => a.id));
 
   return (
     <div className="flex-1 min-h-0 overflow-hidden pb-2">
@@ -69,6 +71,7 @@ export function AudienciasKanbanBoard({ audiencias, onDetalhes, onEditar, onCria
                         onMarcarTratado={onMarcarTratado}
                         onIgnorar={onIgnorar}
                         isPending={isPending}
+                        pessoas={pessoasPorAudiencia[a.id]}
                       />
                     ))}
                   {items.length === 0 && (

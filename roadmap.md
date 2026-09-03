@@ -28,3 +28,9 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [~] 17b Exportar comentários em XLSX (pulado pelo usuário)
 - [x] 16 Botão "Acatar" ao lado de cada sugestão da Judit (Monitoramento → Divergências Judit)
 - [ ] 19 Diagnóstico do erro ao criar/editar usuário
+
+## Audiências — pessoas fixas
+- [x] Trigger no banco aplica pessoas fixas de AUDIÊNCIA em toda audiência criada
+- [x] Cards do Kanban de audiências mostram responsáveis e envolvidos
+- [x] Diálogo de reagendar/nova audiência mostra as pessoas replicadas
+- [x] Editar audiência: campo de Envolvidos sempre visível, com fixos travados (cadeado)

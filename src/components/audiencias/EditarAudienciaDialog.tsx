@@ -25,6 +25,11 @@ import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes } from "@/lib/aplicarPadroesModelo";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 import { usePodeReagendar } from "@/hooks/usePodeReagendar";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import {
+  useCoordenadoresDaCoordenacao,
+  useEnvolvidosFixosDaCoordenacao,
+} from "@/hooks/useCoordenadoresDaCoordenacao";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -46,6 +51,10 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   );
   const { podeReagendar } = usePodeReagendar(((audiencia as any)?.coordenacao_id as string) || null, "AUDIÊNCIA");
   const [selectedAdvogados, setSelectedAdvogados] = useState<string[]>([]);
+  const [envolvidosIds, setEnvolvidosIds] = useState<string[]>([]);
+  const coordenacaoDaAudiencia = ((audiencia as any)?.coordenacao_id as string) || null;
+  const { data: responsaveisFixosIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoDaAudiencia, "AUDIÊNCIA");
+  const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoDaAudiencia, "AUDIÊNCIA");
   const [reagendarModo, setReagendarModo] = useState<"reagendar" | "nova" | null>(null);
   const [statusInicial, setStatusInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
@@ -93,6 +102,36 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
     },
     enabled: !!audiencia?.id && open,
   });
+
+  // Buscar envolvidos (acompanham) vinculados à audiência
+  const { data: envolvidosVinculados = [] } = useQuery({
+    queryKey: ["audiencia-envolvidos", audiencia?.id],
+    queryFn: async () => {
+      if (!audiencia?.id) return [] as string[];
+      const { data, error } = await supabase
+        .from("audiencia_envolvidos")
+        .select("usuario_id")
+        .eq("audiencia_id", audiencia.id);
+      if (error) throw error;
+      return (data || []).map((e: any) => e.usuario_id).filter(Boolean) as string[];
+    },
+    enabled: !!audiencia?.id && open,
+  });
+
+  useEffect(() => {
+    setEnvolvidosIds(envolvidosVinculados);
+  }, [JSON.stringify(envolvidosVinculados)]);
+
+  // Fixos da coordenação entram sempre (e ficam travados na tela)
+  useEffect(() => {
+    if (envolvidosFixosIds.length === 0) return;
+    setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...envolvidosFixosIds])));
+  }, [JSON.stringify(envolvidosFixosIds)]);
+
+  useEffect(() => {
+    if (responsaveisFixosIds.length === 0) return;
+    setSelectedAdvogados((prev) => Array.from(new Set([...prev, ...responsaveisFixosIds])));
+  }, [JSON.stringify(responsaveisFixosIds)]);
 
   useEffect(() => {
     if (audiencia) {
@@ -249,9 +288,29 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         }
       }
 
+      // Atualizar envolvidos (acompanham)
+      await supabase
+        .from('audiencia_envolvidos')
+        .delete()
+        .eq('audiencia_id', audiencia.id);
+
+      const envolvidosFinais = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
+      if (envolvidosFinais.length > 0) {
+        const { error: envError } = await supabase
+          .from('audiencia_envolvidos')
+          .insert(envolvidosFinais.map((usuarioId) => ({
+            audiencia_id: audiencia.id,
+            usuario_id: usuarioId,
+          })));
+        if (envError) console.error('Erro ao vincular envolvidos:', envError);
+      }
+
       await invalidarItensAgenda(queryClient, [
         invalidateKey as unknown[],
         ['audiencia-advogados', audiencia.id],
+        ['audiencia-envolvidos', audiencia.id],
+        ['audiencias-pessoas'],
+        ['audiencia-responsaveis-resumo', audiencia.id],
       ].filter(Boolean) as unknown[][]);
       toast.success('Audiência atualizada com sucesso!');
       setStatusInicial(formData.status);
@@ -525,7 +584,26 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
           <SelecionarAdvogadosAudiencia
             selectedAdvogados={selectedAdvogados}
             onSelectionChange={setSelectedAdvogados}
+            lockedIds={responsaveisFixosIds}
           />
+
+          {/* Envolvidos (acompanham) — sempre visível */}
+          <div className="space-y-1.5">
+            <Label>Envolvidos (acompanham)</Label>
+            <PeoplePicker
+              selectedIds={envolvidosIds}
+              onChange={(ids) => setEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
+              placeholder="Adicionar envolvido"
+              emptyLabel="Apenas para acompanhamento"
+              icon="users"
+              lockedIds={envolvidosFixosIds}
+            />
+            {envolvidosFixosIds.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">
+                Envolvidos fixos configurados para Audiência não podem ser removidos.
+              </p>
+            )}
+          </div>
 
           {/* Participantes */}
           <div className="grid gap-4 md:grid-cols-3">
