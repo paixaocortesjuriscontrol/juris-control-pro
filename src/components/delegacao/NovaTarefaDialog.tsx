@@ -1046,12 +1046,24 @@ export function NovaTarefaDialog({
                           if (m.descricao && !form.getValues("descricao")) {
                             form.setValue("descricao", m.descricao, { shouldDirty: true });
                           }
-                          // Prazo pré-programado no modelo → data prevista a partir
-                          // da data base (data da publicação, se houver, ou hoje)
-                          const prazoCalculado = resolverPrazoModelo(
-                            m,
-                            publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
-                          );
+                          // Prazo pré-programado no modelo → preenche o campo
+                          // "Prazo (dias)" e calcula a Data prevista a partir da
+                          // data base do formulário (ou da publicação/hoje).
+                          const diasModelo = Number((m.padroes as any)?.prazo_dias) || 0;
+                          const unidadeModelo =
+                            ((m.padroes as any)?.prazo_unidade as "uteis" | "corridos") || "uteis";
+                          let prazoCalculado = "";
+                          if (diasModelo > 0) {
+                            setPrazoDias(diasModelo);
+                            setPrazoUnidade(unidadeModelo);
+                            const baseForm = form.getValues("data_base");
+                            prazoCalculado =
+                              computeDataPrevista(baseForm, diasModelo, unidadeModelo) ||
+                              resolverPrazoModelo(
+                                m,
+                                publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
+                              );
+                          }
                           // O modelo é uma escolha explícita: o prazo programado
                           // sempre substitui a data prevista atual.
                           if (prazoCalculado) {
@@ -1061,6 +1073,7 @@ export function NovaTarefaDialog({
                             ...p,
                             ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
                           };
+
                         }}
                         />
                       </div>
