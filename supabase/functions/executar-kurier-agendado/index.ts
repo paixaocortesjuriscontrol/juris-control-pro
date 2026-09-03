@@ -250,6 +250,7 @@ async function processHop(
         track.errosLimite++;
         track.maxLotes = 1;
         track.loteSize = MIN_LOTE_SIZE;
+        track.hopsSemErro = 0;
         if (track.errosLimite >= MAX_LIMIT_ERRORS) {
           track.status = "erro";
           track.erro = `Limite do servidor persistiu por ${MAX_LIMIT_ERRORS} tentativas (HTTP ${response.status})`;
