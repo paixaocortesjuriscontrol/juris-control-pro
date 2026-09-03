@@ -66,10 +66,10 @@ export function Sidebar() {
     : menuItemsPublicos.filter(
         (item) =>
           (!item.adminOnly || isAdmin) &&
-            (!item.adminOrCoordOnly || isAdminOrCoordinator) &&
-          (!item.restrictedCoordenacoes || isAdmin || item.restrictedCoordenacoes.some((n) => nomesCoordenacoes.has(n))) &&
-          (item.highlight || item.color || isAdminOrCoordinator)
+          (!item.adminOrCoordOnly || isAdminOrCoordinator) &&
+          (!item.restrictedCoordenacoes || isAdmin || item.restrictedCoordenacoes.some((n) => nomesCoordenacoes.has(n)))
       );
+
 
   const SidebarContent = () => (
     <>
