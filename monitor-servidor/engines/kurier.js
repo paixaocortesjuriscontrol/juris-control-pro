@@ -46,7 +46,7 @@ async function drenarCredencial(credencialId, log) {
   let processadas = 0;
   let chamadas = 0;
   let ultimoStatus = 200;
-  let loteSize = 25;
+  let loteSize = Math.max(10, parseInt(process.env.KURIER_LOTE_SIZE || "50", 10));
 
   while (chamadas < MAX_CHAMADAS_POR_CRED) {
     chamadas++;
