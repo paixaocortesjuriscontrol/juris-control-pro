@@ -679,6 +679,16 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                           <p className="text-sm text-muted-foreground truncate">
                             {etapa.titulo}
                           </p>
+                          {(atividadesMap[etapa.id] || []).length > 0 && (
+                            <Badge variant="outline" className="mt-1 gap-1 rounded-full">
+                              <ListChecks className="h-3 w-3" />
+                              {(atividadesMap[etapa.id] || []).length}{" "}
+                              {(atividadesMap[etapa.id] || []).length === 1
+                                ? "atividade"
+                                : "atividades"}
+                            </Badge>
+                          )}
+
                         </div>
                       </div>
                       <div className="flex items-start gap-6">
