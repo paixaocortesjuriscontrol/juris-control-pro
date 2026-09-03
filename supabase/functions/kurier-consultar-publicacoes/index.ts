@@ -888,14 +888,15 @@ Deno.serve(async (req: Request) => {
       if (!pubs.length) {
         // Em modo data, dia sem publicações é normal — só pula para o próximo.
         if (useDateMode) continue;
+        filaVazia = true;
         break; // Fila: ausência = fim do backlog
       }
 
       // Log do shape da primeira publicação do primeiro lote para diagnóstico
+      // (só as chaves — imprimir o payload inteiro custa memória/CPU do worker).
       if (lote === 0 && pubs[0]) {
         try {
           console.log(`[kurier] payload keys lote0:`, Object.keys(pubs[0]).join(","));
-          console.log(`[kurier] payload sample lote0:`, JSON.stringify(pubs[0]).slice(0, 1500));
         } catch {}
       }
 
