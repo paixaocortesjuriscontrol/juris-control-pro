@@ -156,6 +156,19 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
       await enviarArquivos(anexos, novoItemId, procId);
     };
 
+    // Mantém os valores atuais acessíveis ao flush global (registrado uma vez).
+    const estadoRef = useRef({ anexos, itemId, processoId });
+    estadoRef.current = { anexos, itemId, processoId };
+
+    useEffect(
+      () =>
+        registrarFlushAnexos(async () => {
+          const { anexos: lista, itemId: id, processoId: pid } = estadoRef.current;
+          if (!id || !lista.some((a) => !a.uploaded)) return;
+          await enviarArquivos(lista, id, pid);
+        }),
+      [],
+    );
 
     useImperativeHandle(ref, () => ({
       uploadPendentes,
