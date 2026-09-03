@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "./useDistribuicoesTst";
 
 export interface DistribuicaoTstStats {

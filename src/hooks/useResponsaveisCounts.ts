@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
 
 export interface ResponsavelCount {
@@ -130,5 +131,5 @@ export function useResponsaveisCounts(filters: DistribuicaoTstFilters) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtersKey, reloadTick]);
 
-  return { counts, loading, refetch: () => setReloadTick((t) => t + 1) };
+  return { counts, loading, refetch: () => { invalidateDistribuicaoTstCache(); setReloadTick((t) => t + 1); } };
 }
