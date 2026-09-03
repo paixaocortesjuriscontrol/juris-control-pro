@@ -3000,11 +3000,13 @@ function NovoItemPanel({
   dataPadrao,
   onClose,
   onSuccess,
+  hideHeader,
 }: {
   tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
   dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
+  hideHeader?: boolean;
 }) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
