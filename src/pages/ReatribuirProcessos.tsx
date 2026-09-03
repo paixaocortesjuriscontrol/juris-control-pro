@@ -65,7 +65,7 @@ const STATUS_CONCLUIDOS = [
   "arquivado",
   "arquivado_parcialmente",
   "arquivado_definitivamente",
-];
+] as const;
 
 const areaLabels: Record<string, string> = {
   civil: "Cível",
@@ -198,7 +198,7 @@ export default function ReatribuirProcessos() {
       if (respFiltro !== "all") q = q.in("id", idsDoResponsavel ?? []);
 
       if (situacao === "andamento") q = q.not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
-      else if (situacao === "concluidos") q = q.in("status", STATUS_CONCLUIDOS);
+      else if (situacao === "concluidos") q = q.in("status", STATUS_CONCLUIDOS as unknown as string[]);
 
       const termo = buscaAplicada.trim();
       if (termo) {
@@ -260,7 +260,7 @@ export default function ReatribuirProcessos() {
         else if (coordFiltro !== "all") q = q.eq("coordenacao_id", coordFiltro);
         if (respFiltro !== "all") q = q.in("id", idsDoResponsavel ?? []);
         if (situacao === "andamento") q = q.not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
-        else if (situacao === "concluidos") q = q.in("status", STATUS_CONCLUIDOS);
+        else if (situacao === "concluidos") q = q.in("status", STATUS_CONCLUIDOS as unknown as string[]);
         const termo = buscaAplicada.trim();
         if (termo) {
           const like = `%${termo}%`;
