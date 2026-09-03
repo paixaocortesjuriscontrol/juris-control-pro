@@ -76,11 +76,14 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
       };
     }, [itemId, coluna]);
 
-    const handleAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleAdd = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      setAnexos((prev) => [...prev, ...Array.from(files).map((file) => ({ file }))]);
+      const novos = Array.from(files).map((file) => ({ file }));
+      setAnexos((prev) => [...prev, ...novos]);
       e.target.value = "";
+      // Item já existe: vincula imediatamente, sem depender do botão Salvar.
+      if (itemId) await enviarArquivos(novos, itemId, processoId);
     };
 
     const handleRemove = async (index: number) => {
@@ -95,8 +98,12 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
       setAnexos((prev) => prev.filter((_, i) => i !== index));
     };
 
-    const uploadPendentes = async (novoItemId: string, procId?: string | null) => {
-      const pendentes = anexos.filter((a) => !a.uploaded && a.file);
+    const enviarArquivos = async (
+      lista: Anexo[],
+      novoItemId: string,
+      procId?: string | null,
+    ) => {
+      const pendentes = lista.filter((a) => !a.uploaded && a.file);
       if (pendentes.length === 0 || !novoItemId) return;
       setUploading(true);
       try {
@@ -113,25 +120,42 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
             .upload(path, file);
           if (upErr) {
             console.error("Erro no upload:", upErr);
-            toast.error(`Erro ao enviar ${file.name}`);
+            toast.error(`Erro ao enviar ${file.name}: ${upErr.message}`);
             continue;
           }
           const signedUrl = await getSignedUrlOrEmpty("documentos_processos", path);
-          await supabase.from("documentos").insert({
-            nome: file.name,
-            tipo: file.type,
-            url: signedUrl,
-            tamanho_bytes: file.size,
-            processo_id: procId || null,
-            uploaded_by: user?.id || null,
-            [coluna]: novoItemId,
-          } as any);
+          const { data: inserido, error: insErr } = await supabase
+            .from("documentos")
+            .insert({
+              nome: file.name,
+              tipo: file.type,
+              url: signedUrl,
+              tamanho_bytes: file.size,
+              processo_id: procId || null,
+              uploaded_by: user?.id || null,
+              [coluna]: novoItemId,
+            } as any)
+            .select("id, nome, url, tamanho_bytes")
+            .maybeSingle();
+          if (insErr || !inserido) {
+            console.error("Erro ao vincular documento:", insErr);
+            toast.error(`Não foi possível vincular ${file.name}: ${insErr?.message ?? "erro desconhecido"}`);
+            continue;
+          }
+          setAnexos((prev) => [
+            { ...(inserido as any), uploaded: true },
+            ...prev.filter((a) => a.file !== file),
+          ]);
         }
-        setAnexos((prev) => prev.filter((a) => a.uploaded));
       } finally {
         setUploading(false);
       }
     };
+
+    const uploadPendentes = async (novoItemId: string, procId?: string | null) => {
+      await enviarArquivos(anexos, novoItemId, procId);
+    };
+
 
     useImperativeHandle(ref, () => ({
       uploadPendentes,
