@@ -156,14 +156,18 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           );
         }
 
+        // Título e tipo devem ficar iguais na nova audiência
+        const tipoFinal = form.tipo_audiencia || base.tipo_audiencia || base.titulo || null;
         const insertPayload: Record<string, any> = {
           ...copy,
           data_audiencia: novaDataISO,
           hora: form.hora || null,
           hora_brasilia: form.hora_brasilia || null,
-          tipo_audiencia: form.tipo_audiencia || null,
+          tipo_audiencia: tipoFinal,
+          titulo: tipoFinal,
           modalidade: form.modalidade || null,
           status: "pendente",
+
           origem: "manual",
           criado_por: user?.id ?? null,
           originada_de: audiencia.id,
