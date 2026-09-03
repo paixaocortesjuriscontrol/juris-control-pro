@@ -692,7 +692,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
   if (filters.equipe && filters.equipe !== "todos") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
-  if (filters.tagId && filters.tagId !== "todas") return true;
+  if (normalizeTagIds(filters.tagId).length > 0) return true;
   return false;
 }
 
