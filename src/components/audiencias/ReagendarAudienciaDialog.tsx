@@ -37,22 +37,36 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
 
   useEffect(() => {
     if (!audiencia || !open) return;
-    let dataFormatted = "";
-    if (audiencia.data_audiencia) {
-      try {
-        const d = parseISO(audiencia.data_audiencia);
-        if (isValid(d)) dataFormatted = format(d, "yyyy-MM-dd");
-      } catch { /* ignore */ }
-    }
-    setForm({
-      data_audiencia: modo === "reagendar" ? dataFormatted : "",
-      hora: audiencia.hora || "",
-      hora_brasilia: audiencia.hora_brasilia || "",
-      tipo_audiencia: audiencia.tipo_audiencia || "",
-      modalidade: audiencia.modalidade || "",
-      motivo: "",
-    });
+    let cancelado = false;
+    const carregar = async () => {
+      // Relê do banco para refletir edições recentes (título/tipo) e não o cache
+      const { data: fresca } = await supabase
+        .from("audiencias_detectadas")
+        .select("data_audiencia, hora, hora_brasilia, tipo_audiencia, titulo, modalidade")
+        .eq("id", audiencia.id)
+        .maybeSingle();
+      if (cancelado) return;
+      const base: any = fresca ?? audiencia;
+      let dataFormatted = "";
+      if (base.data_audiencia) {
+        try {
+          const d = parseISO(base.data_audiencia);
+          if (isValid(d)) dataFormatted = format(d, "yyyy-MM-dd");
+        } catch { /* ignore */ }
+      }
+      setForm({
+        data_audiencia: modo === "reagendar" ? dataFormatted : "",
+        hora: base.hora || "",
+        hora_brasilia: base.hora_brasilia || "",
+        tipo_audiencia: base.tipo_audiencia || base.titulo || "",
+        modalidade: base.modalidade || "",
+        motivo: "",
+      });
+    };
+    void carregar();
+    return () => { cancelado = true; };
   }, [audiencia, open, modo]);
+
 
   const change = (k: string, v: string) => setForm(prev => ({ ...prev, [k]: v }));
 
@@ -120,6 +134,15 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
         // data. Cria um registro NOVO vinculado ao anterior — sem herdar origem
         // de importação/pauta nem o criador antigo (era isso que fazia a nova
         // data não aparecer no painel e na agenda).
+        // Relê a audiência original do banco para não copiar dados em cache
+        // (título/tipo antigos quando a audiência foi editada há pouco).
+        const { data: original } = await supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("id", audiencia.id)
+          .maybeSingle();
+        const base: any = original ?? audiencia;
+
         const {
           id,
           created_at,
@@ -129,7 +152,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           criado_por,
           origem,
           ...copy
-        } = audiencia as any;
+        } = base as any;
+
 
         // Guarda-rail: evita cópias duplicadas do mesmo processo/data/hora
         const { data: jaExiste } = await supabase
@@ -146,14 +170,18 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           );
         }
 
+        // Título e tipo devem ficar iguais na nova audiência
+        const tipoFinal = form.tipo_audiencia || base.tipo_audiencia || base.titulo || null;
         const insertPayload: Record<string, any> = {
           ...copy,
           data_audiencia: novaDataISO,
           hora: form.hora || null,
           hora_brasilia: form.hora_brasilia || null,
-          tipo_audiencia: form.tipo_audiencia || null,
+          tipo_audiencia: tipoFinal,
+          titulo: tipoFinal,
           modalidade: form.modalidade || null,
           status: "pendente",
+
           origem: "manual",
           criado_por: user?.id ?? null,
           originada_de: audiencia.id,
