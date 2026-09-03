@@ -10180,6 +10180,14 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_kurier_execution_lease: {
+        Args: {
+          _exec_id: string
+          _lease_seconds?: number
+          _lease_token: string
+        }
+        Returns: boolean
+      }
       add_fonte_importacao: {
         Args: { p_fonte: string; p_id: string }
         Returns: undefined
@@ -11048,6 +11056,10 @@ export type Database = {
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
+      release_kurier_execution_lease: {
+        Args: { _exec_id: string; _lease_token: string }
+        Returns: undefined
+      }
       replicar_etiqueta_processo: {
         Args: {
           _aplicar: boolean
