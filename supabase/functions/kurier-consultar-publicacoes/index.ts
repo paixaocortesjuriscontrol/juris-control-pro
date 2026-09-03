@@ -1071,6 +1071,8 @@ Deno.serve(async (req: Request) => {
         let motivoDescarte: string | null = null;
         if (!idK) motivoDescarte = "id_nao_reconhecido";
         let qtdInsercoes = 0;
+        const chaves: string[] = [];
+
 
         if (numero && conteudo) {
           // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
