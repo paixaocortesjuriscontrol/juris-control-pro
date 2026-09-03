@@ -194,6 +194,46 @@ export async function criarItemWorkflow(
   if (processoId) itemBase.processo_id = processoId;
   if (processoNumero) itemBase.processo_numero = processoNumero;
 
+  /**
+   * Cria as ATIVIDADES (subatividades) pré-definidas da etapa dentro do item
+   * recém-criado. A data prevista é a mesma data prevista do item da etapa e o
+   * responsável em branco herda o responsável principal da etapa.
+   * Uma falha aqui nunca derruba a criação da etapa.
+   */
+  const finalizar = async (
+    resultado: { id: string; tipo: WorkflowItemType } | null
+  ): Promise<{ id: string; tipo: WorkflowItemType } | null> => {
+    if (!resultado?.id) return resultado;
+    try {
+      const { data: atividades } = await supabase
+        .from("workflow_etapa_atividades")
+        .select("titulo, responsavel_id, observacao, ordem")
+        .eq("etapa_id", etapa.id)
+        .order("ordem", { ascending: true });
+      const rows = ((atividades as any[]) || [])
+        .filter((a) => String(a?.titulo || "").trim().length > 0)
+        .map((a) => ({
+          tipo_item: String(resultado.tipo).toLowerCase(),
+          item_id: resultado.id,
+          titulo: String(a.titulo).trim(),
+          responsavel_id: a.responsavel_id || responsavelPrincipal || null,
+          data_prevista: dataBaseStr,
+          situacao: "pendente",
+          observacao: a.observacao || null,
+          criado_por: userId,
+        }));
+      if (rows.length) {
+        const { error } = await supabase.from("subatividades_item").insert(rows as any);
+        if (error) throw error;
+      }
+    } catch (err) {
+      console.error("Erro ao criar atividades da etapa do workflow:", err);
+    }
+    return resultado;
+  };
+
+
+
   try {
     switch (tipo) {
       case "PRAZO":
