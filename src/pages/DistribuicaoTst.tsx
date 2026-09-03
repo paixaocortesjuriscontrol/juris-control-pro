@@ -1269,6 +1269,101 @@ export default function DistribuicaoTst() {
     }
   };
 
+  // Gera planilha simples com os dossiês encontrados, respeitando os filtros
+  // aplicados (ou apenas os selecionados, se houver seleção).
+  const handleGerarPlanilhaDossies = async () => {
+    setDossiesXlsxRunning(true);
+    try {
+      let ids: string[];
+      if (selectedIds.size > 0) {
+        ids = Array.from(selectedIds);
+      } else {
+        toast.info("Buscando distribuições filtradas...");
+        ids = await fetchAllDistribuicaoTstIds(listFilters);
+      }
+      if (ids.length === 0) {
+        toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
+        return;
+      }
+
+      const PAGE = 500;
+      const linhas: any[] = [];
+      for (let i = 0; i < ids.length; i += PAGE) {
+        const batch = ids.slice(i, i + PAGE);
+        const { data, error } = await supabase
+          .from("dados_benner" as any)
+          .select("id, dossie, processo, turma, relator, recorrente, data_distribuicao, aba_origem")
+          .in("id", batch);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((r) => linhas.push(r));
+      }
+
+      const porDossie = new Map<string, any>();
+      let semDossie = 0;
+      for (const r of linhas) {
+        const dossie = String(r.dossie || "").trim();
+        if (!dossie) { semDossie++; continue; }
+        if (!porDossie.has(dossie)) {
+          porDossie.set(dossie, { ...r, processos: new Set<string>() });
+        }
+        const alvo = porDossie.get(dossie)!;
+        if (r.processo) alvo.processos.add(String(r.processo));
+      }
+
+      if (porDossie.size === 0) {
+        toast.info("Nenhum dossiê encontrado com os filtros atuais.");
+        return;
+      }
+
+      const XLSX = await import("xlsx");
+      const aoa: any[][] = [
+        ["Dossiê", "Processo(s)", "Qtd. Processos", "Turma", "Relator", "Parte Recorrente", "Data Distribuição", "Aba Origem"],
+      ];
+      Array.from(porDossie.entries())
+        .sort((a, b) => a[0].localeCompare(b[0], "pt-BR", { numeric: true }))
+        .forEach(([dossie, r]) => {
+          aoa.push([
+            dossie,
+            Array.from(r.processos as Set<string>).join("; "),
+            (r.processos as Set<string>).size,
+            r.turma || "",
+            r.relator || "",
+            r.recorrente || "",
+            formatDateBR(r.data_distribuicao) || "",
+            r.aba_origem || "",
+          ]);
+        });
+
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!cols"] = [{ wch: 16 }, { wch: 60 }, { wch: 14 }, { wch: 18 }, { wch: 28 }, { wch: 40 }, { wch: 18 }, { wch: 20 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Dossiês");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const blob = new Blob([buf], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+      a.href = url;
+      a.download = `Dossies_Distribuicao_TST_${ts}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Planilha gerada com ${porDossie.size} dossiê(s).`);
+      if (semDossie > 0) {
+        toast.warning(`${semDossie} registro(s) sem dossiê foram ignorados.`);
+      }
+    } catch (err: any) {
+      toast.error("Erro ao gerar planilha de dossiês: " + (err?.message || String(err)));
+    } finally {
+      setDossiesXlsxRunning(false);
+    }
+  };
+
+
+
   const handleBulkJudit = async () => {
     bulkAbortRef.current = false;
     setBulkJuditRunning(true);
