@@ -157,9 +157,11 @@ interface EdicaoItemPanelProps {
   item: ItemAgendaUnificado;
   onClose: () => void;
   onUpdate?: () => void;
+  /** Oculta a barra de fechar interna (quando exibido dentro do drawer). */
+  hideHeader?: boolean;
 }
 
-export function EdicaoItemPanel({ item, onClose, onUpdate }: EdicaoItemPanelProps) {
+export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [tarefa, setTarefa] = useState<any | null>(null);
