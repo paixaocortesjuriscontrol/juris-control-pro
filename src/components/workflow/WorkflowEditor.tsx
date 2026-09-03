@@ -473,6 +473,101 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 />
                 <Label htmlFor="kanban">Exibir no Kanban</Label>
               </div>
+
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4" />
+                    Atividades desta etapa
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={adicionarAtividade}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  As atividades são criadas automaticamente dentro do item da etapa, com a
+                  mesma data prevista. Responsável em branco herda o responsável da etapa.
+                </p>
+                {(form.atividades || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma atividade pré-definida.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {(form.atividades as WorkflowEtapaAtividade[]).map((a, idx) => (
+                      <div key={idx} className="rounded-md border p-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={a.titulo}
+                            placeholder="Título da atividade"
+                            onChange={(e) => atualizarAtividade(idx, { titulo: e.target.value })}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Mover para cima"
+                            disabled={idx === 0}
+                            onClick={() => moverAtividade(idx, -1)}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Mover para baixo"
+                            disabled={idx === (form.atividades || []).length - 1}
+                            onClick={() => moverAtividade(idx, 1)}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Remover atividade"
+                            onClick={() => removerAtividade(idx)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Select
+                            value={a.responsavel_id || "__herdar__"}
+                            onValueChange={(v) =>
+                              atualizarAtividade(idx, {
+                                responsavel_id: v === "__herdar__" ? null : v,
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Responsável" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__herdar__">Herdar da etapa</SelectItem>
+                              {usuarios.map((u) => (
+                                <SelectItem key={u.id} value={u.id}>
+                                  {u.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            value={a.observacao || ""}
+                            placeholder="Observação (opcional)"
+                            onChange={(e) =>
+                              atualizarAtividade(idx, { observacao: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleSubmit}
                 disabled={createEtapa.isPending || updateEtapa.isPending}
