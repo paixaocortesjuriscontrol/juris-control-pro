@@ -267,7 +267,7 @@ export async function criarItemWorkflow(
             todosResponsaveis.map((u) => ({ tarefa_id: data.id, usuario_id: u }))
           );
         }
-        return { id: data.id, tipo };
+        return await finalizar({ id: data.id, tipo });
       }
 
       case "AUDIENCIA": {
@@ -299,7 +299,7 @@ export async function criarItemWorkflow(
             .from("audiencia_envolvidos")
             .insert(todosResponsaveis.map((u) => ({ audiencia_id: id, usuario_id: u })));
         }
-        return { id, tipo };
+        return await finalizar({ id, tipo });
       }
 
       case "EVENTO": {
@@ -324,7 +324,7 @@ export async function criarItemWorkflow(
             .from("participantes_evento")
             .insert(todosResponsaveis.map((u) => ({ evento_id: data.id, usuario_id: u })));
         }
-        return { id: data.id, tipo };
+        return await finalizar({ id: data.id, tipo });
       }
 
       case "PARCELAMENTO": {
@@ -360,7 +360,7 @@ export async function criarItemWorkflow(
           status: "pendente",
         }));
         await supabase.from("parcelas_evento").insert(parcelas);
-        return { id: evento.id, tipo };
+        return await finalizar({ id: evento.id, tipo });
       }
 
       default:
