@@ -115,16 +115,17 @@ const isPainelViewMode = (value: string | null): value is ViewMode =>
   value === "audiencias" ||
   value === "notificacoes";
 
-// Cores dos tipos
+// Cores dos tipos — padrão dos cards totalizadores (fundo claro, borda e texto escuros)
 const TIPO_CORES: Record<string, string> = {
-  evento: "bg-green-500",
-  tarefa: "bg-blue-500",
-  tarefa_delegada: "bg-blue-600",
-  prazo: "bg-red-500",
-  audiencia: "bg-yellow-500",
-  prazo_parcela: "bg-red-400",
-  parcelamento: "bg-emerald-500",
+  evento: "bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-300",
+  tarefa: "bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300",
+  tarefa_delegada: "bg-blue-100 dark:bg-blue-950/50 border border-blue-400 dark:border-blue-700 text-blue-800 dark:text-blue-300",
+  prazo: "bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300",
+  audiencia: "bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-300 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300",
+  prazo_parcela: "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-300",
+  parcelamento: "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300",
 };
+
 
 const TIPO_LABELS: Record<string, string> = {
   evento: "Evento",
