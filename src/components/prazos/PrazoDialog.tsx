@@ -95,6 +95,8 @@ type PrazoDialogProps = {
   publicacao?: PublicacaoUnificada | null;
   inline?: boolean;
   embedded?: boolean;
+  /** Data (yyyy-MM-dd) usada como data limite padrão ao criar um novo prazo. */
+  dataPadrao?: string;
   /**
    * Quando `true`, oculta o card verde expansível "Publicação DJEN vinculada"
    * dentro do formulário. Usado pelo layout side-by-side da tela Análise DJEN,
@@ -136,6 +138,7 @@ export function PrazoDialog({
   publicacao,
   inline = false,
   embedded = false,
+  dataPadrao,
   ocultarSituacao = false,
   hidePublicacaoCollapsible = false,
   secondarySave,
@@ -389,7 +392,7 @@ export function PrazoDialog({
     setTitulo("");
     setPrazoDias(0);
     setPrazoUnidade("uteis");
-    setDataLimite(undefined);
+    setDataLimite(dataPadrao ? new Date(`${dataPadrao}T12:00:00`) : undefined);
     setDataLimiteEditadaManualmente(false);
     setResponsaveisIds([]);
     setEnvolvidosIds([]);
