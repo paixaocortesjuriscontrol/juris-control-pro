@@ -29,7 +29,7 @@ const MAX_CALLS_PER_CREDENCIAL = 200;
 // estourar recurso (546). Depois de algumas chamadas boas volta a crescer.
 const DEFAULT_LOTE_SIZE = 50;
 const MIN_LOTE_SIZE = 10;
-const DEFAULT_MAX_LOTES = 2;
+const DEFAULT_MAX_LOTES = 4;
 const SUCESSOS_PARA_SUBIR = 3;
 
 

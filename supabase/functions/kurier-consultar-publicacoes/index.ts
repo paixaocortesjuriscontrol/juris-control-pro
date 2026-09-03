@@ -918,8 +918,20 @@ Deno.serve(async (req: Request) => {
       const confirmacoes: Record<string, number | string>[] = [];
 
       const rawRows: any[] = [];
+      // Gravação em lote: fora do modo backfill acumulamos as linhas de
+      // publicação do lote e inserimos em blocos, em vez de 1 round trip por
+      // publicação × coordenação (era o gargalo — ~1s por publicação).
+      const batchMode = !backfill_raw;
+      const pendentesInsert: any[] = [];
+      const pendentesEntradas: {
+        p: any;
+        idKEff: string;
+        keys: string[];
+        motivo: string | null;
+      }[] = [];
       let itensNaJanelaNesteLote = 0;
       let itensDepoisDaJanelaNesteLote = 0;
+
 
       for (const p of pubs) {
         // Janela de datas (cliente envia data_inicio/data_fim em YYYY-MM-DD).
@@ -1059,6 +1071,8 @@ Deno.serve(async (req: Request) => {
         let motivoDescarte: string | null = null;
         if (!idK) motivoDescarte = "id_nao_reconhecido";
         let qtdInsercoes = 0;
+        const chaves: string[] = [];
+
 
         if (numero && conteudo) {
           // 1) Matching: Kurier já filtrou pelo TermoPesquisa. Reduz drasticamente
@@ -1129,6 +1143,19 @@ Deno.serve(async (req: Request) => {
             // que já existe na mesma coordenação (mesmo processo + mesma data
             // de disponibilização). O usuário não quer "ressuscitar" como
             // não-lida algo que já estava na tela e já foi lido ontem.
+            if (batchMode) {
+              const coordKey = String(matched.coordenacao_id ?? "null");
+              const chave = `${coordKey}|${hashConteudo}`;
+              pendentesInsert.push({
+                ...basePayload,
+                id_djen: idDjen,
+                hash_conteudo: hashConteudo,
+                monitoramento_id: matched.id,
+                coordenacao_id: matched.coordenacao_id ?? null,
+              });
+              chaves.push(chave);
+              qtdInsercoes++;
+            } else {
             let jaExiste = false;
             if (backfill_raw && digits && basePayload.dedup_data_ref) {
               const { data: dup } = await admin
@@ -1183,6 +1210,8 @@ Deno.serve(async (req: Request) => {
               // insert sem retorno inesperado: trata como duplicado para não inflar contagem
               totalDuplicadas++;
             }
+            }
+
           } else if (capturaTotalCoords.length === 0) {
             totalDescartadas++;
             motivoDescarte = motivoDescarte ?? (
@@ -1203,8 +1232,22 @@ Deno.serve(async (req: Request) => {
             // pulamos para não duplicar a mesma linha desnecessariamente. Mas
             // se o match não inseriu (ex.: 23505 por já existir vindo do DJEN
             // Termos OU sem_match), seguimos com a captura total.
-            if (matched && (matched.coordenacao_id ?? null) === ct.id && publicacaoDjenId) continue;
+            if (matched && (matched.coordenacao_id ?? null) === ct.id && (publicacaoDjenId || batchMode)) continue;
+            if (batchMode) {
+              const chave = `${String(ct.id)}|${hashConteudo}`;
+              pendentesInsert.push({
+                ...basePayload,
+                id_djen: idDjen,
+                hash_conteudo: hashConteudo,
+                monitoramento_id: ct.monit_id,
+                coordenacao_id: ct.id,
+              });
+              chaves.push(chave);
+              qtdInsercoes++;
+              continue;
+            }
             // Backfill: evita reinserir publicação já existente na mesma
+
             // coord (mesmo processo + mesma data de disponibilização).
             if (backfill_raw && digits && basePayload.dedup_data_ref) {
               const { data: dupCt } = await admin
@@ -1262,9 +1305,13 @@ Deno.serve(async (req: Request) => {
           else if (!numero) motivoDescarte = motivoDescarte ?? "sem_processo";
         }
 
-        // Se nenhuma publicação foi inserida, grava 1 raw de auditoria
-        // com motivo de descarte e login_usado preservado.
-        if (qtdInsercoes === 0) {
+        // Em modo lote, o raw só pode ser montado depois da gravação em bloco
+        // (precisamos dos ids). Guardamos a entrada e resolvemos adiante.
+        if (batchMode && chaves.length > 0) {
+          pendentesEntradas.push({ p, idKEff, keys: chaves, motivo: motivoDescarte });
+        } else if (qtdInsercoes === 0) {
+          // Se nenhuma publicação foi inserida, grava 1 raw de auditoria
+          // com motivo de descarte e login_usado preservado.
           rawRows.push({
             id_kurier: idKEff,
             credencial_id: cred.id,
@@ -1276,6 +1323,7 @@ Deno.serve(async (req: Request) => {
           });
         }
 
+
         // Em modo data, NÃO confirmamos — o endpoint Personalizado é só leitura
         // e queremos preservar a fila para o monitoramento normal.
         // Em modo backfill, também NÃO confirmamos — o item já foi confirmado
@@ -1286,6 +1334,88 @@ Deno.serve(async (req: Request) => {
           if (idK) idsConfirmar.push(idK);
         }
       }
+
+      // Gravação em bloco das publicações do lote (modo normal). Troca ~150
+      // round trips por 1–2 chamadas: é o que fazia o Kurier levar ~1s por
+      // publicação.
+      if (batchMode && pendentesInsert.length > 0) {
+        const idsPorChave = new Map<string, string>();
+        for (let i = 0; i < pendentesInsert.length; i += 100) {
+          const bloco = pendentesInsert.slice(i, i + 100);
+          const { data: ins, error: insErr } = await admin
+            .from(pubTable)
+            .insert(bloco)
+            .select("id, hash_conteudo, coordenacao_id");
+          if (insErr) {
+            if ((insErr as any).code === "23505") {
+              // Algum item do bloco colidiu com o unique — refaz item a item
+              // para não perder as publicações novas do bloco.
+              for (const row of bloco) {
+                const { data: one, error: oneErr } = await admin
+                  .from(pubTable)
+                  .insert(row)
+                  .select("id, hash_conteudo, coordenacao_id")
+                  .maybeSingle();
+                if (oneErr) {
+                  if ((oneErr as any).code === "23505") totalDuplicadas++;
+                  else console.warn(`[kurier] erro insert ${pubTable}:`, oneErr.message);
+                  continue;
+                }
+                if (one) {
+                  totalNovas++;
+                  idsPorChave.set(`${String(one.coordenacao_id ?? "null")}|${one.hash_conteudo}`, one.id);
+                } else {
+                  totalDuplicadas++;
+                }
+              }
+              continue;
+            }
+            console.warn(`[kurier] erro insert bloco ${pubTable}:`, insErr.message);
+            continue;
+          }
+          const retornadas = ins ?? [];
+          totalNovas += retornadas.length;
+          if (retornadas.length < bloco.length) {
+            totalDuplicadas += bloco.length - retornadas.length;
+          }
+          for (const r of retornadas as any[]) {
+            idsPorChave.set(`${String(r.coordenacao_id ?? "null")}|${r.hash_conteudo}`, r.id);
+          }
+        }
+
+        // Agora sim os raws: 1 por publicação inserida, ou 1 de auditoria
+        // quando nenhuma linha do item entrou (duplicada/erro).
+        for (const e of pendentesEntradas) {
+          const idsDoItem = e.keys
+            .map((k) => idsPorChave.get(k))
+            .filter((v): v is string => !!v);
+          if (idsDoItem.length === 0) {
+            rawRows.push({
+              id_kurier: e.idKEff,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: e.p,
+              publicacao_djen_id: null,
+              motivo_descarte: e.motivo ?? "duplicada",
+              recebida_em: new Date().toISOString(),
+            });
+            continue;
+          }
+          for (const pid of Array.from(new Set(idsDoItem))) {
+            rawRows.push({
+              id_kurier: e.idKEff,
+              credencial_id: cred.id,
+              login_usado: cred.login,
+              payload: e.p,
+              publicacao_djen_id: pid,
+              motivo_descarte: null,
+              recebida_em: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+
 
       if (rawRows.length) {
         // Insere todas as linhas raw — sem unique(id_kurier), múltiplas
@@ -1370,6 +1500,9 @@ Deno.serve(async (req: Request) => {
       // acumula textos integrais de todos os lotes e estoura o limite de recurso.
       pubs = [];
       rawRows.length = 0;
+      pendentesInsert.length = 0;
+      pendentesEntradas.length = 0;
+
       idsConfirmar.length = 0;
       confirmacoes.length = 0;
       await delay(DELAY_MS);
