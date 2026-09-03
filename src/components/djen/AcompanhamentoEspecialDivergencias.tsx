@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertTriangle, Check, CheckCheck, Loader2, RefreshCw } from "lucide-react";
+import { AlertTriangle, Check, CheckCheck, Loader2, RefreshCw, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamentoEspecial";
 
@@ -20,6 +20,7 @@ type Divergencia = {
   valor_atual: string | null;
   valor_judit: string | null;
   detectado_em: string;
+  resolvido_em: string | null;
 };
 
 const LABEL_CAMPO: Record<string, string> = {
@@ -55,19 +56,20 @@ export function AcompanhamentoEspecialDivergencias() {
   const qc = useQueryClient();
   const [resolvendo, setResolvendo] = useState<string | null>(null);
   const [resolvendoTodas, setResolvendoTodas] = useState(false);
+  const [filtro, setFiltro] = useState<"pendentes" | "todas">("todas");
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
 
   const { data: divergencias, isLoading, refetch } = useQuery({
-    queryKey: ["acomp-especial-divergencias", semRestricao ? "all" : processoIds.join(",")],
+    queryKey: ["acomp-especial-divergencias", filtro, semRestricao ? "all" : processoIds.join(",")],
     enabled: !escopoLoading,
     queryFn: async () => {
       if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
       let q = supabase
         .from("acompanhamento_especial_divergencias")
-        .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit, detectado_em")
-        .is("resolvido_em", null)
+        .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit, detectado_em, resolvido_em")
         .order("detectado_em", { ascending: false })
         .limit(300);
+      if (filtro === "pendentes") q = q.is("resolvido_em", null);
       if (!semRestricao) q = q.in("processo_id", processoIds);
       const { data, error } = await q;
       if (error) throw error;
@@ -94,14 +96,36 @@ export function AcompanhamentoEspecialDivergencias() {
     }
   };
 
-  const total = divergencias?.length ?? 0;
+  const reabrir = async (id: string) => {
+    setResolvendo(id);
+    try {
+      const { error } = await supabase
+        .from("acompanhamento_especial_divergencias")
+        .update({ resolvido_em: null, resolvido_por: null })
+        .eq("id", id);
+      if (error) throw error;
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] });
+      await qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] });
+      toast.success("Divergência reaberta.");
+    } catch (e: any) {
+      toast.error("Falha ao reabrir", { description: e?.message ?? String(e) });
+    } finally {
+      setResolvendo(null);
+    }
+  };
+
+  const linhas = divergencias ?? [];
+  const pendentes = linhas.filter((d) => !d.resolvido_em);
+  // A contagem do card considera SOMENTE as pendentes
+  const total = pendentes.length;
 
   const marcarTodasCiente = async () => {
-    if (!divergencias?.length) return;
+    if (!pendentes.length) return;
     setResolvendoTodas(true);
     try {
       const { data: userData } = await supabase.auth.getUser();
-      const ids = divergencias.map((d) => d.id);
+      const ids = pendentes.map((d) => d.id);
+      if (ids.length === 0) return;
       for (let i = 0; i < ids.length; i += 200) {
         const { error } = await supabase
           .from("acompanhamento_especial_divergencias")
@@ -149,6 +173,13 @@ export function AcompanhamentoEspecialDivergencias() {
                 Marcar todas como Ciente
               </Button>
             )}
+            <Button
+              size="sm"
+              variant={filtro === "pendentes" ? "default" : "outline"}
+              onClick={() => setFiltro(filtro === "pendentes" ? "todas" : "pendentes")}
+            >
+              {filtro === "pendentes" ? "Só pendentes" : "Todas"}
+            </Button>
             <Button size="sm" variant="ghost" onClick={() => refetch()}>
               <RefreshCw className="mr-2 h-3 w-3" /> Atualizar
             </Button>
@@ -160,9 +191,9 @@ export function AcompanhamentoEspecialDivergencias() {
           <div className="py-8 text-center text-muted-foreground">
             <Loader2 className="mx-auto h-5 w-5 animate-spin" />
           </div>
-        ) : total === 0 ? (
+        ) : linhas.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma divergência pendente.
+            {filtro === "pendentes" ? "Nenhuma divergência pendente." : "Nenhuma divergência registrada."}
           </div>
         ) : (
           <div className="rounded-md border overflow-x-auto">
@@ -178,8 +209,8 @@ export function AcompanhamentoEspecialDivergencias() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(divergencias ?? []).map((d) => (
-                  <TableRow key={d.id}>
+                {linhas.map((d) => (
+                  <TableRow key={d.id} className={d.resolvido_em ? "opacity-60" : undefined}>
                     <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                       {format(new Date(d.detectado_em), "dd/MM/yyyy HH:mm", { locale: ptBR })}
                     </TableCell>
@@ -189,7 +220,14 @@ export function AcompanhamentoEspecialDivergencias() {
                       </Link>
                     </TableCell>
                     <TableCell className="text-sm font-medium">
-                      {LABEL_CAMPO[d.campo] ?? d.campo}
+                      <span className={d.resolvido_em ? "text-muted-foreground" : undefined}>
+                        {LABEL_CAMPO[d.campo] ?? d.campo}
+                      </span>
+                      {d.resolvido_em && (
+                        <Badge variant="outline" className="ml-2 text-[10px] text-muted-foreground">
+                          Ciente
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs max-w-[220px] truncate" title={d.valor_atual ?? ""}>
                       {d.valor_atual || "—"}
@@ -200,12 +238,14 @@ export function AcompanhamentoEspecialDivergencias() {
                     <TableCell className="text-right">
                       <Button
                         size="sm"
-                        variant="outline"
+                        variant={d.resolvido_em ? "ghost" : "outline"}
                         disabled={resolvendo === d.id}
-                        onClick={() => marcarCiente(d.id)}
+                        onClick={() => (d.resolvido_em ? reabrir(d.id) : marcarCiente(d.id))}
                       >
                         {resolvendo === d.id ? (
                           <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : d.resolvido_em ? (
+                          <><Undo2 className="mr-1 h-3 w-3" /> Reabrir</>
                         ) : (
                           <><Check className="mr-1 h-3 w-3" /> Ciente</>
                         )}
