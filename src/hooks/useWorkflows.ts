@@ -207,10 +207,12 @@ export function useDeleteWorkflow() {
 function sanitizeEtapaPayload(input: Record<string, any>) {
   const {
     responsaveis,
+    atividades,
     created_at,
     updated_at,
     ...rest
   } = input as any;
+
   // remove relações/objetos que não são colunas da tabela
   for (const k of Object.keys(rest)) {
     const v = rest[k];
@@ -254,6 +256,68 @@ async function salvarResponsaveisEtapa(etapaId: string, responsaveis?: string[])
     if (error) throw error;
   }
 }
+
+/** Atividades (subatividades) pré-definidas de uma etapa do workflow. */
+export interface WorkflowEtapaAtividade {
+  id?: string;
+  etapa_id?: string;
+  ordem: number;
+  titulo: string;
+  /** null = herdar o responsável da etapa. */
+  responsavel_id: string | null;
+  observacao: string | null;
+}
+
+async function salvarAtividadesEtapa(
+  etapaId: string,
+  atividades?: WorkflowEtapaAtividade[]
+) {
+  if (!atividades) return;
+  await supabase.from("workflow_etapa_atividades").delete().eq("etapa_id", etapaId);
+  const rows = atividades
+    .filter((a) => (a?.titulo || "").trim().length > 0)
+    .map((a, idx) => ({
+      etapa_id: etapaId,
+      ordem: idx + 1,
+      titulo: a.titulo.trim(),
+      responsavel_id: a.responsavel_id || null,
+      observacao: (a.observacao || "").trim() || null,
+    }));
+  if (rows.length) {
+    const { error } = await supabase.from("workflow_etapa_atividades").insert(rows);
+    if (error) throw error;
+  }
+}
+
+/** Mapa etapa_id -> atividades pré-definidas, para o editor do workflow. */
+export function useWorkflowEtapasAtividades(workflowId?: string) {
+  return useQuery({
+    queryKey: ["workflow-etapas-atividades", workflowId],
+    enabled: !!workflowId,
+    queryFn: async () => {
+      if (!workflowId) return {} as Record<string, WorkflowEtapaAtividade[]>;
+      const { data: etapas } = await supabase
+        .from("workflow_etapas")
+        .select("id")
+        .eq("workflow_id", workflowId);
+      const ids = ((etapas as any[]) || []).map((e) => e.id);
+      if (!ids.length) return {} as Record<string, WorkflowEtapaAtividade[]>;
+      const { data, error } = await supabase
+        .from("workflow_etapa_atividades")
+        .select("id, etapa_id, ordem, titulo, responsavel_id, observacao")
+        .in("etapa_id", ids)
+        .order("ordem", { ascending: true });
+      if (error) throw error;
+      const map: Record<string, WorkflowEtapaAtividade[]> = {};
+      for (const a of (data as any[]) || []) {
+        map[a.etapa_id] = [...(map[a.etapa_id] || []), a as WorkflowEtapaAtividade];
+      }
+      return map;
+    },
+  });
+}
+
+
 
 export function useWorkflowEtapasResponsaveis(workflowId?: string) {
   return useQuery({
@@ -313,7 +377,10 @@ export function useCreateWorkflowEtapa() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (
-      input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at"> & { responsaveis?: string[] }
+      input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at"> & {
+        responsaveis?: string[];
+        atividades?: WorkflowEtapaAtividade[];
+      }
     ) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
@@ -322,11 +389,13 @@ export function useCreateWorkflowEtapa() {
         .single();
       if (error) throw error;
       await salvarResponsaveisEtapa((data as any).id, (input as any).responsaveis);
+      await salvarAtividadesEtapa((data as any).id, (input as any).atividades);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas", variables.workflow_id] });
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-atividades"] });
       toast.success("Etapa adicionada!");
     },
     onError: (err: Error) => toast.error("Erro ao adicionar etapa: " + err.message),
@@ -339,7 +408,11 @@ export function useUpdateWorkflowEtapa() {
     mutationFn: async ({
       id,
       ...updates
-    }: Partial<WorkflowEtapa> & { id: string; responsaveis?: string[] }) => {
+    }: Partial<WorkflowEtapa> & {
+      id: string;
+      responsaveis?: string[];
+      atividades?: WorkflowEtapaAtividade[];
+    }) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
         .update(sanitizeEtapaPayload(updates) as any)
@@ -348,16 +421,19 @@ export function useUpdateWorkflowEtapa() {
         .single();
       if (error) throw error;
       await salvarResponsaveisEtapa(id, (updates as any).responsaveis);
+      await salvarAtividadesEtapa(id, (updates as any).atividades);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-atividades"] });
       toast.success("Etapa atualizada!");
     },
     onError: (err: Error) => toast.error("Erro ao atualizar etapa: " + err.message),
   });
 }
+
 
 export function useDeleteWorkflowEtapa() {
   const queryClient = useQueryClient();

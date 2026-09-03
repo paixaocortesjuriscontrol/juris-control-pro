@@ -27,7 +27,9 @@ import {
   useUpdateWorkflowEtapa,
   useDeleteWorkflowEtapa,
   useWorkflowEtapasResponsaveis,
+  useWorkflowEtapasAtividades,
 } from "@/hooks/useWorkflows";
+import type { WorkflowEtapaAtividade } from "@/hooks/useWorkflows";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -45,6 +47,10 @@ import {
   ArrowLeft,
   MoreVertical,
   CalendarPlus,
+  ListChecks,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -89,6 +95,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const updateEtapa = useUpdateWorkflowEtapa();
   const deleteEtapa = useDeleteWorkflowEtapa();
   const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
+  const { data: atividadesMap = {} } = useWorkflowEtapasAtividades(workflowId);
   const { coordenacoes } = useCoordenacoesDoUsuario();
   const [coordSelecionada, setCoordSelecionada] = useState<string>("");
   const coordEfetiva = coordSelecionada || workflow?.coordenacao_id || "";
@@ -115,9 +122,44 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       condicao: "sempre",
       responsavel_id: null,
       responsaveis: [] as string[],
+      atividades: [] as WorkflowEtapaAtividade[],
     });
     setEditing(null);
   };
+
+  const adicionarAtividade = () =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: [
+        ...((prev.atividades || []) as WorkflowEtapaAtividade[]),
+        { titulo: "", responsavel_id: null, observacao: null, ordem: (prev.atividades || []).length + 1 },
+      ],
+    }));
+
+  const atualizarAtividade = (idx: number, patch: Partial<WorkflowEtapaAtividade>) =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: ((prev.atividades || []) as WorkflowEtapaAtividade[]).map((a, i) =>
+        i === idx ? { ...a, ...patch } : a
+      ),
+    }));
+
+  const removerAtividade = (idx: number) =>
+    setForm((prev: any) => ({
+      ...prev,
+      atividades: ((prev.atividades || []) as WorkflowEtapaAtividade[]).filter(
+        (_, i) => i !== idx
+      ),
+    }));
+
+  const moverAtividade = (idx: number, delta: number) =>
+    setForm((prev: any) => {
+      const lista = [...((prev.atividades || []) as WorkflowEtapaAtividade[])];
+      const destino = idx + delta;
+      if (destino < 0 || destino >= lista.length) return prev;
+      [lista[idx], lista[destino]] = [lista[destino], lista[idx]];
+      return { ...prev, atividades: lista };
+    });
 
   const handleOpen = () => {
     resetForm();
@@ -132,9 +174,11 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       ...etapa,
       dias_fatal: etapa.dias_fatal ?? null,
       responsaveis: respMap[etapa.id] || (etapa.responsavel_id ? [etapa.responsavel_id] : []),
+      atividades: (atividadesMap[etapa.id] || []).map((a) => ({ ...a })),
     });
     setDialogOpen(true);
   };
+
 
   const handleSubmit = async () => {
     if (!form.titulo.trim() || !form.tipo_item) {
@@ -147,6 +191,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       dias_fatal: form.dias_fatal ? parseInt(form.dias_fatal) : null,
       responsaveis:
         form.regra_responsavel === "predefinido" ? (form.responsaveis || []) : [],
+      atividades: (form.atividades || []) as WorkflowEtapaAtividade[],
       responsavel_id:
         form.regra_responsavel === "predefinido"
           ? (form.responsaveis || [])[0] || null
@@ -473,6 +518,101 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 />
                 <Label htmlFor="kanban">Exibir no Kanban</Label>
               </div>
+
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="flex items-center gap-2">
+                    <ListChecks className="h-4 w-4" />
+                    Atividades desta etapa
+                  </Label>
+                  <Button type="button" variant="outline" size="sm" onClick={adicionarAtividade}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Adicionar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  As atividades são criadas automaticamente dentro do item da etapa, com a
+                  mesma data prevista. Responsável em branco herda o responsável da etapa.
+                </p>
+                {(form.atividades || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma atividade pré-definida.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {(form.atividades as WorkflowEtapaAtividade[]).map((a, idx) => (
+                      <div key={idx} className="rounded-md border p-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={a.titulo}
+                            placeholder="Título da atividade"
+                            onChange={(e) => atualizarAtividade(idx, { titulo: e.target.value })}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Mover para cima"
+                            disabled={idx === 0}
+                            onClick={() => moverAtividade(idx, -1)}
+                          >
+                            <ArrowUp className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Mover para baixo"
+                            disabled={idx === (form.atividades || []).length - 1}
+                            onClick={() => moverAtividade(idx, 1)}
+                          >
+                            <ArrowDown className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            title="Remover atividade"
+                            onClick={() => removerAtividade(idx)}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <Select
+                            value={a.responsavel_id || "__herdar__"}
+                            onValueChange={(v) =>
+                              atualizarAtividade(idx, {
+                                responsavel_id: v === "__herdar__" ? null : v,
+                              })
+                            }
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Responsável" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__herdar__">Herdar da etapa</SelectItem>
+                              {usuarios.map((u) => (
+                                <SelectItem key={u.id} value={u.id}>
+                                  {u.nome}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            value={a.observacao || ""}
+                            placeholder="Observação (opcional)"
+                            onChange={(e) =>
+                              atualizarAtividade(idx, { observacao: e.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <Button
                 onClick={handleSubmit}
                 disabled={createEtapa.isPending || updateEtapa.isPending}
@@ -539,6 +679,16 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                           <p className="text-sm text-muted-foreground truncate">
                             {etapa.titulo}
                           </p>
+                          {(atividadesMap[etapa.id] || []).length > 0 && (
+                            <Badge variant="outline" className="mt-1 gap-1 rounded-full">
+                              <ListChecks className="h-3 w-3" />
+                              {(atividadesMap[etapa.id] || []).length}{" "}
+                              {(atividadesMap[etapa.id] || []).length === 1
+                                ? "atividade"
+                                : "atividades"}
+                            </Badge>
+                          )}
+
                         </div>
                       </div>
                       <div className="flex items-start gap-6">
