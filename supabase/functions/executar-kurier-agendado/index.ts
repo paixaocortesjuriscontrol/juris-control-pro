@@ -40,6 +40,8 @@ interface KurierTrack {
   loteSize: number;
   maxLotes: number;
   errosLimite: number;
+  hopsSemErro?: number;
+  adiado?: boolean;
 }
 
 interface JobOptions {
@@ -49,6 +51,9 @@ interface JobOptions {
   dataFim?: string;
   modoPersonalizado: boolean;
   drenarBacklog: boolean;
+  /** Modo drenagem: roda uma credencial só, até a fila esvaziar. */
+  credencialId?: string;
+  drenagem?: boolean;
 }
 
 interface JobState {
