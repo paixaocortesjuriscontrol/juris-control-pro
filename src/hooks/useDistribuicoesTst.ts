@@ -573,30 +573,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     else if (filters.judit === "nao") query = query.or("judit_preenchido.is.null,judit_preenchido.eq.false");
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
-    if (filters.situacaoProcesso === "ativo") {
-      query = query.ilike("situacao_processo", "ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (filters.situacaoProcesso === "transito") {
-      query = query.eq("transito_julgado", true);
-    } else if (filters.situacaoProcesso === "outros") {
-      query = query.or("situacao_processo.is.null,situacao_processo.not.ilike.ativo").or("transito_julgado.is.null,transito_julgado.eq.false");
-    } else if (filters.situacaoProcesso === "outro_escritorio") {
-      query = query.eq("processo_outro_escritorio", true);
-    } else if (filters.situacaoProcesso === "segredo_justica") {
-      query = query.eq("segredo_justica", true);
-    } else if (filters.situacaoProcesso === "cejusc") {
-      query = query.eq("cejusc", true);
-    } else if (filters.situacaoProcesso === "a_fazer") {
-      query = query
-        .or("transito_julgado.is.null,transito_julgado.eq.false")
-        .or("processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false")
-        .or("segredo_justica.is.null,segredo_justica.eq.false")
-        .or("cejusc.is.null,cejusc.eq.false")
-        .or("status.is.null,status.not.in.(pronto_envio,planilhado,enviado)");
-    } else if (filters.situacaoProcesso === "nao_precisa_fazer") {
-      query = query.or(
-        "transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true"
-      );
-    }
+    query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
