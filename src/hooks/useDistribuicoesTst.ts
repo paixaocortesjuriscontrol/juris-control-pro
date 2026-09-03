@@ -681,6 +681,44 @@ function applyPedidosDossieFilter<T>(query: T, filters: DistribuicaoTstFilters):
   return q.or(`dossie.is.null,dossie.eq.,dossie.not.in.(${quoted})`) as T;
 }
 
+/**
+ * Condição PostgREST de cada opção do filtro "Situação processo".
+ * Usa `and(...)`/`or(...)` aninhados para permitir combinar várias opções em um único OR.
+ */
+const SITUACAO_PROCESSO_COND: Record<string, string> = {
+  ativo: "and(situacao_processo.ilike.ativo,or(transito_julgado.is.null,transito_julgado.eq.false))",
+  transito: "transito_julgado.eq.true",
+  outros:
+    "and(or(situacao_processo.is.null,situacao_processo.not.ilike.ativo),or(transito_julgado.is.null,transito_julgado.eq.false))",
+  outro_escritorio: "processo_outro_escritorio.eq.true",
+  segredo_justica: "segredo_justica.eq.true",
+  cejusc: "cejusc.eq.true",
+  pronto_enviar: "status.in.(pronto_envio,planilhado,enviado)",
+  problema_judit: "problema_judit.eq.true",
+  recurso_terceiro: "recurso_terceiro.eq.true",
+  acordo: "acordo.eq.true",
+  a_fazer:
+    "and(or(transito_julgado.is.null,transito_julgado.eq.false),or(processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false),or(segredo_justica.is.null,segredo_justica.eq.false),or(cejusc.is.null,cejusc.eq.false),or(status.is.null,status.not.in.(pronto_envio,planilhado,enviado)))",
+  nao_precisa_fazer:
+    "or(transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true)",
+};
+
+/** Normaliza o filtro de situação (aceita valor único ou lista) em opções válidas. */
+export function normalizarSituacoesProcesso(valor?: string | string[] | null): string[] {
+  const lista = Array.isArray(valor) ? valor : valor ? [valor] : [];
+  return Array.from(
+    new Set(lista.filter((v) => v && v !== "todos" && !!SITUACAO_PROCESSO_COND[v])),
+  );
+}
+
+/** Aplica no banco o filtro "Situação processo" (uma ou várias opções, combinadas em OR). */
+function applySituacaoProcessoFilter<T>(query: T, valor?: string | string[] | null): T {
+  const opcoes = normalizarSituacoesProcesso(valor);
+  if (opcoes.length === 0) return query;
+  const cond = opcoes.map((o) => SITUACAO_PROCESSO_COND[o]).join(",");
+  return (query as any).or(cond) as T;
+}
+
 function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.processo) return true;
   if (filters.dossie) return true;
