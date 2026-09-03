@@ -50,8 +50,11 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
           if (cancelled) return;
           const { data, error } = await supabase
             .from("dados_benner" as any)
+            // Atenção: não existe coluna `materias_analise_terceiro` em
+            // `dados_benner` — incluí-la fazia o select falhar e o card do
+            // "Revisar Lista de matérias" ficar zerado.
             .select(
-              "id, dossie, recorrente, materias_analise_reclamante, materias_analise_banco, materias_analise_terceiro",
+              "id, dossie, recorrente, materias_analise_reclamante, materias_analise_banco",
             )
             .in("status", STATUS_CONCLUIDOS)
             .order("id", { ascending: true })
