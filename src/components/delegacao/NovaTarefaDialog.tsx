@@ -1625,18 +1625,16 @@ export function NovaTarefaDialog({
               Reabrir
             </Button>
           )}
-          {!ocultarSituacao && (
-            <Button 
-              type="submit"
-              form="nova-tarefa-form"
-              disabled={loading || uploadingAnexos} 
-              className="w-full sm:w-auto"
-              onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
-            >
-              {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
-            </Button>
-          )}
+          <Button
+            type="submit"
+            form="nova-tarefa-form"
+            disabled={loading || uploadingAnexos}
+            className="w-full sm:w-auto"
+            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
+          >
+            {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {uploadingAnexos ? "Enviando anexos..." : loading ? "Salvando..." : "Salvar"}
+          </Button>
           {secondarySave && !tarefaParaEditar?.id && (
             <Button
               type="submit"
