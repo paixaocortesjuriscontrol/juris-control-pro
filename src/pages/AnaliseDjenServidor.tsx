@@ -96,6 +96,7 @@ import { CadastroAudienciaForm } from "@/components/audiencias/CadastroAudiencia
 import { DjenExecutionBanner } from "@/components/djen/DjenExecutionBanner";
 import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/components/djen/PublicacaoConteudoDjen";
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
+import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 
@@ -4448,6 +4449,14 @@ const AnaliseDjenServidor = () => {
                                     </div>
                                   )}
 
+                                  {/* Partes — logo abaixo do número do processo */}
+                                  <PartesResumoLinha
+                                    poloAtivo={pub.polo_ativo}
+                                    poloPassivo={pub.polo_passivo}
+                                    partesJson={(pub as any).partes_json}
+                                    className="ml-4 md:ml-6"
+                                  />
+
                                   {/* Datas inline - sempre visíveis */}
                                   <div className="flex flex-wrap items-center gap-2 md:gap-4 text-[10px] md:text-xs ml-4 md:ml-6 mb-1.5">
                                     {pub.tribunal && (
@@ -4474,15 +4483,6 @@ const AnaliseDjenServidor = () => {
                                       </div>
                                     )}
                                   </div>
-
-                                  {pub.tipo_origem === 'processo' && (pub.polo_ativo || pub.polo_passivo) && (
-                                    <p className="text-[10px] md:text-xs text-muted-foreground mb-1 ml-4 md:ml-6 break-words">
-                                      {pub.polo_ativo && <span><strong>Ativo:</strong> {pub.polo_ativo}</span>}
-                                      {pub.polo_ativo && pub.polo_passivo && <br className="md:hidden" />}
-                                      {pub.polo_ativo && pub.polo_passivo && <span className="hidden md:inline"> | </span>}
-                                      {pub.polo_passivo && <span><strong>Passivo:</strong> {pub.polo_passivo}</span>}
-                                    </p>
-                                  )}
 
                                   {!isExpanded && (
                                     <p className="text-xs md:text-sm text-muted-foreground line-clamp-2 ml-4 md:ml-6 break-words overflow-hidden">
