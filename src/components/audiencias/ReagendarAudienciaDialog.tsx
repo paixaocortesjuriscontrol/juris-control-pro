@@ -120,6 +120,15 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
         // data. Cria um registro NOVO vinculado ao anterior — sem herdar origem
         // de importação/pauta nem o criador antigo (era isso que fazia a nova
         // data não aparecer no painel e na agenda).
+        // Relê a audiência original do banco para não copiar dados em cache
+        // (título/tipo antigos quando a audiência foi editada há pouco).
+        const { data: original } = await supabase
+          .from("audiencias_detectadas")
+          .select("*")
+          .eq("id", audiencia.id)
+          .maybeSingle();
+        const base: any = original ?? audiencia;
+
         const {
           id,
           created_at,
@@ -129,7 +138,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           criado_por,
           origem,
           ...copy
-        } = audiencia as any;
+        } = base as any;
+
 
         // Guarda-rail: evita cópias duplicadas do mesmo processo/data/hora
         const { data: jaExiste } = await supabase
