@@ -1403,6 +1403,7 @@ Deno.serve(async (req: Request) => {
       total_fora_janela_antes: totalForaJanelaAntes,
       total_fora_janela_depois: totalForaJanelaDepois,
       janela_ultrapassada: janelaUltrapassada,
+      fila_vazia: filaVazia || janelaUltrapassada,
       erro: ultimoErro,
     });
   } catch (e) {
