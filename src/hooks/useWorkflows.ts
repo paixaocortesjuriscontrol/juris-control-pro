@@ -377,7 +377,10 @@ export function useCreateWorkflowEtapa() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (
-      input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at"> & { responsaveis?: string[] }
+      input: Omit<WorkflowEtapa, "id" | "created_at" | "updated_at"> & {
+        responsaveis?: string[];
+        atividades?: WorkflowEtapaAtividade[];
+      }
     ) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
@@ -386,11 +389,13 @@ export function useCreateWorkflowEtapa() {
         .single();
       if (error) throw error;
       await salvarResponsaveisEtapa((data as any).id, (input as any).responsaveis);
+      await salvarAtividadesEtapa((data as any).id, (input as any).atividades);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas", variables.workflow_id] });
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-atividades"] });
       toast.success("Etapa adicionada!");
     },
     onError: (err: Error) => toast.error("Erro ao adicionar etapa: " + err.message),
@@ -403,7 +408,11 @@ export function useUpdateWorkflowEtapa() {
     mutationFn: async ({
       id,
       ...updates
-    }: Partial<WorkflowEtapa> & { id: string; responsaveis?: string[] }) => {
+    }: Partial<WorkflowEtapa> & {
+      id: string;
+      responsaveis?: string[];
+      atividades?: WorkflowEtapaAtividade[];
+    }) => {
       const { data, error } = await supabase
         .from("workflow_etapas")
         .update(sanitizeEtapaPayload(updates) as any)
@@ -412,16 +421,19 @@ export function useUpdateWorkflowEtapa() {
         .single();
       if (error) throw error;
       await salvarResponsaveisEtapa(id, (updates as any).responsaveis);
+      await salvarAtividadesEtapa(id, (updates as any).atividades);
       return data as unknown as WorkflowEtapa;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-etapas-responsaveis"] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-etapas-atividades"] });
       toast.success("Etapa atualizada!");
     },
     onError: (err: Error) => toast.error("Erro ao atualizar etapa: " + err.message),
   });
 }
+
 
 export function useDeleteWorkflowEtapa() {
   const queryClient = useQueryClient();
