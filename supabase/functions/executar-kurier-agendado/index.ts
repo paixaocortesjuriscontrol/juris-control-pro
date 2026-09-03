@@ -485,7 +485,9 @@ Deno.serve(async (req) => {
     const { data: execution, error } = await supabase.from("execucoes_agendadas").insert({
       tipo: "djen_kurier",
       status: "executando",
-      job_name: "DJEN Termos Kurier (Servidor)",
+      job_name: opts.drenagem
+        ? `Kurier — drenar fila (${state.tracks[0]?.login ?? "credencial"})`
+        : "DJEN Termos Kurier (Servidor)",
       iniciado_em: new Date().toISOString(),
       detalhes: {
         ...initialTotals,
