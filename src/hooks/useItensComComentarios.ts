@@ -104,7 +104,12 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
     enabled: lookup.size > 0,
     staleTime: 30 * 1000,
     queryFn: async () => {
-      const result = new Set<string>();
+      // chave do item -> ISO do comentário mais recente
+      const result = new Map<string, string>();
+      const registrar = (chave: string, iso: string | null) => {
+        const atual = result.get(chave);
+        if (!atual || (iso && iso > atual)) result.set(chave, iso || atual || "");
+      };
 
       const consultar = async (
         tabela: "comentarios_tarefas" | "comentarios_eventos" | "comentarios_audiencias",
@@ -117,6 +122,9 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
         for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
         // ref -> datas (yyyy-MM-dd) em que existem comentários
         const datasPorRef = new Map<string, Set<string>>();
+        // ref -> ISO do comentário mais recente (geral e por dia)
+        const ultimoPorRef = new Map<string, string>();
+        const ultimoPorRefDia = new Map<string, string>();
         await Promise.all(
           chunks.map(async (chunk) => {
             const { data, error } = await (supabase as any)
@@ -134,6 +142,11 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
                   d.getDate()
                 ).padStart(2, "0")}`;
                 datasPorRef.get(ref)!.add(dia);
+                const iso = new Date(row.created_at).toISOString();
+                if (!ultimoPorRef.has(ref) || ultimoPorRef.get(ref)! < iso) ultimoPorRef.set(ref, iso);
+                const chaveDia = `${ref}|${dia}`;
+                if (!ultimoPorRefDia.has(chaveDia) || ultimoPorRefDia.get(chaveDia)! < iso)
+                  ultimoPorRefDia.set(chaveDia, iso);
               }
             });
           })
@@ -144,11 +157,13 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
           if (!datas) return;
           // Item simples: basta existir comentário.
           if (!info.dataOcorrencia) {
-            result.add(chave);
+            registrar(chave, ultimoPorRef.get(info.ref) ?? null);
             return;
           }
           // Ocorrência de série: só marca no dia em que o comentário foi escrito.
-          if (datas.has(info.dataOcorrencia)) result.add(chave);
+          if (datas.has(info.dataOcorrencia)) {
+            registrar(chave, ultimoPorRefDia.get(`${info.ref}|${info.dataOcorrencia}`) ?? null);
+          }
         });
       };
 
@@ -167,12 +182,31 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
  * Verifica o badge "C" de um item da agenda, respeitando ocorrências recorrentes.
  */
 export function temComentarioItem(
-  set: Set<string> | undefined,
+  set: Set<string> | Map<string, string> | undefined,
   item: ItemAgendaUnificado | { id: string }
 ): boolean {
   if (!set || !item?.id) return false;
   const id = String(item.id);
   return id.includes("::") ? set.has(id) : set.has(getItemRawId(id));
+}
+
+/**
+ * Chave usada para identificar o item nos controles de "comentário visto".
+ */
+export function chaveComentarioItem(item: ItemAgendaUnificado | { id: string }): string {
+  const id = String(item?.id ?? "");
+  return id.includes("::") ? id : getItemRawId(id);
+}
+
+/**
+ * ISO do comentário mais recente do item (quando o hook retorna o Map).
+ */
+export function ultimoComentarioItem(
+  mapa: Set<string> | Map<string, string> | undefined,
+  item: ItemAgendaUnificado | { id: string }
+): string | null {
+  if (!mapa || !(mapa instanceof Map) || !item?.id) return null;
+  return mapa.get(chaveComentarioItem(item)) || null;
 }
 
 /**

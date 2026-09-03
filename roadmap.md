@@ -16,12 +16,12 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] 18 Baixa da pendência pela tela principal com pop-up completo (situação, data de cumprimento, comentário e, em recorrentes, somente esta / toda a série)
 
 ## Leva 3 — Análise DJEN e processos
-- [ ] 02 Preservar filtros ao voltar da Análise DJEN
-- [ ] 05 "Ver processo" abrindo em nova aba
-- [ ] 06 Partes logo abaixo do número do processo
-- [ ] 09 Pesquisa global sem trazer todas as publicações fora da Análise DJEN
-- [ ] 03 Processos e casos com pendentes primeiro
-- [ ] 04 Balãozinho de comentários no Painel de Controle com bolinha de não vistos
+- [x] 02 Preservar filtros ao voltar da Análise DJEN
+- [x] 05 "Ver processo" abrindo em nova aba
+- [x] 06 Partes logo abaixo do número do processo
+- [x] 09 Pesquisa global sem trazer todas as publicações fora da Análise DJEN
+- [x] 03 Processos e casos com pendentes primeiro
+- [x] 04 Balãozinho de comentários no Painel de Controle com bolinha de não vistos
 
 ## Leva 4 — Complementos
 - [ ] 07 Processos em comum Dr. Thonmás / Dra. Janaina em planilha
