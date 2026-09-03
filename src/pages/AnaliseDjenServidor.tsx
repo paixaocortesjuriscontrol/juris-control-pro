@@ -388,9 +388,12 @@ const AnaliseDjenServidor = () => {
       const total = (data?.total ?? 0) as number;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas'] }),
+        queryClient.invalidateQueries({ queryKey: ['publicacoes-unificadas-stats-header'] }),
         queryClient.invalidateQueries({ queryKey: ['descartadas-dedup'] }),
         queryClient.invalidateQueries({ queryKey: ['descartadas-count'] }),
         queryClient.invalidateQueries({ queryKey: ['descartadas-lotes-recentes'] }),
+        queryClient.invalidateQueries({ queryKey: ['analise-djen-kurier-count'] }),
+        queryClient.invalidateQueries({ queryKey: ['notificacoes-counts'] }),
       ]);
       toast.success(`Descarte desfeito: ${total} publicação(ões) restaurada(s)`);
     } catch (e: any) {
