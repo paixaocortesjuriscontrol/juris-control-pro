@@ -12,6 +12,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format, parseISO, isValid } from "date-fns";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { AudienciaResponsaveisResumo } from "./AudienciaResponsaveisResumo";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
