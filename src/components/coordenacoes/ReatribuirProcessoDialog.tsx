@@ -85,13 +85,36 @@ export function ReatribuirProcessoDialog({
           cliente:clientes(id, nome)
         `)
         .eq("coordenacao_id", coordenacaoId)
-        .not("advogado_responsavel_id", "is", null)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
       return data || [];
     },
     enabled: open,
+  });
+
+  // Responsabilidade real do sistema: vínculos N:N em processos_responsaveis
+  const { data: vinculosPorProcesso } = useQuery({
+    queryKey: ["processos-responsaveis-coord", coordenacaoId, (processosAtribuidos || []).length],
+    enabled: open && !!processosAtribuidos?.length,
+    queryFn: async () => {
+      const ids = (processosAtribuidos || []).map((p) => p.id);
+      const map = new Map<string, string[]>();
+      for (let i = 0; i < ids.length; i += 500) {
+        const lote = ids.slice(i, i + 500);
+        const { data, error } = await supabase
+          .from("processos_responsaveis")
+          .select("processo_id, usuario_id")
+          .in("processo_id", lote);
+        if (error) throw error;
+        (data || []).forEach((r: any) => {
+          const arr = map.get(r.processo_id) || [];
+          arr.push(r.usuario_id);
+          map.set(r.processo_id, arr);
+        });
+      }
+      return map;
+    },
   });
 
   const clientesUnicos = useMemo(() => {
