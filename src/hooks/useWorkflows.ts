@@ -207,10 +207,12 @@ export function useDeleteWorkflow() {
 function sanitizeEtapaPayload(input: Record<string, any>) {
   const {
     responsaveis,
+    atividades,
     created_at,
     updated_at,
     ...rest
   } = input as any;
+
   // remove relações/objetos que não são colunas da tabela
   for (const k of Object.keys(rest)) {
     const v = rest[k];
