@@ -361,7 +361,7 @@ export default function DistribuicaoTst() {
         processoStatus: filtroProcessoStatus !== "todos" ? (filtroProcessoStatus as any) : undefined,
         judit: filtroJudit as any,
         erroJudit: filtroErroJudit !== "todos" ? (filtroErroJudit as any) : undefined,
-        situacaoProcesso: filtroSituacaoProcesso !== "todos" ? (filtroSituacaoProcesso as any) : undefined,
+        situacaoProcesso: filtroSituacoesProcesso.length > 0 ? filtroSituacoesProcesso : undefined,
         subidaMassa: filtroSubidaMassa !== "todos" ? (filtroSubidaMassa as any) : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
