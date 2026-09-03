@@ -2744,11 +2744,12 @@ export default function PainelControle() {
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     isCancelado
-                                      ? "bg-black text-white border border-black"
+                                      ? "bg-muted border border-foreground/60 text-foreground"
                                       : isConcluido
-                                      ? "bg-green-500 text-white opacity-75"
-                                      : cn("text-white", TIPO_CORES[item.tipo] || "bg-muted")
+                                      ? "bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-300 opacity-80"
+                                      : TIPO_CORES[item.tipo] || "bg-muted border border-border text-muted-foreground"
                                   )}
+
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleItemClick(item);
