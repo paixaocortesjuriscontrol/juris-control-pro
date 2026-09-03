@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.jsonb_text_array(jsonb) TO PUBLIC;
