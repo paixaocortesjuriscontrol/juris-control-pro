@@ -1708,14 +1708,23 @@ export default function PainelControle() {
 
   const atividadesPorDia = useMemo(() => {
     const map = new Map<string, any[]>();
+    const tiposSel = painelFiltros.classificacoes as string[];
     (atividadesCalendario as any[]).forEach((a) => {
       const key = String(a.data_prevista).slice(0, 10);
       if (!key) return;
+      // Respeita o filtro de tipo das sub-abas (Prazos, Audiências, Tarefas...):
+      // as atividades seguem a classificação do item pai.
+      if (tiposSel.length > 0) {
+        const pai = itemPorRawId.get(getItemRawId(String(a.item_id ?? "")));
+        const tipo = pai ? classificarItem(pai) : String(a.tipo_item ?? "");
+        if (!tiposSel.includes(tipo)) return;
+      }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     });
     return map;
-  }, [atividadesCalendario]);
+  }, [atividadesCalendario, painelFiltros.classificacoes, itemPorRawId]);
+
 
   const itensComAtividades = useMemo(() => {
     const set = new Set<string>();
