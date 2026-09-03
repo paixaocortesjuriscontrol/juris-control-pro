@@ -331,6 +331,22 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
               onChange={(e) => change("motivo", e.target.value)} />
           </div>
 
+          {audiencia && (
+            <div className="rounded-md border p-3 space-y-1">
+              <p className="text-xs font-medium">
+                {isReagendar ? "Pessoas desta audiência" : "Pessoas que serão replicadas"}
+              </p>
+              <AudienciaResponsaveisResumo audienciaId={audiencia.id} />
+              {!isReagendar && (
+                <p className="text-[11px] text-muted-foreground">
+                  As pessoas fixas configuradas para Audiência na coordenação também são acrescentadas automaticamente.
+                </p>
+              )}
+            </div>
+          )}
+
+
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={isLoading}>
