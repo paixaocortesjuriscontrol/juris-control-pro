@@ -540,6 +540,65 @@ export default function Monitoramento() {
     }
   };
 
+  // ===== Acatar sugestão da Judit: grava o valor no cadastro do processo =====
+  const [acatandoId, setAcatandoId] = useState<string | null>(null);
+
+  const valorParaCampo = (campo: string, valor: string | null): any => {
+    const v = (valor ?? "").trim();
+    if (!v) return null;
+    if (campo === "segredo_justica") return /^(true|sim|1)$/i.test(v);
+    if (campo === "valor_causa") {
+      const n = Number(v.replace(/\./g, "").replace(",", "."));
+      return Number.isFinite(n) ? n : null;
+    }
+    if (campo.startsWith("data_")) {
+      const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (br) return `${br[3]}-${br[2]}-${br[1]}`;
+      return v.slice(0, 10);
+    }
+    return v;
+  };
+
+  const acatarDivergencia = async (d: Divergencia) => {
+    if (!(d.campo in LABEL_CAMPO)) {
+      toast.error("Campo não suportado para acatar automaticamente");
+      return;
+    }
+    const novoValor = valorParaCampo(d.campo, d.valor_judit);
+    if (novoValor === null) {
+      toast.error("Sugestão da Judit sem valor para gravar");
+      return;
+    }
+    setAcatandoId(d.id);
+    try {
+      const { error } = await supabase
+        .from("processos")
+        .update({ [d.campo]: novoValor } as any)
+        .eq("id", d.processo_id);
+      if (error) throw error;
+      const { data: userData } = await supabase.auth.getUser();
+      const { error: errDiv } = await supabase
+        .from("acompanhamento_especial_divergencias")
+        .update({ resolvido_em: new Date().toISOString(), resolvido_por: userData.user?.id ?? null })
+        .eq("id", d.id);
+      if (errDiv) throw errDiv;
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["monitoramento-divergencias"] }),
+        qc.invalidateQueries({ queryKey: ["monitoramento-counts"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-novidades"] }),
+        qc.invalidateQueries({ queryKey: ["acomp-especial-divergencias"] }),
+        qc.invalidateQueries({ queryKey: ["processo", d.processo_id] }),
+      ]);
+      toast.success(`${LABEL_CAMPO[d.campo]} atualizado com a sugestão da Judit`);
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível acatar a sugestão");
+    } finally {
+      setAcatandoId(null);
+    }
+  };
+
+
+
   const marcarTodasCiente = async () => {
     const ids = gruposDiv.flatMap((g) =>
       g.divergencias.filter((d) => !d.resolvido_em).map((d) => d.id)
