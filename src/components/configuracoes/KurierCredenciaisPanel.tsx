@@ -8,11 +8,88 @@ import { Badge } from "@/components/ui/badge";
 import { useKurierCredenciais } from "@/hooks/useKurierCredenciais";
 import { CheckCircle2, KeyRound, Loader2, Plus, Trash2, XCircle, Users, Waves } from "lucide-react";
 import { toast } from "sonner";
+import { Progress } from "@/components/ui/progress";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+
+
+type KurierTrackView = {
+  credencialId: string;
+  login: string;
+  status: string;
+  novas: number;
+  duplicadas: number;
+  descartadas: number;
+  confirmadas: number;
+  recebidas: number;
+  lotes: number;
+  mensagem?: string;
+  erro?: string | null;
+};
+
+/** Acompanhamento inline da drenagem: lê a execução e mostra progresso na mesma tela. */
+function DrenagemProgresso({ execId, login, onFechar }: { execId: string; login: string; onFechar: () => void }) {
+  const { data } = useQuery({
+    queryKey: ["kurier-drenagem", execId],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("execucoes_agendadas")
+        .select("id, status, detalhes, ultimo_erro, iniciado_em, finalizado_em")
+        .eq("id", execId)
+        .maybeSingle();
+      if (error) throw error;
+      return data as {
+        status: string;
+        detalhes: Record<string, unknown> | null;
+        ultimo_erro: string | null;
+        iniciado_em: string | null;
+        finalizado_em: string | null;
+      } | null;
+    },
+    refetchInterval: (query) => {
+      const st = (query.state.data as { status?: string } | undefined)?.status;
+      return st && !["pendente", "executando"].includes(st) ? false : 3000;
+    },
+  });
+
+  const det = (data?.detalhes || {}) as Record<string, any>;
+  const track: KurierTrackView | undefined = Array.isArray(det.tracks) ? det.tracks[0] : undefined;
+  const emAndamento = !data || ["pendente", "executando"].includes(data.status);
+  const lotes = Number(track?.lotes ?? 0);
+  const pct = emAndamento ? Math.min(92, 6 + lotes * 6) : 100;
+
+  return (
+    <div className="rounded-md border bg-muted/40 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          {emAndamento ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4 text-primary" />}
+          Drenagem da fila — {login}
+          <Badge variant={emAndamento ? "secondary" : data?.status === "concluido" ? "default" : "destructive"}>
+            {emAndamento ? "em andamento" : data?.status}
+          </Badge>
+        </div>
+        <Button size="sm" variant="ghost" onClick={onFechar}>Ocultar</Button>
+      </div>
+      <Progress value={pct} className="h-2" />
+      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        <span>Lotes: <strong className="text-foreground">{lotes}</strong></span>
+        <span>Recebidas: <strong className="text-foreground">{Number(det.recebidas ?? track?.recebidas ?? 0)}</strong></span>
+        <span>Novas: <strong className="text-foreground">{Number(det.novas ?? track?.novas ?? 0)}</strong></span>
+        <span>Duplicadas: <strong className="text-foreground">{Number(det.duplicadas ?? track?.duplicadas ?? 0)}</strong></span>
+        <span>Confirmadas: <strong className="text-foreground">{Number(det.confirmadas ?? track?.confirmadas ?? 0)}</strong></span>
+        <span>Descartadas: <strong className="text-foreground">{Number(det.descartadas ?? track?.descartadas ?? 0)}</strong></span>
+      </div>
+      {(track?.mensagem || data?.ultimo_erro) && (
+        <p className={`text-xs ${data?.ultimo_erro ? "text-destructive" : "text-muted-foreground"}`}>
+          {data?.ultimo_erro || track?.mensagem}
+        </p>
+      )}
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string | null }) {
   if (!status) return <Badge variant="outline">—</Badge>;
@@ -58,6 +135,7 @@ export function KurierCredenciaisPanel() {
   const [novoLogin, setNovoLogin] = useState("");
   const [testandoId, setTestandoId] = useState<string | null>(null);
   const [drenandoId, setDrenandoId] = useState<string | null>(null);
+  const [drenagemAtiva, setDrenagemAtiva] = useState<{ execId: string; login: string } | null>(null);
 
   async function drenarFila(id: string, login: string) {
     if (!confirm(`Drenar a fila acumulada do login ${login}?\n\nO sistema vai consultar esse login em etapas até a fila esvaziar, processando tudo normalmente.`)) return;
@@ -71,7 +149,9 @@ export function KurierCredenciaisPanel() {
       if (skipped) {
         toast.warning(`Drenagem não iniciada: ${skipped}`);
       } else {
-        toast.success(`Drenagem iniciada para ${login}. Acompanhe em DJEN Termos (Servidor).`);
+        const execId = (data as { exec_id?: string } | null)?.exec_id;
+        if (execId) setDrenagemAtiva({ execId, login });
+        toast.success(`Drenagem iniciada para ${login}. Acompanhe o progresso abaixo.`);
       }
     } catch (e) {
       toast.error(`Falha ao iniciar drenagem: ${(e as Error)?.message ?? e}`);
@@ -210,7 +290,14 @@ export function KurierCredenciaisPanel() {
         </div>
       </CardHeader>
       <CardContent className="p-0">
-        {isLoading ? (
+        {drenagemAtiva && (
+        <DrenagemProgresso
+          execId={drenagemAtiva.execId}
+          login={drenagemAtiva.login}
+          onFechar={() => setDrenagemAtiva(null)}
+        />
+      )}
+      {isLoading ? (
           <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
           </div>
