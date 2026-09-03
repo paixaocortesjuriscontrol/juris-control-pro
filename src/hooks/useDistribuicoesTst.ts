@@ -1083,7 +1083,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   }, [fetchDados]);
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
+    // Gravação altera os totais dos cards: descarta o cache compartilhado.
+    invalidateDistribuicaoTstCache();
     const payload = distribuicaoToBenner(dado);
+
     const shouldPersistResponsaveis = Array.isArray(dado.responsaveis_ids);
     const responsaveisIds = shouldPersistResponsaveis ? (dado.responsaveis_ids || []) : [];
     let rowId = id;
@@ -1149,6 +1152,8 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
   };
 
   const deleteDado = async (id: string) => {
+    invalidateDistribuicaoTstCache();
+
     const { error } = await supabase.rpc("arquivar_dados_benner" as any, { _id: id });
     if (error) { toast.error("Erro ao arquivar: " + error.message); return false; }
     toast.success("Registro arquivado! Apenas administradores podem restaurá-lo.");
