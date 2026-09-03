@@ -1141,6 +1141,19 @@ Deno.serve(async (req: Request) => {
             // que já existe na mesma coordenação (mesmo processo + mesma data
             // de disponibilização). O usuário não quer "ressuscitar" como
             // não-lida algo que já estava na tela e já foi lido ontem.
+            if (batchMode) {
+              const coordKey = String(matched.coordenacao_id ?? "null");
+              const chave = `${coordKey}|${hashConteudo}`;
+              pendentesInsert.push({
+                ...basePayload,
+                id_djen: idDjen,
+                hash_conteudo: hashConteudo,
+                monitoramento_id: matched.id,
+                coordenacao_id: matched.coordenacao_id ?? null,
+              });
+              chaves.push(chave);
+              qtdInsercoes++;
+            } else {
             let jaExiste = false;
             if (backfill_raw && digits && basePayload.dedup_data_ref) {
               const { data: dup } = await admin
@@ -1195,6 +1208,8 @@ Deno.serve(async (req: Request) => {
               // insert sem retorno inesperado: trata como duplicado para não inflar contagem
               totalDuplicadas++;
             }
+            }
+
           } else if (capturaTotalCoords.length === 0) {
             totalDescartadas++;
             motivoDescarte = motivoDescarte ?? (
