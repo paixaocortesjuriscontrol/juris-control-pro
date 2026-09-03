@@ -154,9 +154,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
     try {
       await removerBaixaOcorrencia(info);
       setTemBaixa(false);
-      await finalizar(`Baixa de ${dataLabel} removida.`);
+      await finalizar(`Situação de ${dataLabel} voltou a seguir a série.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao remover a baixa.");
+      toast.error(e?.message ?? "Erro ao desfazer a situação desta ocorrência.");
     } finally {
       setSalvando(null);
     }
