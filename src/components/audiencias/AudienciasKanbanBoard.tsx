@@ -2,6 +2,7 @@ import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaKanbanCard, getDaysUntil } from "./AudienciaKanbanCard";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAudienciasPessoas } from "@/hooks/useAudienciasPessoas";
 
 interface Column {
   key: string;
