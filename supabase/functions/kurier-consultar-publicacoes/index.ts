@@ -893,6 +893,7 @@ Deno.serve(async (req: Request) => {
           const j = JSON.parse(texto);
           pubs = extractPublicacoes(j);
           recebidasDaApi = pubs.length;
+          ultimaRecebidasDaApi = recebidasDaApi;
           if (!useDateMode && pubs.length > lote_size) pubs = pubs.slice(0, lote_size);
         } catch (e) {
           ultimoErro = `JSON inválido lote ${lote}: ${texto.slice(0, 200)}`;
