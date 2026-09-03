@@ -105,9 +105,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
         userId: user?.id ?? null,
       });
       setTemBaixa(true);
-      await finalizar(`Baixa registrada apenas para ${dataLabel}.`);
+      await finalizar(`Situação aplicada somente à ocorrência de ${dataLabel}.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao registrar a baixa desta ocorrência.");
+      toast.error(e?.message ?? "Erro ao aplicar a situação nesta ocorrência.");
     } finally {
       setSalvando(null);
     }
@@ -154,9 +154,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
     try {
       await removerBaixaOcorrencia(info);
       setTemBaixa(false);
-      await finalizar(`Baixa de ${dataLabel} removida.`);
+      await finalizar(`Situação de ${dataLabel} voltou a seguir a série.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao remover a baixa.");
+      toast.error(e?.message ?? "Erro ao desfazer a situação desta ocorrência.");
     } finally {
       setSalvando(null);
     }
@@ -166,10 +166,10 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
     <div className="border-b bg-muted/40 px-4 py-3 space-y-2">
       <div className="flex items-center gap-2 text-xs font-semibold text-foreground">
         <Repeat className="w-3.5 h-3.5 text-primary" />
-        Item recorrente — baixa da ocorrência de {dataLabel}
+        Tarefa recorrente — situação da ocorrência de {dataLabel}
         {temBaixa && (
           <span className="ml-1 rounded-full bg-green-600/10 text-green-700 dark:text-green-400 px-2 py-0.5 text-[10px] font-medium">
-            baixa individual registrada
+            situação própria deste dia
           </span>
         )}
       </div>

@@ -160,9 +160,9 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
         observacao: comentario.trim() || null,
         userId: user?.id ?? null,
       });
-      await finalizar(`Baixa registrada apenas para ${dataLabel}.`);
+      await finalizar(`Situação aplicada somente à ocorrência de ${dataLabel}.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao registrar a baixa desta ocorrência.");
+      toast.error(e?.message ?? "Erro ao aplicar a situação nesta ocorrência.");
     } finally {
       setSalvando(null);
     }
@@ -213,7 +213,7 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
     setSalvando("reabrir");
     try {
       await removerBaixaOcorrencia(info);
-      await finalizar(`Baixa de ${dataLabel} removida.`);
+      await finalizar(`Situação de ${dataLabel} voltou a seguir a série.`);
     } catch (e: any) {
       toast.error(e?.message ?? "Erro ao remover a baixa.");
     } finally {
