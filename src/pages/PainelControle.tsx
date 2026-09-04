@@ -1127,7 +1127,9 @@ export default function PainelControle() {
       if (!ignorarPeriodo && (painelFiltros.periodoInicio || painelFiltros.periodoFim)) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
-          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+          if (item.recorrencia_pai_id) {
+            dateStr = item.data_inicio;
+          } else if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
             dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
           } else {
             dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
@@ -1145,7 +1147,9 @@ export default function PainelControle() {
       if (!ignorarPeriodo && somenteHoje) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
-          if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
+          if (item.recorrencia_pai_id) {
+            dateStr = item.data_inicio;
+          } else if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
             dateStr = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
           } else {
             dateStr = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
@@ -1597,7 +1601,9 @@ export default function PainelControle() {
       if (somenteHoje) {
         let dateStr: string | undefined;
         if (item.origem === "tarefa") {
-          dateStr = (painelFiltros.dataFatal && !painelFiltros.dataPrevista)
+          dateStr = item.recorrencia_pai_id
+            ? item.data_inicio
+            : (painelFiltros.dataFatal && !painelFiltros.dataPrevista)
             ? (item.data_fatal ?? item.data_vencimento ?? item.data_inicio)
             : (item.data_vencimento ?? item.data_fatal ?? item.data_inicio);
         } else {
@@ -1625,7 +1631,11 @@ export default function PainelControle() {
       // Choose date key based on prazo filter
       let dateKey: string;
       if (item.origem === "tarefa") {
-        if (painelFiltros.dataFatal && !painelFiltros.dataPrevista && item.data_fatal) {
+        // Cada ocorrência recorrente já recebe sua data efetiva em data_inicio.
+        // Usar data_vencimento/data_fatal aqui agrupava todas na data do registro-pai.
+        if (item.recorrencia_pai_id) {
+          dateKey = item.data_inicio.slice(0, 10);
+        } else if (painelFiltros.dataFatal && !painelFiltros.dataPrevista && item.data_fatal) {
           dateKey = item.data_fatal.slice(0, 10);
         } else if (painelFiltros.dataPrevista && item.data_vencimento) {
           dateKey = item.data_vencimento.slice(0, 10);

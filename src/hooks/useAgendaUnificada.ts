@@ -515,9 +515,17 @@ export async function fetchAgendaPage(
               `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
             );
           }
-          const { data: vinculos } = await vinculosQuery.limit(2000);
+          const [{ data: vinculos }, { data: vinculosRecorrentes }] = await Promise.all([
+            vinculosQuery.limit(2000),
+            supabase
+              .from("tarefa_responsaveis")
+              .select("tarefa_id, tarefas!inner(recorrencia_tipo)")
+              .in("usuario_id", targetTaskUserIds)
+              .not("tarefas.recorrencia_tipo", "is", null)
+              .limit(2000),
+          ]);
           tarefaIdsPorResponsavel = Array.from(
-            new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean))
+            new Set([...(vinculos || []), ...(vinculosRecorrentes || [])].map((v: any) => v.tarefa_id).filter(Boolean))
           ).slice(0, 400);
         }
         const buildTarefasOr = (ids: string) => {
