@@ -1305,19 +1305,33 @@ const Processos = () => {
           </div>
           </div>
 
-          {lateralProcessoId && (
-            <aside className="w-full lg:w-[640px] xl:w-[720px] flex-none bg-card rounded-xl border border-border/50 overflow-hidden flex flex-col max-h-[calc(100vh-12rem)] lg:sticky lg:top-4">
+          <ItemDrawer
+            open={!!lateralProcessoId}
+            onOpenChange={(o) => { if (!o) setLateralProcessoId(null); }}
+            titulo={
+              (() => {
+                const p: any = processos.find((x: any) => x.id === lateralProcessoId);
+                if (!p) return "Processo";
+                const ativo = p.polo_ativo || p.reclamante || p.autor;
+                const passivo = p.polo_passivo || p.reclamados || p.requerido;
+                return [ativo, passivo].filter(Boolean).join(" x ") || "Resumo do processo";
+              })()
+            }
+            subtitulo={processos.find((p: any) => p.id === lateralProcessoId)?.numero || null}
+          >
+            {lateralProcessoId && (
               <ProcessoItensLateral
                 key={lateralProcessoId}
                 processoId={lateralProcessoId}
                 processoNumero={
                   processos.find((p: any) => p.id === lateralProcessoId)?.numero || ""
                 }
+                hideHeader
                 onClose={() => setLateralProcessoId(null)}
                 onNavigate={(id) => navigate(`/processos/${id}`)}
               />
-            </aside>
-          )}
+            )}
+          </ItemDrawer>
         </div>
       ) : (
         <div className="text-center py-12 animate-fade-in">
