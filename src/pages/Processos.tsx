@@ -727,55 +727,8 @@ const Processos = () => {
 
           {/* Filtros combinados */}
           <div className="flex flex-wrap gap-2 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2 justify-between min-w-[220px]",
-                    (comPublicacaoDjen || comAndamentos || comAudiencias || comTarefas) &&
-                      "border-primary text-primary"
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    {(() => {
-                      const sel = [
-                        comPublicacaoDjen && "Com DJEN",
-                        comAndamentos && "Com Andamentos",
-                        comAudiencias && "Com Audiências",
-                        comTarefas && "Com Tarefas",
-                      ].filter(Boolean) as string[];
-                      if (sel.length === 0) return "Conteúdo do processo";
-                      if (sel.length === 1) return sel[0];
-                      return `${sel.length} selecionados`;
-                    })()}
-                  </span>
-                  <ChevronDown className="w-4 h-4 opacity-60" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-60 p-2">
-                {[
-                  { label: "Com DJEN", checked: comPublicacaoDjen, set: setComPublicacaoDjen, Icon: FileText },
-                  { label: "Com Andamentos", checked: comAndamentos, set: setComAndamentos, Icon: Activity },
-                  { label: "Com Audiências", checked: comAudiencias, set: setComAudiencias, Icon: Gavel },
-                  { label: "Com Tarefas", checked: comTarefas, set: setComTarefas, Icon: ClipboardList },
-                ].map(({ label, checked, set, Icon }) => (
-                  <label
-                    key={label}
-                    className="flex items-center gap-2 px-2 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
-                  >
-                    <Checkbox checked={checked} onCheckedChange={() => (set as any)((prev: boolean) => !prev)} />
-                    <Icon className="w-4 h-4 text-muted-foreground" />
-                    {label}
-                  </label>
-                ))}
-              </PopoverContent>
-            </Popover>
-
             <Button
+
               type="button"
               variant="outline"
               size="sm"
