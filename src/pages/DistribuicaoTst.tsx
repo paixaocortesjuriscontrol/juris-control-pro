@@ -450,7 +450,6 @@ export default function DistribuicaoTst() {
   });
 
 
-  const { dossiesComPedidos } = usePedidosDossieFiltro(filtroPedidosDossie);
 
   const listFilters = useMemo(() => {
     let f = debouncedFilters;
