@@ -562,18 +562,27 @@ const Processos = () => {
 
         <div className="flex flex-col gap-4">
           {/* Search Row */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
                 placeholder="Digite algo para pesquisar" 
-                className="pl-9"
+                className="pl-9 h-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            <FiltrosAvancadosProcessos
+              filtros={filtrosAvancados}
+              onFiltrosChange={setFiltrosAvancados}
+              onAplicar={handleAplicarFiltros}
+              onLimpar={handleLimparFiltros}
+              coordenacaoId={coordenacaoFilter}
+            />
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full sm:w-40 h-9">
                 <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
@@ -585,24 +594,14 @@ const Processos = () => {
                 <SelectItem value="encerrado">Encerrado</SelectItem>
               </SelectContent>
             </Select>
+
             <CacheIndicator
               isFetching={isFetching}
               isStale={isStale}
               dataUpdatedAt={dataUpdatedAt}
               onRefresh={handleForceRefresh}
             />
-          </div>
 
-          {/* Advanced Filters Row - Astrea Style */}
-          <div className="flex flex-wrap items-center gap-3">
-            <FiltrosAvancadosProcessos
-              filtros={filtrosAvancados}
-              onFiltrosChange={setFiltrosAvancados}
-              onAplicar={handleAplicarFiltros}
-              onLimpar={handleLimparFiltros}
-              coordenacaoId={coordenacaoFilter}
-            />
-            
             {/* Results counter chip */}
             {(filtrosAplicados.responsavelId || coordenacaoFilter !== "all" || areaFilter !== "all" || statusFilter !== "all" || searchQuery) && (
               <Badge variant="outline" className="h-8 px-3 text-xs font-medium bg-primary/10 border-primary/30 text-primary">
@@ -610,6 +609,7 @@ const Processos = () => {
               </Badge>
             )}
           </div>
+
 
           {/* Additional Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
@@ -633,39 +633,54 @@ const Processos = () => {
               </SelectContent>
             </Select>
 
-            {/* Filtro de Tipo de Processo */}
-            <Select value={tipoProcessoFilter} onValueChange={setTipoProcessoFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="judicial">
-                  <div className="flex items-center gap-2">
-                    <Scale className="w-4 h-4" />
-                    Judicial
-                  </div>
-                </SelectItem>
-                <SelectItem value="administrativo">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    Administrativo
-                  </div>
-                </SelectItem>
-                <SelectItem value="outro">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Outro
-                  </div>
-                </SelectItem>
-                <SelectItem value="caso">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-4 h-4" />
-                    Caso
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Conteúdo do processo */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full h-10 gap-2 justify-between font-normal",
+                    (comPublicacaoDjen || comAndamentos || comAudiencias || comTarefas) &&
+                      "border-primary text-primary"
+                  )}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Filter className="w-4 h-4 shrink-0" />
+                    {(() => {
+                      const sel = [
+                        comPublicacaoDjen && "Com DJEN",
+                        comAndamentos && "Com Andamentos",
+                        comAudiencias && "Com Audiências",
+                        comTarefas && "Com Tarefas",
+                      ].filter(Boolean) as string[];
+                      if (sel.length === 0) return "Conteúdo do processo";
+                      if (sel.length === 1) return sel[0];
+                      return `${sel.length} selecionados`;
+                    })()}
+                  </span>
+                  <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-60 p-2">
+                {[
+                  { label: "Com DJEN", checked: comPublicacaoDjen, set: setComPublicacaoDjen, Icon: FileText },
+                  { label: "Com Andamentos", checked: comAndamentos, set: setComAndamentos, Icon: Activity },
+                  { label: "Com Audiências", checked: comAudiencias, set: setComAudiencias, Icon: Gavel },
+                  { label: "Com Tarefas", checked: comTarefas, set: setComTarefas, Icon: ClipboardList },
+                ].map(({ label, checked, set, Icon }) => (
+                  <label
+                    key={label}
+                    className="flex items-center gap-2 px-2 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => (set as any)((prev: boolean) => !prev)} />
+                    <Icon className="w-4 h-4 text-muted-foreground" />
+                    {label}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+
 
 
 
@@ -712,55 +727,8 @@ const Processos = () => {
 
           {/* Filtros combinados */}
           <div className="flex flex-wrap gap-2 items-center">
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className={cn(
-                    "h-9 gap-2 justify-between min-w-[220px]",
-                    (comPublicacaoDjen || comAndamentos || comAudiencias || comTarefas) &&
-                      "border-primary text-primary"
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <Filter className="w-4 h-4" />
-                    {(() => {
-                      const sel = [
-                        comPublicacaoDjen && "Com DJEN",
-                        comAndamentos && "Com Andamentos",
-                        comAudiencias && "Com Audiências",
-                        comTarefas && "Com Tarefas",
-                      ].filter(Boolean) as string[];
-                      if (sel.length === 0) return "Conteúdo do processo";
-                      if (sel.length === 1) return sel[0];
-                      return `${sel.length} selecionados`;
-                    })()}
-                  </span>
-                  <ChevronDown className="w-4 h-4 opacity-60" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="start" className="w-60 p-2">
-                {[
-                  { label: "Com DJEN", checked: comPublicacaoDjen, set: setComPublicacaoDjen, Icon: FileText },
-                  { label: "Com Andamentos", checked: comAndamentos, set: setComAndamentos, Icon: Activity },
-                  { label: "Com Audiências", checked: comAudiencias, set: setComAudiencias, Icon: Gavel },
-                  { label: "Com Tarefas", checked: comTarefas, set: setComTarefas, Icon: ClipboardList },
-                ].map(({ label, checked, set, Icon }) => (
-                  <label
-                    key={label}
-                    className="flex items-center gap-2 px-2 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
-                  >
-                    <Checkbox checked={checked} onCheckedChange={() => (set as any)((prev: boolean) => !prev)} />
-                    <Icon className="w-4 h-4 text-muted-foreground" />
-                    {label}
-                  </label>
-                ))}
-              </PopoverContent>
-            </Popover>
-
             <Button
+
               type="button"
               variant="outline"
               size="sm"
@@ -788,18 +756,6 @@ const Processos = () => {
               Segredo de Justiça
             </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
-                statusFilter === "encerrado" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive"
-              )}
-              onClick={() => setStatusFilter(prev => (prev === "encerrado" ? "all" : "encerrado"))}
-            >
-              Encerrados
-            </Button>
 
             <EtiquetaFilter
               modulo="processos"
