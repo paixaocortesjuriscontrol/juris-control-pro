@@ -388,7 +388,23 @@ export function ProcessoItensLateral({
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
   const { data: contagemAtividades = {} } = useContagemAtividades(itens.map((i) => i.id));
 
-  // Movimentações: carregadas apenas quando a aba é aberta.
+  // Contagem de movimentações: carregada sempre (apenas count) para o badge da aba.
+  const { data: totalMovimentacoes = 0 } = useQuery({
+    queryKey: ["processo-lateral-movimentacoes-count", processoId],
+    enabled: !!processoId,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("movimentacoes")
+        .select("id", { count: "exact", head: true })
+        .eq("processo_id", processoId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  // Movimentações: detalhes carregados apenas quando a aba é aberta.
   const { data: movimentacoes = [], isLoading: loadingMov } = useQuery({
     queryKey: ["processo-lateral-movimentacoes", processoId],
     enabled: !!processoId && aba === "movimentacoes",
