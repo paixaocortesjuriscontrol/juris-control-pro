@@ -250,6 +250,8 @@ export interface DistribuicaoTstFilters {
   erroJudit?: "todos" | "sim" | "nao";
   /** Situação do processo: aceita uma opção ou várias (combinadas em OR). */
   situacaoProcesso?: string | string[];
+  /** Situações a EXCLUIR do resultado (ex.: cejusc, acordo). Somam em AND. */
+  excluirSituacoes?: string[];
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
@@ -575,6 +577,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -697,6 +700,32 @@ function applySituacaoProcessoFilter<T>(query: T, valor?: string | string[] | nu
   return (query as any).or(cond) as T;
 }
 
+/**
+ * Condição de EXCLUSÃO de cada marcação (negada). São aplicadas uma a uma para
+ * que somem em AND — "não mostrar CEJUSC" + "não mostrar Acordo" etc.
+ */
+export const SITUACAO_PROCESSO_EXCLUSAO_COND: Record<string, string> = {
+  cejusc: "cejusc.is.null,cejusc.eq.false",
+  acordo: "acordo.is.null,acordo.eq.false",
+  segredo_justica: "segredo_justica.is.null,segredo_justica.eq.false",
+  outro_escritorio: "processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false",
+  transito: "transito_julgado.is.null,transito_julgado.eq.false",
+};
+
+export function normalizarExclusoesSituacao(valor?: string[] | null): string[] {
+  return Array.from(new Set((valor || []).filter((v) => !!SITUACAO_PROCESSO_EXCLUSAO_COND[v])));
+}
+
+/** Aplica no banco as exclusões de situação (cada uma como um OR próprio → AND). */
+function applyExclusaoSituacaoFilter<T>(query: T, valor?: string[] | null): T {
+  let q: any = query;
+  for (const opcao of normalizarExclusoesSituacao(valor)) {
+    q = q.or(SITUACAO_PROCESSO_EXCLUSAO_COND[opcao]);
+  }
+  return q as T;
+}
+
+
 function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.processo) return true;
   if (filters.dossie) return true;
@@ -712,6 +741,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.judit && filters.judit !== "todos") return true;
   if (filters.erroJudit && filters.erroJudit !== "todos") return true;
   if (normalizarSituacoesProcesso(filters.situacaoProcesso).length > 0) return true;
+  if (normalizarExclusoesSituacao(filters.excluirSituacoes).length > 0) return true;
   if (filters.subidaMassa && filters.subidaMassa !== "todos") return true;
   if (filters.mesAno && filters.mesAno !== "todos") return true;
   if (filters.dataInicio) return true;
@@ -842,6 +872,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -1273,6 +1304,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, f.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, f.excluirSituacoes);
 
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
