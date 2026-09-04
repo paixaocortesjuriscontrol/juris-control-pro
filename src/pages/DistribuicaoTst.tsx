@@ -1400,10 +1400,26 @@ export default function DistribuicaoTst() {
         });
       }
 
+
+      // Garantia final do filtro "Matérias por dossiê": aplica a regra sobre os
+      // dados reais de `pedidos_por_dossie`, independentemente de como a lista
+      // de IDs foi obtida (filtros do banco ou seleção manual).
+      if (filtroPedidosDossie !== "todos") {
+        for (const dossie of Array.from(porDossie.keys())) {
+          const tem = (materiasPorDossie.get(dossie)?.size || 0) > 0;
+          if (filtroPedidosDossie === "com" ? !tem : tem) porDossie.delete(dossie);
+        }
+        if (porDossie.size === 0) {
+          toast.info("Nenhum dossiê encontrado com os filtros atuais.");
+          return;
+        }
+      }
+
       const XLSX = await import("xlsx");
       const aoa: any[][] = [
         ["Dossiê", "Processo(s)", "Data Distribuição", "Matérias/Pedidos Cadastrados nos dossiês"],
       ];
+
       Array.from(porDossie.entries())
         .sort((a, b) => {
           const dataA = a[1].dataDistribuicao || "";
