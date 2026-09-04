@@ -756,18 +756,6 @@ const Processos = () => {
               Segredo de Justiça
             </Button>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
-                statusFilter === "encerrado" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive"
-              )}
-              onClick={() => setStatusFilter(prev => (prev === "encerrado" ? "all" : "encerrado"))}
-            >
-              Encerrados
-            </Button>
 
             <EtiquetaFilter
               modulo="processos"
