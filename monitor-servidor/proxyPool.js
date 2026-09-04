@@ -86,6 +86,17 @@ function buildSlotUrl(slot, dialect, queryParams) {
   return qs ? `${base}/djen?${qs}` : `${base}/djen`;
 }
 
+// Distingue um 403 do NOSSO proxy (JSON curto: unauthorized / host_not_allowed)
+// de um 403 do UPSTREAM (comunicaapi.pje.jus.br), que chega como página HTML de
+// bloqueio do nginx/WAF. O segundo é temporário (primo do 429) e NÃO deve ser
+// tratado como erro de token.
+function isUpstreamBlockBody(body) {
+  const txt = typeof body === "string" ? body : JSON.stringify(body ?? "");
+  if (!txt) return true; // sem corpo nosso identificável → assume bloqueio upstream
+  if (/"error"\s*:\s*"(unauthorized|host_not_allowed|forbidden)"/i.test(txt)) return false;
+  return /<html|nginx|forbidden|cloudfront|access denied|<center>/i.test(txt);
+}
+
 async function parseProxyResponse(slot, res) {
   const text = await res.text();
   let parsed;
@@ -102,6 +113,7 @@ async function parseProxyResponse(slot, res) {
   }
   return { slot, status, body: parsed ?? text };
 }
+
 
 function combineSignal(signal, timeoutMs) {
   const timeoutSignal = AbortSignal.timeout(timeoutMs);
@@ -135,6 +147,14 @@ async function djenFetchSlot(slot, queryParams, signal) {
       dialect = swapped;
     }
     const out = await parseProxyResponse(slot, res);
+    if (out.status === 403 && isUpstreamBlockBody(out.errorSnippet ?? out.body)) {
+      // Bloqueio temporário do DJEN (WAF) contra o IP desta VPS: trata como
+      // rate limit — cooldown curto na via e o chamador repete/faz failover.
+      out.upstreamBlocked = true;
+      markFail(slot.url, "429");
+      console.log(`[proxyPool] bloqueio temporário do DJEN (403) na ${slot.label || slot.url} — via em cooldown`);
+      return out;
+    }
     if (out.status === 401 || out.status === 403) {
       // surfa o motivo real para o log do daemon — quase sempre token errado
       markFail(slot.url, "err");
@@ -145,6 +165,7 @@ async function djenFetchSlot(slot, queryParams, signal) {
     else if (out.status >= 500) markFail(slot.url, "err");
     else markOk(slot.url);
     return out;
+
   } catch (e) {
     if (signal?.aborted) throw e;
     lastErr = e;
@@ -208,7 +229,7 @@ async function djenFetch(sb, queryParams, signal) {
     }
     try {
       const out = await djenFetchSlot(slot, queryParams, signal);
-      if (out.status === 429 || out.status >= 500) continue;
+      if (out.upstreamBlocked || out.status === 429 || out.status >= 500) continue;
       return out;
     } catch (e) {
       markFail(slot.url, "err");

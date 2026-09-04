@@ -477,6 +477,19 @@ async function callProxySlot(
   }
 }
 
+/**
+ * Distingue um 403 do NOSSO proxy (JSON: unauthorized / host_not_allowed) de um
+ * 403 do UPSTREAM (comunicaapi.pje.jus.br), que chega como página HTML de
+ * bloqueio do nginx/WAF. O segundo é temporário (primo do 429) e não deve ser
+ * tratado como erro de configuração/token da VPS.
+ */
+function isUpstreamBlockBody(text: string): boolean {
+  const txt = String(text || "");
+  if (!txt) return true;
+  if (/"error"\s*:\s*"(unauthorized|host_not_allowed|forbidden)"/i.test(txt)) return false;
+  return /<html|nginx|forbidden|cloudfront|access denied|<center>/i.test(txt);
+}
+
 async function parseProxyResponse(
   slot: ProxySlotConfig,
   dialect: ProxyDialect,
@@ -488,6 +501,10 @@ async function parseProxyResponse(
     // o status também vem aqui — propagamos para o caller decidir.
     if (!proxyResp.ok && proxyResp.status !== 429) {
       const txt = await proxyResp.text().catch(() => "");
+      if (proxyResp.status === 403 && isUpstreamBlockBody(txt)) {
+        // Bloqueio temporário do DJEN contra o IP desta VPS: failover + cooldown.
+        throw new Error(`upstream_status_403 (bloqueio temporário do DJEN em ${slot.label})`);
+      }
       throw new Error(
         `VPS ${slot.label} respondeu HTTP ${proxyResp.status}${txt ? ` ${txt.slice(0, 80)}` : ""}`,
       );
@@ -495,6 +512,7 @@ async function parseProxyResponse(
     const body = await proxyResp.text();
     return { status: proxyResp.status || 200, body };
   }
+
 
   // v1-djen
   if (!proxyResp.ok) {

@@ -1122,9 +1122,9 @@ async function buscarPaginado(slot, params, signal) {
           lastErr = e;
           return null;
         });
-        if (out && out.status !== 429 && out.status < 500) break;
+        if (out && !out.upstreamBlocked && out.status !== 429 && out.status < 500) break;
         if (attempt === MAX_ATTEMPTS - 1) break;
-        const is429 = out?.status === 429;
+        const is429 = out?.status === 429 || !!out?.upstreamBlocked;
         if (is429) METRICS.c429 += 1;
         else if (out?.status >= 500) { METRICS.c5xx += 1; if (out.status === 504) METRICS.c504 += 1; }
         else if (!out) METRICS.cRede += 1;
@@ -1137,15 +1137,34 @@ async function buscarPaginado(slot, params, signal) {
           return { ok: true, items: collected, aborted: true };
         }
         const status = out?.status;
-        if (status === 401 || status === 403) METRICS.cAuth += 1;
+        // 403 do WAF do DJEN contra o IP da VPS: bloqueio temporário, conta
+        // como rate limit (não é problema de token da VPS).
+        const bloqueioUpstream = !!out?.upstreamBlocked;
+        if (bloqueioUpstream) METRICS.c429 += 1;
+        else if (status === 401 || status === 403) METRICS.cAuth += 1;
         else if (!status) METRICS.cRede += 1;
         return {
           ok: false,
           items: collected,
-          kind: status === 429 ? "429" : status === 401 || status === 403 ? "auth" : status ? "http" : "rede",
-          err: out ? new Error(`HTTP ${out.status}`) : (lastErr || new Error("Falha ao consultar VPS DJEN")),
+          kind: bloqueioUpstream
+            ? "bloqueio"
+            : status === 429
+              ? "429"
+              : status === 401 || status === 403
+                ? "auth"
+                : status
+                  ? "http"
+                  : "rede",
+          err: out
+            ? new Error(
+                bloqueioUpstream
+                  ? `Bloqueio temporário do DJEN (403) na ${slot.label || slot.url}`
+                  : `HTTP ${out.status}`,
+              )
+            : (lastErr || new Error("Falha ao consultar VPS DJEN")),
         };
       }
+
       const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
       const items = extractItems(data);
       for (const it of items) collected.push(it);
@@ -1168,10 +1187,12 @@ async function buscarPaginado(slot, params, signal) {
     if (!result.ok) {
       const msg1 = String(result.err?.message || "?");
       const kind = result.kind || "http";
-      if (kind === "429") {
-        // Rate limit: NÃO degradar (size=10 gera 5x mais requisições e piora
-        // o 429). Espera o cooldown e repete a MESMA janela com size=50.
-        console.log(`[paralela.buscarPaginado] janela ${windowIdx} em rate limit (429) — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
+      if (kind === "429" || kind === "bloqueio") {
+        // Rate limit / bloqueio temporário do DJEN: NÃO degradar (size=10 gera
+        // 5x mais requisições e piora). Espera o cooldown e repete a MESMA
+        // janela com size=50; se persistir, o failover troca de VPS.
+        const rotulo = kind === "bloqueio" ? `bloqueio temporário do DJEN (${msg1})` : "rate limit (429)";
+        console.log(`[paralela.buscarPaginado] janela ${windowIdx} em ${rotulo} — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
         await sleepFora(RATE_LIMIT_PAUSE_MS, signal, "rate_limit");
         result = await fetchWindow(windowIdx, 50);
       } else if (kind === "auth") {
