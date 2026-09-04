@@ -10860,6 +10860,14 @@ export type Database = {
           total: number
         }[]
       }
+      get_pedidos_por_dossie_agrupados: {
+        Args: { p_limit?: number; p_offset?: number }
+        Returns: {
+          dossie: string
+          pedidos: string[]
+          pedidos_normalizados: string[]
+        }[]
+      }
       get_processos_paginados: {
         Args: {
           _acompanhamento_especial?: boolean
