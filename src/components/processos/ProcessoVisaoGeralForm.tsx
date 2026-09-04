@@ -1361,103 +1361,68 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     <div className="space-y-4">
       {!compact && (
         <Card className="border-b-2 border-b-primary/70">
-          <CardContent className="p-4 md:p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-3 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="font-serif text-xl md:text-2xl font-semibold text-foreground leading-tight tracking-tight">
-                    {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
-                  </h1>
-                  {form.impactante && (
-                    <Badge className="bg-red-600 hover:bg-red-700 text-white gap-1 border-0">
-                      <Flame className="w-3 h-3" /> Impactante
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex flex-wrap items-start gap-x-8 gap-y-3 border-t pt-3">
-                {processo?.numero && (
-                  <div>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Número do processo</p>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs font-mono font-semibold text-foreground">{processo.numero}</span>
-                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
-                        <Copy className="w-3 h-3" />
-                      </Button>
-                    </div>
-                  </div>
+          <CardContent className="px-4 pt-2.5 pb-3 md:px-5 md:pt-3 md:pb-3.5">
+            {/* Título — ocupa toda a largura, um pouco menor */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h1 className="font-serif text-lg md:text-xl font-semibold text-foreground leading-tight tracking-tight">
+                {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
+              </h1>
+              {form.impactante && (
+                <Badge className="bg-red-600 hover:bg-red-700 text-white gap-1 border-0">
+                  <Flame className="w-3 h-3" /> Impactante
+                </Badge>
+              )}
+            </div>
+            {/* Botões — abaixo do título, à direita, menores */}
+            <div className="flex items-center justify-end gap-1.5 flex-wrap mt-2 mb-3">
+              <Button
+                variant={form.impactante ? "default" : "outline"}
+                onClick={() => update("impactante", !form.impactante)}
+                className={cn(
+                  "h-7 px-2.5 text-xs gap-1",
+                  form.impactante
+                    ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
+                    : "text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
                 )}
-                {(processo?.cliente?.nome || processo?.nome_cliente_envolvido) && (
-                  <div>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Cliente</p>
-                    <span className="text-xs font-semibold text-foreground">{processo.cliente?.nome || processo.nome_cliente_envolvido}</span>
-                  </div>
-                )}
-                {form.status && (
-                  <div>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Status</p>
-                    <span className="text-xs font-semibold text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span>
-                  </div>
-                )}
-                {processo?.advogado_responsavel?.nome && (
-                  <div>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Responsável</p>
-                    <span className="text-xs font-semibold text-foreground">{processo.advogado_responsavel.nome}</span>
-                  </div>
-                )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <Button
-                  size="sm"
-                  variant={form.impactante ? "default" : "outline"}
-                  onClick={() => update("impactante", !form.impactante)}
-                  className={cn(
-                    "gap-1",
-                    form.impactante
-                      ? "bg-red-600 hover:bg-red-700 text-white border-red-600"
-                      : "text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
-                  )}
-                  title={form.impactante ? "Remover marcação Impactante" : "Marcar como Impactante"}
-                >
-                  <Flame className="w-4 h-4" />
-                  {form.impactante ? "Impactante" : "Impactante"}
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1">
-                      <Plus className="w-4 h-4" /> Adicionar
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("tarefa") : setNovaTarefaOpen(true)}>
-                      <ListTodo className="w-4 h-4 mr-2" /> Tarefa
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("prazo") : setNovoPrazoOpen(true)}>
-                      <Clock className="w-4 h-4 mr-2" /> Prazo
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("evento") : setNovoEventoOpen(true)}>
-                      <CalendarDays className="w-4 h-4 mr-2" /> Evento
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("audiencia") : setCriarAudienciaOpen(true)}>
-                      <Gavel className="w-4 h-4 mr-2" /> Audiência
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Button
-                  size="sm"
-                  onClick={handleJuditButtonClick}
-                  disabled={juditBusy || saving}
-                  className="gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                  title={isNovo ? "Consultar Judit e preencher o formulário" : "Consultar Judit (sem alterar o formulário)"}
-                >
-                  {juditBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                  {juditBusy
-                    ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
-                    : "Judit"}
-                </Button>
-                {podeUsarAnexosJudit && (
-<label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
+                title={form.impactante ? "Remover marcação Impactante" : "Marcar como Impactante"}
+              >
+                <Flame className="w-3.5 h-3.5" />
+                Impactante
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="h-7 px-2.5 text-xs gap-1">
+                    <Plus className="w-3.5 h-3.5" /> Adicionar
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("tarefa") : setNovaTarefaOpen(true)}>
+                    <ListTodo className="w-4 h-4 mr-2" /> Tarefa
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("prazo") : setNovoPrazoOpen(true)}>
+                    <Clock className="w-4 h-4 mr-2" /> Prazo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("evento") : setNovoEventoOpen(true)}>
+                    <CalendarDays className="w-4 h-4 mr-2" /> Evento
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("audiencia") : setCriarAudienciaOpen(true)}>
+                    <Gavel className="w-4 h-4 mr-2" /> Audiência
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button
+                onClick={handleJuditButtonClick}
+                disabled={juditBusy || saving}
+                className="h-7 px-2.5 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                title={isNovo ? "Consultar Judit e preencher o formulário" : "Consultar Judit (sem alterar o formulário)"}
+              >
+                {juditBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                {juditBusy
+                  ? (juditElapsed < 3 ? "Judit…" : `${juditElapsed}s`)
+                  : "Judit"}
+              </Button>
+              {podeUsarAnexosJudit && (
+                <label className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer select-none" title="Inclui a lista de anexos do processo (consulta Judit mais cara).">
                   <Checkbox
                     checked={comAnexosJudit}
                     onCheckedChange={(v) => setComAnexosJudit(v === true)}
@@ -1465,12 +1430,43 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   />
                   Com anexos
                 </label>
-)}
-                <Button size="sm" onClick={() => handleSave()} disabled={saving || juditBusy}>
-                  {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-                  Salvar
-                </Button>
-              </div>
+              )}
+              <Button className="h-7 px-2.5 text-xs gap-1" onClick={() => handleSave()} disabled={saving || juditBusy}>
+                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                Salvar
+              </Button>
+            </div>
+            {/* Dados do processo em colunas */}
+            <div className="flex flex-wrap items-start gap-x-8 gap-y-3 border-t pt-3">
+              {processo?.numero && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Número do processo</p>
+                  <div className="flex items-center gap-1">
+                    <span className="text-xs font-mono font-semibold text-foreground">{processo.numero}</span>
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
+                      <Copy className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {(processo?.cliente?.nome || processo?.nome_cliente_envolvido) && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Cliente</p>
+                  <span className="text-xs font-semibold text-foreground">{processo.cliente?.nome || processo.nome_cliente_envolvido}</span>
+                </div>
+              )}
+              {form.status && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Status</p>
+                  <span className="text-xs font-semibold text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span>
+                </div>
+              )}
+              {processo?.advogado_responsavel?.nome && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Responsável</p>
+                  <span className="text-xs font-semibold text-foreground">{processo.advogado_responsavel.nome}</span>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
