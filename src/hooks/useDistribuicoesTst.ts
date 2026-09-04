@@ -250,6 +250,8 @@ export interface DistribuicaoTstFilters {
   erroJudit?: "todos" | "sim" | "nao";
   /** Situação do processo: aceita uma opção ou várias (combinadas em OR). */
   situacaoProcesso?: string | string[];
+  /** Situações a EXCLUIR do resultado (ex.: cejusc, acordo). Somam em AND. */
+  excluirSituacoes?: string[];
   subidaMassa?: "todos" | "sim" | "nao";
   mesAno?: string;
   dataInicio?: string;
