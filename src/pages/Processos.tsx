@@ -555,8 +555,10 @@ const Processos = () => {
       title="Processos" 
       subtitle={`${totalCount} processos encontrados`}
     >
+      <div className="processo-chrome">
       {/* Filters Bar */}
-      <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
+      <div className="bg-card border border-border/50 p-4 mb-6 animate-fade-in">
+
         <div className="flex flex-col gap-4">
           {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
@@ -1186,7 +1188,7 @@ const Processos = () => {
 
       {/* Processes List - Astrea Style */}
       {isLoading ? (
-        <div className="bg-card rounded-xl border border-border/50 overflow-hidden">
+        <div className="bg-card border border-border/50 overflow-hidden">
           <div className="divide-y divide-border/50">
             {[...Array(8)].map((_, i) => (
               <div key={i} className="p-4">
@@ -1196,7 +1198,7 @@ const Processos = () => {
           </div>
         </div>
       ) : isError ? (
-        <div className="bg-card rounded-xl border border-border/50 p-4">
+        <div className="bg-card border border-border/50 p-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex items-start gap-2 min-w-0">
               <AlertCircle className="w-4 h-4 mt-0.5 text-destructive shrink-0" />
@@ -1218,8 +1220,8 @@ const Processos = () => {
         <div className="flex gap-4">
           <div className="flex-1 min-w-0">
           {/* Header Row */}
-          <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
-            <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-muted/30 border-b border-border/50 text-xs text-muted-foreground">
+          <div className="bg-card border border-border/50 overflow-hidden">
+            <div className="hidden md:flex items-center gap-3 px-4 py-2 bg-muted/50 border-b border-border/50 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
               <Checkbox
                 checked={selectedProcessos.length === processos.length && processos.length > 0}
                 onCheckedChange={toggleSelectAll}
@@ -1385,6 +1387,7 @@ const Processos = () => {
         selecionados={selectedProcessos}
       />
 
+      </div>
     </MainLayout>
   );
 };
