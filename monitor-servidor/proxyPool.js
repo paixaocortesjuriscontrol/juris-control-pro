@@ -229,7 +229,7 @@ async function djenFetch(sb, queryParams, signal) {
     }
     try {
       const out = await djenFetchSlot(slot, queryParams, signal);
-      if (out.status === 429 || out.status >= 500) continue;
+      if (out.upstreamBlocked || out.status === 429 || out.status >= 500) continue;
       return out;
     } catch (e) {
       markFail(slot.url, "err");
