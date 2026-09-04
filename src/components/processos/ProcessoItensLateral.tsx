@@ -463,14 +463,27 @@ export function ProcessoItensLateral({
     },
   });
 
+  const isPendente = (i: ItemAgendaUnificado) => {
+    const st = String((i as any).status ?? "").toLowerCase();
+    return !isItemTratado(i) && !["cancelado", "cancelada", "cancelado_oculto"].includes(st);
+  };
+
+  const totalPendentes = useMemo(() => itens.filter(isPendente).length, [itens]);
+
+  const itensVisiveis = useMemo(
+    () => (somentePendentes ? itens.filter(isPendente) : itens),
+    [itens, somentePendentes]
+  );
+
   const grupos = useMemo(
     () =>
       GRUPOS.map((g) => ({
         ...g,
-        itens: itens.filter((i) => g.tipos.includes(String((i as any).tipo || "tarefa"))),
+        itens: itensVisiveis.filter((i) => g.tipos.includes(String((i as any).tipo || "tarefa"))),
       })).filter((g) => g.itens.length > 0),
-    [itens]
+    [itensVisiveis]
   );
+
 
   const totalAtividades = useMemo(
     () => Object.values(contagemAtividades as Record<string, number>).reduce((a, b) => a + b, 0),
