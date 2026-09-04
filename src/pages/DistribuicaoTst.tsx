@@ -473,8 +473,10 @@ export default function DistribuicaoTst() {
         : semMateriaDossieIds;
       f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
     }
-    if (filtroPedidosDossie !== "todos" && dossiesComPedidos) {
-      f = { ...f, pedidosDossie: filtroPedidosDossie, dossiesComPedidos };
+    if (filtroPedidosDossie !== "todos") {
+      // Resolvido no banco pelo campo calculado `tem_pedidos_dossie` — não
+      // enviamos mais a lista de dossiês (eram ~8 mil e estourava a URL).
+      f = { ...f, pedidosDossie: filtroPedidosDossie };
     }
     if (filtroComPendencia) {
       // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
@@ -485,7 +487,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), filtroPedidosDossie, dossiesComPedidos?.length]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
