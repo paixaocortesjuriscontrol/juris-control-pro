@@ -655,6 +655,12 @@ export function ProcessoItensLateral({
                     </Badge>
                   )}
                 </div>
+                {grupos.length === 0 && (
+                  <p className="p-4 text-xs text-muted-foreground">
+                    Nenhum item pendente neste processo.
+                  </p>
+                )}
+
                 {(grupoFiltro
                   ? grupos.filter((g) => g.chave === grupoFiltro)
                   : grupos
