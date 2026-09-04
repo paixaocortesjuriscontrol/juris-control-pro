@@ -135,7 +135,7 @@ const Processos = () => {
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
   const [showExportarModelo, setShowExportarModelo] = useState(false);
   const [modeloExportacao, setModeloExportacao] = useState<ModeloExportacao>("monitoramento");
-  const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
+  
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(() => searchParams.get("comDjen") === "true");
@@ -771,27 +771,6 @@ const Processos = () => {
           <div className="flex flex-wrap gap-2 justify-end">
             {!isSelectionMode ? (
               <>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="flex-none"
-                      disabled={monitorandoRedistribuicoes}
-                      onClick={async () => {
-                        setMonitorandoRedistribuicoes(true);
-                        try {
-                          await executarMonitoramento.mutateAsync('redistribuicoes');
-                        } finally {
-                          setMonitorandoRedistribuicoes(false);
-                        }
-                      }}
-                    >
-                      <RefreshCw className={cn("w-4 h-4", monitorandoRedistribuicoes && "animate-spin")} />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Verificar redistribuições</TooltipContent>
-                </Tooltip>
                 <Button 
                   variant="outline" 
                   className="flex-1 sm:flex-none"
