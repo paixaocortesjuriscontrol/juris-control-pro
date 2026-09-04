@@ -208,6 +208,36 @@ function ProcessoItemRow({
   );
 }
 
+/**
+ * Agrupa ocorrências de uma mesma série recorrente: mostra apenas a principal
+ * (a primeira da ordenação) e mantém as demais para expansão sob clique.
+ */
+function agruparRecorrencias(itens: ItemAgendaUnificado[]) {
+  const linhas: {
+    chave: string;
+    principal: ItemAgendaUnificado;
+    repeticoes: ItemAgendaUnificado[];
+  }[] = [];
+  const indice = new Map<string, number>();
+  for (const item of itens) {
+    const pai = (item as any).recorrencia_pai_id;
+    if (!pai) {
+      linhas.push({ chave: String(item.id), principal: item, repeticoes: [] });
+      continue;
+    }
+    const chave = `serie-${pai}`;
+    const pos = indice.get(chave);
+    if (pos === undefined) {
+      indice.set(chave, linhas.length);
+      linhas.push({ chave, principal: item, repeticoes: [] });
+    } else {
+      linhas[pos].repeticoes.push(item);
+    }
+  }
+  return linhas;
+}
+
+
 const GRUPOS: { chave: string; label: string; tipos: string[] }[] = [
   { chave: "prazo", label: "Prazos", tipos: ["prazo", "prazo_parcela"] },
   { chave: "audiencia", label: "Audiências", tipos: ["audiencia"] },
