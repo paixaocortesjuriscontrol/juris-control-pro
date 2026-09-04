@@ -617,8 +617,11 @@ export async function fetchAgendaPage(
             if (filters.dataInicio) {
               const di = filters.dataInicio;
               const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-              queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", diStr);
+              queryTarefasFallback = queryTarefasFallback.or(
+                `data_vencimento.gte.${diStr},recorrencia_tipo.not.is.null`
+              );
             }
+
             if (filters.dataFim) {
               const df = filters.dataFim;
               const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
