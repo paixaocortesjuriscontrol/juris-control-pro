@@ -603,16 +603,35 @@ export function ProcessoItensLateral({
                 <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-muted/30 px-3 py-2">
                   <button
                     type="button"
-                    onClick={() => setGrupoFiltro(null)}
+                    onClick={() => {
+                      setSomentePendentes(false);
+                      setGrupoFiltro(null);
+                    }}
                     className={cn(
                       "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-                      grupoFiltro === null
+                      !somentePendentes && grupoFiltro === null
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border text-muted-foreground hover:bg-muted",
                     )}
                   >
                     Todos: {itens.length}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSomentePendentes((p) => !p);
+                      setGrupoFiltro(null);
+                    }}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                      somentePendentes
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    Pendentes: {totalPendentes}
+                  </button>
+
                   {grupos.map((g) => (
                     <button
                       key={g.chave}
