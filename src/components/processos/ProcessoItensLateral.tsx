@@ -592,7 +592,45 @@ export function ProcessoItensLateral({
                       </h4>
                       <span className="text-[11px] text-muted-foreground">({g.itens.length})</span>
                     </header>
-                    <div className="divide-y divide-border">{g.itens.map(renderItem)}</div>
+                    <div className="divide-y divide-border">
+                      {agruparRecorrencias(g.itens).map((linha) => {
+                        if (linha.repeticoes.length === 0) return renderItem(linha.principal);
+                        const aberto = seriesAbertas.has(linha.chave);
+                        return (
+                          <div key={linha.chave}>
+                            {renderItem(linha.principal)}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSeriesAbertas((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(linha.chave)) next.delete(linha.chave);
+                                  else next.add(linha.chave);
+                                  return next;
+                                })
+                              }
+                              className="flex w-full items-center gap-1.5 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted"
+                            >
+                              {aberto ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                              {aberto
+                                ? "Ocultar repetições"
+                                : `Ver mais ${linha.repeticoes.length} ${
+                                    linha.repeticoes.length === 1 ? "repetição" : "repetições"
+                                  }`}
+                            </button>
+                            {aberto && (
+                              <div className="divide-y divide-border border-l-2 border-primary/30 pl-2">
+                                {linha.repeticoes.map(renderItem)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 ))}
               </>
