@@ -701,10 +701,11 @@ export default function DistribuicaoTst() {
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
     filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagIds.length > 0 ||
-    filtroPedidosDossie !== "todos" || filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+    filtroPedidosDossie !== "todos" || filtroExcluirSituacoes.length > 0 || filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
   const clearFilters = () => {
+    setFiltroExcluirSituacoes([]);
     setFiltroPedidosDossie("todos");
     setFiltroAba("todas");
     setFiltroBenner("todos");
@@ -2730,11 +2731,11 @@ export default function DistribuicaoTst() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="h-8 w-full justify-between px-3 text-xs font-normal">
                       <span className="truncate">
-                        {filtroSituacoesProcesso.length === 0
+                        {filtroSituacoesProcesso.length + filtroExcluirSituacoes.length === 0
                           ? "Todas"
-                          : filtroSituacoesProcesso.length === 1
+                          : filtroSituacoesProcesso.length + filtroExcluirSituacoes.length === 1 && filtroSituacoesProcesso.length === 1
                             ? (SITUACOES_PROCESSO_OPCOES.find((o) => o.value === filtroSituacoesProcesso[0])?.label ?? "1 situação")
-                            : `${filtroSituacoesProcesso.length} situações`}
+                            : `${filtroSituacoesProcesso.length + filtroExcluirSituacoes.length} situações`}
                       </span>
                       <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                     </Button>
@@ -2742,11 +2743,11 @@ export default function DistribuicaoTst() {
                   <PopoverContent align="start" className="w-64 p-2">
                     <div className="flex items-center justify-between pb-2">
                       <span className="text-[11px] font-semibold text-muted-foreground">Selecione as situações</span>
-                      {filtroSituacoesProcesso.length > 0 && (
+                      {filtroSituacoesProcesso.length + filtroExcluirSituacoes.length > 0 && (
                         <button
                           type="button"
                           className="text-[11px] text-primary hover:underline"
-                          onClick={() => setFiltroSituacoesProcesso([])}
+                          onClick={() => { setFiltroSituacoesProcesso([]); setFiltroExcluirSituacoes([]); }}
                         >
                           Limpar
                         </button>
@@ -2767,6 +2768,25 @@ export default function DistribuicaoTst() {
                             }
                           />
                           <span className={cn("truncate", o.className)}>{o.label}</span>
+                        </label>
+                      ))}
+                      <div className="mt-2 border-t pt-2">
+                        <span className="text-[11px] font-semibold text-muted-foreground">Não mostrar</span>
+                      </div>
+                      {EXCLUSOES_SITUACAO_OPCOES.map((o) => (
+                        <label
+                          key={`ex-${o.value}`}
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-muted"
+                        >
+                          <Checkbox
+                            checked={filtroExcluirSituacoes.includes(o.value)}
+                            onCheckedChange={(v) =>
+                              setFiltroExcluirSituacoes((prev) =>
+                                v === true ? [...prev, o.value] : prev.filter((x) => x !== o.value),
+                              )
+                            }
+                          />
+                          <span className="truncate">{o.label}</span>
                         </label>
                       ))}
                     </div>
