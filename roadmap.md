@@ -34,3 +34,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Cards do Kanban de audiências mostram responsáveis e envolvidos
 - [x] Diálogo de reagendar/nova audiência mostra as pessoas replicadas
 - [x] Editar audiência: campo de Envolvidos sempre visível, com fixos travados (cadeado)
+
+## Ajustes 04/09
+- [ ] Recorrências mensais: exibir todas as ocorrências também na pasta completa do processo
+- [ ] Planilha Dossiês: respeitar filtro com/sem matérias e ordenar da distribuição mais antiga à mais recente

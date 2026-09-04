@@ -117,6 +117,7 @@ import { Database } from "@/integrations/supabase/types";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useCoordenacoesDoProcesso, ampliarEscopoComProcesso } from "@/hooks/useCoordenacoesDoProcesso";
 import { filtrarItensPorCoordenacao } from "@/lib/escopoCoordenacaoItens";
+import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 
 type StatusProcesso = Database["public"]["Enums"]["status_processo"];
 type AreaAtuacao = Database["public"]["Enums"]["area_atuacao"];
@@ -396,12 +397,42 @@ export default function ProcessoDetalhes() {
         .order("data_vencimento", { ascending: true });
 
       if (error) throw error;
-      return filtrarItensPorCoordenacao(
+      const tarefasVisiveis = filtrarItensPorCoordenacao(
         data || [],
         isAdminEscopo,
         coordenacoesEscopo,
         userIdEscopo
       );
+      const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
+      return tarefasVisiveis.flatMap((tarefa: any) => {
+        if (!tarefa.recorrencia_tipo) return [tarefa];
+        const dataBase = tarefa.data_vencimento || tarefa.data_fatal || tarefa.data_prevista || tarefa.created_at;
+        if (!dataBase) return [tarefa];
+        return expandirOcorrencias(
+          dataBase,
+          {
+            tipo: tarefa.recorrencia_tipo,
+            intervalo: tarefa.recorrencia_intervalo,
+            fim: tarefa.recorrencia_fim,
+          },
+          windowStart,
+          windowEnd,
+        ).map((ocorrencia) => {
+          const dataOcorrencia = format(ocorrencia, "yyyy-MM-dd");
+          return {
+            ...tarefa,
+            _ocorrencia_id: `${tarefa.id}::${dataOcorrencia}`,
+            _registro_pai: tarefa,
+            recorrencia_pai_id: tarefa.id,
+            data_vencimento: tarefa.data_vencimento ? dataOcorrencia : tarefa.data_vencimento,
+            data_fatal: !tarefa.data_vencimento && tarefa.data_fatal ? dataOcorrencia : tarefa.data_fatal,
+            data_prevista:
+              !tarefa.data_vencimento && !tarefa.data_fatal && tarefa.data_prevista
+                ? dataOcorrencia
+                : tarefa.data_prevista,
+          };
+        });
+      });
     },
     enabled: !!id && !isNovo,
   });
