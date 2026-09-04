@@ -1335,20 +1335,12 @@ export default function DistribuicaoTst() {
         ids = Array.from(selectedIds);
       } else {
         toast.info("Buscando distribuições filtradas...");
-        let exportFilters = listFilters;
-        // A exportação pode ser acionada antes do hook do filtro terminar de
-        // carregar. Resolve a lista aqui para nunca ignorar "com/sem matérias".
-        if (filtroPedidosDossie !== "todos") {
-          const mapaPedidos = await ensurePedidosPorDossie();
-          const dossiesComMaterias = Array.from(mapaPedidos.entries())
-            .filter(([dossie, pedidos]) => !!dossie && !!pedidos && pedidos.size > 0)
-            .map(([dossie]) => dossie);
-          exportFilters = {
-            ...listFilters,
-            pedidosDossie: filtroPedidosDossie,
-            dossiesComPedidos: dossiesComMaterias,
-          };
-        }
+        // O filtro "com/sem matérias cadastradas" é resolvido no banco pelo
+        // campo calculado `tem_pedidos_dossie`, então basta repassar o modo.
+        const exportFilters =
+          filtroPedidosDossie !== "todos"
+            ? { ...listFilters, pedidosDossie: filtroPedidosDossie }
+            : listFilters;
         ids = await fetchAllDistribuicaoTstIds(exportFilters);
       }
       if (ids.length === 0) {
