@@ -236,6 +236,7 @@ export function ProcessoItensLateral({
   const queryClient = useQueryClient();
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [aba, setAba] = useState("resumo");
+  const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null);
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
     queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
@@ -523,11 +524,35 @@ export function ProcessoItensLateral({
             )}
             {!isLoading && itens.length > 0 && (
               <>
-                <div className="flex flex-wrap gap-1.5 border-b border-border bg-muted/30 px-3 py-2">
+                <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-muted/30 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setGrupoFiltro(null)}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                      grupoFiltro === null
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    Todos: {itens.length}
+                  </button>
                   {grupos.map((g) => (
-                    <Badge key={g.chave} variant="outline" className="text-[11px]">
+                    <button
+                      key={g.chave}
+                      type="button"
+                      onClick={() =>
+                        setGrupoFiltro((prev) => (prev === g.chave ? null : g.chave))
+                      }
+                      className={cn(
+                        "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                        grupoFiltro === g.chave
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border text-muted-foreground hover:bg-muted",
+                      )}
+                    >
                       {g.label}: {g.itens.length}
-                    </Badge>
+                    </button>
                   ))}
                   {totalAtividades > 0 && (
                     <Badge variant="secondary" className="text-[11px]">
@@ -535,9 +560,14 @@ export function ProcessoItensLateral({
                     </Badge>
                   )}
                 </div>
-                {grupos.map((g) => (
+                {(grupoFiltro
+                  ? grupos.filter((g) => g.chave === grupoFiltro)
+                  : grupos
+                ).map((g) => (
                   <section key={g.chave}>
-                    <header className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-muted/60 px-3 py-1.5 backdrop-blur">
+                    <header
+                      className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-muted/60 px-3 py-1.5 backdrop-blur"
+                    >
                       <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                         {g.label}
                       </h4>
