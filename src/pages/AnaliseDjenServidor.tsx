@@ -3310,11 +3310,10 @@ const AnaliseDjenServidor = () => {
       : tipoOrigem === 'descartada' ? descartadasStats.total : totalDescartadasHoje;
   const totalFiltradoGeral = totalGeralFiltrado;
   const totalExibidoNaPagina = allPublicacoes.length;
-  // Só considera que há mais no servidor quando a página veio cheia (bateu o
-  // limite pedido) ou quando o total filtrado realmente supera o carregado.
+  // Só há mais no servidor quando a página veio cheia (bateu o limite pedido).
   const restantesNoServidor = Math.max(0, totalFiltradoGeral - totalExibidoNaPagina);
   const paginaVeioCheia = totalExibidoNaPagina >= listLimit;
-  const temMaisResultados = restantesNoServidor > 0 || paginaVeioCheia;
+  const temMaisResultados = paginaVeioCheia;
   // Rótulo com o número correto, nunca um "+500" fixo.
   const incrementoServidor = restantesNoServidor > 0
     ? Math.min(LOAD_MORE_INCREMENT, restantesNoServidor)
