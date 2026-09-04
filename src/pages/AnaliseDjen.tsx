@@ -97,6 +97,7 @@ import { PublicacaoSidePanel } from "@/components/shared/PublicacaoSidePanel";
 import { ItensCriadosPublicacaoCard, type ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { EtiquetarLoteDialog } from "@/components/etiquetas/EtiquetarLoteDialog";
+import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { EdicaoItemPublicacaoInline } from "@/components/shared/EdicaoItemPublicacaoInline";
 import { useItensExistentesPublicacao } from "@/hooks/useItensExistentesPublicacao";
 import { ensureProcessoFromPublicacao, salvarPublicacaoNoProcesso } from "@/lib/ensureProcessoFromPublicacao";
@@ -270,17 +271,18 @@ const AnaliseDjen = () => {
   const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // Carrega a primeira página rapidamente. Não buscar milhares de publicações
-  // completas antes de renderizar — os totalizadores contam, a lista pagina.
-  const INITIAL_LIST_LIMIT = 500;
-  const LOAD_MORE_INCREMENT = 500;
+  // O conteúdo integral das publicações pode ser grande. Buscar em blocos de
+  // 100 mantém a primeira pintura rápida sem alterar totais, duplicados ou
+  // descartes; os totalizadores continuam vindo das RPCs específicas.
+  const INITIAL_LIST_LIMIT = 100;
+  const LOAD_MORE_INCREMENT = 100;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
   // trava a tela. O backend continua trazendo tudo (para totalizadores e
   // exportações), mas a lista mostra `displayLimit` registros por vez,
-  // crescendo de 1000 em 1000 via botão "Carregar mais 1000".
-  const DISPLAY_PAGE_SIZE = 1000;
+  // crescendo sob demanda para não montar centenas de cards complexos de uma vez.
+  const DISPLAY_PAGE_SIZE = 50;
   const [displayLimit, setDisplayLimit] = useState(DISPLAY_PAGE_SIZE);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
@@ -3907,6 +3909,18 @@ const AnaliseDjen = () => {
     ? Math.min(displayLimit, allPublicacoes.length)
     : allPublicacoes.length;
 
+  // Uma única consulta para as etiquetas de todas as publicações já carregadas.
+  // Antes, cada EtiquetaPicker fazia sua própria consulta (até 500 requests na
+  // abertura), o que congestionava o navegador e deixava a tela travada.
+  const idsPublicacoesCarregadas = useMemo(
+    () => allPublicacoes.map((publicacao) => publicacao.id),
+    [allPublicacoes],
+  );
+  const { data: etiquetasPorPublicacao = new Map<string, string[]>() } = useEtiquetasDeItens(
+    "publicacao",
+    idsPublicacoesCarregadas,
+  );
+
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
     const coordId = pub.coordenacao_id || 'sem-coordenacao';
@@ -5489,6 +5503,7 @@ const AnaliseDjen = () => {
                                            entidadeId={pub.id}
                                            coordenacaoId={(pub as any).coordenacao_id ?? undefined}
                                            coordenacaoNome={pub.coordenacao_nome ?? undefined}
+                                            etiquetaIds={etiquetasPorPublicacao.get(pub.id) ?? []}
                                            compact
                                          />
                                        </div>
