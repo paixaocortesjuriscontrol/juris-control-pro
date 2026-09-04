@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin } from "lucide-react";
+import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
