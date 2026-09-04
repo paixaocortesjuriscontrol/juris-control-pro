@@ -21,7 +21,7 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
-const TIPO_TEXTO: Record<string, string> = {
+export const TIPO_TEXTO: Record<string, string> = {
   evento: "text-green-600",
   tarefa: "text-blue-600",
   tarefa_delegada: "text-blue-700",
@@ -31,7 +31,7 @@ const TIPO_TEXTO: Record<string, string> = {
   parcelamento: "text-emerald-600",
 };
 
-const TIPO_LABELS: Record<string, string> = {
+export const TIPO_LABELS: Record<string, string> = {
   evento: "EVENTO",
   tarefa: "TAREFA",
   tarefa_delegada: "DELEGADA",
@@ -47,7 +47,7 @@ const normalize = (s?: string | null) =>
 const isCancelado = (item: ItemAgendaUnificado) =>
   ["cancelado", "cancelada"].includes(normalize(item.status));
 
-const horaDoItem = (item: ItemAgendaUnificado) => {
+export const horaDoItem = (item: ItemAgendaUnificado) => {
   const bruta =
     item.hora_prevista ||
     item.hora_fatal ||
@@ -75,7 +75,7 @@ const formatarHora = (valor?: string | null) => {
 };
 
 /** Detalhes de data/hora conforme o tipo do item — só o que estiver preenchido. */
-const datasDoItem = (item: ItemAgendaUnificado) => {
+export const datasDoItem = (item: ItemAgendaUnificado) => {
   const it = item as any;
   const partes: string[] = [];
   const add = (label: string, valor?: string | null) => {
