@@ -3832,10 +3832,8 @@ const AnaliseDjen = () => {
         return re.test(t);
       });
     }
-    if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
-      const novasSet = new Set(execucaoFocada.novasIds);
-      result = result.filter(pub => novasSet.has(pub.id));
-    }
+    // A lista sempre mostra todas as publicações do dia — selecionar uma
+    // execução no card de execuções não filtra mais a listagem.
     if (ocultarDuplicadas) {
       result = dedupePublicacoesDjen(result);
     }
@@ -4355,22 +4353,6 @@ const AnaliseDjen = () => {
             </div>
             <Button size="sm" variant="outline" onClick={() => setFocusFromErrata(null)}>
               Limpar foco
-            </Button>
-          </div>
-        )}
-
-        {execucaoFocada && execucaoFocada.novasIds.length > 0 && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-md border border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-3 py-2">
-            <div className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span>
-                Foco em uma <strong>execução do dia</strong>: exibindo apenas{' '}
-                {execucaoFocada.novasIds.length} publicação(ões) novas dessa execução.
-                Limpe o foco para ver todas as publicações do dia.
-              </span>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => setExecucaoFocada(null)}>
-              Limpar foco da execução
             </Button>
           </div>
         )}
