@@ -425,7 +425,7 @@ export function ProcessoItensLateral({
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onUpdate={() => {
-          queryClient.invalidateQueries({ queryKey: ["processo-itens-lateral-v2", processoId] });
+          queryClient.invalidateQueries({ queryKey: ["processo-itens-lateral-v3", processoId] });
         }}
       />
     );
@@ -435,22 +435,18 @@ export function ProcessoItensLateral({
     const rawId = getItemRawId(item.id);
     const qtdAtividades = (contagemAtividades as Record<string, number>)[rawId] || 0;
     return (
-      <div key={item.id}>
-        <AgendaItemRow
-          item={item}
-          userId={user?.id}
-          onSelect={setSelectedItem}
-          temAtividade={itensComAtividades.has(rawId)}
-          temComentario={temComentarioItem(itensComComentarios, item)}
-        />
-        {qtdAtividades > 0 && (
-          <p className="px-4 pb-2 text-[11px] text-muted-foreground">
-            {qtdAtividades} {qtdAtividades === 1 ? "atividade vinculada" : "atividades vinculadas"}
-          </p>
-        )}
-      </div>
+      <ProcessoItemRow
+        key={item.id}
+        item={item}
+        userId={user?.id}
+        onSelect={setSelectedItem}
+        temAtividade={itensComAtividades.has(rawId)}
+        temComentario={temComentarioItem(itensComComentarios, item)}
+        qtdAtividades={qtdAtividades}
+      />
     );
   };
+
 
   return (
     <div className="flex flex-col h-full min-h-0">
