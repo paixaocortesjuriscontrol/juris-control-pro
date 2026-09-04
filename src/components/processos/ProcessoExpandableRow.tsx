@@ -549,12 +549,13 @@ export function ProcessoExpandableRow({
           )}
           <Button
             variant="outline"
-            size="icon"
-            className="h-8 w-8"
+            size="sm"
+            className="h-8 gap-1.5 px-2 text-xs"
             title="Abrir processo"
             onClick={(e) => { e.stopPropagation(); onNavigate(processo.id); }}
           >
             <ExternalLink className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Abrir processo</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
