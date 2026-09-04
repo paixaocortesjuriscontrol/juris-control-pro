@@ -504,6 +504,9 @@ export function ProcessoItensLateral({
             </TabsTrigger>
             <TabsTrigger value="movimentacoes" className="h-6 gap-1.5 text-xs">
               <History className="h-3.5 w-3.5" /> Movimentações
+              <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">
+                {totalMovimentacoes}
+              </Badge>
             </TabsTrigger>
           </TabsList>
           {hideHeader && (
