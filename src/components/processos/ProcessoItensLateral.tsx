@@ -267,7 +267,9 @@ export function ProcessoItensLateral({
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [aba, setAba] = useState("resumo");
   const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null);
+  const [somentePendentes, setSomentePendentes] = useState(false);
   const [seriesAbertas, setSeriesAbertas] = useState<Set<string>>(new Set());
+
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
     queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
@@ -463,14 +465,27 @@ export function ProcessoItensLateral({
     },
   });
 
+  const isPendente = (i: ItemAgendaUnificado) => {
+    const st = String((i as any).status ?? "").toLowerCase();
+    return !isItemTratado(i) && !["cancelado", "cancelada", "cancelado_oculto"].includes(st);
+  };
+
+  const totalPendentes = useMemo(() => itens.filter(isPendente).length, [itens]);
+
+  const itensVisiveis = useMemo(
+    () => (somentePendentes ? itens.filter(isPendente) : itens),
+    [itens, somentePendentes]
+  );
+
   const grupos = useMemo(
     () =>
       GRUPOS.map((g) => ({
         ...g,
-        itens: itens.filter((i) => g.tipos.includes(String((i as any).tipo || "tarefa"))),
+        itens: itensVisiveis.filter((i) => g.tipos.includes(String((i as any).tipo || "tarefa"))),
       })).filter((g) => g.itens.length > 0),
-    [itens]
+    [itensVisiveis]
   );
+
 
   const totalAtividades = useMemo(
     () => Object.values(contagemAtividades as Record<string, number>).reduce((a, b) => a + b, 0),
@@ -588,16 +603,35 @@ export function ProcessoItensLateral({
                 <div className="flex flex-wrap items-center gap-1.5 border-b border-border bg-muted/30 px-3 py-2">
                   <button
                     type="button"
-                    onClick={() => setGrupoFiltro(null)}
+                    onClick={() => {
+                      setSomentePendentes(false);
+                      setGrupoFiltro(null);
+                    }}
                     className={cn(
                       "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
-                      grupoFiltro === null
+                      !somentePendentes && grupoFiltro === null
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border text-muted-foreground hover:bg-muted",
                     )}
                   >
                     Todos: {itens.length}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSomentePendentes((p) => !p);
+                      setGrupoFiltro(null);
+                    }}
+                    className={cn(
+                      "rounded-full border px-2 py-0.5 text-[11px] transition-colors",
+                      somentePendentes
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    Pendentes: {totalPendentes}
+                  </button>
+
                   {grupos.map((g) => (
                     <button
                       key={g.chave}
@@ -621,6 +655,12 @@ export function ProcessoItensLateral({
                     </Badge>
                   )}
                 </div>
+                {grupos.length === 0 && (
+                  <p className="p-4 text-xs text-muted-foreground">
+                    Nenhum item pendente neste processo.
+                  </p>
+                )}
+
                 {(grupoFiltro
                   ? grupos.filter((g) => g.chave === grupoFiltro)
                   : grupos
