@@ -259,6 +259,8 @@ export function ProcessoExpandableRow({
     if ((e.target as HTMLElement).closest("button")) return;
     if (isSelectionMode) {
       onToggleSelection(processo.id);
+    } else if (onOpenLateral) {
+      onOpenLateral(processo.id);
     } else {
       onNavigate(processo.id);
     }
