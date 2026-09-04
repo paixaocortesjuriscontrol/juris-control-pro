@@ -1460,9 +1460,18 @@ export default function DistribuicaoTst() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      toast.success(`Planilha gerada com ${porDossie.size} dossiê(s).`);
-      if (semDossie > 0) {
-        toast.warning(`${semDossie} registro(s) sem dossiê foram ignorados.`);
+      const repetidos = linhas.length - semDossie - dossies.length;
+      const removidosPorMateria = dossies.length - porDossie.size;
+      toast.success(
+        `Planilha gerada com ${porDossie.size} dossiê(s), a partir de ${linhas.length} registro(s).`
+      );
+      const detalhes: string[] = [];
+      if (semDossie > 0) detalhes.push(`${semDossie} sem dossiê`);
+      if (repetidos > 0) detalhes.push(`${repetidos} de dossiês repetidos (agrupados)`);
+      if (removidosPorMateria > 0)
+        detalhes.push(`${removidosPorMateria} fora do filtro de matérias`);
+      if (detalhes.length > 0) {
+        toast.warning(`Registros não listados: ${detalhes.join(", ")}.`);
       }
     } catch (err: any) {
       toast.error("Erro ao gerar planilha de dossiês: " + (err?.message || String(err)));
