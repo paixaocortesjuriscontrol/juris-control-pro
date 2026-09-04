@@ -331,6 +331,11 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           )
         )}
       </div>
+      {temBaixaOcorrencia && (
+        <div className="flex-shrink-0 border-t">
+          <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
+        </div>
+      )}
     </div>
   );
 }
