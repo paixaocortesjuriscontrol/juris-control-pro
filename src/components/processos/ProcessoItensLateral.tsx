@@ -310,8 +310,10 @@ export function ProcessoItensLateral({
         }
         // Tarefas recorrentes ficam em um único registro: expandir ocorrências
         // (inclui as futuras) igual à agenda unificada.
+        const dataBaseRec =
+          t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at;
         const ocorrencias = expandirOcorrencias(
-          base.data_inicio,
+          dataBaseRec,
           {
             tipo: t.recorrencia_tipo,
             intervalo: t.recorrencia_intervalo,
