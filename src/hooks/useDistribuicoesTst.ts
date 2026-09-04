@@ -699,6 +699,32 @@ function applySituacaoProcessoFilter<T>(query: T, valor?: string | string[] | nu
   return (query as any).or(cond) as T;
 }
 
+/**
+ * Condição de EXCLUSÃO de cada marcação (negada). São aplicadas uma a uma para
+ * que somem em AND — "não mostrar CEJUSC" + "não mostrar Acordo" etc.
+ */
+export const SITUACAO_PROCESSO_EXCLUSAO_COND: Record<string, string> = {
+  cejusc: "cejusc.is.null,cejusc.eq.false",
+  acordo: "acordo.is.null,acordo.eq.false",
+  segredo_justica: "segredo_justica.is.null,segredo_justica.eq.false",
+  outro_escritorio: "processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false",
+  transito: "transito_julgado.is.null,transito_julgado.eq.false",
+};
+
+export function normalizarExclusoesSituacao(valor?: string[] | null): string[] {
+  return Array.from(new Set((valor || []).filter((v) => !!SITUACAO_PROCESSO_EXCLUSAO_COND[v])));
+}
+
+/** Aplica no banco as exclusões de situação (cada uma como um OR próprio → AND). */
+function applyExclusaoSituacaoFilter<T>(query: T, valor?: string[] | null): T {
+  let q: any = query;
+  for (const opcao of normalizarExclusoesSituacao(valor)) {
+    q = q.or(SITUACAO_PROCESSO_EXCLUSAO_COND[opcao]);
+  }
+  return q as T;
+}
+
+
 function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.processo) return true;
   if (filters.dossie) return true;
