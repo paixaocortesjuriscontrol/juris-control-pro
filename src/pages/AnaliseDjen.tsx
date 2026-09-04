@@ -272,17 +272,17 @@ const AnaliseDjen = () => {
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
   // O conteúdo integral das publicações pode ser grande. Buscar em blocos de
-  // 100 mantém a primeira pintura rápida sem alterar totais, duplicados ou
+  // 200 mantém a primeira pintura rápida sem alterar totais, duplicados ou
   // descartes; os totalizadores continuam vindo das RPCs específicas.
-  const INITIAL_LIST_LIMIT = 100;
-  const LOAD_MORE_INCREMENT = 100;
+  const INITIAL_LIST_LIMIT = 200;
+  const LOAD_MORE_INCREMENT = 200;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
 
   // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
   // trava a tela. O backend continua trazendo tudo (para totalizadores e
   // exportações), mas a lista mostra `displayLimit` registros por vez,
   // crescendo sob demanda para não montar centenas de cards complexos de uma vez.
-  const DISPLAY_PAGE_SIZE = 50;
+  const DISPLAY_PAGE_SIZE = 200;
   const [displayLimit, setDisplayLimit] = useState(DISPLAY_PAGE_SIZE);
 
   // Debounce inputs digitáveis para evitar disparar 3+ queries pesadas
