@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, ExternalLink, FileText, History, ListChecks, Info } from "lucide-react";
+import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProcessoLateralResumo } from "@/components/processos/ProcessoLateralResumo";
-import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
+import {
+  TIPO_TEXTO,
+  TIPO_LABELS,
+  horaDoItem,
+  datasDoItem,
+} from "@/components/painel/DiaAgendaLateral";
+import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { situacoesBase, type TipoSituacaoItem } from "@/constants/situacoesItem";
+import { cn } from "@/lib/utils";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import {
   useItensComAtividades,
@@ -39,12 +49,172 @@ const tipoDaTarefa = (t: any): string => {
   return "tarefa";
 };
 
+/** Situação em texto legível (usa o catálogo oficial de situações do item). */
+const labelSituacao = (tipo: string, valor?: string | null): string | null => {
+  const v = String(valor ?? "").trim();
+  if (!v) return null;
+  const tipoBase: TipoSituacaoItem =
+    tipo === "prazo" || tipo === "prazo_parcela"
+      ? "prazo"
+      : tipo === "audiencia"
+        ? "audiencia"
+        : tipo === "evento"
+          ? "evento"
+          : tipo === "parcelamento"
+            ? "parcelamento"
+            : "tarefa";
+  const achado = situacoesBase(tipoBase).find((s) => s.value === v);
+  return achado ? achado.label : v.replace(/_/g, " ");
+};
+
+const CONCLUIDOS = new Set(["cumprido", "concluido", "protocolado", "baixado", "tratado"]);
+
+/**
+ * Linha detalhada em largura total do painel lateral de Processos.
+ * Mostra tipo, título, processo, responsável, situação, datas e observação.
+ */
+function ProcessoItemRow({
+  item,
+  userId,
+  onSelect,
+  temAtividade,
+  temComentario,
+  qtdAtividades,
+}: {
+  item: ItemAgendaUnificado;
+  userId?: string;
+  onSelect: (item: ItemAgendaUnificado) => void;
+  temAtividade?: boolean;
+  temComentario?: boolean;
+  qtdAtividades?: number;
+}) {
+  const it = item as any;
+  const concluido = isItemTratado(item);
+  const riscado = isItemRiscado(item);
+  const hora = horaDoItem(item);
+  const datas = datasDoItem(item);
+  const situacao = labelSituacao(String(item.tipo), item.status);
+  const cancelado = ["cancelado", "cancelada", "cancelado_oculto"].includes(
+    String(item.status ?? "").toLowerCase(),
+  );
+  const sou =
+    !!userId &&
+    (item.responsavel_id === userId ||
+      item.criado_por === userId ||
+      item.participantes?.some((p: any) => p.usuario_id === userId));
+  const observacao = it.observacoes || item.descricao || null;
+  const local = item.local || it.local_audiencia || it.link_local || null;
+  const orgao = it.orgao || it.orgao_julgador || it.vara_camara || null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item)}
+      className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/50"
+    >
+      <div className="flex-shrink-0 pt-1">
+        <TratadoCheck tratado={concluido} size={15} />
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={cn(
+              "text-[10px] font-bold tracking-wide",
+              TIPO_TEXTO[item.tipo] || "text-muted-foreground",
+            )}
+          >
+            {TIPO_LABELS[item.tipo] || String(item.tipo_tarefa ?? item.tipo).toUpperCase()}
+          </span>
+          {situacao && (
+            <Badge
+              variant={
+                cancelado
+                  ? "destructive"
+                  : CONCLUIDOS.has(String(item.status ?? "").toLowerCase())
+                    ? "secondary"
+                    : "outline"
+              }
+              className="h-4 px-1.5 text-[10px] font-normal"
+            >
+              {situacao}
+            </Badge>
+          )}
+          {item.prioridade && (
+            <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal capitalize">
+              {String(item.prioridade)}
+            </Badge>
+          )}
+          {temAtividade && <AtividadeBadge />}
+          {temComentario && <ComentarioBadge />}
+          {sou && (
+            <span className="rounded border border-border px-1.5 text-[10px] text-muted-foreground">
+              Eu
+            </span>
+          )}
+        </div>
+
+        <p
+          className={cn(
+            "text-[15px] font-medium leading-snug text-foreground",
+            riscado && "line-through",
+            (concluido || cancelado) && "text-muted-foreground",
+          )}
+        >
+          {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
+          {hora ? `: ${hora}` : ""}
+        </p>
+
+        {item.processo?.numero && (
+          <p className="font-mono text-[11px] text-muted-foreground">{item.processo.numero}</p>
+        )}
+        {item.processo?.assunto && (
+          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-1">
+            {item.processo.assunto}
+          </p>
+        )}
+
+        {datas.length > 0 && (
+          <p className="text-[12px] text-muted-foreground">{datas.join("  ·  ")}</p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          {item.responsavel?.nome && (
+            <span className="inline-flex items-center gap-1">
+              <User className="h-3 w-3" /> {item.responsavel.nome}
+            </span>
+          )}
+          {(local || orgao) && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{local || orgao}</span>
+            </span>
+          )}
+          {!!qtdAtividades && qtdAtividades > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <ListChecks className="h-3 w-3" />
+              {qtdAtividades} {qtdAtividades === 1 ? "atividade" : "atividades"}
+            </span>
+          )}
+        </div>
+
+        {observacao && (
+          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">
+            {observacao}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 const GRUPOS: { chave: string; label: string; tipos: string[] }[] = [
   { chave: "prazo", label: "Prazos", tipos: ["prazo", "prazo_parcela"] },
   { chave: "audiencia", label: "Audiências", tipos: ["audiencia"] },
   { chave: "tarefa", label: "Tarefas", tipos: ["tarefa", "tarefa_delegada"] },
   { chave: "evento", label: "Eventos", tipos: ["evento", "parcelamento"] },
 ];
+
 
 interface Props {
   processoId: string;
