@@ -647,19 +647,18 @@ async function fetchAllDistribuicaoTstIdsUncached(
 }
 
 
-/** Aplica no banco o filtro "com/sem matérias cadastradas por dossiê". */
+/**
+ * Aplica no banco o filtro "com/sem matérias cadastradas por dossiê".
+ *
+ * Usa o campo calculado `tem_pedidos_dossie` (função no banco com EXISTS em
+ * `pedidos_por_dossie`). NÃO enviar a lista de dossiês na URL: com a carga de
+ * 2025 são ~8 mil dossiês e o `in.(...)` estourava o limite da requisição,
+ * fazendo a tela dar erro ao combinar filtros.
+ */
 function applyPedidosDossieFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
   const modo = filters.pedidosDossie;
   if (!modo || modo === "todos") return query;
-  const lista = (filters.dossiesComPedidos || []).filter((d) => !!d && d.trim() !== "");
-  const q = query as any;
-  if (lista.length === 0) {
-    // Sem nenhuma lista cadastrada: "com" não retorna nada, "sem" retorna tudo.
-    return (modo === "com" ? q.eq("id", "00000000-0000-0000-0000-000000000000") : q) as T;
-  }
-  if (modo === "com") return q.in("dossie", lista) as T;
-  const quoted = lista.map((d) => `"${d.replace(/"/g, '\\"')}"`).join(",");
-  return q.or(`dossie.is.null,dossie.eq.,dossie.not.in.(${quoted})`) as T;
+  return (query as any).eq("tem_pedidos_dossie", modo === "com") as T;
 }
 
 /**
