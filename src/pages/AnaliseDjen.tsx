@@ -271,12 +271,14 @@ const AnaliseDjen = () => {
   const [descartadasPage, setDescartadasPage] = useState(1);
   const apenasHoje = filtroDia === 'hoje';
   const apenasNaoLidas = readStatus === 'nao_lidas';
-  // O conteúdo integral das publicações pode ser grande. Buscar em blocos de
-  // 200 mantém a primeira pintura rápida sem alterar totais, duplicados ou
-  // descartes; os totalizadores continuam vindo das RPCs específicas.
-  const INITIAL_LIST_LIMIT = 200;
-  const LOAD_MORE_INCREMENT = 200;
+  // A busca no servidor traz a lista COMPLETA do filtro atual: as ações em
+  // massa (gerar DOCs, resumos, exportar Excel, classificar, selecionar tudo)
+  // precisam de todas as publicações, não só das primeiras. A leveza da tela
+  // vem da paginação de APRESENTAÇÃO (displayLimit) mais abaixo.
+  const INITIAL_LIST_LIMIT = 20000;
+  const LOAD_MORE_INCREMENT = 20000;
   const [listLimit, setListLimit] = useState(INITIAL_LIST_LIMIT);
+
 
   // Paginação apenas de APRESENTAÇÃO (client-side): renderizar 12k+ cards
   // trava a tela. O backend continua trazendo tudo (para totalizadores e
