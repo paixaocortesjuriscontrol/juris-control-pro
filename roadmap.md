@@ -38,3 +38,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Ajustes 04/09
 - [x] Recorrências mensais: exibir todas as ocorrências também na pasta completa do processo
 - [x] Planilha Dossiês: respeitar filtro com/sem matérias e ordenar da distribuição mais antiga à mais recente
+
+## Redesign tela do processo (04/09)
+- [ ] Escolher direção visual (sem cantos arredondados, alinhada ao painel lateral) — protótipo deve incluir menu principal completo e chrome de admin (versão, alertas, novidades, usuário)
