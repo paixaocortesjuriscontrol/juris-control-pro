@@ -1262,46 +1262,48 @@ export function PrazoDialog({
 
       </div>
 
-      <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
-        <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
-          Cancelar
-        </Button>
-        {prazo?.id && !ocultarSituacao && prazo.status !== "pendente" && (
-          <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isLoading}>
-            Reabrir
-          </Button>
-        )}
-        <Button
-          type="submit"
-          disabled={isLoading}
-          onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
-        >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Salvar
-        </Button>
-        {secondarySave && !prazo?.id && (
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={isLoading}
-            onClick={() => { secondaryClickedRef.current = true; }}
-          >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {secondarySave.label}
-          </Button>
-        )}
-        {tertiarySave && !prazo?.id && (
-          <Button
-            type="submit"
-            variant="secondary"
-            disabled={isLoading}
-            onClick={() => { tertiaryClickedRef.current = true; }}
-          >
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {tertiarySave.label}
-          </Button>
-        )}
-      </div>
+       {!ocultarSituacao && (
+       <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
+         <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+           Cancelar
+         </Button>
+         {prazo?.id && prazo.status !== "pendente" && (
+           <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isLoading}>
+             Reabrir
+           </Button>
+         )}
+         <Button
+           type="submit"
+           disabled={isLoading}
+           onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
+         >
+           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+           Salvar
+         </Button>
+         {secondarySave && !prazo?.id && (
+           <Button
+             type="submit"
+             variant="secondary"
+             disabled={isLoading}
+             onClick={() => { secondaryClickedRef.current = true; }}
+           >
+             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+             {secondarySave.label}
+           </Button>
+         )}
+         {tertiarySave && !prazo?.id && (
+           <Button
+             type="submit"
+             variant="secondary"
+             disabled={isLoading}
+             onClick={() => { tertiaryClickedRef.current = true; }}
+           >
+             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+             {tertiarySave.label}
+           </Button>
+         )}
+       </div>
+       )}
     </form>
   );
 
