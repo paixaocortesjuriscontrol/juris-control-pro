@@ -1351,9 +1351,9 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-2">
                           {tarefasSemPrazo.map((tarefa: any) => (
                             <Card 
-                              key={tarefa.id} 
+                              key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => abrirNovoItem("tarefa", tarefa)}
+                              onClick={() => abrirNovoItem("tarefa", tarefa._registro_pai || tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
@@ -1561,9 +1561,9 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-2">
                           {prazosDoProcesso.map((tarefa: any) => (
                             <Card
-                              key={tarefa.id}
+                              key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
-                              onClick={() => abrirNovoItem("prazo", tarefa)}
+                              onClick={() => abrirNovoItem("prazo", tarefa._registro_pai || tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">

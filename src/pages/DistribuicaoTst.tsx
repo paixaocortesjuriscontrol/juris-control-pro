@@ -1321,7 +1321,21 @@ export default function DistribuicaoTst() {
         ids = Array.from(selectedIds);
       } else {
         toast.info("Buscando distribuições filtradas...");
-        ids = await fetchAllDistribuicaoTstIds(listFilters);
+        let exportFilters = listFilters;
+        // A exportação pode ser acionada antes do hook do filtro terminar de
+        // carregar. Resolve a lista aqui para nunca ignorar "com/sem matérias".
+        if (filtroPedidosDossie !== "todos") {
+          const mapaPedidos = await ensurePedidosPorDossie();
+          const dossiesComMaterias = Array.from(mapaPedidos.entries())
+            .filter(([dossie, pedidos]) => !!dossie && !!pedidos && pedidos.size > 0)
+            .map(([dossie]) => dossie);
+          exportFilters = {
+            ...listFilters,
+            pedidosDossie: filtroPedidosDossie,
+            dossiesComPedidos: dossiesComMaterias,
+          };
+        }
+        ids = await fetchAllDistribuicaoTstIds(exportFilters);
       }
       if (ids.length === 0) {
         toast.info("Nenhuma distribuição encontrada com os filtros atuais.");
@@ -1334,7 +1348,7 @@ export default function DistribuicaoTst() {
         const batch = ids.slice(i, i + PAGE);
         const { data, error } = await supabase
           .from("dados_benner" as any)
-          .select("id, dossie, processo, data_distribuicao")
+          .select("id, dossie, processo, data_distribuicao_real, data_distribuicao")
           .in("id", batch);
         if (error) throw error;
         ((data as any[]) || []).forEach((r) => linhas.push(r));
@@ -1346,10 +1360,18 @@ export default function DistribuicaoTst() {
         const dossie = String(r.dossie || "").trim();
         if (!dossie) { semDossie++; continue; }
         if (!porDossie.has(dossie)) {
-          porDossie.set(dossie, { ...r, processos: new Set<string>() });
+          porDossie.set(dossie, {
+            ...r,
+            dataDistribuicao: getDataDistribuicaoReal(r),
+            processos: new Set<string>(),
+          });
         }
         const alvo = porDossie.get(dossie)!;
         if (r.processo) alvo.processos.add(String(r.processo));
+        const dataAtual = getDataDistribuicaoReal(r);
+        if (dataAtual && (!alvo.dataDistribuicao || dataAtual < alvo.dataDistribuicao)) {
+          alvo.dataDistribuicao = dataAtual;
+        }
       }
 
       if (porDossie.size === 0) {
@@ -1382,13 +1404,20 @@ export default function DistribuicaoTst() {
         ["Dossiê", "Processo(s)", "Data Distribuição", "Matérias/Pedidos Cadastrados nos dossiês"],
       ];
       Array.from(porDossie.entries())
-        .sort((a, b) => a[0].localeCompare(b[0], "pt-BR", { numeric: true }))
+        .sort((a, b) => {
+          const dataA = a[1].dataDistribuicao || "";
+          const dataB = b[1].dataDistribuicao || "";
+          if (!dataA && !dataB) return a[0].localeCompare(b[0], "pt-BR", { numeric: true });
+          if (!dataA) return 1;
+          if (!dataB) return -1;
+          return dataA.localeCompare(dataB) || a[0].localeCompare(b[0], "pt-BR", { numeric: true });
+        })
         .forEach(([dossie, r]) => {
           aoa.push([
             dossie,
             Array.from(r.processos as Set<string>).join("; "),
-            r.data_distribuicao
-              ? String(r.data_distribuicao).slice(0, 10).split("-").reverse().join("/")
+            r.dataDistribuicao
+              ? String(r.dataDistribuicao).slice(0, 10).split("-").reverse().join("/")
               : "",
             Array.from(materiasPorDossie.get(dossie) || [])
               .sort((a, b) => a.localeCompare(b, "pt-BR"))
