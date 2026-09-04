@@ -555,8 +555,10 @@ const Processos = () => {
       title="Processos" 
       subtitle={`${totalCount} processos encontrados`}
     >
+      <div className="processo-chrome">
       {/* Filters Bar */}
-      <div className="bg-card rounded-xl border border-border/50 p-4 mb-6 animate-fade-in">
+      <div className="bg-card border border-border/50 p-4 mb-6 animate-fade-in">
+
         <div className="flex flex-col gap-4">
           {/* Search Row */}
           <div className="flex flex-col lg:flex-row gap-4">
