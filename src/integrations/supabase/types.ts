@@ -11112,6 +11112,10 @@ export type Database = {
         Args: { data_base: string; dias_uteis_subtrair: number }
         Returns: string
       }
+      tem_pedidos_dossie: {
+        Args: { db: Database["public"]["Tables"]["dados_benner"]["Row"] }
+        Returns: boolean
+      }
       try_uuid: { Args: { _txt: string }; Returns: string }
       tst_pendencias_count: {
         Args: { r: Database["public"]["Tables"]["dados_benner"]["Row"] }
