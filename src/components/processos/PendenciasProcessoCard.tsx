@@ -175,9 +175,9 @@ export function PendenciasProcessoCard({
   return (
     <>
     <Card className="border border-border/60 shadow-md">
-      <CardHeader className="py-3 px-4 bg-amber-500/10 border-b border-border/50">
-        <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600" />
+      <CardHeader className="py-2.5 px-4 bg-sidebar border-b border-border/50">
+        <CardTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground flex items-center gap-2">
+          <AlertTriangle className="w-3.5 h-3.5 text-gold" />
           Pendências do Processo
           {totalPendencias > 0 && (
             <Badge variant="destructive" className="ml-auto text-xs font-bold px-2 shadow-sm">
