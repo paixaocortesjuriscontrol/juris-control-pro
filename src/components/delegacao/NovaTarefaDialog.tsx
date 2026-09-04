@@ -1623,7 +1623,11 @@ export function NovaTarefaDialog({
           </Form>
         </div>
 
-        {/* Actions - fora do scroll para ficar sempre visível */}
+        {/* Actions - fora do scroll para ficar sempre visível.
+            Em ocorrência recorrente, a situação é gerenciada pela barra
+            "Somente esta / Toda a série" (BaixaOcorrenciaBar); o botão Salvar
+            da tarefa-pai é omitido para não confundir. */}
+        {!ocultarSituacao && (
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t px-6 pb-6 shrink-0">
           <Button
             type="button"
@@ -1633,7 +1637,7 @@ export function NovaTarefaDialog({
           >
             Cancelar
           </Button>
-          {tarefaParaEditar?.id && !ocultarSituacao && tarefaParaEditar.status !== "pendente" && (
+          {tarefaParaEditar?.id && tarefaParaEditar.status !== "pendente" && (
             <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={loading} className="w-full sm:w-auto">
               Reabrir
             </Button>
@@ -1675,6 +1679,7 @@ export function NovaTarefaDialog({
             </Button>
           )}
         </div>
+        )}
     </>
   );
 
