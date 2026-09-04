@@ -160,9 +160,10 @@ export function ProcessoLateralResumo({ processoId }: Props) {
     queryFn: async () => {
       const { data } = await (supabase as any)
         .from("processos_responsaveis")
-        .select("user_id")
-        .eq("processo_id", processoId);
-      const ids = ((data as any[]) || []).map((r) => r.user_id).filter(Boolean);
+        .select("usuario_id")
+        .eq("processo_id", processoId)
+        .eq("ativo", true);
+      const ids = ((data as any[]) || []).map((r) => r.usuario_id).filter(Boolean);
       if (!ids.length) return [] as string[];
       const { data: perfis } = await (supabase as any)
         .from("profiles_basic")
