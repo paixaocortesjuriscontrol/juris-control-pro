@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin } from "lucide-react";
+import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -208,6 +208,36 @@ function ProcessoItemRow({
   );
 }
 
+/**
+ * Agrupa ocorrências de uma mesma série recorrente: mostra apenas a principal
+ * (a primeira da ordenação) e mantém as demais para expansão sob clique.
+ */
+function agruparRecorrencias(itens: ItemAgendaUnificado[]) {
+  const linhas: {
+    chave: string;
+    principal: ItemAgendaUnificado;
+    repeticoes: ItemAgendaUnificado[];
+  }[] = [];
+  const indice = new Map<string, number>();
+  for (const item of itens) {
+    const pai = (item as any).recorrencia_pai_id;
+    if (!pai) {
+      linhas.push({ chave: String(item.id), principal: item, repeticoes: [] });
+      continue;
+    }
+    const chave = `serie-${pai}`;
+    const pos = indice.get(chave);
+    if (pos === undefined) {
+      indice.set(chave, linhas.length);
+      linhas.push({ chave, principal: item, repeticoes: [] });
+    } else {
+      linhas[pos].repeticoes.push(item);
+    }
+  }
+  return linhas;
+}
+
+
 const GRUPOS: { chave: string; label: string; tipos: string[] }[] = [
   { chave: "prazo", label: "Prazos", tipos: ["prazo", "prazo_parcela"] },
   { chave: "audiencia", label: "Audiências", tipos: ["audiencia"] },
@@ -237,6 +267,7 @@ export function ProcessoItensLateral({
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [aba, setAba] = useState("resumo");
   const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null);
+  const [seriesAbertas, setSeriesAbertas] = useState<Set<string>>(new Set());
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
     queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
@@ -592,7 +623,45 @@ export function ProcessoItensLateral({
                       </h4>
                       <span className="text-[11px] text-muted-foreground">({g.itens.length})</span>
                     </header>
-                    <div className="divide-y divide-border">{g.itens.map(renderItem)}</div>
+                    <div className="divide-y divide-border">
+                      {agruparRecorrencias(g.itens).map((linha) => {
+                        if (linha.repeticoes.length === 0) return renderItem(linha.principal);
+                        const aberto = seriesAbertas.has(linha.chave);
+                        return (
+                          <div key={linha.chave}>
+                            {renderItem(linha.principal)}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSeriesAbertas((prev) => {
+                                  const next = new Set(prev);
+                                  if (next.has(linha.chave)) next.delete(linha.chave);
+                                  else next.add(linha.chave);
+                                  return next;
+                                })
+                              }
+                              className="flex w-full items-center gap-1.5 bg-muted/30 px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted"
+                            >
+                              {aberto ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                              {aberto
+                                ? "Ocultar repetições"
+                                : `Ver mais ${linha.repeticoes.length} ${
+                                    linha.repeticoes.length === 1 ? "repetição" : "repetições"
+                                  }`}
+                            </button>
+                            {aberto && (
+                              <div className="divide-y divide-border border-l-2 border-primary/30 pl-2">
+                                {linha.repeticoes.map(renderItem)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </section>
                 ))}
               </>
