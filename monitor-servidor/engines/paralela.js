@@ -1137,15 +1137,34 @@ async function buscarPaginado(slot, params, signal) {
           return { ok: true, items: collected, aborted: true };
         }
         const status = out?.status;
-        if (status === 401 || status === 403) METRICS.cAuth += 1;
+        // 403 do WAF do DJEN contra o IP da VPS: bloqueio temporário, conta
+        // como rate limit (não é problema de token da VPS).
+        const bloqueioUpstream = !!out?.upstreamBlocked;
+        if (bloqueioUpstream) METRICS.c429 += 1;
+        else if (status === 401 || status === 403) METRICS.cAuth += 1;
         else if (!status) METRICS.cRede += 1;
         return {
           ok: false,
           items: collected,
-          kind: status === 429 ? "429" : status === 401 || status === 403 ? "auth" : status ? "http" : "rede",
-          err: out ? new Error(`HTTP ${out.status}`) : (lastErr || new Error("Falha ao consultar VPS DJEN")),
+          kind: bloqueioUpstream
+            ? "bloqueio"
+            : status === 429
+              ? "429"
+              : status === 401 || status === 403
+                ? "auth"
+                : status
+                  ? "http"
+                  : "rede",
+          err: out
+            ? new Error(
+                bloqueioUpstream
+                  ? `Bloqueio temporário do DJEN (403) na ${slot.label || slot.url}`
+                  : `HTTP ${out.status}`,
+              )
+            : (lastErr || new Error("Falha ao consultar VPS DJEN")),
         };
       }
+
       const data = typeof out.body === "string" ? JSON.parse(out.body) : out.body;
       const items = extractItems(data);
       for (const it of items) collected.push(it);
