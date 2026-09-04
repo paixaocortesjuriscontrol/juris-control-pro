@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase, BookOpen } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronDown, Filter, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase, BookOpen } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -611,7 +612,7 @@ const Processos = () => {
           </div>
 
           {/* Additional Filters */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
             <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Coordenação" />
@@ -666,61 +667,8 @@ const Processos = () => {
               </SelectContent>
             </Select>
 
-            <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Área" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as áreas</SelectItem>
-                <SelectItem value="civil">Cível</SelectItem>
-                <SelectItem value="trabalhista">Trabalhista</SelectItem>
-                <SelectItem value="empresarial">Empresarial</SelectItem>
-                <SelectItem value="caso">Caso</SelectItem>
-              </SelectContent>
-            </Select>
 
-            {/* Filtro de Instância */}
-            <Select
-              value={filtrosAvancados.instancia || "todos"}
-              onValueChange={(value) => {
-                const instanciaValue = value as "1" | "2" | "superior" | "todos";
-                setFiltrosAvancados(prev => ({ ...prev, instancia: instanciaValue }));
-                setFiltrosAplicados(prev => ({ ...prev, instancia: instanciaValue }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Instância" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas instâncias</SelectItem>
-                <SelectItem value="1">1º Grau</SelectItem>
-                <SelectItem value="2">2º Grau</SelectItem>
-                <SelectItem value="superior">Superiores</SelectItem>
-              </SelectContent>
-            </Select>
 
-            {/* Filtro de Grupo de Clientes */}
-            <Select
-              value={grupoClientesParam ? "url" : selectedGrupoId}
-              onValueChange={handleGrupoChange}
-              disabled={!!grupoClientesParam}
-            >
-              <SelectTrigger className="w-full">
-                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Grupo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os grupos</SelectItem>
-                {grupoClientesParam && (
-                  <SelectItem value="url">{grupoNome || "Grupo selecionado"}</SelectItem>
-                )}
-                {grupos.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
             {/* Filtro de Cliente do Grupo (quando grupo selecionado) */}
             {(selectedGrupoId !== "all" || grupoClientesParam) && clientesDoGrupo.length > 0 && !grupoClientesParam && (
@@ -762,76 +710,68 @@ const Processos = () => {
             )}
           </div>
 
-          {/* Filtros combinados - Com DJEN, Andamentos, Audiências, Intimações */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2 items-stretch">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
-                comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
-              )}
-              onClick={() => setComPublicacaoDjen(prev => !prev)}
-            >
-              <FileText className="w-4 h-4" />
-              <span className="hidden sm:inline">Com DJEN</span>
-            </Button>
+          {/* Filtros combinados */}
+          <div className="flex flex-wrap gap-2 items-center">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-9 gap-2 justify-between min-w-[220px]",
+                    (comPublicacaoDjen || comAndamentos || comAudiencias || comTarefas) &&
+                      "border-primary text-primary"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <Filter className="w-4 h-4" />
+                    {(() => {
+                      const sel = [
+                        comPublicacaoDjen && "Com DJEN",
+                        comAndamentos && "Com Andamentos",
+                        comAudiencias && "Com Audiências",
+                        comTarefas && "Com Tarefas",
+                      ].filter(Boolean) as string[];
+                      if (sel.length === 0) return "Conteúdo do processo";
+                      if (sel.length === 1) return sel[0];
+                      return `${sel.length} selecionados`;
+                    })()}
+                  </span>
+                  <ChevronDown className="w-4 h-4 opacity-60" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-60 p-2">
+                {[
+                  { label: "Com DJEN", checked: comPublicacaoDjen, set: setComPublicacaoDjen, Icon: FileText },
+                  { label: "Com Andamentos", checked: comAndamentos, set: setComAndamentos, Icon: Activity },
+                  { label: "Com Audiências", checked: comAudiencias, set: setComAudiencias, Icon: Gavel },
+                  { label: "Com Tarefas", checked: comTarefas, set: setComTarefas, Icon: ClipboardList },
+                ].map(({ label, checked, set, Icon }) => (
+                  <label
+                    key={label}
+                    className="flex items-center gap-2 px-2 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => (set as any)((prev: boolean) => !prev)} />
+                    <Icon className="w-4 h-4 text-muted-foreground" />
+                    {label}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
 
             <Button
               type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
-                comAndamentos && "bg-green-600 hover:bg-green-700 text-white border-green-600"
-              )}
-              onClick={() => setComAndamentos(prev => !prev)}
-            >
-              <Activity className="w-4 h-4" />
-              <span className="hidden sm:inline">Com Andamentos</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
-                comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
-              )}
-              onClick={() => setComAudiencias(prev => !prev)}
-            >
-              <Gavel className="w-4 h-4" />
-              <span className="hidden sm:inline">Com Audiências</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
-                comTarefas && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
-              )}
-              onClick={() => setComTarefas(prev => !prev)}
-            >
-              <ClipboardList className="w-4 h-4" />
-              <span className="hidden sm:inline">Com Tarefas</span>
-            </Button>
-
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
+                "h-9 gap-2 touch-manipulation select-none",
                 acompanhamentoEspecial && "bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500"
               )}
               onClick={() => setAcompanhamentoEspecial(prev => !prev)}
             >
               <Star className="w-4 h-4" />
-              <span className="hidden sm:inline">Acompanhamento Especial</span>
+              Acompanhamento Especial
             </Button>
 
             <Button
@@ -839,13 +779,13 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
+                "h-9 gap-2 touch-manipulation select-none",
                 segredoJustica && "bg-slate-700 hover:bg-slate-800 text-primary-foreground border-slate-700"
               )}
               onClick={() => setSegredoJustica(prev => !prev)}
             >
               <Lock className="w-4 h-4" />
-              <span className="hidden sm:inline">Segredo de Justiça</span>
+              Segredo de Justiça
             </Button>
 
             <Button
@@ -853,13 +793,12 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
+                "h-9 gap-2 touch-manipulation select-none",
                 statusFilter === "encerrado" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive"
               )}
               onClick={() => setStatusFilter(prev => (prev === "encerrado" ? "all" : "encerrado"))}
             >
-              <span className="hidden sm:inline">Encerrados</span>
-              <span className="sm:hidden">Encerr.</span>
+              Encerrados
             </Button>
 
             <EtiquetaFilter
@@ -867,9 +806,10 @@ const Processos = () => {
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
               value={etiquetasFiltro}
               onChange={setEtiquetasFiltro}
-              className="w-full [&>button]:h-9 [&>button]:w-full justify-center"
+              className="[&>button]:h-9"
             />
           </div>
+
 
           {/* Action Buttons Row */}
           <div className="flex flex-wrap gap-2 justify-end">
