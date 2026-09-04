@@ -238,10 +238,10 @@ export function ProcessoItensLateral({
   const [aba, setAba] = useState("resumo");
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
-    queryKey: ["processo-itens-lateral-v2", processoId, processoNumero],
+    queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
     staleTime: 60_000,
     queryFn: async () => {
-      const [tarefasRes, eventosRes, audienciasRes] = await Promise.all([
+      const [tarefasRes, eventosRes, audienciasRes, processoRes] = await Promise.all([
         supabase
           .from("tarefas")
           .select("*")
@@ -254,10 +254,13 @@ export function ProcessoItensLateral({
           .from("audiencias_detectadas")
           .select("*")
           .or(`processo_id.eq.${processoId},processo_numero.eq.${processoNumero}`),
+        supabase.from("processos").select("id, numero, assunto").eq("id", processoId).maybeSingle(),
       ]);
 
-      const processo = { id: processoId, numero: processoNumero };
+      const proc: any = processoRes.data || null;
+      const processo = { id: processoId, numero: proc?.numero || processoNumero, assunto: proc?.assunto ?? null };
       const lista: ItemAgendaUnificado[] = [];
+
       const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
 
       for (const t of ((tarefasRes.data as any[]) || [])) {
