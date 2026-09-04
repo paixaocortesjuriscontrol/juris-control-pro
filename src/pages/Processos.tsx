@@ -612,7 +612,7 @@ const Processos = () => {
           </div>
 
           {/* Additional Filters */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-center">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
             <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Coordenação" />
