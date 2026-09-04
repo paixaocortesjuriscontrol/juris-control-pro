@@ -1043,8 +1043,8 @@ export function ProcessoDetalhesCompletos({
                 <span className="truncate">Voltar</span>
               </button>
               {navGroups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                <div key={group.label} className="mb-1">
+                  <p className="px-3 pt-3 pb-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">
                     {group.label}
                   </p>
                   {group.items.map((item) => (
@@ -1055,16 +1055,17 @@ export function ProcessoDetalhesCompletos({
                       key={item.id}
                       onClick={() => handleSectionChange(item.id)}
                       className={cn(
-                        "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
+                        "w-full flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wide text-left transition-colors",
                         destacarJudit
-                          ? "bg-emerald-600 text-white border-r-2 border-emerald-700 font-semibold hover:bg-emerald-700"
+                          ? "bg-emerald-600 text-white border-y border-emerald-700 font-semibold hover:bg-emerald-700"
                           : activeSection === item.id
-                          ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
-                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                          ? "bg-background text-primary border-y border-border font-semibold"
+                          : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                       )}
                     >
                       <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
                       <span className={cn("truncate", !destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
+
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
                           {item.count}
