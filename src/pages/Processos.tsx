@@ -135,7 +135,7 @@ const Processos = () => {
   const [processoToEdit, setProcessoToEdit] = useState<any>(null);
   const [showExportarModelo, setShowExportarModelo] = useState(false);
   const [modeloExportacao, setModeloExportacao] = useState<ModeloExportacao>("monitoramento");
-  const [monitorandoRedistribuicoes, setMonitorandoRedistribuicoes] = useState(false);
+  
   const [filtrosAvancados, setFiltrosAvancados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [filtrosAplicados, setFiltrosAplicados] = useState<FiltrosAvancados>(defaultFiltrosAvancados);
   const [comPublicacaoDjen, setComPublicacaoDjen] = useState(() => searchParams.get("comDjen") === "true");
