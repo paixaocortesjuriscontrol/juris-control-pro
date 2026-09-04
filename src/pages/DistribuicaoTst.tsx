@@ -114,6 +114,15 @@ const SITUACOES_PROCESSO_OPCOES: { value: string; label: string; className?: str
   { value: "acordo", label: "Acordo", className: "text-emerald-700 dark:text-emerald-400" },
 ];
 
+/** Marcações que podem ser EXCLUÍDAS do resultado ("Não mostrar"). */
+const EXCLUSOES_SITUACAO_OPCOES: { value: string; label: string }[] = [
+  { value: "cejusc", label: "Não mostrar CEJUSC" },
+  { value: "acordo", label: "Não mostrar Acordo" },
+  { value: "segredo_justica", label: "Não mostrar Segredo de Justiça" },
+  { value: "outro_escritorio", label: "Não mostrar Outro escritório" },
+  { value: "transito", label: "Não mostrar Trânsito em Julgado" },
+];
+
 const favorabilidadeColor = (val: string | null) => {
   if (!val) return "secondary";
   const l = val.toLowerCase();
