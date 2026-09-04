@@ -323,10 +323,19 @@ export function ProcessoItensLateral({
           windowEnd
         );
         for (const occ of ocorrencias) {
+          const dataOcorrencia = occ.toISOString().slice(0, 10);
           lista.push({
             ...base,
-            id: `${t.id}::${occ.toISOString().slice(0, 10)}`,
+            id: `${t.id}::${dataOcorrencia}`,
             data_inicio: occ.toISOString(),
+            // Cada repetição precisa exibir a data em que realmente aparece
+            // no calendário, em vez de repetir a data do registro-pai.
+            data_vencimento: t.data_vencimento ? dataOcorrencia : t.data_vencimento,
+            data_prevista: t.data_prevista ? dataOcorrencia : t.data_prevista,
+            data_fatal:
+              !t.data_vencimento && !t.data_prevista && t.data_fatal
+                ? dataOcorrencia
+                : t.data_fatal,
             recorrencia_pai_id: t.id,
           } as ItemAgendaUnificado);
         }
