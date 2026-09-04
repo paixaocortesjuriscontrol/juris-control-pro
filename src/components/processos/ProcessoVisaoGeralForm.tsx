@@ -1461,10 +1461,22 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   <span className="text-xs font-semibold text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span>
                 </div>
               )}
-              {processo?.advogado_responsavel?.nome && (
+              {(form.valor_causa !== undefined && form.valor_causa !== null && form.valor_causa !== "" ) && (
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Responsável</p>
-                  <span className="text-xs font-semibold text-foreground">{processo.advogado_responsavel.nome}</span>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Valor da Causa</p>
+                  <span className="text-xs font-semibold text-foreground tabular-nums">
+                    {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(form.valor_causa) || 0)}
+                  </span>
+                </div>
+              )}
+              {(responsaveis.length > 0 || processo?.advogado_responsavel?.nome) && (
+                <div>
+                  <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Responsáveis</p>
+                  <span className="text-xs font-semibold text-foreground">
+                    {responsaveis.length > 0
+                      ? responsaveis.map((r: any) => r.usuario?.nome).filter(Boolean).join(", ")
+                      : processo?.advogado_responsavel?.nome}
+                  </span>
                 </div>
               )}
             </div>
