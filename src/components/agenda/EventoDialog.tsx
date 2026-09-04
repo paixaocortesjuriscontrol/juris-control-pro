@@ -1071,6 +1071,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               />
             </div>
 
+            {!ocultarSituacao && (
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-3 pt-2">
               <Button
                 type="button"
@@ -1080,7 +1081,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               >
                 Cancelar
               </Button>
-              {isEditing && !ocultarSituacao && evento?.status !== "pendente" && (
+              {isEditing && evento?.status !== "pendente" && (
                 <Button type="button" variant="outline" onClick={() => handleAlterarStatus("pendente")} disabled={isPending} className="w-full sm:w-auto">
                   Reabrir
                 </Button>
@@ -1119,6 +1120,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 </Button>
               )}
             </div>
+            )}
           </form>
         </ScrollAreaOrDiv>
           </div>

@@ -248,6 +248,9 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
     onClose();
   };
 
+  const temBaixaOcorrencia =
+    isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento;
+
   return (
     <div className="h-full flex flex-col bg-background">
       {!hideHeader && (
@@ -255,11 +258,6 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
             <X className="h-4 w-4" />
           </Button>
-        </div>
-      )}
-      {isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento && (
-        <div className="flex-shrink-0">
-          <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-hidden">
@@ -333,6 +331,11 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           )
         )}
       </div>
+      {temBaixaOcorrencia && (
+        <div className="flex-shrink-0 border-t">
+          <BaixaOcorrenciaBar item={item} onUpdate={onUpdate} />
+        </div>
+      )}
     </div>
   );
 }
