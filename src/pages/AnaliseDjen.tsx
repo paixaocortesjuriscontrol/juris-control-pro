@@ -4359,22 +4359,6 @@ const AnaliseDjen = () => {
           </div>
         )}
 
-        {execucaoFocada && execucaoFocada.novasIds.length > 0 && (
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-md border border-blue-300 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800 px-3 py-2">
-            <div className="text-sm text-blue-800 dark:text-blue-200 flex items-center gap-2">
-              <Sparkles className="w-4 h-4 flex-shrink-0" />
-              <span>
-                Foco em uma <strong>execução do dia</strong>: exibindo apenas{' '}
-                {execucaoFocada.novasIds.length} publicação(ões) novas dessa execução.
-                Limpe o foco para ver todas as publicações do dia.
-              </span>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => setExecucaoFocada(null)}>
-              Limpar foco da execução
-            </Button>
-          </div>
-        )}
-
         {/* Falha de carregamento: antes a tela apenas mostrava tudo zerado */}
         {erroPublicacoes && (
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2">
