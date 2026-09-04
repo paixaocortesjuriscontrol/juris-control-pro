@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase, BookOpen } from "lucide-react";
+import { Search, Plus, Download, Scale, FolderOpen, X, CheckSquare, FileText, Pencil, RefreshCw, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronDown, Filter, Activity, Users, Gavel, AlertCircle, Building2, Repeat, ClipboardList, Star, Lock, Briefcase, BookOpen } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
