@@ -611,9 +611,9 @@ const Processos = () => {
           </div>
 
           {/* Additional Filters */}
-          <div className="flex flex-wrap gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 items-center">
             <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
-              <SelectTrigger className="w-full sm:w-72">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Coordenação" />
               </SelectTrigger>
               <SelectContent>
@@ -631,10 +631,10 @@ const Processos = () => {
                 ))}
               </SelectContent>
             </Select>
-            
+
             {/* Filtro de Tipo de Processo */}
             <Select value={tipoProcessoFilter} onValueChange={setTipoProcessoFilter}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Tipo" />
               </SelectTrigger>
               <SelectContent>
@@ -665,9 +665,9 @@ const Processos = () => {
                 </SelectItem>
               </SelectContent>
             </Select>
-            
+
             <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Área" />
               </SelectTrigger>
               <SelectContent>
@@ -680,15 +680,15 @@ const Processos = () => {
             </Select>
 
             {/* Filtro de Instância */}
-            <Select 
-              value={filtrosAvancados.instancia || "todos"} 
+            <Select
+              value={filtrosAvancados.instancia || "todos"}
               onValueChange={(value) => {
                 const instanciaValue = value as "1" | "2" | "superior" | "todos";
                 setFiltrosAvancados(prev => ({ ...prev, instancia: instanciaValue }));
                 setFiltrosAplicados(prev => ({ ...prev, instancia: instanciaValue }));
               }}
             >
-              <SelectTrigger className="w-full sm:w-36">
+              <SelectTrigger className="w-full">
                 <SelectValue placeholder="Instância" />
               </SelectTrigger>
               <SelectContent>
@@ -698,14 +698,14 @@ const Processos = () => {
                 <SelectItem value="superior">Superiores</SelectItem>
               </SelectContent>
             </Select>
-            
+
             {/* Filtro de Grupo de Clientes */}
-            <Select 
-              value={grupoClientesParam ? "url" : selectedGrupoId} 
+            <Select
+              value={grupoClientesParam ? "url" : selectedGrupoId}
               onValueChange={handleGrupoChange}
               disabled={!!grupoClientesParam}
             >
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger className="w-full">
                 <Users className="w-4 h-4 mr-2 text-muted-foreground" />
                 <SelectValue placeholder="Grupo" />
               </SelectTrigger>
@@ -725,7 +725,7 @@ const Processos = () => {
             {/* Filtro de Cliente do Grupo (quando grupo selecionado) */}
             {(selectedGrupoId !== "all" || grupoClientesParam) && clientesDoGrupo.length > 0 && !grupoClientesParam && (
               <Select value={selectedClienteId} onValueChange={setSelectedClienteId}>
-                <SelectTrigger className="w-full sm:w-48">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Cliente do grupo" />
                 </SelectTrigger>
                 <SelectContent>
@@ -742,7 +742,7 @@ const Processos = () => {
             {/* Filtro de Cliente (geral) */}
             {selectedGrupoId === "all" && !grupoClientesParam && (
               <Select value={clienteFilter} onValueChange={setClienteFilter}>
-                <SelectTrigger className="w-full sm:w-56">
+                <SelectTrigger className="w-full">
                   <SelectValue placeholder="Cliente" />
                 </SelectTrigger>
                 <SelectContent>
@@ -763,13 +763,13 @@ const Processos = () => {
           </div>
 
           {/* Filtros combinados - Com DJEN, Andamentos, Audiências, Intimações */}
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-2 items-stretch">
             <Button
               type="button"
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 comPublicacaoDjen && "bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
               )}
               onClick={() => setComPublicacaoDjen(prev => !prev)}
@@ -783,7 +783,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 comAndamentos && "bg-green-600 hover:bg-green-700 text-white border-green-600"
               )}
               onClick={() => setComAndamentos(prev => !prev)}
@@ -797,7 +797,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 comAudiencias && "bg-amber-600 hover:bg-amber-700 text-white border-amber-600"
               )}
               onClick={() => setComAudiencias(prev => !prev)}
@@ -811,7 +811,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 comTarefas && "bg-purple-600 hover:bg-purple-700 text-white border-purple-600"
               )}
               onClick={() => setComTarefas(prev => !prev)}
@@ -825,7 +825,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 acompanhamentoEspecial && "bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-500"
               )}
               onClick={() => setAcompanhamentoEspecial(prev => !prev)}
@@ -839,7 +839,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 segredoJustica && "bg-slate-700 hover:bg-slate-800 text-primary-foreground border-slate-700"
               )}
               onClick={() => setSegredoJustica(prev => !prev)}
@@ -853,7 +853,7 @@ const Processos = () => {
               variant="outline"
               size="sm"
               className={cn(
-                "h-9 gap-2 touch-manipulation select-none",
+                "h-9 gap-2 touch-manipulation select-none w-full justify-center",
                 statusFilter === "encerrado" && "bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive"
               )}
               onClick={() => setStatusFilter(prev => (prev === "encerrado" ? "all" : "encerrado"))}
@@ -867,6 +867,7 @@ const Processos = () => {
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
               value={etiquetasFiltro}
               onChange={setEtiquetasFiltro}
+              className="w-full [&>button]:h-9 [&>button]:w-full justify-center"
             />
           </div>
 
