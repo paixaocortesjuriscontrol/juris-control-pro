@@ -562,18 +562,27 @@ const Processos = () => {
 
         <div className="flex flex-col gap-4">
           {/* Search Row */}
-          <div className="flex flex-col lg:flex-row gap-4">
-            <div className="relative flex-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input 
                 placeholder="Digite algo para pesquisar" 
-                className="pl-9"
+                className="pl-9 h-9"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            <FiltrosAvancadosProcessos
+              filtros={filtrosAvancados}
+              onFiltrosChange={setFiltrosAvancados}
+              onAplicar={handleAplicarFiltros}
+              onLimpar={handleLimparFiltros}
+              coordenacaoId={coordenacaoFilter}
+            />
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-40">
+              <SelectTrigger className="w-full sm:w-40 h-9">
                 <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
@@ -585,24 +594,14 @@ const Processos = () => {
                 <SelectItem value="encerrado">Encerrado</SelectItem>
               </SelectContent>
             </Select>
+
             <CacheIndicator
               isFetching={isFetching}
               isStale={isStale}
               dataUpdatedAt={dataUpdatedAt}
               onRefresh={handleForceRefresh}
             />
-          </div>
 
-          {/* Advanced Filters Row - Astrea Style */}
-          <div className="flex flex-wrap items-center gap-3">
-            <FiltrosAvancadosProcessos
-              filtros={filtrosAvancados}
-              onFiltrosChange={setFiltrosAvancados}
-              onAplicar={handleAplicarFiltros}
-              onLimpar={handleLimparFiltros}
-              coordenacaoId={coordenacaoFilter}
-            />
-            
             {/* Results counter chip */}
             {(filtrosAplicados.responsavelId || coordenacaoFilter !== "all" || areaFilter !== "all" || statusFilter !== "all" || searchQuery) && (
               <Badge variant="outline" className="h-8 px-3 text-xs font-medium bg-primary/10 border-primary/30 text-primary">
@@ -610,6 +609,7 @@ const Processos = () => {
               </Badge>
             )}
           </div>
+
 
           {/* Additional Filters */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-center">
