@@ -59,6 +59,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAuth } from "@/contexts/AuthContext";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
+import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 import { buildJuditPatch, persistirPartesJudit } from "@/lib/juditDistribuicaoTst";
 import { useTurmasTst, useRelatoresTst } from "@/hooks/useClassificacaoTst";
 import { usePedidosDossieFiltro, type FiltroPedidosDossie } from "@/hooks/useIdsPorPedidosDossie";
