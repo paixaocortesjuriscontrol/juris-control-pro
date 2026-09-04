@@ -1187,10 +1187,12 @@ async function buscarPaginado(slot, params, signal) {
     if (!result.ok) {
       const msg1 = String(result.err?.message || "?");
       const kind = result.kind || "http";
-      if (kind === "429") {
-        // Rate limit: NÃO degradar (size=10 gera 5x mais requisições e piora
-        // o 429). Espera o cooldown e repete a MESMA janela com size=50.
-        console.log(`[paralela.buscarPaginado] janela ${windowIdx} em rate limit (429) — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
+      if (kind === "429" || kind === "bloqueio") {
+        // Rate limit / bloqueio temporário do DJEN: NÃO degradar (size=10 gera
+        // 5x mais requisições e piora). Espera o cooldown e repete a MESMA
+        // janela com size=50; se persistir, o failover troca de VPS.
+        const rotulo = kind === "bloqueio" ? `bloqueio temporário do DJEN (${msg1})` : "rate limit (429)";
+        console.log(`[paralela.buscarPaginado] janela ${windowIdx} em ${rotulo} — aguardando ${RATE_LIMIT_PAUSE_MS}ms e repetindo com size=50`);
         await sleepFora(RATE_LIMIT_PAUSE_MS, signal, "rate_limit");
         result = await fetchWindow(windowIdx, 50);
       } else if (kind === "auth") {
