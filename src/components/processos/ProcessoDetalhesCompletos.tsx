@@ -981,11 +981,12 @@ export function ProcessoDetalhesCompletos({
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="processo-chrome min-h-screen bg-background">
       {/* Main Content - Sidebar + Content */}
       <div className="flex min-h-0 flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
-        <aside className="w-full sm:w-36 md:w-44 border-b sm:border-b-0 sm:border-r bg-muted/20 flex-shrink-0 sm:min-h-0 sm:self-start">
+        <aside className="w-full sm:w-40 md:w-48 border-b sm:border-b-0 sm:border-r border-border bg-muted/40 flex-shrink-0 sm:min-h-0 sm:self-start">
+
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
             <nav className="flex items-center gap-1 px-2 py-2 min-w-max">
@@ -1042,8 +1043,8 @@ export function ProcessoDetalhesCompletos({
                 <span className="truncate">Voltar</span>
               </button>
               {navGroups.map((group) => (
-                <div key={group.label} className="mb-2">
-                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                <div key={group.label} className="mb-1">
+                  <p className="px-3 pt-3 pb-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground/70">
                     {group.label}
                   </p>
                   {group.items.map((item) => (
@@ -1054,16 +1055,17 @@ export function ProcessoDetalhesCompletos({
                       key={item.id}
                       onClick={() => handleSectionChange(item.id)}
                       className={cn(
-                        "w-full flex items-center gap-1.5 px-3 py-1.5 text-xs text-left transition-colors",
+                        "w-full flex items-center gap-2 px-3 py-1.5 text-[11px] uppercase tracking-wide text-left transition-colors",
                         destacarJudit
-                          ? "bg-emerald-600 text-white border-r-2 border-emerald-700 font-semibold hover:bg-emerald-700"
+                          ? "bg-emerald-600 text-white border-y border-emerald-700 font-semibold hover:bg-emerald-700"
                           : activeSection === item.id
-                          ? "bg-primary/10 text-primary border-r-2 border-primary font-medium"
-                          : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                          ? "bg-background text-primary border-y border-border font-semibold"
+                          : "text-muted-foreground hover:bg-background/70 hover:text-foreground"
                       )}
                     >
                       <item.icon className={cn("w-3.5 h-3.5 flex-shrink-0", !destacarJudit && activeSection !== item.id && item.iconColor)} />
                       <span className={cn("truncate", !destacarJudit && activeSection !== item.id && juditSecoes[item.id] && "text-emerald-600 dark:text-emerald-400 font-semibold")}>{item.label}</span>
+
                       {item.count !== undefined && item.count > 0 && (
                         <Badge variant="secondary" className="ml-auto text-[9px] h-4 px-1 min-w-[16px] flex items-center justify-center">
                           {item.count}

@@ -91,8 +91,8 @@ export function DepositosRecursaisCard({ processoId }: DepositosRecursaisCardPro
 
   return (
     <Card className="border">
-      <CardHeader className="py-3 px-4 bg-emerald-50 dark:bg-emerald-950/30 border-b">
-        <CardTitle className="text-sm font-semibold flex items-center justify-between">
+      <CardHeader className="py-2.5 px-4 bg-muted/60 border-b">
+        <CardTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-muted-foreground flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Banknote className="w-4 h-4 text-emerald-600" />
             Depósitos Recursais

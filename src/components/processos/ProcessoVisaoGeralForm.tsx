@@ -1360,12 +1360,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   return (
     <div className="space-y-4">
       {!compact && (
-        <Card>
+        <Card className="border-b-2 border-b-primary/70">
           <CardContent className="p-4 md:p-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex flex-col gap-1 min-w-0">
+              <div className="flex flex-col gap-3 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h1 className="text-lg md:text-xl font-semibold text-foreground leading-tight">
+                  <h1 className="font-serif text-xl md:text-2xl font-semibold text-foreground leading-tight tracking-tight">
                     {(form.polo_ativo || form.reclamante || "—")} <span className="text-muted-foreground font-normal">X</span> {(form.polo_passivo || form.reclamados || "—")}
                   </h1>
                   {form.impactante && (
@@ -1374,27 +1374,39 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Badge>
                   )}
                 </div>
-                <div className="flex flex-col gap-1 text-sm text-muted-foreground">
+                <div className="flex flex-wrap items-start gap-x-8 gap-y-3 border-t pt-3">
                 {processo?.numero && (
-                  <div className="flex items-center gap-1">
-                    <span className="font-medium text-foreground/70">Processo:</span>
-                    <span className="font-mono underline-offset-2 underline text-foreground">{processo.numero}</span>
-                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
-                      <Copy className="w-3 h-3" />
-                    </Button>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Número do processo</p>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-mono font-semibold text-foreground">{processo.numero}</span>
+                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
+                        <Copy className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
                 )}
                 {(processo?.cliente?.nome || processo?.nome_cliente_envolvido) && (
-                  <div><span className="font-medium text-foreground/70">Cliente:</span> <span className="text-foreground">{processo.cliente?.nome || processo.nome_cliente_envolvido}</span></div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Cliente</p>
+                    <span className="text-xs font-semibold text-foreground">{processo.cliente?.nome || processo.nome_cliente_envolvido}</span>
+                  </div>
                 )}
                 {form.status && (
-                  <div><span className="font-medium text-foreground/70">Status:</span> <span className="text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span></div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Status</p>
+                    <span className="text-xs font-semibold text-foreground capitalize">{String(form.status).replace(/_/g, " ")}</span>
+                  </div>
                 )}
                 {processo?.advogado_responsavel?.nome && (
-                  <div><span className="font-medium text-foreground/70">Responsável:</span> <span className="text-foreground">{processo.advogado_responsavel.nome}</span></div>
+                  <div>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Responsável</p>
+                    <span className="text-xs font-semibold text-foreground">{processo.advogado_responsavel.nome}</span>
+                  </div>
                 )}
                 </div>
               </div>
+
               <div className="flex items-center gap-2 flex-shrink-0">
                 <Button
                   size="sm"
