@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "6.0.0";
+export const APP_VERSION = "6.0.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -60,4 +60,5 @@ export const VERSION_HISTORY = [
   { version: "5.5.1", date: "2026-09-03", notes: "Otimização de performance da Distribuição TST (cache compartilhado) e regra de pendências de matérias por dossiê" },
   { version: "5.5.5", date: "2026-09-03", notes: "Drawer sobreposto para tarefas nos modos Lista/Kanban/Equipe, correção de cancelamento de audiência e filtro de tipos no calendário" },
   { version: "6.0.0", date: "2026-09-03", notes: "Marco 6.0.0: republish after site outage" },
+  { version: "6.0.1", date: "2026-09-04", notes: "Drawer de processo com resumo, tarefas e movimentações; contagem de movimentações na aba" },
 ];
