@@ -633,39 +633,54 @@ const Processos = () => {
               </SelectContent>
             </Select>
 
-            {/* Filtro de Tipo de Processo */}
-            <Select value={tipoProcessoFilter} onValueChange={setTipoProcessoFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Tipo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="judicial">
-                  <div className="flex items-center gap-2">
-                    <Scale className="w-4 h-4" />
-                    Judicial
-                  </div>
-                </SelectItem>
-                <SelectItem value="administrativo">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-4 h-4" />
-                    Administrativo
-                  </div>
-                </SelectItem>
-                <SelectItem value="outro">
-                  <div className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Outro
-                  </div>
-                </SelectItem>
-                <SelectItem value="caso">
-                  <div className="flex items-center gap-2">
-                    <Briefcase className="w-4 h-4" />
-                    Caso
-                  </div>
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Conteúdo do processo */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className={cn(
+                    "w-full h-10 gap-2 justify-between font-normal",
+                    (comPublicacaoDjen || comAndamentos || comAudiencias || comTarefas) &&
+                      "border-primary text-primary"
+                  )}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <Filter className="w-4 h-4 shrink-0" />
+                    {(() => {
+                      const sel = [
+                        comPublicacaoDjen && "Com DJEN",
+                        comAndamentos && "Com Andamentos",
+                        comAudiencias && "Com Audiências",
+                        comTarefas && "Com Tarefas",
+                      ].filter(Boolean) as string[];
+                      if (sel.length === 0) return "Conteúdo do processo";
+                      if (sel.length === 1) return sel[0];
+                      return `${sel.length} selecionados`;
+                    })()}
+                  </span>
+                  <ChevronDown className="w-4 h-4 opacity-60 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-60 p-2">
+                {[
+                  { label: "Com DJEN", checked: comPublicacaoDjen, set: setComPublicacaoDjen, Icon: FileText },
+                  { label: "Com Andamentos", checked: comAndamentos, set: setComAndamentos, Icon: Activity },
+                  { label: "Com Audiências", checked: comAudiencias, set: setComAudiencias, Icon: Gavel },
+                  { label: "Com Tarefas", checked: comTarefas, set: setComTarefas, Icon: ClipboardList },
+                ].map(({ label, checked, set, Icon }) => (
+                  <label
+                    key={label}
+                    className="flex items-center gap-2 px-2 py-2 text-sm cursor-pointer hover:bg-accent rounded-sm"
+                  >
+                    <Checkbox checked={checked} onCheckedChange={() => (set as any)((prev: boolean) => !prev)} />
+                    <Icon className="w-4 h-4 text-muted-foreground" />
+                    {label}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+
 
 
 
