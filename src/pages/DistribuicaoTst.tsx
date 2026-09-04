@@ -329,6 +329,7 @@ export default function DistribuicaoTst() {
   const [filtroErroJudit, setFiltroErroJudit] = useState<string>("todos");
   // Situação do processo: seleção múltipla (vazio = todas).
   const [filtroSituacoesProcesso, setFiltroSituacoesProcesso] = useState<string[]>([]);
+  const [filtroExcluirSituacoes, setFiltroExcluirSituacoes] = useState<string[]>([]);
   const filtroSituacaoProcesso =
     filtroSituacoesProcesso.length === 0
       ? "todos"
@@ -394,6 +395,7 @@ export default function DistribuicaoTst() {
         judit: filtroJudit as any,
         erroJudit: filtroErroJudit !== "todos" ? (filtroErroJudit as any) : undefined,
         situacaoProcesso: filtroSituacoesProcesso.length > 0 ? filtroSituacoesProcesso : undefined,
+        excluirSituacoes: filtroExcluirSituacoes.length > 0 ? filtroExcluirSituacoes : undefined,
         subidaMassa: filtroSubidaMassa !== "todos" ? (filtroSubidaMassa as any) : undefined,
         mesAno: filtroMesAno !== "todos" ? filtroMesAno : undefined,
         dataInicio: filtroDataInicio || undefined,
@@ -413,7 +415,7 @@ export default function DistribuicaoTst() {
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
