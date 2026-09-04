@@ -555,8 +555,13 @@ export async function fetchAgendaPage(
         if (filters.dataInicio) {
           const di = filters.dataInicio;
           const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-          queryTarefas = queryTarefas.gte("data_vencimento", diStr);
+          // Tarefas/prazos recorrentes cuja série começou antes da janela precisam
+          // ser trazidas para que as ocorrências futuras sejam expandidas.
+          queryTarefas = queryTarefas.or(
+            `data_vencimento.gte.${diStr},recorrencia_tipo.not.is.null`
+          );
         }
+
 
         if (filters.dataFim) {
           const df = filters.dataFim;
