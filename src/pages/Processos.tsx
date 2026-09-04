@@ -608,6 +608,25 @@ const Processos = () => {
                 {isFetching ? "..." : totalCount} processo{totalCount !== 1 ? "s" : ""} encontrado{totalCount !== 1 ? "s" : ""}
               </Badge>
             )}
+
+            <div className="ml-auto flex flex-wrap gap-2 items-center">
+              <Button
+                className="bg-primary hover:bg-primary/90 h-9"
+                onClick={() => navigate("/processos/novo")}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Novo Processo</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="h-9"
+                title="Criar um caso sem número de processo (pode ser incluído depois)"
+                onClick={() => navigate("/processos/novo?caso=1")}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                <span className="hidden sm:inline">Novo Caso</span>
+              </Button>
+            </div>
           </div>
 
 
@@ -725,7 +744,7 @@ const Processos = () => {
             )}
           </div>
 
-          {/* Filtros combinados */}
+          {/* Filtros combinados + Ações */}
           <div className="flex flex-wrap gap-2 items-center">
             <Button
 
@@ -756,7 +775,6 @@ const Processos = () => {
               Segredo de Justiça
             </Button>
 
-
             <EtiquetaFilter
               modulo="processos"
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
@@ -764,162 +782,144 @@ const Processos = () => {
               onChange={setEtiquetasFiltro}
               className="[&>button]:h-9"
             />
-          </div>
 
+            <div className="ml-auto flex flex-wrap gap-2 items-center">
+              {!isSelectionMode ? (
+                <>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => setShowTransferirDialog(true)}
+                  >
+                    <Repeat className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Transferir</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    onClick={() => setIsSelectionMode(true)}
+                  >
+                    <CheckSquare className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Selecionar</span>
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" className="h-9" disabled={exportando}>
+                        <Download className="w-4 h-4 mr-2" />
+                        <span className="hidden sm:inline">
+                          {exportando ? "Exportando..." : "Exportar"}
+                        </span>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-64">
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          setExportando(true);
+                          const toastId = toast.loading("Exportando processos...");
+                          try {
+                            const XLSX = await import("xlsx");
+                            const coordMap = new Map<string, string>(
+                              (coordenacoes || []).map((c: any) => [c.id, c.nome])
+                            );
+                            // Busca TODAS as linhas que atendem aos filtros ativos (não só a página)
+                            const todos = await fetchTodosProcessosFiltrados(
+                              filtrosProcessos,
+                              (carregados, total) => {
+                                toast.loading(`Exportando ${carregados} de ${total} processos...`, {
+                                  id: toastId,
+                                });
+                              }
+                            );
+                            const rows = todos.map((p: any) => ({
+                              Numero: p.numero || "",
+                              Assunto: p.assunto || "",
+                              Cliente: p.cliente?.nome || p.cliente_nome || "",
+                              Coordenacao:
+                                p.coordenacao?.nome ||
+                                p.coordenacao_nome ||
+                                (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
+                              Responsavel: p.advogado_responsavel?.nome || "",
+                              Situacao: p.situacao || p.status || "",
+                              Area: p.area || "",
+                              Tipo: p.tipo_processo || "",
+                              Polo_Ativo: p.polo_ativo || "",
+                              Polo_Passivo: p.polo_passivo || "",
+                              Tribunal: p.tribunal || "",
+                              Vara: p.vara || "",
+                              Comarca: p.comarca || "",
+                              Instancia: p.instancia || "",
+                              Orgao_Julgador: p.orgao_julgador || "",
+                              Data_Distribuicao: p.data_distribuicao || "",
+                              Valor_Causa: p.valor_causa || "",
+                            }));
+                            const ws = XLSX.utils.json_to_sheet(rows);
+                            const wb = XLSX.utils.book_new();
+                            XLSX.utils.book_append_sheet(wb, ws, "Processos");
+                            const stamp = new Date().toISOString().slice(0, 10);
+                            XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
+                            toast.success(`${rows.length} processos exportados!`, { id: toastId });
+                          } catch (e: any) {
+                            console.error("Erro ao exportar:", e);
+                            toast.error(`Erro ao exportar: ${e?.message || e}`, { id: toastId });
+                          } finally {
+                            setExportando(false);
+                          }
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-2" />
+                        Lista de processos (padrão)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setModeloExportacao("monitoramento");
+                          setShowExportarModelo(true);
+                        }}
+                      >
+                        <Activity className="w-4 h-4 mr-2" />
+                        Excel Monitoramento (andamentos)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => {
+                          setModeloExportacao("cadastro-lote");
+                          setShowExportarModelo(true);
+                        }}
+                      >
+                        <ClipboardList className="w-4 h-4 mr-2" />
+                        Excel Cadastro em Lote
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
-          {/* Action Buttons Row */}
-          <div className="flex flex-wrap gap-2 justify-end">
-            {!isSelectionMode ? (
-              <>
-                <Button 
-                  variant="outline" 
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setShowTransferirDialog(true)}
-                >
-                  <Repeat className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Transferir</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="flex-1 sm:flex-none"
-                  onClick={() => setIsSelectionMode(true)}
-                >
-                  <CheckSquare className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Selecionar</span>
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="flex-1 sm:flex-none" disabled={exportando}>
-                      <Download className="w-4 h-4 mr-2" />
-                      <span className="hidden sm:inline">
-                        {exportando ? "Exportando..." : "Exportar"}
-                      </span>
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    <DropdownMenuItem
-                      onClick={async () => {
-                        setExportando(true);
-                        const toastId = toast.loading("Exportando processos...");
-                        try {
-                          const XLSX = await import("xlsx");
-                          const coordMap = new Map<string, string>(
-                            (coordenacoes || []).map((c: any) => [c.id, c.nome])
-                          );
-                          // Busca TODAS as linhas que atendem aos filtros ativos (não só a página)
-                          const todos = await fetchTodosProcessosFiltrados(
-                            filtrosProcessos,
-                            (carregados, total) => {
-                              toast.loading(`Exportando ${carregados} de ${total} processos...`, {
-                                id: toastId,
-                              });
-                            }
-                          );
-                          const rows = todos.map((p: any) => ({
-                            Numero: p.numero || "",
-                            Assunto: p.assunto || "",
-                            Cliente: p.cliente?.nome || p.cliente_nome || "",
-                            Coordenacao:
-                              p.coordenacao?.nome ||
-                              p.coordenacao_nome ||
-                              (p.coordenacao_id ? coordMap.get(p.coordenacao_id) || "" : ""),
-                            Responsavel: p.advogado_responsavel?.nome || "",
-                            Situacao: p.situacao || p.status || "",
-                            Area: p.area || "",
-                            Tipo: p.tipo_processo || "",
-                            Polo_Ativo: p.polo_ativo || "",
-                            Polo_Passivo: p.polo_passivo || "",
-                            Tribunal: p.tribunal || "",
-                            Vara: p.vara || "",
-                            Comarca: p.comarca || "",
-                            Instancia: p.instancia || "",
-                            Orgao_Julgador: p.orgao_julgador || "",
-                            Data_Distribuicao: p.data_distribuicao || "",
-                            Valor_Causa: p.valor_causa || "",
-                          }));
-                          const ws = XLSX.utils.json_to_sheet(rows);
-                          const wb = XLSX.utils.book_new();
-                          XLSX.utils.book_append_sheet(wb, ws, "Processos");
-                          const stamp = new Date().toISOString().slice(0, 10);
-                          XLSX.writeFile(wb, `processos_${stamp}.xlsx`);
-                          toast.success(`${rows.length} processos exportados!`, { id: toastId });
-                        } catch (e: any) {
-                          console.error("Erro ao exportar:", e);
-                          toast.error(`Erro ao exportar: ${e?.message || e}`, { id: toastId });
-                        } finally {
-                          setExportando(false);
-                        }
-                      }}
-                    >
-                      <Download className="w-4 h-4 mr-2" />
-                      Lista de processos (padrão)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setModeloExportacao("monitoramento");
-                        setShowExportarModelo(true);
-                      }}
-                    >
-                      <Activity className="w-4 h-4 mr-2" />
-                      Excel Monitoramento (andamentos)
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setModeloExportacao("cadastro-lote");
-                        setShowExportarModelo(true);
-                      }}
-                    >
-                      <ClipboardList className="w-4 h-4 mr-2" />
-                      Excel Cadastro em Lote
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                <Button
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  title="Gerar manual em PDF da tela Processos e Casos"
-                  onClick={() => gerarManualProcessosPdf()}
-                >
-                  <BookOpen className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Manual PDF</span>
-                </Button>
-                <Button 
-                  className="bg-primary hover:bg-primary/90 flex-1 sm:flex-none"
-                  onClick={() => navigate("/processos/novo")}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Novo Processo</span>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="flex-1 sm:flex-none"
-                  title="Criar um caso sem número de processo (pode ser incluído depois)"
-                  onClick={() => navigate("/processos/novo?caso=1")}
-                >
-                  <Plus className="w-4 h-4 mr-2" />
-                  <span className="hidden sm:inline">Novo Caso</span>
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={toggleSelectAll}
-                  className="flex-1 sm:flex-none"
-                >
-                  {selectedProcessos.length === processos.length ? "Desmarcar todos" : "Selecionar todos"}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={exitSelectionMode}
-                  className="flex-1 sm:flex-none"
-                >
-                  <X className="w-4 h-4 mr-2" />
-                  Cancelar
-                </Button>
-              </>
-            )}
+                  <Button
+                    variant="outline"
+                    className="h-9"
+                    title="Gerar manual em PDF da tela Processos e Casos"
+                    onClick={() => gerarManualProcessosPdf()}
+                  >
+                    <BookOpen className="w-4 h-4 mr-2" />
+                    <span className="hidden sm:inline">Manual PDF</span>
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={toggleSelectAll}
+                    className="h-9"
+                  >
+                    {selectedProcessos.length === processos.length ? "Desmarcar todos" : "Selecionar todos"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={exitSelectionMode}
+                    className="h-9"
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancelar
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
