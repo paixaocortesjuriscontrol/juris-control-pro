@@ -1122,9 +1122,9 @@ async function buscarPaginado(slot, params, signal) {
           lastErr = e;
           return null;
         });
-        if (out && out.status !== 429 && out.status < 500) break;
+        if (out && !out.upstreamBlocked && out.status !== 429 && out.status < 500) break;
         if (attempt === MAX_ATTEMPTS - 1) break;
-        const is429 = out?.status === 429;
+        const is429 = out?.status === 429 || !!out?.upstreamBlocked;
         if (is429) METRICS.c429 += 1;
         else if (out?.status >= 500) { METRICS.c5xx += 1; if (out.status === 504) METRICS.c504 += 1; }
         else if (!out) METRICS.cRede += 1;
