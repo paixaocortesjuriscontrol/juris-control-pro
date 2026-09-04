@@ -476,3 +476,31 @@
 .pdf-capture-visible {
   display: block !important;
 }
+
+/* ============================================================
+   Tela do processo — chrome administrativo (cantos retos,
+   densidade alta, alinhado ao painel lateral sobreposto).
+   Escopo: apenas dentro de .processo-chrome.
+   ============================================================ */
+.processo-chrome [class*="rounded-sm"],
+.processo-chrome [class*="rounded-md"],
+.processo-chrome [class*="rounded-lg"],
+.processo-chrome [class*="rounded-xl"],
+.processo-chrome [class*="rounded-2xl"],
+.processo-chrome [class*="rounded-3xl"],
+.processo-chrome [class~="rounded"] {
+  border-radius: 0 !important;
+}
+
+/* Micro-labels institucionais nos formulários do processo */
+.processo-chrome label {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* Cabeçalhos de card com faixa fina e tipografia de sistema administrativo */
+.processo-chrome [data-slot="card"],
+.processo-chrome .card {
+  box-shadow: none;
+}
