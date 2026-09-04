@@ -347,6 +347,28 @@ export function ProcessoItensLateral({
         } as ItemAgendaUnificado);
       }
 
+      // Nomes dos responsáveis em um único lote (o select "*" não traz o join).
+      const ids = [
+        ...new Set(
+          lista
+            .map((i: any) => i.responsavel_id || i.responsavel_tst_id || null)
+            .filter(Boolean) as string[],
+        ),
+      ];
+      if (ids.length) {
+        const { data: perfis } = await (supabase as any)
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", ids);
+        const mapa = new Map<string, string>(
+          ((perfis as any[]) || []).map((p) => [p.id, p.nome]),
+        );
+        for (const i of lista as any[]) {
+          const rid = i.responsavel_id || i.responsavel_tst_id;
+          if (rid && mapa.has(rid)) i.responsavel = { id: rid, nome: mapa.get(rid)! };
+        }
+      }
+
       // Do mais novo para o mais antigo (itens sem data no final)
       return lista.sort((x, y) => {
         const dx = soData(x.data_inicio);
@@ -356,6 +378,7 @@ export function ProcessoItensLateral({
         if (!dy) return -1;
         return dy.localeCompare(dx);
       });
+
     },
     enabled: !!processoId,
   });
