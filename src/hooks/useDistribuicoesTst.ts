@@ -577,6 +577,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -740,6 +741,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.judit && filters.judit !== "todos") return true;
   if (filters.erroJudit && filters.erroJudit !== "todos") return true;
   if (normalizarSituacoesProcesso(filters.situacaoProcesso).length > 0) return true;
+  if (normalizarExclusoesSituacao(filters.excluirSituacoes).length > 0) return true;
   if (filters.subidaMassa && filters.subidaMassa !== "todos") return true;
   if (filters.mesAno && filters.mesAno !== "todos") return true;
   if (filters.dataInicio) return true;
@@ -870,6 +872,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (filters.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
@@ -1301,6 +1304,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, f.situacaoProcesso);
+    query = applyExclusaoSituacaoFilter(query, f.excluirSituacoes);
 
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
     else if (f.subidaMassa === "nao") query = query.or("subida_em_massa.is.null,subida_em_massa.eq.false");
