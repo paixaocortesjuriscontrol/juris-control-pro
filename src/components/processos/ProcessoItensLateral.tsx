@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { X, ExternalLink, FileText, History, ListChecks, Info } from "lucide-react";
+import { X, ExternalLink, FileText, History, ListChecks, Info, User, MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,7 +9,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProcessoLateralResumo } from "@/components/processos/ProcessoLateralResumo";
-import { AgendaItemRow } from "@/components/painel/DiaAgendaLateral";
+import {
+  TIPO_TEXTO,
+  TIPO_LABELS,
+  horaDoItem,
+  datasDoItem,
+} from "@/components/painel/DiaAgendaLateral";
+import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { situacoesBase, type TipoSituacaoItem } from "@/constants/situacoesItem";
+import { cn } from "@/lib/utils";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import {
   useItensComAtividades,
@@ -39,12 +49,172 @@ const tipoDaTarefa = (t: any): string => {
   return "tarefa";
 };
 
+/** Situação em texto legível (usa o catálogo oficial de situações do item). */
+const labelSituacao = (tipo: string, valor?: string | null): string | null => {
+  const v = String(valor ?? "").trim();
+  if (!v) return null;
+  const tipoBase: TipoSituacaoItem =
+    tipo === "prazo" || tipo === "prazo_parcela"
+      ? "prazo"
+      : tipo === "audiencia"
+        ? "audiencia"
+        : tipo === "evento"
+          ? "evento"
+          : tipo === "parcelamento"
+            ? "parcelamento"
+            : "tarefa";
+  const achado = situacoesBase(tipoBase).find((s) => s.value === v);
+  return achado ? achado.label : v.replace(/_/g, " ");
+};
+
+const CONCLUIDOS = new Set(["cumprido", "concluido", "protocolado", "baixado", "tratado"]);
+
+/**
+ * Linha detalhada em largura total do painel lateral de Processos.
+ * Mostra tipo, título, processo, responsável, situação, datas e observação.
+ */
+function ProcessoItemRow({
+  item,
+  userId,
+  onSelect,
+  temAtividade,
+  temComentario,
+  qtdAtividades,
+}: {
+  item: ItemAgendaUnificado;
+  userId?: string;
+  onSelect: (item: ItemAgendaUnificado) => void;
+  temAtividade?: boolean;
+  temComentario?: boolean;
+  qtdAtividades?: number;
+}) {
+  const it = item as any;
+  const concluido = isItemTratado(item);
+  const riscado = isItemRiscado(item);
+  const hora = horaDoItem(item);
+  const datas = datasDoItem(item);
+  const situacao = labelSituacao(String(item.tipo), item.status);
+  const cancelado = ["cancelado", "cancelada", "cancelado_oculto"].includes(
+    String(item.status ?? "").toLowerCase(),
+  );
+  const sou =
+    !!userId &&
+    (item.responsavel_id === userId ||
+      item.criado_por === userId ||
+      item.participantes?.some((p: any) => p.usuario_id === userId));
+  const observacao = it.observacoes || item.descricao || null;
+  const local = item.local || it.local_audiencia || it.link_local || null;
+  const orgao = it.orgao || it.orgao_julgador || it.vara_camara || null;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(item)}
+      className="flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors hover:bg-muted/50"
+    >
+      <div className="flex-shrink-0 pt-1">
+        <TratadoCheck tratado={concluido} size={15} />
+      </div>
+
+      <div className="min-w-0 flex-1 space-y-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span
+            className={cn(
+              "text-[10px] font-bold tracking-wide",
+              TIPO_TEXTO[item.tipo] || "text-muted-foreground",
+            )}
+          >
+            {TIPO_LABELS[item.tipo] || String(item.tipo_tarefa ?? item.tipo).toUpperCase()}
+          </span>
+          {situacao && (
+            <Badge
+              variant={
+                cancelado
+                  ? "destructive"
+                  : CONCLUIDOS.has(String(item.status ?? "").toLowerCase())
+                    ? "secondary"
+                    : "outline"
+              }
+              className="h-4 px-1.5 text-[10px] font-normal"
+            >
+              {situacao}
+            </Badge>
+          )}
+          {item.prioridade && (
+            <Badge variant="outline" className="h-4 px-1.5 text-[10px] font-normal capitalize">
+              {String(item.prioridade)}
+            </Badge>
+          )}
+          {temAtividade && <AtividadeBadge />}
+          {temComentario && <ComentarioBadge />}
+          {sou && (
+            <span className="rounded border border-border px-1.5 text-[10px] text-muted-foreground">
+              Eu
+            </span>
+          )}
+        </div>
+
+        <p
+          className={cn(
+            "text-[15px] font-medium leading-snug text-foreground",
+            riscado && "line-through",
+            (concluido || cancelado) && "text-muted-foreground",
+          )}
+        >
+          {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
+          {hora ? `: ${hora}` : ""}
+        </p>
+
+        {item.processo?.numero && (
+          <p className="font-mono text-[11px] text-muted-foreground">{item.processo.numero}</p>
+        )}
+        {item.processo?.assunto && (
+          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-1">
+            {item.processo.assunto}
+          </p>
+        )}
+
+        {datas.length > 0 && (
+          <p className="text-[12px] text-muted-foreground">{datas.join("  ·  ")}</p>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+          {item.responsavel?.nome && (
+            <span className="inline-flex items-center gap-1">
+              <User className="h-3 w-3" /> {item.responsavel.nome}
+            </span>
+          )}
+          {(local || orgao) && (
+            <span className="inline-flex min-w-0 items-center gap-1">
+              <MapPin className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{local || orgao}</span>
+            </span>
+          )}
+          {!!qtdAtividades && qtdAtividades > 0 && (
+            <span className="inline-flex items-center gap-1">
+              <ListChecks className="h-3 w-3" />
+              {qtdAtividades} {qtdAtividades === 1 ? "atividade" : "atividades"}
+            </span>
+          )}
+        </div>
+
+        {observacao && (
+          <p className="text-[11px] leading-snug text-muted-foreground line-clamp-2">
+            {observacao}
+          </p>
+        )}
+      </div>
+    </button>
+  );
+}
+
 const GRUPOS: { chave: string; label: string; tipos: string[] }[] = [
   { chave: "prazo", label: "Prazos", tipos: ["prazo", "prazo_parcela"] },
   { chave: "audiencia", label: "Audiências", tipos: ["audiencia"] },
   { chave: "tarefa", label: "Tarefas", tipos: ["tarefa", "tarefa_delegada"] },
   { chave: "evento", label: "Eventos", tipos: ["evento", "parcelamento"] },
 ];
+
 
 interface Props {
   processoId: string;
@@ -68,10 +238,10 @@ export function ProcessoItensLateral({
   const [aba, setAba] = useState("resumo");
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
-    queryKey: ["processo-itens-lateral-v2", processoId, processoNumero],
+    queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
     staleTime: 60_000,
     queryFn: async () => {
-      const [tarefasRes, eventosRes, audienciasRes] = await Promise.all([
+      const [tarefasRes, eventosRes, audienciasRes, processoRes] = await Promise.all([
         supabase
           .from("tarefas")
           .select("*")
@@ -84,10 +254,13 @@ export function ProcessoItensLateral({
           .from("audiencias_detectadas")
           .select("*")
           .or(`processo_id.eq.${processoId},processo_numero.eq.${processoNumero}`),
+        supabase.from("processos").select("id, numero, assunto").eq("id", processoId).maybeSingle(),
       ]);
 
-      const processo = { id: processoId, numero: processoNumero };
+      const proc: any = processoRes.data || null;
+      const processo = { id: processoId, numero: proc?.numero || processoNumero, assunto: proc?.assunto ?? null };
       const lista: ItemAgendaUnificado[] = [];
+
       const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
 
       for (const t of ((tarefasRes.data as any[]) || [])) {
@@ -174,6 +347,28 @@ export function ProcessoItensLateral({
         } as ItemAgendaUnificado);
       }
 
+      // Nomes dos responsáveis em um único lote (o select "*" não traz o join).
+      const ids = [
+        ...new Set(
+          lista
+            .map((i: any) => i.responsavel_id || i.responsavel_tst_id || null)
+            .filter(Boolean) as string[],
+        ),
+      ];
+      if (ids.length) {
+        const { data: perfis } = await (supabase as any)
+          .from("profiles_basic")
+          .select("id, nome")
+          .in("id", ids);
+        const mapa = new Map<string, string>(
+          ((perfis as any[]) || []).map((p) => [p.id, p.nome]),
+        );
+        for (const i of lista as any[]) {
+          const rid = i.responsavel_id || i.responsavel_tst_id;
+          if (rid && mapa.has(rid)) i.responsavel = { id: rid, nome: mapa.get(rid)! };
+        }
+      }
+
       // Do mais novo para o mais antigo (itens sem data no final)
       return lista.sort((x, y) => {
         const dx = soData(x.data_inicio);
@@ -183,6 +378,7 @@ export function ProcessoItensLateral({
         if (!dy) return -1;
         return dy.localeCompare(dx);
       });
+
     },
     enabled: !!processoId,
   });
@@ -229,7 +425,7 @@ export function ProcessoItensLateral({
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
         onUpdate={() => {
-          queryClient.invalidateQueries({ queryKey: ["processo-itens-lateral-v2", processoId] });
+          queryClient.invalidateQueries({ queryKey: ["processo-itens-lateral-v3", processoId] });
         }}
       />
     );
@@ -239,22 +435,18 @@ export function ProcessoItensLateral({
     const rawId = getItemRawId(item.id);
     const qtdAtividades = (contagemAtividades as Record<string, number>)[rawId] || 0;
     return (
-      <div key={item.id}>
-        <AgendaItemRow
-          item={item}
-          userId={user?.id}
-          onSelect={setSelectedItem}
-          temAtividade={itensComAtividades.has(rawId)}
-          temComentario={temComentarioItem(itensComComentarios, item)}
-        />
-        {qtdAtividades > 0 && (
-          <p className="px-4 pb-2 text-[11px] text-muted-foreground">
-            {qtdAtividades} {qtdAtividades === 1 ? "atividade vinculada" : "atividades vinculadas"}
-          </p>
-        )}
-      </div>
+      <ProcessoItemRow
+        key={item.id}
+        item={item}
+        userId={user?.id}
+        onSelect={setSelectedItem}
+        temAtividade={itensComAtividades.has(rawId)}
+        temComentario={temComentarioItem(itensComComentarios, item)}
+        qtdAtividades={qtdAtividades}
+      />
     );
   };
+
 
   return (
     <div className="flex flex-col h-full min-h-0">
