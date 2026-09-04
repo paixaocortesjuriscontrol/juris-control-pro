@@ -3832,10 +3832,8 @@ const AnaliseDjen = () => {
         return re.test(t);
       });
     }
-    if (execucaoFocada && execucaoFocada.novasIds.length > 0) {
-      const novasSet = new Set(execucaoFocada.novasIds);
-      result = result.filter(pub => novasSet.has(pub.id));
-    }
+    // A lista sempre mostra todas as publicações do dia — selecionar uma
+    // execução no card de execuções não filtra mais a listagem.
     if (ocultarDuplicadas) {
       result = dedupePublicacoesDjen(result);
     }
