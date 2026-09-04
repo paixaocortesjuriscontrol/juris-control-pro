@@ -147,6 +147,14 @@ async function djenFetchSlot(slot, queryParams, signal) {
       dialect = swapped;
     }
     const out = await parseProxyResponse(slot, res);
+    if (out.status === 403 && isUpstreamBlockBody(out.errorSnippet ?? out.body)) {
+      // Bloqueio temporário do DJEN (WAF) contra o IP desta VPS: trata como
+      // rate limit — cooldown curto na via e o chamador repete/faz failover.
+      out.upstreamBlocked = true;
+      markFail(slot.url, "429");
+      console.log(`[proxyPool] bloqueio temporário do DJEN (403) na ${slot.label || slot.url} — via em cooldown`);
+      return out;
+    }
     if (out.status === 401 || out.status === 403) {
       // surfa o motivo real para o log do daemon — quase sempre token errado
       markFail(slot.url, "err");
@@ -157,6 +165,7 @@ async function djenFetchSlot(slot, queryParams, signal) {
     else if (out.status >= 500) markFail(slot.url, "err");
     else markOk(slot.url);
     return out;
+
   } catch (e) {
     if (signal?.aborted) throw e;
     lastErr = e;
