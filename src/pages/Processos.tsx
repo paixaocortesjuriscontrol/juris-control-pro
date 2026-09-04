@@ -21,6 +21,7 @@ import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import { useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { cn } from "@/lib/utils";
@@ -1214,7 +1215,7 @@ const Processos = () => {
           </div>
         </div>
       ) : processos.length > 0 ? (
-        <div className={cn("flex gap-4", lateralProcessoId && "flex-col lg:flex-row")}>
+        <div className="flex gap-4">
           <div className="flex-1 min-w-0">
           {/* Header Row */}
           <div className="bg-card rounded-t-xl border border-border/50 overflow-hidden">
