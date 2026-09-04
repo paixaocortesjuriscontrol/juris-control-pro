@@ -236,6 +236,7 @@ export function ProcessoItensLateral({
   const queryClient = useQueryClient();
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [aba, setAba] = useState("resumo");
+  const [grupoFiltro, setGrupoFiltro] = useState<string | null>(null);
 
   const { data: itens = [], isLoading } = useQuery<ItemAgendaUnificado[]>({
     queryKey: ["processo-itens-lateral-v3", processoId, processoNumero],
