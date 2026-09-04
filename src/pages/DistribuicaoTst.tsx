@@ -1334,7 +1334,7 @@ export default function DistribuicaoTst() {
         const batch = ids.slice(i, i + PAGE);
         const { data, error } = await supabase
           .from("dados_benner" as any)
-          .select("id, dossie, processo, turma, relator, recorrente, data_distribuicao, aba_origem")
+          .select("id, dossie, processo, data_distribuicao")
           .in("id", batch);
         if (error) throw error;
         ((data as any[]) || []).forEach((r) => linhas.push(r));
@@ -1357,9 +1357,29 @@ export default function DistribuicaoTst() {
         return;
       }
 
+      // Matérias/pedidos cadastrados por dossiê
+      const dossies = Array.from(porDossie.keys());
+      const materiasPorDossie = new Map<string, Set<string>>();
+      for (let i = 0; i < dossies.length; i += PAGE) {
+        const batch = dossies.slice(i, i + PAGE);
+        const { data, error } = await supabase
+          .from("pedidos_por_dossie" as any)
+          .select("dossie, pedido")
+          .in("dossie", batch);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((r) => {
+          const d = String(r?.dossie || "").trim();
+          const p = String(r?.pedido || "").trim();
+          if (!d || !p) return;
+          const set = materiasPorDossie.get(d) || new Set<string>();
+          set.add(p);
+          materiasPorDossie.set(d, set);
+        });
+      }
+
       const XLSX = await import("xlsx");
       const aoa: any[][] = [
-        ["Dossiê", "Processo(s)", "Qtd. Processos", "Turma", "Relator", "Parte Recorrente", "Data Distribuição", "Aba Origem"],
+        ["Dossiê", "Processo(s)", "Data Distribuição", "Matérias/Pedidos Cadastrados nos dossiês"],
       ];
       Array.from(porDossie.entries())
         .sort((a, b) => a[0].localeCompare(b[0], "pt-BR", { numeric: true }))
@@ -1367,19 +1387,18 @@ export default function DistribuicaoTst() {
           aoa.push([
             dossie,
             Array.from(r.processos as Set<string>).join("; "),
-            (r.processos as Set<string>).size,
-            r.turma || "",
-            r.relator || "",
-            r.recorrente || "",
             r.data_distribuicao
               ? String(r.data_distribuicao).slice(0, 10).split("-").reverse().join("/")
               : "",
-            r.aba_origem || "",
+            Array.from(materiasPorDossie.get(dossie) || [])
+              .sort((a, b) => a.localeCompare(b, "pt-BR"))
+              .join("; "),
           ]);
         });
 
       const ws = XLSX.utils.aoa_to_sheet(aoa);
-      ws["!cols"] = [{ wch: 16 }, { wch: 60 }, { wch: 14 }, { wch: 18 }, { wch: 28 }, { wch: 40 }, { wch: 18 }, { wch: 20 }];
+      ws["!cols"] = [{ wch: 24 }, { wch: 60 }, { wch: 18 }, { wch: 60 }];
+
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Dossiês");
       const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
