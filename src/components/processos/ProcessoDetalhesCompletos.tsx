@@ -911,7 +911,7 @@ export function ProcessoDetalhesCompletos({
         { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length, iconColor: "text-violet-500" },
         { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
         { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
-        { id: "parcelamento", label: "Parcelamento recorrente", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
+        { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
       ],
     },
     {
@@ -985,7 +985,7 @@ export function ProcessoDetalhesCompletos({
       {/* Main Content - Sidebar + Content */}
       <div className="flex min-h-0 flex-col sm:flex-row min-w-0">
         {/* Sidebar Navigation - Horizontal scrollable on mobile, vertical on desktop */}
-        <aside className="w-full sm:w-40 md:w-48 border-b sm:border-b-0 sm:border-r border-border bg-muted/40 flex-shrink-0 sm:min-h-0 sm:self-start">
+        <aside className="w-full sm:w-44 md:w-52 border-b sm:border-b-0 sm:border-r border-border bg-muted/30 flex-shrink-0 sm:min-h-0 sm:self-start">
 
           {/* Mobile: horizontal scroll, agrupado por categoria com separadores */}
           <div className="sm:hidden overflow-x-auto pb-1">
