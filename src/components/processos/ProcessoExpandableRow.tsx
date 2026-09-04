@@ -292,7 +292,7 @@ export function ProcessoExpandableRow({
           {/* Coluna 1: Cliente / Envolvido */}
           <div className="min-w-0 space-y-2">
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Cliente</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Cliente</div>
               <div className="text-sm font-medium text-foreground truncate">
                 {processo.cliente?.nome || processo.polo_passivo || "Não informado"}
               </div>
@@ -304,7 +304,7 @@ export function ProcessoExpandableRow({
               </Badge>
             </div>
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Envolvido</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Envolvido</div>
               <div className="text-sm font-medium text-foreground truncate">
                 {processo.polo_ativo || "Não informado"}
               </div>
@@ -320,7 +320,7 @@ export function ProcessoExpandableRow({
           {/* Coluna 2: Número / Assunto */}
           <div className="min-w-0 space-y-2">
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Número do processo</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Número do processo</div>
               <div className="text-sm text-foreground truncate flex items-center gap-1">
                 <span className={cn("font-mono", processo.status === "encerrado" && "text-destructive font-semibold")}>
                   {processo.numero}
@@ -356,7 +356,7 @@ export function ProcessoExpandableRow({
               />
             </div>
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Assunto</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Assunto</div>
               <div className="text-sm text-foreground truncate">
                 {processo.pasta?.nome ||
                   (processo.area === "civil"
@@ -371,20 +371,20 @@ export function ProcessoExpandableRow({
           {/* Coluna 3: Órgão / Órgão julgador */}
           <div className="min-w-0 space-y-2">
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Órgão</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Órgão</div>
               <div className="text-sm text-foreground truncate">
                 {processo.tribunal || "Não informado"}
               </div>
             </div>
             <div>
-              <div className="text-[11px] text-muted-foreground leading-tight">Órgão julgador</div>
+              <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">Órgão julgador</div>
               <div className="text-sm text-foreground truncate">
                 {processo.vara || "Não informado"}
               </div>
             </div>
             {(extras?.coordenacoes?.length ?? 0) > 0 && (
               <div>
-                <div className="text-[11px] text-muted-foreground leading-tight">
+                <div className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground leading-tight">
                   {extras!.coordenacoes.length > 1 ? "Coordenações responsáveis" : "Coordenação responsável"}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-0.5">
