@@ -666,61 +666,8 @@ const Processos = () => {
               </SelectContent>
             </Select>
 
-            <Select value={areaFilter} onValueChange={setAreaFilter}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Área" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas as áreas</SelectItem>
-                <SelectItem value="civil">Cível</SelectItem>
-                <SelectItem value="trabalhista">Trabalhista</SelectItem>
-                <SelectItem value="empresarial">Empresarial</SelectItem>
-                <SelectItem value="caso">Caso</SelectItem>
-              </SelectContent>
-            </Select>
 
-            {/* Filtro de Instância */}
-            <Select
-              value={filtrosAvancados.instancia || "todos"}
-              onValueChange={(value) => {
-                const instanciaValue = value as "1" | "2" | "superior" | "todos";
-                setFiltrosAvancados(prev => ({ ...prev, instancia: instanciaValue }));
-                setFiltrosAplicados(prev => ({ ...prev, instancia: instanciaValue }));
-              }}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Instância" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas instâncias</SelectItem>
-                <SelectItem value="1">1º Grau</SelectItem>
-                <SelectItem value="2">2º Grau</SelectItem>
-                <SelectItem value="superior">Superiores</SelectItem>
-              </SelectContent>
-            </Select>
 
-            {/* Filtro de Grupo de Clientes */}
-            <Select
-              value={grupoClientesParam ? "url" : selectedGrupoId}
-              onValueChange={handleGrupoChange}
-              disabled={!!grupoClientesParam}
-            >
-              <SelectTrigger className="w-full">
-                <Users className="w-4 h-4 mr-2 text-muted-foreground" />
-                <SelectValue placeholder="Grupo" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os grupos</SelectItem>
-                {grupoClientesParam && (
-                  <SelectItem value="url">{grupoNome || "Grupo selecionado"}</SelectItem>
-                )}
-                {grupos.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
             {/* Filtro de Cliente do Grupo (quando grupo selecionado) */}
             {(selectedGrupoId !== "all" || grupoClientesParam) && clientesDoGrupo.length > 0 && !grupoClientesParam && (
