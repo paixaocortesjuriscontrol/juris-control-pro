@@ -18,6 +18,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
+import { recalcularSemPendencia } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -374,6 +375,30 @@ export default function DistribuicaoTst() {
   // obrigatórios (vide spec da advogada) ainda em aberto.
   const [mostrarPendencias, setMostrarPendencias] = useState<boolean>(false);
   const [pendenciasRelRunning, setPendenciasRelRunning] = useState(false);
+  const [recalcPendenciasRunning, setRecalcPendenciasRunning] = useState(false);
+
+  /**
+   * Botão "Verificar Pendências": além de mostrar/ocultar a coluna, recalcula
+   * e GRAVA o marcador `sem_pendencia` de cada processo. A tela deixa de
+   * recontar as pendências em cada carregamento e passa a ler esse marcador.
+   */
+  const handleVerificarPendencias = async () => {
+    const abrindo = !mostrarPendencias;
+    setMostrarPendencias(abrindo);
+    if (!abrindo) return;
+    setRecalcPendenciasRunning(true);
+    try {
+      const r = await recalcularSemPendencia();
+      refetchProntoSemPendencia();
+      toast.success(
+        `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s) — ${r.atualizados} atualizado(s).`,
+      );
+    } catch (e: any) {
+      toast.error(`Erro ao verificar pendências: ${e?.message || "tente novamente"}`);
+    } finally {
+      setRecalcPendenciasRunning(false);
+    }
+  };
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -442,12 +467,6 @@ export default function DistribuicaoTst() {
   } =
     useProntoSemPendenciaCount(debouncedFilters);
 
-  // Universo de IDs filtrados — usado apenas pelo filtro "com pendências".
-  const { data: todosIdsFiltrados = [] } = useQuery({
-    queryKey: ["todos-ids-filtrados", JSON.stringify(debouncedFilters)],
-    enabled: filtroComPendencia,
-    queryFn: () => fetchAllDistribuicaoTstIds(debouncedFilters),
-  });
 
 
 
@@ -461,11 +480,9 @@ export default function DistribuicaoTst() {
       f = { ...f, idsAllowed: multiRespIds.length > 0 ? multiRespIds : [TAG_FILTER_PENDING_ID] };
     }
     if (filtroSemPendencia) {
-      // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
-      const base = f.idsAllowed && f.idsAllowed.length > 0
-        ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
-        : prontoSemPendenciaIds;
-      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+      // Resolvido no banco pelo marcador `sem_pendencia`, gravado pelo botão
+      // "Verificar Pendências" — sem recontar as pendências a cada tela.
+      f = { ...f, semPendencia: "sem" };
     }
     if (semMateriaDossieIds) {
       const base = f.idsAllowed && f.idsAllowed.length > 0
@@ -479,15 +496,12 @@ export default function DistribuicaoTst() {
       f = { ...f, pedidosDossie: filtroPedidosDossie };
     }
     if (filtroComPendencia) {
-      // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
-      const semSet = new Set(prontoSemPendenciaIds);
-      const universo = f.idsAllowed && f.idsAllowed.length > 0 ? f.idsAllowed : todosIdsFiltrados;
-      const base = universo.filter((id) => !semSet.has(id));
-      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+      // Complemento do marcador: tudo que não está gravado como sem pendência.
+      f = { ...f, semPendencia: "com" };
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -2226,7 +2240,8 @@ export default function DistribuicaoTst() {
             <Button
               variant={mostrarPendencias ? "default" : "outline"}
               size="sm"
-              onClick={() => setMostrarPendencias((v) => !v)}
+              disabled={recalcPendenciasRunning}
+              onClick={handleVerificarPendencias}
               title="Mostra uma coluna na lista com os campos obrigatórios ainda não preenchidos em cada processo (spec da advogada Kellen)."
               className={
                 mostrarPendencias
@@ -2234,8 +2249,16 @@ export default function DistribuicaoTst() {
                   : "h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"
               }
             >
-              <CheckCircle className="w-3 h-3 mr-1" />
-              {mostrarPendencias ? "Ocultar Pendências" : "Verificar Pendências"}
+              {recalcPendenciasRunning ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <CheckCircle className="w-3 h-3 mr-1" />
+              )}
+              {recalcPendenciasRunning
+                ? "Verificando..."
+                : mostrarPendencias
+                  ? "Ocultar Pendências"
+                  : "Verificar Pendências"}
             </Button>
             <Button
               variant="outline"
