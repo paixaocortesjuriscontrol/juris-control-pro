@@ -606,15 +606,12 @@ export default function DistribuicaoTst() {
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
-  const { map: semMateriaDossiePorResp, idsPorUsuario: semMateriaDossieIdsPorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
-  // União dos IDs (todos os responsáveis) para o card "Revisar Lista de matérias".
-  const revisarListaMateriasIds = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(semMateriaDossieIdsPorResp || {}).forEach((arr) =>
-      (arr || []).forEach((id) => set.add(id)),
-    );
-    return Array.from(set);
-  }, [semMateriaDossieIdsPorResp]);
+  const {
+    map: semMateriaDossiePorResp,
+    idsPorUsuario: semMateriaDossieIdsPorResp,
+    // Total do card "Revisar Lista de matérias" (lido da coluna no banco).
+    ids: revisarListaMateriasIds,
+  } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
