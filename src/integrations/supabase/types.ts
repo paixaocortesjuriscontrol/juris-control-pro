@@ -2605,6 +2605,7 @@ export type Database = {
           observacao_distribuicao: string | null
           observacoes: string | null
           parte_recorrente_origem: string | null
+          pendencias_verificado_em: string | null
           perdemos: boolean | null
           posicao_relator_desfavoravel: boolean | null
           posicao_relator_favoravel: boolean | null
@@ -2637,6 +2638,7 @@ export type Database = {
           risco_midia: string | null
           risco_nivel: string | null
           segredo_justica: boolean | null
+          sem_pendencia: boolean | null
           situacao_envio_carga_id: string | null
           situacao_processo: string | null
           status: string
@@ -2730,6 +2732,7 @@ export type Database = {
           observacao_distribuicao?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
+          pendencias_verificado_em?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null
           posicao_relator_favoravel?: boolean | null
@@ -2762,6 +2765,7 @@ export type Database = {
           risco_midia?: string | null
           risco_nivel?: string | null
           segredo_justica?: boolean | null
+          sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
@@ -2855,6 +2859,7 @@ export type Database = {
           observacao_distribuicao?: string | null
           observacoes?: string | null
           parte_recorrente_origem?: string | null
+          pendencias_verificado_em?: string | null
           perdemos?: boolean | null
           posicao_relator_desfavoravel?: boolean | null
           posicao_relator_favoravel?: boolean | null
@@ -2887,6 +2892,7 @@ export type Database = {
           risco_midia?: string | null
           risco_nivel?: string | null
           segredo_justica?: boolean | null
+          sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
           status?: string
