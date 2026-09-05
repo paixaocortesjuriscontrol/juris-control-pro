@@ -357,8 +357,12 @@ export default function DistribuicaoTst() {
   // Ativo quando o card "Pronto sem pendência" está selecionado.
   // Complementa filtroStatus="pronto_envio" restringindo aos IDs sem pendências.
   const [filtroSemPendencia, setFiltroSemPendencia] = useState<boolean>(false);
-  // IDs do totalizador "prontos sem nenhuma matéria da lista do dossiê".
+  // IDs do totalizador "prontos sem nenhuma matéria da lista do dossiê"
+  // (usado apenas no detalhamento por responsável).
   const [semMateriaDossieIds, setSemMateriaDossieIds] = useState<string[] | null>(null);
+  // Card "Revisar Lista de matérias" — resolvido no banco pela coluna
+  // `revisar_lista_materias`, gravada junto com as pendências.
+  const [filtroRevisarListaMaterias, setFiltroRevisarListaMaterias] = useState<boolean>(false);
   // Inverso do "pronto sem pendência": tudo que ainda tem alguma pendência.
   const [filtroComPendencia, setFiltroComPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
@@ -500,6 +504,9 @@ export default function DistribuicaoTst() {
       // "Verificar Pendências" — sem recontar as pendências a cada tela.
       f = { ...f, semPendencia: "sem" };
     }
+    if (filtroRevisarListaMaterias) {
+      f = { ...f, revisarListaMaterias: "sim" };
+    }
     if (semMateriaDossieIds) {
       const base = f.idsAllowed && f.idsAllowed.length > 0
         ? semMateriaDossieIds.filter((id) => f.idsAllowed!.includes(id))
@@ -517,7 +524,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
@@ -599,15 +606,12 @@ export default function DistribuicaoTst() {
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
   const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
-  const { map: semMateriaDossiePorResp, idsPorUsuario: semMateriaDossieIdsPorResp } = useSemMateriaDossiePorResponsavel(countsFilters);
-  // União dos IDs (todos os responsáveis) para o card "Revisar Lista de matérias".
-  const revisarListaMateriasIds = useMemo(() => {
-    const set = new Set<string>();
-    Object.values(semMateriaDossieIdsPorResp || {}).forEach((arr) =>
-      (arr || []).forEach((id) => set.add(id)),
-    );
-    return Array.from(set);
-  }, [semMateriaDossieIdsPorResp]);
+  const {
+    map: semMateriaDossiePorResp,
+    idsPorUsuario: semMateriaDossieIdsPorResp,
+    // Total do card "Revisar Lista de matérias" (lido da coluna no banco).
+    ids: revisarListaMateriasIds,
+  } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -732,7 +736,7 @@ export default function DistribuicaoTst() {
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
     filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagIds.length > 0 ||
-    filtroPedidosDossie !== "todos" || filtroExcluirSituacoes.length > 0 || filtroSemPendencia || filtroComPendencia || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+    filtroPedidosDossie !== "todos" || filtroExcluirSituacoes.length > 0 || filtroSemPendencia || filtroComPendencia || filtroRevisarListaMaterias || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
   const clearFilters = () => {
@@ -773,12 +777,13 @@ export default function DistribuicaoTst() {
     setFiltroEquipe("todos");
     setFiltroMultiResp(false);
     setSemMateriaDossieIds(null);
+    setFiltroRevisarListaMaterias(false);
     setSelectedIds(new Set());
   };
 
   // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
   const activeCardKey = (() => {
-    if (semMateriaDossieIds) return "revisarListaMaterias" as const;
+    if (filtroRevisarListaMaterias || semMateriaDossieIds) return "revisarListaMaterias" as const;
     if (filtroMultiResp) return "multiResp" as const;
     if (filtroComPendencia) return "prontoComPendencia" as const;
     if (filtroSemPendencia) return "prontoSemPendencia" as const;
@@ -829,6 +834,7 @@ export default function DistribuicaoTst() {
     setFiltroSemPendencia(false);
     setFiltroComPendencia(false);
     setSemMateriaDossieIds(null);
+    setFiltroRevisarListaMaterias(false);
 
     // Reseta filtro "sem responsável" ao alternar cards
     if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
@@ -880,7 +886,7 @@ export default function DistribuicaoTst() {
         break;
       case "revisarListaMaterias":
         setFiltroStatus("concluidos");
-        setSemMateriaDossieIds(revisarListaMateriasIds.length > 0 ? revisarListaMateriasIds : [TAG_FILTER_PENDING_ID]);
+        setFiltroRevisarListaMaterias(true);
         break;
       case "comEquipe": setFiltroEquipe("sim"); break;
       case "semEquipe": setFiltroEquipe("nao"); break;
@@ -2067,6 +2073,7 @@ export default function DistribuicaoTst() {
                   );
                   setFiltroSemPendencia(modo === "semPend");
                   setFiltroComPendencia(modo === "comPend");
+                  setFiltroRevisarListaMaterias(false);
                   setSemMateriaDossieIds(
                     modo === "semMatDossie" ? (semMateriaDossieIdsPorResp[c.id] || []) : null,
                   );

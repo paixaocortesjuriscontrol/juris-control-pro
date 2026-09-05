@@ -2634,6 +2634,7 @@ export type Database = {
           resultado_nao_conhecido: boolean | null
           resultado_outra: string | null
           resultado_sem_transcendencia: boolean | null
+          revisar_lista_materias: boolean | null
           risco_descricao: string | null
           risco_midia: string | null
           risco_nivel: string | null
@@ -2761,6 +2762,7 @@ export type Database = {
           resultado_nao_conhecido?: boolean | null
           resultado_outra?: string | null
           resultado_sem_transcendencia?: boolean | null
+          revisar_lista_materias?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
           risco_nivel?: string | null
@@ -2888,6 +2890,7 @@ export type Database = {
           resultado_nao_conhecido?: boolean | null
           resultado_outra?: string | null
           resultado_sem_transcendencia?: boolean | null
+          revisar_lista_materias?: boolean | null
           risco_descricao?: string | null
           risco_midia?: string | null
           risco_nivel?: string | null

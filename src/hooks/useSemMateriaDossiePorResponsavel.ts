@@ -1,30 +1,25 @@
 import { useEffect, useState } from "react";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
-import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
-import { precisaRevisarListaMaterias } from "@/utils/distribuicaoTstPendencias";
 import {
-  fetchProntosRowsCached,
   fetchResponsaveisPorItemCached,
   invalidateDistribuicaoTstCache,
 } from "@/utils/distribuicaoTstCache";
 
-
 export const SEM_RESPONSAVEL_ID = "00000000-0000-0000-0000-000000000000";
 
-const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
-
 /**
- * Processos marcados como prontos (pronto_envio / planilhado / enviado) em que
- * NENHUMA das matérias selecionadas consta na lista de pedidos do dossiê — ou
- * seja, nenhuma etiqueta fica verde no formulário.
+ * Processos marcados como prontos em que NENHUMA das matérias selecionadas
+ * consta na lista de pedidos do dossiê ("Revisar Lista de matérias").
  *
- * Só conta processos cujo dossiê possui pedidos cadastrados e que tenham ao
- * menos uma matéria selecionada (sem lista ou sem matéria não há comparação).
- * O resultado é agrupado por responsável (`dados_benner_responsaveis`).
+ * O cálculo NÃO acontece mais no navegador: ele é gravado na coluna
+ * `revisar_lista_materias` sempre que a ficha é salva, no "Marcar Pronto" em
+ * lote e no botão "Verificar Pendências". Aqui apenas filtramos por essa
+ * coluna no banco e distribuímos os IDs entre os responsáveis.
  */
 export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilters) {
   const [map, setMap] = useState<Record<string, number>>({});
   const [idsPorUsuario, setIdsPorUsuario] = useState<Record<string, string[]>>({});
+  const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const filtersKey = JSON.stringify(filters);
@@ -34,37 +29,18 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
     (async () => {
       setLoading(true);
       try {
-        const [idsFiltrados, pedidosPorDossie] = await Promise.all([
-          fetchAllDistribuicaoTstIds(filters),
-          ensurePedidosPorDossie(),
-        ]);
+        const alvo = await fetchAllDistribuicaoTstIds({
+          ...filters,
+          revisarListaMaterias: "sim",
+        });
         if (cancelled) return;
-        if (!idsFiltrados || idsFiltrados.length === 0 || pedidosPorDossie.size === 0) {
+        if (!alvo || alvo.length === 0) {
           setMap({});
           setIdsPorUsuario({});
+          setIds([]);
           return;
         }
-        const permitidos = new Set(idsFiltrados);
-
-        // Leitura compartilhada (cacheada) dos processos concluídos — a mesma
-        // usada pelo card "Pronto sem pendência". Cruzamos localmente com os
-        // IDs filtrados para evitar URLs gigantes com centenas de UUIDs.
-        const rows = await fetchProntosRowsCached();
-        if (cancelled) return;
-        const alvo: string[] = [];
-        for (const r of rows) {
-          if (!permitidos.has(r.id)) continue;
-          // MESMA regra da pendência exibida na lista (`revisar_lista_materias`).
-          if (precisaRevisarListaMaterias(r)) alvo.push(r.id);
-        }
-
-        if (alvo.length === 0) {
-          if (!cancelled) {
-            setMap({});
-            setIdsPorUsuario({});
-          }
-          return;
-        }
+        setIds(alvo);
 
         const respPorItem = await fetchResponsaveisPorItemCached();
         if (cancelled) return;
@@ -96,6 +72,7 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
         if (!cancelled) {
           setMap({});
           setIdsPorUsuario({});
+          setIds([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -110,11 +87,11 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
   return {
     map,
     idsPorUsuario,
+    ids,
     loading,
     refetch: () => {
       invalidateDistribuicaoTstCache();
       setReloadTick((t) => t + 1);
     },
   };
-
 }

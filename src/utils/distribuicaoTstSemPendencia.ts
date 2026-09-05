@@ -19,6 +19,7 @@ import {
   getPendencias,
   isNaoPrecisaFazer,
   isMarcadoPronto,
+  precisaRevisarListaMaterias,
 } from "@/utils/distribuicaoTstPendencias";
 
 const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
@@ -32,6 +33,15 @@ export function calcularSemPendencia(row: any): boolean {
   return getPendencias(row).length === 0;
 }
 
+/**
+ * Um registro precisa "Revisar Lista de matérias" quando é pronto e nenhuma
+ * das matérias selecionadas consta na lista de pedidos do dossiê.
+ */
+export function calcularRevisarListaMaterias(row: any): boolean {
+  if (!isMarcadoPronto(row)) return false;
+  return precisaRevisarListaMaterias(row);
+}
+
 async function updateEmLotes(ids: string[], valor: boolean, agora: string) {
   const CHUNK = 200;
   for (let i = 0; i < ids.length; i += CHUNK) {
@@ -39,6 +49,19 @@ async function updateEmLotes(ids: string[], valor: boolean, agora: string) {
     const { error } = await supabase
       .from("dados_benner" as any)
       .update({ sem_pendencia: valor, pendencias_verificado_em: agora } as any)
+      .in("id", slice);
+    if (error) throw error;
+  }
+}
+
+/** Grava o marcador `revisar_lista_materias` em lotes. */
+async function updateRevisarEmLotes(ids: string[], valor: boolean) {
+  const CHUNK = 200;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const slice = ids.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from("dados_benner" as any)
+      .update({ revisar_lista_materias: valor } as any)
       .in("id", slice);
     if (error) throw error;
   }
@@ -61,6 +84,8 @@ export async function recalcularSemPendencia(): Promise<{
   const agora = new Date().toISOString();
   const paraTrue: string[] = [];
   const paraFalse: string[] = [];
+  const revisarTrue: string[] = [];
+  const revisarFalse: string[] = [];
   let semPendencia = 0;
 
   for (const r of rows) {
@@ -69,15 +94,21 @@ export async function recalcularSemPendencia(): Promise<{
     const atual = (r as any).sem_pendencia;
     if (ok && atual !== true) paraTrue.push((r as any).id);
     else if (!ok && atual !== false) paraFalse.push((r as any).id);
+    const revisar = calcularRevisarListaMaterias(r);
+    const atualRevisar = (r as any).revisar_lista_materias;
+    if (revisar && atualRevisar !== true) revisarTrue.push((r as any).id);
+    else if (!revisar && atualRevisar !== false) revisarFalse.push((r as any).id);
   }
 
   await updateEmLotes(paraTrue, true, agora);
   await updateEmLotes(paraFalse, false, agora);
+  await updateRevisarEmLotes(revisarTrue, true);
+  await updateRevisarEmLotes(revisarFalse, false);
 
   // Registros que deixaram de ser "prontos" mas continuavam marcados.
   const { error } = await supabase
     .from("dados_benner" as any)
-    .update({ sem_pendencia: false, pendencias_verificado_em: agora } as any)
+    .update({ sem_pendencia: false, revisar_lista_materias: false, pendencias_verificado_em: agora } as any)
     .is("sem_pendencia", true)
     .not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
   if (error) throw error;
@@ -113,6 +144,7 @@ export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean
       .from("dados_benner" as any)
       .update({
         sem_pendencia: ok,
+        revisar_lista_materias: concluido ? calcularRevisarListaMaterias(row) : false,
         pendencias_verificado_em: new Date().toISOString(),
       } as any)
       .eq("id", id);
@@ -139,7 +171,17 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
       .select("id", { count: "exact", head: true })
       .not("pendencias_verificado_em", "is", null);
     if (error) return;
-    if ((count ?? 0) > 0) return;
+    if ((count ?? 0) === 0) {
+      await recalcularSemPendencia();
+      return;
+    }
+    // Marcador de "revisar lista de matérias" ainda nunca preenchido.
+    const { count: countRevisar, error: errRevisar } = await supabase
+      .from("dados_benner" as any)
+      .select("id", { count: "exact", head: true })
+      .not("revisar_lista_materias", "is", null);
+    if (errRevisar) return;
+    if ((countRevisar ?? 0) > 0) return;
     await recalcularSemPendencia();
   })()
     .catch(() => {})
@@ -169,13 +211,19 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
     if (error) throw error;
     const paraTrue: string[] = [];
     const paraFalse: string[] = [];
+    const revisarTrue: string[] = [];
+    const revisarFalse: string[] = [];
     for (const row of ((data as any[]) || [])) {
       const concluido = STATUS_CONCLUIDOS.includes(String((row as any).status || ""));
       const ok = concluido ? calcularSemPendencia(row) : false;
       (ok ? paraTrue : paraFalse).push((row as any).id);
+      const revisar = concluido ? calcularRevisarListaMaterias(row) : false;
+      (revisar ? revisarTrue : revisarFalse).push((row as any).id);
     }
     await updateEmLotes(paraTrue, true, agora);
     await updateEmLotes(paraFalse, false, agora);
+    await updateRevisarEmLotes(revisarTrue, true);
+    await updateRevisarEmLotes(revisarFalse, false);
   }
   invalidateDistribuicaoTstCache();
 }
