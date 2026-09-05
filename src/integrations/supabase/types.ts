@@ -2648,6 +2648,7 @@ export type Database = {
           tem_chance_exito_reclamante: string | null
           tem_chance_exito_terceiro: string | null
           tem_data_julgamento: string | null
+          tem_materias_dossie: boolean
           tem_responsavel: boolean
           tema: string | null
           tipo_julgamento: string | null
@@ -2772,6 +2773,7 @@ export type Database = {
           tem_chance_exito_reclamante?: string | null
           tem_chance_exito_terceiro?: string | null
           tem_data_julgamento?: string | null
+          tem_materias_dossie?: boolean
           tem_responsavel?: boolean
           tema?: string | null
           tipo_julgamento?: string | null
@@ -2896,6 +2898,7 @@ export type Database = {
           tem_chance_exito_reclamante?: string | null
           tem_chance_exito_terceiro?: string | null
           tem_data_julgamento?: string | null
+          tem_materias_dossie?: boolean
           tem_responsavel?: boolean
           tema?: string | null
           tipo_julgamento?: string | null
