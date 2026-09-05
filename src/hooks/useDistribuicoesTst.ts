@@ -577,6 +577,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, filters);
     query = applySemPendenciaFilter(query, filters);
+    query = applyRevisarListaMateriasFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -686,6 +687,15 @@ function applySemPendenciaFilter<T>(query: T, filters: DistribuicaoTstFilters): 
 }
 
 /**
+ * Aplica no banco o filtro "Revisar lista de matérias" usando a coluna
+ * `revisar_lista_materias`, gravada junto com `sem_pendencia`.
+ */
+function applyRevisarListaMateriasFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
+  if (filters.revisarListaMaterias !== "sim") return query;
+  return (query as any).eq("revisar_lista_materias", true) as T;
+}
+
+/**
  * Condição PostgREST de cada opção do filtro "Situação processo".
  * Usa `and(...)`/`or(...)` aninhados para permitir combinar várias opções em um único OR.
  */
@@ -783,6 +793,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.equipe && filters.equipe !== "todos") return true;
   if (filters.pedidosDossie && filters.pedidosDossie !== "todos") return true;
   if (filters.semPendencia && filters.semPendencia !== "todos") return true;
+  if (filters.revisarListaMaterias === "sim") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
   if (normalizeTagIds(filters.tagId).length > 0) return true;
   return false;
@@ -883,6 +894,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, filters);
     query = applySemPendenciaFilter(query, filters);
+    query = applyRevisarListaMateriasFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -1317,6 +1329,7 @@ export async function fetchMesesDataRealFiltered(
     else if (f.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, f);
     query = applySemPendenciaFilter(query, f);
+    query = applyRevisarListaMateriasFilter(query, f);
     if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
