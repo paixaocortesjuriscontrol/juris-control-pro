@@ -272,6 +272,12 @@ export interface DistribuicaoTstFilters {
   pedidosDossie?: "todos" | "com" | "sem";
   /** Lista de dossiês que possuem matérias cadastradas (usada por `pedidosDossie`). */
   dossiesComPedidos?: string[];
+  /**
+   * Filtro pelo marcador persistido `sem_pendencia` (gravado pelo botão
+   * "Verificar Pendências"). "sem" = prontos sem pendência; "com" = todo o
+   * resto (inclui os que nunca foram verificados).
+   */
+  semPendencia?: "todos" | "sem" | "com";
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
   /**
@@ -564,6 +570,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, filters);
+    query = applySemPendenciaFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -659,6 +666,17 @@ function applyPedidosDossieFilter<T>(query: T, filters: DistribuicaoTstFilters):
   const modo = filters.pedidosDossie;
   if (!modo || modo === "todos") return query;
   return (query as any).eq("tem_materias_dossie", modo === "com") as T;
+}
+
+/**
+ * Aplica no banco o filtro "pronto sem pendência" / "com pendência" usando a
+ * coluna `sem_pendencia`, atualizada pelo botão "Verificar Pendências".
+ */
+function applySemPendenciaFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
+  const modo = filters.semPendencia;
+  if (!modo || modo === "todos") return query;
+  if (modo === "sem") return (query as any).eq("sem_pendencia", true) as T;
+  return (query as any).or("sem_pendencia.is.null,sem_pendencia.eq.false") as T;
 }
 
 /**
@@ -758,6 +776,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.situacaoEnvioCargaId && filters.situacaoEnvioCargaId !== "todas") return true;
   if (filters.equipe && filters.equipe !== "todos") return true;
   if (filters.pedidosDossie && filters.pedidosDossie !== "todos") return true;
+  if (filters.semPendencia && filters.semPendencia !== "todos") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
   if (normalizeTagIds(filters.tagId).length > 0) return true;
   return false;
@@ -857,6 +876,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     if (filters.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (filters.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, filters);
+    query = applySemPendenciaFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -1290,6 +1310,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.benner === "sim") query = query.eq("benner_atualizado", true);
     else if (f.benner === "nao") query = query.or("benner_atualizado.is.null,benner_atualizado.eq.false");
     query = applyPedidosDossieFilter(query, f);
+    query = applySemPendenciaFilter(query, f);
     if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
