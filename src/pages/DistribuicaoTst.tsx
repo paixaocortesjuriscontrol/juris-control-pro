@@ -390,16 +390,11 @@ export default function DistribuicaoTst() {
     try {
       const r = await recalcularSemPendencia();
       refetchProntoSemPendencia();
-      toast({
-        title: "Pendências verificadas",
-        description: `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s). ${r.atualizados} registro(s) atualizado(s).`,
-      });
+      toast.success(
+        `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s) — ${r.atualizados} atualizado(s).`,
+      );
     } catch (e: any) {
-      toast({
-        title: "Erro ao verificar pendências",
-        description: e?.message || "Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error(`Erro ao verificar pendências: ${e?.message || "tente novamente"}`);
     } finally {
       setRecalcPendenciasRunning(false);
     }
