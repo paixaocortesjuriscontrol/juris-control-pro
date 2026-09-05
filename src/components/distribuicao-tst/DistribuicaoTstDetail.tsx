@@ -7,6 +7,7 @@ import { getPendenciasEAvisos, getMateriasForaDaLista } from "@/utils/distribuic
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { atualizarSemPendenciaRegistro } from "@/utils/distribuicaoTstSemPendencia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { DistribuicaoTstForm, DistribuicaoTstFormHandle } from "./DistribuicaoTstForm";
@@ -483,6 +484,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         }
       }
       if (saved) {
+        // Regra: sempre que alguém salva (marcando ou mantendo "Pronto para
+        // Enviar"), recalculamos e gravamos o marcador de pendências deste
+        // registro. Assim a tela e os cards apenas leem o marcador.
+        const idPendencias = (bennerDado as any)?.id || currentDado?.id;
+        if (idPendencias) await atualizarSemPendenciaRegistro(idPendencias);
         await reloadSavedRow();
       }
       if (saved && !options?.silent) {
