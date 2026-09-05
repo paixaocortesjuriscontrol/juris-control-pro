@@ -148,3 +148,34 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
     });
   return backfillEmAndamento;
 }
+
+/**
+ * Recalcula o marcador de vários registros (ex.: botão "Marcar Pronto" em
+ * lote). Lê apenas as linhas informadas e grava o resultado.
+ */
+export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
+  const lista = ids.filter(Boolean);
+  if (!lista.length) return;
+  await ensureMateriasOficiais().catch(() => {});
+  await ensurePedidosPorDossie().catch(() => {});
+  const agora = new Date().toISOString();
+  const CHUNK = 200;
+  for (let i = 0; i < lista.length; i += CHUNK) {
+    const slice = lista.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
+      .in("id", slice);
+    if (error) throw error;
+    const paraTrue: string[] = [];
+    const paraFalse: string[] = [];
+    for (const row of ((data as any[]) || [])) {
+      const concluido = STATUS_CONCLUIDOS.includes(String((row as any).status || ""));
+      const ok = concluido ? calcularSemPendencia(row) : false;
+      (ok ? paraTrue : paraFalse).push((row as any).id);
+    }
+    await updateEmLotes(paraTrue, true, agora);
+    await updateEmLotes(paraFalse, false, agora);
+  }
+  invalidateDistribuicaoTstCache();
+}
