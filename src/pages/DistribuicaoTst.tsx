@@ -18,6 +18,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
+import { recalcularSemPendencia } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -374,6 +375,35 @@ export default function DistribuicaoTst() {
   // obrigatórios (vide spec da advogada) ainda em aberto.
   const [mostrarPendencias, setMostrarPendencias] = useState<boolean>(false);
   const [pendenciasRelRunning, setPendenciasRelRunning] = useState(false);
+  const [recalcPendenciasRunning, setRecalcPendenciasRunning] = useState(false);
+
+  /**
+   * Botão "Verificar Pendências": além de mostrar/ocultar a coluna, recalcula
+   * e GRAVA o marcador `sem_pendencia` de cada processo. A tela deixa de
+   * recontar as pendências em cada carregamento e passa a ler esse marcador.
+   */
+  const handleVerificarPendencias = async () => {
+    const abrindo = !mostrarPendencias;
+    setMostrarPendencias(abrindo);
+    if (!abrindo) return;
+    setRecalcPendenciasRunning(true);
+    try {
+      const r = await recalcularSemPendencia();
+      refetchProntoSemPendencia();
+      toast({
+        title: "Pendências verificadas",
+        description: `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s). ${r.atualizados} registro(s) atualizado(s).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erro ao verificar pendências",
+        description: e?.message || "Tente novamente.",
+        variant: "destructive",
+      });
+    } finally {
+      setRecalcPendenciasRunning(false);
+    }
+  };
 
   // Debounced filters (inclui responsáveis para não perder o filtro ao alterar outros campos)
   const [debouncedFilters, setDebouncedFilters] = useState<DistribuicaoTstFilters>({});
@@ -2215,7 +2245,8 @@ export default function DistribuicaoTst() {
             <Button
               variant={mostrarPendencias ? "default" : "outline"}
               size="sm"
-              onClick={() => setMostrarPendencias((v) => !v)}
+              disabled={recalcPendenciasRunning}
+              onClick={handleVerificarPendencias}
               title="Mostra uma coluna na lista com os campos obrigatórios ainda não preenchidos em cada processo (spec da advogada Kellen)."
               className={
                 mostrarPendencias
@@ -2223,8 +2254,16 @@ export default function DistribuicaoTst() {
                   : "h-8 text-xs border-red-300 text-red-700 hover:bg-red-50"
               }
             >
-              <CheckCircle className="w-3 h-3 mr-1" />
-              {mostrarPendencias ? "Ocultar Pendências" : "Verificar Pendências"}
+              {recalcPendenciasRunning ? (
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+              ) : (
+                <CheckCircle className="w-3 h-3 mr-1" />
+              )}
+              {recalcPendenciasRunning
+                ? "Verificando..."
+                : mostrarPendencias
+                  ? "Ocultar Pendências"
+                  : "Verificar Pendências"}
             </Button>
             <Button
               variant="outline"

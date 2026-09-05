@@ -63,6 +63,8 @@ export const COLUNAS_PRONTOS_COMPARTILHADAS = Array.from(
     "recorrente",
     "materias_analise_reclamante",
     "materias_analise_banco",
+    // Marcador persistido (para saber se precisa gravar de novo).
+    "sem_pendencia",
   ]),
 );
 
