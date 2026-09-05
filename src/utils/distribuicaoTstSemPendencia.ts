@@ -13,6 +13,7 @@ import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
   fetchProntosRowsCached,
   invalidateDistribuicaoTstCache,
+  COLUNAS_PRONTOS_COMPARTILHADAS,
 } from "@/utils/distribuicaoTstCache";
 import {
   getPendencias,
@@ -87,4 +88,63 @@ export async function recalcularSemPendencia(): Promise<{
     semPendencia,
     atualizados: paraTrue.length + paraFalse.length,
   };
+}
+
+/**
+ * Recalcula e grava o marcador de UM registro. Chamado após cada salvamento
+ * na ficha (inclusive quando o processo é marcado como "Pronto para Enviar"),
+ * para que a tela nunca precise recontar as pendências.
+ */
+export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean | null> {
+  if (!id) return null;
+  try {
+    await ensureMateriasOficiais().catch(() => {});
+    await ensurePedidosPorDossie().catch(() => {});
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) return null;
+    const row: any = data;
+    const concluido = STATUS_CONCLUIDOS.includes(String(row.status || ""));
+    const ok = concluido ? calcularSemPendencia(row) : false;
+    const { error: updErr } = await supabase
+      .from("dados_benner" as any)
+      .update({
+        sem_pendencia: ok,
+        pendencias_verificado_em: new Date().toISOString(),
+      } as any)
+      .eq("id", id);
+    if (updErr) return null;
+    invalidateDistribuicaoTstCache();
+    return ok;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Preenchimento inicial (backfill): se nenhum registro tem marcação de
+ * verificação, roda o cálculo completo uma única vez. Executado ao abrir a
+ * tela, para que o card "Pronto sem pendência" já apareça correto sem que
+ * ninguém precise clicar em "Verificar Pendências".
+ */
+let backfillEmAndamento: Promise<void> | null = null;
+export function backfillSemPendenciaSeNecessario(): Promise<void> {
+  if (backfillEmAndamento) return backfillEmAndamento;
+  backfillEmAndamento = (async () => {
+    const { count, error } = await supabase
+      .from("dados_benner" as any)
+      .select("id", { count: "exact", head: true })
+      .not("pendencias_verificado_em", "is", null);
+    if (error) return;
+    if ((count ?? 0) > 0) return;
+    await recalcularSemPendencia();
+  })()
+    .catch(() => {})
+    .finally(() => {
+      backfillEmAndamento = null;
+    });
+  return backfillEmAndamento;
 }
