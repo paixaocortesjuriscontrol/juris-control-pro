@@ -278,6 +278,12 @@ export interface DistribuicaoTstFilters {
    * resto (inclui os que nunca foram verificados).
    */
   semPendencia?: "todos" | "sem" | "com";
+  /**
+   * Filtro pelo marcador persistido `revisar_lista_materias` (gravado junto
+   * com `sem_pendencia`). "sim" = prontos cuja lista de matérias do dossiê
+   * precisa de revisão.
+   */
+  revisarListaMaterias?: "todos" | "sim";
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
   /**
