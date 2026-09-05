@@ -650,15 +650,15 @@ async function fetchAllDistribuicaoTstIdsUncached(
 /**
  * Aplica no banco o filtro "com/sem matérias cadastradas por dossiê".
  *
- * Usa o campo calculado `tem_pedidos_dossie` (função no banco com EXISTS em
- * `pedidos_por_dossie`). NÃO enviar a lista de dossiês na URL: com a carga de
- * 2025 são ~8 mil dossiês e o `in.(...)` estourava o limite da requisição,
- * fazendo a tela dar erro ao combinar filtros.
+ * Usa a coluna indicadora `tem_materias_dossie` (mantida por trigger a partir
+ * de `pedidos_por_dossie`), sem recontar nada a cada carregamento. NÃO enviar a
+ * lista de dossiês na URL: com a carga de 2025 são ~8 mil dossiês e o
+ * `in.(...)` estourava o limite da requisição.
  */
 function applyPedidosDossieFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
   const modo = filters.pedidosDossie;
   if (!modo || modo === "todos") return query;
-  return (query as any).eq("tem_pedidos_dossie", modo === "com") as T;
+  return (query as any).eq("tem_materias_dossie", modo === "com") as T;
 }
 
 /**
