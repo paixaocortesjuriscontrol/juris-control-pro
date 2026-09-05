@@ -3,33 +3,17 @@ import {
   DistribuicaoTstFilters,
   fetchAllDistribuicaoTstIds,
 } from "@/hooks/useDistribuicoesTst";
-import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
-import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
-import {
-  fetchProntosRowsCached,
-  invalidateDistribuicaoTstCache,
-} from "@/utils/distribuicaoTstCache";
-import {
-  getPendencias,
-  isNaoPrecisaFazer,
-  isMarcadoPronto,
-} from "@/utils/distribuicaoTstPendencias";
-
+import { invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
 
 /**
- * Conta processos com status = 'pronto_envio' que NÃO possuem pendências,
- * considerando os mesmos filtros da tela / card ativo.
+ * Processos "pronto sem pendência" segundo o marcador persistido
+ * `dados_benner.sem_pendencia`, respeitando os filtros da tela.
  *
- * Como a regra de pendência é computada no cliente (regras condicionais por
- * linha em `getPendencias`), fazemos:
- *   1. Puxa os IDs filtrados via `fetchAllDistribuicaoTstIds` (mesma lógica
- *      que a listagem principal usa).
- *   2. Em lotes, busca as linhas com `status = 'pronto_envio'` trazendo as
- *      colunas necessárias para `getPendencias`.
- *   3. Conta as linhas cujo `getPendencias(row).length === 0`.
+ * O cálculo das pendências NÃO acontece mais a cada carregamento: ele roda no
+ * botão "Verificar Pendências" (`recalcularSemPendencia`) e grava a coluna.
+ * Aqui só lemos os ids já marcados (consulta indexada).
  */
 export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
-  const [count, setCount] = useState<number>(0);
   const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [reloadTick, setReloadTick] = useState(0);
@@ -42,51 +26,15 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
     (async () => {
       setLoading(true);
       try {
-        await ensureMateriasOficiais().catch(() => {});
-        await ensurePedidosPorDossie().catch(() => {});
-        const ids = await fetchAllDistribuicaoTstIds(filters);
+        const marcados = await fetchAllDistribuicaoTstIds({
+          ...filters,
+          semPendencia: "sem",
+        });
         if (cancelled || runId !== runIdRef.current) return;
-        if (!ids || ids.length === 0) {
-          setCount(0);
-          setIds([]);
-          return;
-        }
-
-        let semPendencia = 0;
-        const semPendenciaIds: string[] = [];
-        const idsPermitidos = new Set(ids);
-
-        // Não use `.in("id", batch)` aqui. Com centenas de UUIDs, o filtro é
-        // enviado na URL pelo PostgREST e pode ultrapassar o limite HTTP; o
-        // card então caía no catch e mostrava zero. Há poucos registros prontos
-        // em relação à base inteira, então lemos esse conjunto (leitura
-        // compartilhada/cacheada com os outros cards) e cruzamos localmente
-        // com os IDs que respeitam os filtros da tela.
-        const rows = await fetchProntosRowsCached();
-        if (cancelled || runId !== runIdRef.current) return;
-        for (const r of rows) {
-          if (!idsPermitidos.has((r as any).id)) continue;
-          // Espelha a lógica do botão "Verificar Pendências":
-          // processos em outro escritório, sob segredo de justiça ou CEJUSC
-          // não são contabilizados (nem com pendência, nem sem).
-          // Marcados como pronto com situação impeditiva CONTAM como
-          // pendência (rejeitam na Carga Benner), por isso não pulamos.
-          if (!isMarcadoPronto(r) && isNaoPrecisaFazer(r)) continue;
-
-          if (getPendencias(r).length === 0) {
-            semPendencia++;
-            semPendenciaIds.push((r as any).id);
-          }
-        }
-
-        if (!cancelled && runId === runIdRef.current) {
-          setCount(semPendencia);
-          setIds(semPendenciaIds);
-        }
+        setIds(marcados || []);
       } catch (e) {
         if (!cancelled && runId === runIdRef.current) {
           console.warn("[useProntoSemPendenciaCount] falhou:", e);
-          setCount(0);
           setIds([]);
         }
       } finally {
@@ -100,7 +48,7 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
   }, [filtersKey, reloadTick]);
 
   return {
-    count,
+    count: ids.length,
     ids,
     loading,
     refetch: () => {
@@ -108,5 +56,4 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
       setReloadTick((tick) => tick + 1);
     },
   };
-
 }
