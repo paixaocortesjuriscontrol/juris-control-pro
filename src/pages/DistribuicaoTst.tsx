@@ -18,7 +18,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
-import { recalcularSemPendencia } from "@/utils/distribuicaoTstSemPendencia";
+import { recalcularSemPendencia, backfillSemPendenciaSeNecessario, atualizarSemPendenciaLote } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
@@ -382,6 +382,22 @@ export default function DistribuicaoTst() {
    * e GRAVA o marcador `sem_pendencia` de cada processo. A tela deixa de
    * recontar as pendências em cada carregamento e passa a ler esse marcador.
    */
+  /**
+   * Preenchimento inicial do marcador `sem_pendencia`. Roda uma única vez
+   * (somente se nenhum registro tiver sido verificado ainda) para que o card
+   * "Pronto sem pendência" já venha correto ao abrir a tela.
+   */
+  useEffect(() => {
+    let ativo = true;
+    backfillSemPendenciaSeNecessario().then(() => {
+      if (ativo) refetchProntoSemPendencia();
+    });
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleVerificarPendencias = async () => {
     const abrindo = !mostrarPendencias;
     setMostrarPendencias(abrindo);
@@ -972,8 +988,12 @@ export default function DistribuicaoTst() {
           .eq("em_analise", true);
         if (errAna) { toast.error("Erro ao marcar Analisado: " + errAna.message); return; }
       }
+      // Regra: ao marcar como pronto já gravamos o marcador de pendências
+      // desses registros, para a tela não recontar depois.
+      await atualizarSemPendenciaLote(ids).catch(() => {});
       toast.success(`${ids.length} registro(s) marcado(s) como Pronto!`);
       setSelectedIds(new Set());
+      refetchProntoSemPendencia();
       handleRefresh();
     } catch (err: any) {
       toast.error("Erro: " + (err?.message || "desconhecido"));

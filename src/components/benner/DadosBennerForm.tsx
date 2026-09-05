@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Search, Save, ArrowLeft, Loader2, Download, FileDown, CheckCircle2, XCircle, AlertCircle, Users } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
+import { atualizarSemPendenciaRegistro } from "@/utils/distribuicaoTstSemPendencia";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -784,6 +785,11 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
           : currentStatus;
     const toSave = { ...form, status: statusFinal };
     const result = await onSave(toSave, dado?.id);
+    // Regra: todo salvamento revalida o marcador "pronto sem pendência".
+    const idSemPendencia = typeof result === "string" ? result : dado?.id;
+    if (result && idSemPendencia) {
+      await atualizarSemPendenciaRegistro(idSemPendencia).catch(() => {});
+    }
     
     // Persist parties if we have them and got a valid ID back
     if (result && partesJudit.length > 0) {
