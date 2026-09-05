@@ -166,18 +166,30 @@ export default function MinhasMensagensRecebidas({
     },
   });
 
+  const idsMensagens = useMemo(() => mensagens.map((m) => m.id).sort(), [mensagens]);
+
   const { data: leituras = [] } = useQuery({
-    queryKey: ["minhas-mensagens-leituras", user?.id],
-    enabled: !!user?.id,
+    // Só as leituras das mensagens exibidas: buscar todas estourava o limite de
+    // 1000 linhas por consulta para quem já leu milhares de alertas, e as
+    // mensagens voltavam a aparecer como não lidas.
+    queryKey: ["minhas-mensagens-leituras", user?.id, idsMensagens.length, idsMensagens[0] ?? ""],
+    enabled: !!user?.id && idsMensagens.length > 0,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("alertas_recebidos_leituras")
-        .select("alerta_id")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return (data || []).map((l: { alerta_id: string }) => l.alerta_id);
+      const encontrados: string[] = [];
+      const CHUNK = 150;
+      for (let i = 0; i < idsMensagens.length; i += CHUNK) {
+        const { data, error } = await supabase
+          .from("alertas_recebidos_leituras")
+          .select("alerta_id")
+          .eq("user_id", user!.id)
+          .in("alerta_id", idsMensagens.slice(i, i + CHUNK));
+        if (error) throw error;
+        encontrados.push(...(data || []).map((l: { alerta_id: string }) => l.alerta_id));
+      }
+      return encontrados;
     },
   });
+
 
   const lidos = useMemo(() => new Set(leituras), [leituras]);
 
