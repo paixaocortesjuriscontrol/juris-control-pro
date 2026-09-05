@@ -442,12 +442,6 @@ export default function DistribuicaoTst() {
   } =
     useProntoSemPendenciaCount(debouncedFilters);
 
-  // Universo de IDs filtrados — usado apenas pelo filtro "com pendências".
-  const { data: todosIdsFiltrados = [] } = useQuery({
-    queryKey: ["todos-ids-filtrados", JSON.stringify(debouncedFilters)],
-    enabled: filtroComPendencia,
-    queryFn: () => fetchAllDistribuicaoTstIds(debouncedFilters),
-  });
 
 
 
@@ -461,11 +455,9 @@ export default function DistribuicaoTst() {
       f = { ...f, idsAllowed: multiRespIds.length > 0 ? multiRespIds : [TAG_FILTER_PENDING_ID] };
     }
     if (filtroSemPendencia) {
-      // Restringe aos IDs "pronto para enviar" sem pendências (calculados no cliente).
-      const base = f.idsAllowed && f.idsAllowed.length > 0
-        ? prontoSemPendenciaIds.filter((id) => f.idsAllowed!.includes(id))
-        : prontoSemPendenciaIds;
-      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+      // Resolvido no banco pelo marcador `sem_pendencia`, gravado pelo botão
+      // "Verificar Pendências" — sem recontar as pendências a cada tela.
+      f = { ...f, semPendencia: "sem" };
     }
     if (semMateriaDossieIds) {
       const base = f.idsAllowed && f.idsAllowed.length > 0
@@ -479,15 +471,12 @@ export default function DistribuicaoTst() {
       f = { ...f, pedidosDossie: filtroPedidosDossie };
     }
     if (filtroComPendencia) {
-      // Complemento: todos os IDs filtrados MENOS os prontos sem pendência.
-      const semSet = new Set(prontoSemPendenciaIds);
-      const universo = f.idsAllowed && f.idsAllowed.length > 0 ? f.idsAllowed : todosIdsFiltrados;
-      const base = universo.filter((id) => !semSet.has(id));
-      f = { ...f, idsAllowed: base.length > 0 ? base : [TAG_FILTER_PENDING_ID] };
+      // Complemento do marcador: tudo que não está gravado como sem pendência.
+      f = { ...f, semPendencia: "com" };
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, JSON.stringify(prontoSemPendenciaIds), filtroComPendencia, JSON.stringify(todosIdsFiltrados), JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
 
