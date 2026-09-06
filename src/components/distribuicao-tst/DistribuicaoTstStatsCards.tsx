@@ -208,6 +208,17 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
             rightColor: "text-slate-700 dark:text-slate-400",
           });
         }
+        if (c.key === "comMateria") {
+          return renderCombined({
+            keyId: "materiaCombined",
+            title: "Com / Sem Matéria cadastrada",
+            containerClass: "from-pink-50 to-rose-50 dark:from-pink-950/40 dark:to-rose-950/40 border-pink-200 dark:border-pink-800",
+            leftKey: "comMateria", leftValue: stats.comMateriaDossie, leftLabel: "com",
+            leftColor: "text-pink-700 dark:text-pink-400",
+            rightKey: "semMateria", rightValue: stats.semMateriaDossie, rightLabel: "sem",
+            rightColor: "text-rose-700 dark:text-rose-400",
+          });
+        }
         if (c.key === "comEquipe") {
           return renderCombined({
             keyId: "equipeCombined",

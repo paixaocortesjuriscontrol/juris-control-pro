@@ -18,6 +18,8 @@ export interface DistribuicaoTstStats {
   transitoJulgado: number;
   outrosSituacao: number;
   semTurma: number;
+  comMateriaDossie: number;
+  semMateriaDossie: number;
   problemaJudit: number;
   ate2025: number;
   de2026: number;
@@ -48,6 +50,8 @@ const ZERO: DistribuicaoTstStats = {
   transitoJulgado: 0,
   outrosSituacao: 0,
   semTurma: 0,
+  comMateriaDossie: 0,
+  semMateriaDossie: 0,
   problemaJudit: 0,
   ate2025: 0,
   de2026: 0,
