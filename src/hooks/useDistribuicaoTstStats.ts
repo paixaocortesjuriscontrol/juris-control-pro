@@ -18,6 +18,8 @@ export interface DistribuicaoTstStats {
   transitoJulgado: number;
   outrosSituacao: number;
   semTurma: number;
+  comMateriaDossie: number;
+  semMateriaDossie: number;
   problemaJudit: number;
   ate2025: number;
   de2026: number;
@@ -48,6 +50,8 @@ const ZERO: DistribuicaoTstStats = {
   transitoJulgado: 0,
   outrosSituacao: 0,
   semTurma: 0,
+  comMateriaDossie: 0,
+  semMateriaDossie: 0,
   problemaJudit: 0,
   ate2025: 0,
   de2026: 0,
@@ -83,6 +87,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     "cejusc",
 
     "turma",
+    "tem_materias_dossie",
     "problema_judit",
     "data_distribuicao_real",
     "data_distribuicao_planilha",
@@ -128,6 +133,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     if (row.transito_julgado === true) stats.transitoJulgado += 1;
     if (row.transito_julgado !== true && situacao !== "ativo") stats.outrosSituacao += 1;
     if (!String(row.turma || "").trim()) stats.semTurma += 1;
+    if (dossie && row.tem_materias_dossie === true) stats.comMateriaDossie += 1;
+    else stats.semMateriaDossie += 1;
     if (row.problema_judit === true) stats.problemaJudit += 1;
     if (dataEfetiva && dataEfetiva <= "2025-12-31") stats.ate2025 += 1;
     if (dataEfetiva && dataEfetiva >= "2026-01-01") stats.de2026 += 1;
@@ -215,6 +222,8 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         transitoJulgado: Number(row.transito_julgado) || 0,
         outrosSituacao: Number(row.outros_situacao) || 0,
         semTurma: Number(row.sem_turma) || 0,
+        comMateriaDossie: Number(row.com_materia_dossie) || 0,
+        semMateriaDossie: Number(row.sem_materia_dossie) || 0,
         problemaJudit: Number(row.problema_judit) || 0,
         ate2025: Number(row.ate_2025) || 0,
         de2026: Number(row.de_2026) || 0,
