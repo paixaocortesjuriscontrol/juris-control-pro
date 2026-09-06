@@ -3131,9 +3131,10 @@ export default function DistribuicaoTst() {
                     "cursor-pointer hover:bg-muted/50 align-middle [&>td]:py-1 [&>td]:align-middle",
                     (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
                   )}
-                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
-                >
-                  <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
+                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                   onContextMenu={(e) => { e.preventDefault(); setOverlayRegistro(d); }}
+                 >
+                   <TableCell className="align-middle" onClick={e => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
                       <Checkbox
                         checked={selectedIds.has(d.id)}
