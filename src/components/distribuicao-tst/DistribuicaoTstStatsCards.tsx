@@ -19,6 +19,8 @@ export type StatsCardKey =
   | "processosAtivos"
   | "transitoJulgado"
   | "semTurma"
+  | "comMateria"
+  | "semMateria"
   | "problemaJudit"
   | "ate2025"
   | "de2026"
@@ -110,7 +112,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
     { key: "problemaJudit", label: "Problema Judit", value: stats.problemaJudit, className: "from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/30 border-amber-200 dark:border-amber-800", textClass: "text-amber-700 dark:text-amber-400" },
     // Vermelhos / Rosas (última fileira)
     { key: "processosInvalidos", label: "Processos Inválidos", value: stats.processosInvalidos, className: "from-rose-50 to-rose-100 dark:from-rose-950/50 dark:to-rose-900/30 border-rose-200 dark:border-rose-800", textClass: "text-rose-600 dark:text-rose-400" },
-    { key: "semTurma", label: "Sem Turma", value: stats.semTurma, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
+    { key: "comMateria", label: "Com / Sem Matéria", value: stats.comMateriaDossie, className: "from-pink-50 to-pink-100 dark:from-pink-950/50 dark:to-pink-900/30 border-pink-200 dark:border-pink-800", textClass: "text-pink-600 dark:text-pink-400" },
     ...(revisarListaMaterias
       ? [{
           key: "revisarListaMaterias" as StatsCardKey,
