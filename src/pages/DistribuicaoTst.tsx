@@ -2994,12 +2994,10 @@ export default function DistribuicaoTst() {
                   />
                 </TableHead>
                 {([
-                  { key: "data_distribuicao_planilha" as const, label: "Data Plan." },
                   { key: "data_distribuicao_real" as const, label: "Data Distribuição" },
                   { key: "processo_numero" as const, label: "Processo" },
                   { key: "dossie" as const, label: "Dossiê" },
                   { key: "responsaveis" as const, label: "Responsáveis" },
-                  { key: "benner_atualizado" as const, label: "Benner" },
                 ]).map((h) => (
                   <TableHead key={h.key}>
                     <button
@@ -3124,7 +3122,6 @@ export default function DistribuicaoTst() {
                       })()}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs align-middle">
                     {(() => {
@@ -3327,13 +3324,6 @@ export default function DistribuicaoTst() {
                         ))}
                       </div>
                     ) : "—"}
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    {d.benner_atualizado ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40" />
-                    )}
                   </TableCell>
                   {mostrarPendencias && (() => {
                     const pend = getPendencias(d);
