@@ -23,8 +23,6 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
-import { atualizarSemPendenciaRegistro } from "@/utils/distribuicaoTstSemPendencia";
 
 /* ─────────────── helpers ─────────────── */
 
@@ -49,6 +47,40 @@ function txt(v: any): string {
   const s = v === null || v === undefined ? "" : String(v).trim();
   if (!s || /^n[ãa]o informado$/i.test(s)) return "—";
   return s;
+}
+
+/** Booleano do banco → "Sim"/"Não"/"—" (leitura). */
+function sn(v: any): string {
+  if (v === null || v === undefined) return "—";
+  return v ? "Sim" : "Não";
+}
+
+/** Renderiza a lista JSONB "Análise por matéria" (Reclamante/Banco) em leitura. */
+function MateriasAnalise({ titulo, lista }: { titulo: string; lista: any }) {
+  const itens: any[] = Array.isArray(lista) ? lista : [];
+  if (!itens.length) return null;
+  return (
+    <div className="mt-2 rounded-md border bg-muted/30 p-2.5">
+      <div className="mb-1.5 text-xs font-semibold text-foreground">{titulo}</div>
+      <ul className="space-y-1.5">
+        {itens.map((m, i) => {
+          const nome = m?.materia || m?.nome || m?.descricao || m?.tema || `Matéria ${i + 1}`;
+          const detalhes = [
+            m?.aparelhamento ? `Aparelhamento: ${m.aparelhamento}` : null,
+            m?.chance_exito || m?.chanceExito ? `Chance: ${m.chance_exito || m.chanceExito}` : null,
+            m?.relator ? `Relator: ${m.relator}` : null,
+            m?.turma ? `Turma: ${m.turma}` : null,
+          ].filter(Boolean).join(" · ");
+          return (
+            <li key={i} className="text-xs text-foreground">
+              <span className="font-medium">{nome}</span>
+              {detalhes && <span className="text-muted-foreground"> — {detalhes}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
 }
 
 /** Classifica a movimentação para o advogado enxergar o que importa. */
@@ -245,11 +277,9 @@ interface Props {
   responsaveis?: { nome: string }[];
   tagsSlot?: React.ReactNode;
   onAbrirFicha?: () => void;
-  /** Salvar da aba "Distribuição TST" (mesmo handler da ficha de edição da página). */
-  onSaveDistribuicao?: (dado: any, id?: string) => Promise<boolean | string>;
 }
 
-export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsaveis = [], tagsSlot, onAbrirFicha, onSaveDistribuicao }: Props) {
+export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsaveis = [], tagsSlot, onAbrirFicha }: Props) {
   const [aba, setAba] = useState("resumo");
   const [buscaMov, setBuscaMov] = useState("");
   const [somenteRelevantes, setSomenteRelevantes] = useState(false);
@@ -272,6 +302,24 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
       return ((data as any[]) || [])[0] || null;
     },
   });
+
+  // Linha completa de dados_benner: a lista traz só os campos mapeados, e a
+  // aba "Distribuição TST" precisa de todos (resultado_*, notas, julgamento…).
+  const { data: rowCompleto } = useQuery({
+    queryKey: ["dist-tst-overlay-row", registro?.id],
+    enabled: open && !!registro?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dados_benner" as any)
+        .select("*")
+        .eq("id", registro!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+  const ficha: any = rowCompleto || registro || {};
 
   const lawsuits = useMemo(() => coletarLawsuits(log?.raw_response), [log]);
   const principal: Lawsuit = useMemo(() => {
@@ -664,26 +712,126 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
             )}
           </TabsContent>
 
-          {/* ─── Ficha completa (formulário Distribuição TST) ─── */}
-          <TabsContent value="ficha" className="mt-0">
-            {onSaveDistribuicao ? (
-              <DistribuicaoTstForm
-                key={`overlay-form-${registro.id}`}
-                dado={registro}
-                onSave={async (d, id) => {
-                  const targetId = id || registro?.id;
-                  const result = await onSaveDistribuicao(d, targetId);
-                  const savedId = typeof result === "string" ? result : targetId;
-                  if (result && savedId) {
-                    try { await atualizarSemPendenciaRegistro(savedId); } catch {}
-                  }
-                  return result;
-                }}
-                onCancel={() => onOpenChange(false)}
-              />
-            ) : (
-              <p className="text-sm text-muted-foreground">Edição indisponível neste contexto.</p>
-            )}
+          {/* ─── Distribuição TST (mesmos campos do formulário, em leitura) ─── */}
+          <TabsContent value="ficha" className="mt-0 space-y-3">
+            <Bloco titulo="Dados Básicos" icone={FileText}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
+                <Campo rotulo="Data Distribuição Planilha (D)" valor={fmtData(ficha.data_distribuicao_planilha)} />
+                <Campo rotulo="Data Distribuição Real (D)" valor={fmtData(ficha.data_distribuicao_real)} />
+                <Campo rotulo="Número do Processo" valor={txt(ficha.processo_numero || ficha.processo)} />
+                <Campo rotulo="Dossiê (A)" valor={txt(ficha.dossie)} />
+                <Campo rotulo="Tribunal (B)" valor={txt(ficha.tribunal)} />
+                <Campo rotulo="Equipe" valor={txt(ficha.equipe)} />
+                <Campo rotulo="Reclamante" valor={txt(ficha.reclamante)} className="col-span-2 md:col-span-3" />
+                <Campo rotulo="Reclamada" valor={txt(ficha.reclamada)} className="col-span-2 md:col-span-3" />
+                <Campo
+                  rotulo="Responsáveis"
+                  valor={responsaveis.length ? responsaveis.map((r) => r.nome).join(", ") : "—"}
+                  className="col-span-2 md:col-span-3"
+                />
+                {ficha.observacao_advogado ? (
+                  <Campo rotulo="Observação Advogado" valor={txt(ficha.observacao_advogado)} className="col-span-2 md:col-span-3" />
+                ) : null}
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Relator e Turma" icone={Gavel}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
+                <Campo rotulo="Relator (F)" valor={txt(ficha.relator)} />
+                <Campo rotulo="Relator (+ ou -) (AD/AE)" valor={txt(ficha.relator_favorabilidade)} />
+                <Campo rotulo="Turma (E)" valor={txt(ficha.turma)} />
+                <Campo rotulo="Turma (+ ou -) (AB/AC)" valor={txt(ficha.turma_favorabilidade)} />
+                <Campo rotulo="Parte Recorrente (AA)" valor={txt(ficha.parte_recorrente || ficha.recorrente)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Recurso Reclamante">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <Campo rotulo="Tipo de Recurso do Reclamante (C)" valor={txt(ficha.tipo_recurso_reclamante)} />
+                <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_reclamante)} />
+                <Campo rotulo="Matérias Recurso Reclamante" valor={txt(ficha.materias_recurso_reclamante)} className="col-span-2" />
+              </div>
+              <MateriasAnalise titulo="Análise por matéria (Reclamante)" lista={ficha.materias_analise_reclamante} />
+            </Bloco>
+
+            <Bloco titulo="Recurso Banco">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <Campo rotulo="Tipo de Recurso do Banco (C)" valor={txt(ficha.tipo_recurso_banco)} />
+                <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_banco)} />
+                <Campo rotulo="Matérias Recurso do Banco" valor={txt(ficha.materias_recurso_banco)} className="col-span-2" />
+              </div>
+              <MateriasAnalise titulo="Análise por matéria (Banco)" lista={ficha.materias_analise_banco} />
+            </Bloco>
+
+            <Bloco titulo="Recurso de terceiro">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <Campo rotulo="Tipo de Recurso (Terceiro) (C)" valor={txt(ficha.tipo_recurso_terceiro)} />
+                <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_terceiro)} />
+                <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_terceiro)} />
+                <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_terceiro)} />
+                <Campo rotulo="Matérias Recurso (Terceiro)" valor={txt(ficha.materias_recurso_terceiro)} className="col-span-2" />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Análise" icone={Scale}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
+                <Campo rotulo="Matéria de Honra (O)" valor={txt(ficha.honra)} />
+                <Campo rotulo="Tema IRR" valor={txt(ficha.tema)} />
+                <Campo rotulo="Execução" valor={txt(ficha.execucao)} />
+                <Campo rotulo="Mídia Negativa (H)" valor={txt(ficha.midia_negativa)} />
+                <Campo rotulo="Recurso de Terceiros" valor={txt(ficha.recurso_terceiros)} />
+                <Campo rotulo="Risco — Nível" valor={txt(ficha.risco_nivel)} />
+                <Campo rotulo="Risco (descrição) (I)" valor={txt(ficha.risco_descricao)} />
+                <Campo rotulo="Provas Digitais (J)" valor={txt(ficha.provas_digitais)} />
+                <Campo rotulo="Decisão - Análise do Quarteirizado (G)" valor={txt(ficha.decisao_quarteirizado)} className="col-span-2 md:col-span-3" />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Julgamento" icone={CalendarDays}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
+                <Campo rotulo="Data Julgamento? (K)" valor={txt(ficha.tem_data_julgamento)} />
+                <Campo rotulo="Data Julgamento (L)" valor={fmtData(ficha.data_julgamento)} />
+                <Campo rotulo="Horário (M)" valor={txt(ficha.horario_julgamento)} />
+                <Campo rotulo="Tipo Julgamento (N)" valor={txt(ficha.tipo_julgamento)} />
+                <Campo rotulo="Entrega Memoriais (P)" valor={txt(ficha.entrega_memoriais)} />
+                <Campo rotulo="Sustentação Oral (Q)" valor={txt(ficha.sustentacao_oral)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Resultado" icone={CheckCircle2}>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-4">
+                <Campo rotulo="Sem Transcendência (R)" valor={sn(ficha.resultado_sem_transcendencia)} />
+                <Campo rotulo="Não Conhecido (S)" valor={sn(ficha.resultado_nao_conhecido)} />
+                <Campo rotulo="Conhecido e Provido (T)" valor={sn(ficha.resultado_conhecido_provido)} />
+                <Campo rotulo="Conhecido e Não Provido (U)" valor={sn(ficha.resultado_conhecido_nao_provido)} />
+              </div>
+              <div className="mt-2 grid grid-cols-1 gap-x-3 gap-y-2">
+                <Campo rotulo="Outra (descrição) (V)" valor={txt(ficha.resultado_outra)} />
+                <Campo rotulo="Observações (W)" valor={txt(ficha.observacoes)} />
+                <Campo rotulo="Notas" valor={txt(ficha.notas)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Fechamento">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
+                <Campo rotulo="Ganhamos (X)" valor={sn(ficha.ganhamos)} />
+                <Campo rotulo="Perdemos (Y)" valor={sn(ficha.perdemos)} />
+                <Campo rotulo="Processo Baixado (Z)" valor={txt(ficha.processo_baixado)} />
+                <Campo rotulo="Situação do Processo" valor={txt(ficha.situacao_processo)} />
+                <Campo rotulo="Chance de Êxito (geral)" valor={txt(ficha.chance_exito)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Trânsito em Julgado">
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <Campo rotulo="Trânsito em Julgado" valor={sn(ficha.transito_julgado)} />
+                <Campo rotulo="Data Trânsito em Julgado" valor={fmtData(ficha.data_transito_julgado)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Benner Atualizado">
+              <Campo rotulo="Benner Atualizado" valor={sn(ficha.benner_atualizado)} />
+            </Bloco>
           </TabsContent>
         </div>
       </Tabs>
