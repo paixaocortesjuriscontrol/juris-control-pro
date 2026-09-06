@@ -3367,6 +3367,26 @@ export default function DistribuicaoTst() {
                     </TableCell>
                   )}
                 </TableRow>
+                <TableRow
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50",
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                  )}
+                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                >
+                  <TableCell
+                    colSpan={(isAdminOrCoordinator ? 7 : 6) + (mostrarPendencias ? 1 : 0)}
+                    className="py-1"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <ProcessoTagPicker
+                      dadoId={d.id}
+                      tagIds={tagsMap?.get(d.id) || []}
+                      readOnly={!isAdminOrCoordinator}
+                    />
+                  </TableCell>
+                </TableRow>
+                </Fragment>
                 );
               })}
             </TableBody>
