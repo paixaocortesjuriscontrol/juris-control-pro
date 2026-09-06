@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
+import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
+import { normalizeMateriaNome } from "@/utils/outraMateria";
+import { cn } from "@/lib/utils";
 
 
 /* ─────────────── helpers ─────────────── */
@@ -364,6 +367,13 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
   const relacionados: any[] = Array.isArray(principal?.related_lawsuits) ? principal.related_lawsuits : [];
   const fases: any[] = Array.isArray(principal?.phase_history) ? principal.phase_history : [];
 
+  const { pedidosSet } = usePedidosPorDossie(open ? registro?.dossie : null);
+  const assuntoNoDossie = (nome: any) => {
+    const n = normalizeMateriaNome(String(nome || ""));
+    return !!n && pedidosSet.size > 0 && pedidosSet.has(n);
+  };
+  const qtdAssuntosDossie = assuntos.filter((a) => assuntoNoDossie(a?.name)).length;
+
   const dataDistribuicao = registro?.data_distribuicao_real || registro?.data_distribuicao_planilha;
 
   if (!registro) return null;
@@ -654,17 +664,42 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
                 </Bloco>
 
                 {assuntos.length > 0 && (
-                  <Bloco titulo={`Assuntos (${assuntos.length})`} icone={Scale}>
+                  <Bloco
+                    titulo={`Assuntos (${assuntos.length})${qtdAssuntosDossie > 0 ? ` — ${qtdAssuntosDossie} na lista do dossiê` : ""}`}
+                    icone={Scale}
+                  >
                     <ul className="space-y-1 text-sm">
-                      {assuntos.map((a, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                          <span>
-                            {txt(a?.name)}
-                            {a?.code ? <span className="ml-1 text-xs text-muted-foreground">({a.code})</span> : null}
-                          </span>
-                        </li>
-                      ))}
+                      {assuntos.map((a, i) => {
+                        const noDossie = assuntoNoDossie(a?.name);
+                        return (
+                          <li key={i} className="flex items-start gap-2">
+                            <span
+                              className={cn(
+                                "mt-1 h-1.5 w-1.5 shrink-0 rounded-full",
+                                noDossie ? "bg-emerald-600" : "bg-primary",
+                              )}
+                            />
+                            <span className={cn(noDossie && "font-medium text-emerald-700")}>
+                              {txt(a?.name)}
+                              {a?.code ? (
+                                <span
+                                  className={cn(
+                                    "ml-1 text-xs",
+                                    noDossie ? "text-emerald-600" : "text-muted-foreground",
+                                  )}
+                                >
+                                  ({a.code})
+                                </span>
+                              ) : null}
+                              {noDossie ? (
+                                <Badge className="ml-2 bg-emerald-600 text-[10px] text-white hover:bg-emerald-600">
+                                  matéria do dossiê
+                                </Badge>
+                              ) : null}
+                            </span>
+                          </li>
+                        );
+                      })}
                     </ul>
                   </Bloco>
                 )}
