@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cachedAsync, invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
@@ -1157,27 +1157,10 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     setLoading(false);
   }, [page, JSON.stringify(filters), stickyId || ""]);
 
-  const ultimoFetchRef = useRef<number>(0);
-  useEffect(() => { ultimoFetchRef.current = Date.now(); fetchDados(); }, [fetchDados]);
+  useEffect(() => { fetchDados(); }, [fetchDados]);
 
   const filtersKey = JSON.stringify(filters);
   useEffect(() => { setPage(1); }, [filtersKey]);
-
-  // Atualiza a lista quando o advogado volta de OUTRA aba do navegador, mas
-  // nunca a cada clique/foco: recarregar a toda hora fazia a tela "piscar" e
-  // perder o lugar da leitura. Só recarrega se a última carga tem mais de 5min.
-  useEffect(() => {
-    const RECARGA_MIN_MS = 5 * 60 * 1000;
-    const onVisibility = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - ultimoFetchRef.current < RECARGA_MIN_MS) return;
-      ultimoFetchRef.current = Date.now();
-      fetchDados();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [fetchDados]);
-
 
   const saveDado = async (dado: DistribuicaoTstInsert, id?: string): Promise<boolean | string> => {
     // Gravação altera os totais dos cards: descarta o cache compartilhado.
