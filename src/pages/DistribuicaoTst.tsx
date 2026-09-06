@@ -3379,11 +3379,14 @@ export default function DistribuicaoTst() {
                     className="py-1"
                     onClick={e => e.stopPropagation()}
                   >
-                    <ProcessoTagPicker
-                      dadoId={d.id}
-                      tagIds={tagsMap?.get(d.id) || []}
-                      readOnly={!isAdminOrCoordinator}
-                    />
+                    <div className="flex flex-wrap items-center gap-1">
+                      {processBadges}
+                      <ProcessoTagPicker
+                        dadoId={d.id}
+                        tagIds={tagsMap?.get(d.id) || []}
+                        readOnly={!isAdminOrCoordinator}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
                 </Fragment>
