@@ -1896,13 +1896,12 @@ export default function DistribuicaoTst() {
               handleRefresh();
             }}
             onClose={() => {
+              // Ao voltar para a lista NÃO recarregamos nada: o salvamento já
+              // dispara `handleRefresh()` acima. Recarregar aqui fazia a lista
+              // (e os totalizadores) serem relidos a cada volta, sem necessidade.
               setShowForm(false);
               setEditando(null);
               setDetailInitialTab("distribuicao");
-              try { fetchDados(); } catch {}
-              try { refetchStats(); } catch {}
-              try { refetchResponsavelCounts(); } catch {}
-              try { refetchProntoSemPendencia(); } catch {}
             }}
           />
         </div>
