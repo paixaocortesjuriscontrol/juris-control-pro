@@ -3140,66 +3140,6 @@ export default function DistribuicaoTst() {
                             <div className={cn("whitespace-nowrap inline-flex items-center gap-1", situacaoClass)}>
                               <span>{numero}</span>
                               <CopyButton value={numero} label="Processo" />
-                              {(d as any).em_analise && (
-                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
-                                  Em análise
-                                </Badge>
-                              )}
-                              {(d as any).ic_duplicado && (
-                                <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                                  Dup.
-                                </Badge>
-                              )}
-                              {(d as any).ic_arquivado && (
-                                <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-slate-500 text-slate-600 dark:text-slate-300" title="Registro arquivado">
-                                  Arquivado
-                                </Badge>
-                              )}
-                              {isPronto && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
-                                  Pronto
-                                </Badge>
-                              )}
-                              {hasProvasDigitais && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
-                                  Provas Digitais
-                                </Badge>
-                              )}
-                              {isTransito && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
-                                  Trans. Julgado
-                                </Badge>
-                              )}
-                              {isSubidaMassa && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
-                                  Subida em Massa
-                                </Badge>
-                              )}
-                              {isOutroEscritorio && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
-                                  Outro escritório
-                                </Badge>
-                              )}
-                              {isSegredo && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
-                                  Segredo de Justiça
-                                </Badge>
-                              )}
-                              {isProblemaJudit && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
-                                  Problema Judit
-                                </Badge>
-                              )}
-                              {isRecursoTerceiro && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
-                                  Recurso de terceiro
-                                </Badge>
-                              )}
-                              {isCejusc && (
-                                <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
-                                  CEJUSC
-                                </Badge>
-                              )}
                             </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
@@ -3210,66 +3150,6 @@ export default function DistribuicaoTst() {
                         <div className={cn("break-words inline-flex items-center gap-1", situacaoClass)}>
                           <span>{raw}</span>
                           {raw && <CopyButton value={raw} label="Processo" />}
-                          {(d as any).em_analise && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-amber-500 text-amber-700 dark:text-amber-400">
-                              Em análise
-                            </Badge>
-                          )}
-                          {(d as any).ic_duplicado && (
-                            <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                              Dup.
-                            </Badge>
-                          )}
-                          {(d as any).ic_arquivado && (
-                            <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 border-slate-500 text-slate-600 dark:text-slate-300" title="Registro arquivado">
-                              Arquivado
-                            </Badge>
-                          )}
-                          {isPronto && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-emerald-600 hover:bg-emerald-600 text-white" title="Pronto para enviar">
-                              Pronto
-                            </Badge>
-                          )}
-                          {hasProvasDigitais && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-blue-600 hover:bg-blue-600 text-white" title="Possui provas digitais">
-                              Provas Digitais
-                            </Badge>
-                          )}
-                          {isTransito && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-orange-500 hover:bg-orange-500 text-white" title="Trânsito em Julgado">
-                              Trans. Julgado
-                            </Badge>
-                          )}
-                          {isSubidaMassa && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-purple-600 hover:bg-purple-600 text-white" title="Relator marcado como Subida em Massa">
-                              Subida em Massa
-                            </Badge>
-                          )}
-                          {isOutroEscritorio && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-violet-600 hover:bg-violet-600 text-white" title="Processo de outro escritório">
-                              Outro escritório
-                            </Badge>
-                          )}
-                          {isSegredo && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-rose-600 hover:bg-rose-600 text-white" title="Segredo de Justiça">
-                              Segredo de Justiça
-                            </Badge>
-                          )}
-                          {isProblemaJudit && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-amber-500 hover:bg-amber-500 text-white" title="Problema Judit">
-                              Problema Judit
-                            </Badge>
-                          )}
-                          {isRecursoTerceiro && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-indigo-600 hover:bg-indigo-600 text-white" title="Recurso de terceiro">
-                              Recurso de terceiro
-                            </Badge>
-                          )}
-                          {isCejusc && (
-                            <Badge className="text-[10px] px-1 py-0 h-4 bg-teal-600 hover:bg-teal-600 text-white" title="CEJUSC">
-                              CEJUSC
-                            </Badge>
-                          )}
                         </div>
                         </div>
                       );
