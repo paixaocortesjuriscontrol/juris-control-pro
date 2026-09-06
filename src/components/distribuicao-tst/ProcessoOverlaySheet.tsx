@@ -49,6 +49,40 @@ function txt(v: any): string {
   return s;
 }
 
+/** Booleano do banco → "Sim"/"Não"/"—" (leitura). */
+function sn(v: any): string {
+  if (v === null || v === undefined) return "—";
+  return v ? "Sim" : "Não";
+}
+
+/** Renderiza a lista JSONB "Análise por matéria" (Reclamante/Banco) em leitura. */
+function MateriasAnalise({ titulo, lista }: { titulo: string; lista: any }) {
+  const itens: any[] = Array.isArray(lista) ? lista : [];
+  if (!itens.length) return null;
+  return (
+    <div className="mt-2 rounded-md border bg-muted/30 p-2.5">
+      <div className="mb-1.5 text-xs font-semibold text-foreground">{titulo}</div>
+      <ul className="space-y-1.5">
+        {itens.map((m, i) => {
+          const nome = m?.materia || m?.nome || m?.descricao || m?.tema || `Matéria ${i + 1}`;
+          const detalhes = [
+            m?.aparelhamento ? `Aparelhamento: ${m.aparelhamento}` : null,
+            m?.chance_exito || m?.chanceExito ? `Chance: ${m.chance_exito || m.chanceExito}` : null,
+            m?.relator ? `Relator: ${m.relator}` : null,
+            m?.turma ? `Turma: ${m.turma}` : null,
+          ].filter(Boolean).join(" · ");
+          return (
+            <li key={i} className="text-xs text-foreground">
+              <span className="font-medium">{nome}</span>
+              {detalhes && <span className="text-muted-foreground"> — {detalhes}</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 /** Classifica a movimentação para o advogado enxergar o que importa. */
 type Categoria = {
   key: string;
