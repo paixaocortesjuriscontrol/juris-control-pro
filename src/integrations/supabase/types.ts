@@ -10548,6 +10548,7 @@ export type Database = {
           benner_nao: number
           benner_sim: number
           com_equipe: number
+          com_materia_dossie: number
           de_2026: number
           dossies_invalidos: number
           dossies_nao_preenchidos: number
@@ -10566,6 +10567,7 @@ export type Database = {
           pronto_envio: number
           pronto_envio_puro: number
           sem_equipe: number
+          sem_materia_dossie: number
           sem_responsavel: number
           sem_turma: number
           total: number
