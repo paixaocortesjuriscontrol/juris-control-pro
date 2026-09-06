@@ -24,6 +24,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
+import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
+import { normalizeMateriaNome } from "@/utils/outraMateria";
+import { cn } from "@/lib/utils";
 
 
 /* ─────────────── helpers ─────────────── */
