@@ -48,6 +48,10 @@ function txt(v: any): string {
   if (!s || /^n[ãa]o informado$/i.test(s)) return "—";
   return s;
 }
+function simNao(v: any): string {
+  if (v === null || v === undefined) return "—";
+  return v ? "Sim" : "Não";
+}
 
 /** Classifica a movimentação para o advogado enxergar o que importa. */
 type Categoria = {
