@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
@@ -2994,12 +2994,10 @@ export default function DistribuicaoTst() {
                   />
                 </TableHead>
                 {([
-                  { key: "data_distribuicao_planilha" as const, label: "Data Plan." },
                   { key: "data_distribuicao_real" as const, label: "Data Distribuição" },
                   { key: "processo_numero" as const, label: "Processo" },
                   { key: "dossie" as const, label: "Dossiê" },
                   { key: "responsaveis" as const, label: "Responsáveis" },
-                  { key: "benner_atualizado" as const, label: "Benner" },
                 ]).map((h) => (
                   <TableHead key={h.key}>
                     <button
@@ -3028,9 +3026,10 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 7 : 6) + (mostrarPendencias ? 1 : 0)} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+
               ) : dados.length === 0 ? (
-                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
+                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 7 : 6) + (mostrarPendencias ? 1 : 0)} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dadosOrdenados.map(d => {
                 const isPresidencia = (d.turma || "").toLowerCase().includes("presid");
                 const relatorClass = isPresidencia
@@ -3124,7 +3123,6 @@ export default function DistribuicaoTst() {
                       })()}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_planilha || d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
                   <TableCell className="text-xs align-middle">
                     {(() => {
@@ -3327,13 +3325,6 @@ export default function DistribuicaoTst() {
                         ))}
                       </div>
                     ) : "—"}
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    {d.benner_atualizado ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    ) : (
-                      <XCircle className="w-4 h-4 text-muted-foreground/40" />
-                    )}
                   </TableCell>
                   {mostrarPendencias && (() => {
                     const pend = getPendencias(d);
