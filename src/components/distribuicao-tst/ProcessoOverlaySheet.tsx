@@ -327,7 +327,15 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
       return data as any;
     },
   });
-  const ficha: any = rowCompleto || registro || {};
+  // Junta as colunas cruas de dados_benner com os campos mapeados do
+  // formulário (relator_favorabilidade, parte_recorrente, etc.), senão vários
+  // campos apareciam como "—" mesmo preenchidos na ficha.
+  const ficha: any = useMemo(() => {
+    const base = rowCompleto || null;
+    if (base) return { ...base, ...(bennerToDistribuicao(base) as any) };
+    return registro || {};
+  }, [rowCompleto, registro]);
+
 
   const lawsuits = useMemo(() => coletarLawsuits(log?.raw_response), [log]);
   const principal: Lawsuit = useMemo(() => {
