@@ -797,7 +797,8 @@ export default function DistribuicaoTst() {
     if (filtroSituacaoProcesso === "transito") keys.push("transitoJulgado");
     if (filtroSituacaoProcesso === "a_fazer") keys.push("aFazer");
     if (filtroSituacaoProcesso === "nao_precisa_fazer") keys.push("naoPrecisaFazer");
-    if (filtroSemTurma) keys.push("semTurma");
+    if (filtroPedidosDossie === "com") keys.push("comMateria");
+    if (filtroPedidosDossie === "sem") keys.push("semMateria");
     if (filtroProblemaJudit === "sim") keys.push("problemaJudit");
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") keys.push("ate2025");
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") keys.push("de2026");
@@ -834,6 +835,7 @@ export default function DistribuicaoTst() {
       setFiltroBenner("todos");
       setFiltroSituacaoProcesso("todos");
       setFiltroSemTurma(false);
+      setFiltroPedidosDossie("todos");
       setFiltroProblemaJudit("todos");
       setFiltroEquipe("todos");
       setFiltroMultiResp(false);
@@ -863,7 +865,8 @@ export default function DistribuicaoTst() {
       case "transitoJulgado": setFiltroSituacaoProcesso(off ? "todos" : "transito"); break;
       case "aFazer": setFiltroSituacaoProcesso(off ? "todos" : "a_fazer"); break;
       case "naoPrecisaFazer": setFiltroSituacaoProcesso(off ? "todos" : "nao_precisa_fazer"); break;
-      case "semTurma": setFiltroSemTurma(!off); break;
+      case "comMateria": setFiltroPedidosDossie(off ? "todos" : "com"); break;
+      case "semMateria": setFiltroPedidosDossie(off ? "todos" : "sem"); break;
       case "problemaJudit": setFiltroProblemaJudit(off ? "todos" : "sim"); break;
       case "ate2025":
         setFiltroMesAno("todos");
