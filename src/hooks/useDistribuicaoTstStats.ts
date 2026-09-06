@@ -222,6 +222,8 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         transitoJulgado: Number(row.transito_julgado) || 0,
         outrosSituacao: Number(row.outros_situacao) || 0,
         semTurma: Number(row.sem_turma) || 0,
+        comMateriaDossie: Number(row.com_materia_dossie) || 0,
+        semMateriaDossie: Number(row.sem_materia_dossie) || 0,
         problemaJudit: Number(row.problema_judit) || 0,
         ate2025: Number(row.ate_2025) || 0,
         de2026: Number(row.de_2026) || 0,
