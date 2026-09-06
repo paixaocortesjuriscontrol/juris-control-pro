@@ -3449,6 +3449,18 @@ export default function DistribuicaoTst() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProcessoOverlaySheet
+        open={!!overlayRegistro}
+        onOpenChange={(o) => { if (!o) setOverlayRegistro(null); }}
+        registro={overlayRegistro}
+        responsaveis={overlayRegistro ? (responsaveisMap.get(overlayRegistro.id) || []) : []}
+        onAbrirFicha={() => {
+          const reg = overlayRegistro;
+          setOverlayRegistro(null);
+          if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
+        }}
+      />
     </MainLayout>
   );
 }
