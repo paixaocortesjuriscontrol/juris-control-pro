@@ -36,6 +36,8 @@ interface Props {
   stats: DistribuicaoTstStats;
   loading: boolean;
   activeKey?: StatsCardKey | null;
+  /** Vários cards podem estar ativos ao mesmo tempo (filtros combinados). */
+  activeKeys?: StatsCardKey[] | null;
   onCardClick?: (key: StatsCardKey) => void;
   /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
   responsavelCard?: { atribuidos: number; prontos: number; nome?: string } | null;
