@@ -65,7 +65,10 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+  const isKeyActive = (k: StatsCardKey) =>
+    activeKeys ? activeKeys.includes(k) : activeKey === k;
+
 
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
