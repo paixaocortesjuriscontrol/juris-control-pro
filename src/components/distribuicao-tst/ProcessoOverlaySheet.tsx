@@ -23,6 +23,8 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
+
 
 /* ─────────────── helpers ─────────────── */
 
