@@ -23,6 +23,8 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
+
 
 /* ─────────────── helpers ─────────────── */
 
@@ -44,10 +46,18 @@ function fmtMoeda(v: any): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 function txt(v: any): string {
+  if (Array.isArray(v)) {
+    const itens = v
+      .map((i) => (i && typeof i === "object" ? i.materia || i.nome || i.descricao || i.tema || "" : String(i ?? "")))
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+    return itens.length ? itens.join(", ") : "—";
+  }
   const s = v === null || v === undefined ? "" : String(v).trim();
   if (!s || /^n[ãa]o informado$/i.test(s)) return "—";
   return s;
 }
+
 
 /** Booleano do banco → "Sim"/"Não"/"—" (leitura). */
 function sn(v: any): string {
@@ -319,7 +329,15 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
       return data as any;
     },
   });
-  const ficha: any = rowCompleto || registro || {};
+  // Junta as colunas cruas de dados_benner com os campos mapeados do
+  // formulário (relator_favorabilidade, parte_recorrente, etc.), senão vários
+  // campos apareciam como "—" mesmo preenchidos na ficha.
+  const ficha: any = useMemo(() => {
+    const base = rowCompleto || null;
+    if (base) return { ...base, ...(bennerToDistribuicao(base) as any) };
+    return registro || {};
+  }, [rowCompleto, registro]);
+
 
   const lawsuits = useMemo(() => coletarLawsuits(log?.raw_response), [log]);
   const principal: Lawsuit = useMemo(() => {
@@ -749,6 +767,8 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 <Campo rotulo="Tipo de Recurso do Reclamante (C)" valor={txt(ficha.tipo_recurso_reclamante)} />
                 <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_reclamante)} />
+                <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_reclamante)} />
+                <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_reclamante)} />
                 <Campo rotulo="Matérias Recurso Reclamante" valor={txt(ficha.materias_recurso_reclamante)} className="col-span-2" />
               </div>
               <MateriasAnalise titulo="Análise por matéria (Reclamante)" lista={ficha.materias_analise_reclamante} />
@@ -758,10 +778,13 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 <Campo rotulo="Tipo de Recurso do Banco (C)" valor={txt(ficha.tipo_recurso_banco)} />
                 <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_banco)} />
+                <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_banco)} />
+                <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_banco)} />
                 <Campo rotulo="Matérias Recurso do Banco" valor={txt(ficha.materias_recurso_banco)} className="col-span-2" />
               </div>
               <MateriasAnalise titulo="Análise por matéria (Banco)" lista={ficha.materias_analise_banco} />
             </Bloco>
+
 
             <Bloco titulo="Recurso de terceiro">
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
