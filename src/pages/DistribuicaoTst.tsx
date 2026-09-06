@@ -3127,7 +3127,7 @@ export default function DistribuicaoTst() {
                 <Fragment key={d.id}>
                 <TableRow
                   className={cn(
-                    "cursor-pointer hover:bg-muted/50 align-middle",
+                    "cursor-pointer hover:bg-muted/50 align-middle [&>td]:py-1 [&>td]:align-middle",
                     (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
                   )}
                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
@@ -3300,12 +3300,13 @@ export default function DistribuicaoTst() {
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-6 w-6"
                           onClick={() => handleToggleSubidaMassaRow(d.id, !isSubidaMassa, d.processo_numero)}
                           title={isSubidaMassa ? "Desmarcar Subida em Massa" : "Marcar Subida em Massa"}
                         >
                           <Layers className={`w-4 h-4 ${isSubidaMassa ? "text-purple-600" : "text-muted-foreground/60"}`} />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(d.id)} title="Arquivar (não exclui)">
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleDelete(d.id)} title="Arquivar (não exclui)">
                           <Trash2 className="w-4 h-4 text-amber-600" />
                         </Button>
                       </div>
