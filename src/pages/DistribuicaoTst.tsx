@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, XCircle, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
@@ -3026,7 +3026,8 @@ export default function DistribuicaoTst() {
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 7 : 6) + (mostrarPendencias ? 1 : 0)} className="text-center py-8"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+
               ) : dados.length === 0 ? (
                 <TableRow><TableCell colSpan={(isAdminOrCoordinator ? 9 : 8) + (mostrarPendencias ? 1 : 0)} className="text-center py-8 text-muted-foreground">Nenhuma distribuição encontrada</TableCell></TableRow>
               ) : dadosOrdenados.map(d => {
