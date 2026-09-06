@@ -1,5 +1,5 @@
 import { PedidosPorDossieDialog } from "@/components/distribuicao-tst/PedidosPorDossieDialog";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3201,14 +3201,6 @@ export default function DistribuicaoTst() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="mt-1">
-                              <ProcessoTagPicker
-                                dadoId={d.id}
-                                tagIds={tagsMap?.get(d.id) || []}
-                                compact
-                                readOnly={!isAdminOrCoordinator}
-                              />
-                            </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
@@ -3278,14 +3270,6 @@ export default function DistribuicaoTst() {
                               CEJUSC
                             </Badge>
                           )}
-                        </div>
-                        <div className="mt-1">
-                          <ProcessoTagPicker
-                            dadoId={d.id}
-                            tagIds={tagsMap?.get(d.id) || []}
-                            compact
-                            readOnly={!isAdminOrCoordinator}
-                          />
                         </div>
                         </div>
                       );
