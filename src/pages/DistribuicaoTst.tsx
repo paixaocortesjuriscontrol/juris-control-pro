@@ -1997,6 +1997,7 @@ export default function DistribuicaoTst() {
             stats={statsWithGeral}
             loading={statsLoading}
             activeKey={activeCardKey}
+            activeKeys={activeCardKeys}
             onCardClick={handleCardClick}
             prontoSemPendencia={{
               count: prontoSemPendenciaCount,
