@@ -23,8 +23,6 @@ import {
   Copy,
 } from "lucide-react";
 import { toast } from "sonner";
-import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
-import { atualizarSemPendenciaRegistro } from "@/utils/distribuicaoTstSemPendencia";
 
 /* ─────────────── helpers ─────────────── */
 
@@ -245,11 +243,9 @@ interface Props {
   responsaveis?: { nome: string }[];
   tagsSlot?: React.ReactNode;
   onAbrirFicha?: () => void;
-  /** Salvar da aba "Distribuição TST" (mesmo handler da ficha de edição da página). */
-  onSaveDistribuicao?: (dado: any, id?: string) => Promise<boolean | string>;
 }
 
-export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsaveis = [], tagsSlot, onAbrirFicha, onSaveDistribuicao }: Props) {
+export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsaveis = [], tagsSlot, onAbrirFicha }: Props) {
   const [aba, setAba] = useState("resumo");
   const [buscaMov, setBuscaMov] = useState("");
   const [somenteRelevantes, setSomenteRelevantes] = useState(false);
