@@ -87,6 +87,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     "cejusc",
 
     "turma",
+    "tem_materias_dossie",
     "problema_judit",
     "data_distribuicao_real",
     "data_distribuicao_planilha",
@@ -132,6 +133,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     if (row.transito_julgado === true) stats.transitoJulgado += 1;
     if (row.transito_julgado !== true && situacao !== "ativo") stats.outrosSituacao += 1;
     if (!String(row.turma || "").trim()) stats.semTurma += 1;
+    if (dossie && row.tem_materias_dossie === true) stats.comMateriaDossie += 1;
+    else stats.semMateriaDossie += 1;
     if (row.problema_judit === true) stats.problemaJudit += 1;
     if (dataEfetiva && dataEfetiva <= "2025-12-31") stats.ate2025 += 1;
     if (dataEfetiva && dataEfetiva >= "2026-01-01") stats.de2026 += 1;
