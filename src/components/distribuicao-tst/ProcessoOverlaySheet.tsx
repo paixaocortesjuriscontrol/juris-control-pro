@@ -48,6 +48,10 @@ function txt(v: any): string {
   if (!s || /^n[ãa]o informado$/i.test(s)) return "—";
   return s;
 }
+function simNao(v: any): string {
+  if (v === null || v === undefined) return "—";
+  return v ? "Sim" : "Não";
+}
 
 /** Classifica a movimentação para o advogado enxergar o que importa. */
 type Categoria = {
@@ -314,6 +318,7 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               Movimentações {movimentos.length > 0 && <span className="ml-1 text-muted-foreground">({movimentos.length})</span>}
             </TabsTrigger>
             <TabsTrigger value="judit" className="h-6 px-3 text-xs">Dados da Judit</TabsTrigger>
+            <TabsTrigger value="ficha" className="h-6 px-3 text-xs">Ficha completa</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-1.5">
             {processoNumero && (
@@ -656,6 +661,184 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
                   </Bloco>
                 )}
               </>
+            )}
+          </TabsContent>
+
+          {/* ─── Ficha completa (formulário Distribuição TST) ─── */}
+          <TabsContent value="ficha" className="mt-0 space-y-3">
+            <Bloco titulo="Identificação" icone={FileText}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Processo" valor={<span className="font-mono text-xs">{txt(registro.processo)}</span>} />
+                <Campo rotulo="Dossiê" valor={txt(registro.dossie)} />
+                <Campo rotulo="Tribunal" valor={txt(registro.tribunal)} />
+                <Campo rotulo="Turma" valor={txt(registro.turma)} />
+                <Campo rotulo="Relator" valor={txt(registro.relator)} />
+                <Campo rotulo="Situação do processo" valor={txt(registro.situacao_processo)} />
+                <Campo rotulo="Status" valor={txt(String(registro.status || "").replace(/_/g, " "))} />
+                <Campo rotulo="Aba de origem" valor={txt(registro.aba_origem)} />
+                <Campo rotulo="Equipe" valor={txt(registro.equipe)} />
+                <Campo rotulo="Centralizador" valor={txt(registro.centralizador)} />
+                <Campo rotulo="Comarca" valor={txt(registro.comarca)} />
+                <Campo rotulo="Juízo" valor={txt(registro.juizo)} />
+                <Campo rotulo="UF" valor={txt(registro.uf)} />
+                <Campo rotulo="Assunto" valor={txt(registro.assunto)} />
+                <Campo rotulo="Categoria" valor={txt(registro.categoria)} />
+                <Campo rotulo="Subcategoria" valor={txt(registro.subcategoria)} />
+                <Campo rotulo="Objeto padrão" valor={txt(registro.objeto_padrao)} />
+                <Campo rotulo="Tema" valor={txt(registro.tema)} />
+                {Array.isArray(registro.fontes_importacao) && registro.fontes_importacao.length > 0 && (
+                  <Campo rotulo="Fontes de importação" valor={registro.fontes_importacao.join(", ")} className="col-span-2 sm:col-span-3" />
+                )}
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Partes" icone={Users}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                <Campo rotulo="Reclamante" valor={txt(registro.reclamante)} />
+                <Campo rotulo="Reclamada" valor={txt(registro.reclamada)} />
+                <Campo rotulo="Recorrente" valor={txt(registro.recorrente || registro.parte_recorrente)} />
+                <Campo rotulo="Origem da parte recorrente" valor={txt(registro.parte_recorrente_origem)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Distribuição e entrega" icone={CalendarDays}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Distribuição (planilha)" valor={fmtData(registro.data_distribuicao_planilha)} />
+                <Campo rotulo="Distribuição (real)" valor={fmtData(registro.data_distribuicao_real)} />
+                <Campo rotulo="Distribuição" valor={fmtData(registro.data_distribuicao)} />
+                <Campo rotulo="Prazo de entrega" valor={fmtData(registro.prazo_entrega)} />
+                <Campo rotulo="Status da distribuição" valor={txt(registro.status_distribuicao)} />
+                <Campo rotulo="Distribuído em" valor={fmtDataHora(registro.distribuido_em)} />
+                <Campo rotulo="Entregue em" valor={fmtDataHora(registro.entregue_em)} />
+                <Campo rotulo="Pronto em" valor={fmtDataHora(registro.pronto_em)} />
+                <Campo rotulo="Analisado em" valor={fmtDataHora(registro.analisado_em)} />
+                {registro.observacao_distribuicao && (
+                  <Campo rotulo="Observação da distribuição" valor={txt(registro.observacao_distribuicao)} className="col-span-2 sm:col-span-3" />
+                )}
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Julgamento" icone={Gavel}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Tem data de julgamento" valor={txt(registro.tem_data_julgamento)} />
+                <Campo rotulo="Data do julgamento" valor={fmtData(registro.data_julgamento)} />
+                <Campo rotulo="Horário" valor={txt(registro.horario_julgamento)} />
+                <Campo rotulo="Tipo de julgamento" valor={txt(registro.tipo_julgamento)} />
+                <Campo rotulo="Matéria de honra" valor={txt(registro.materia_honra)} />
+                <Campo rotulo="Honra" valor={txt(registro.honra)} />
+                <Campo rotulo="Entrega de memoriais" valor={txt(registro.entrega_memoriais)} />
+                <Campo rotulo="Sustentação oral" valor={txt(registro.sustentacao_oral)} />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Resultado" icone={CheckCircle2}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Sem transcendência" valor={simNao(registro.resultado_sem_transcendencia)} />
+                <Campo rotulo="Não conhecido" valor={simNao(registro.resultado_nao_conhecido)} />
+                <Campo rotulo="Conhecido e provido" valor={simNao(registro.resultado_conhecido_provido)} />
+                <Campo rotulo="Conhecido e não provido" valor={simNao(registro.resultado_conhecido_nao_provido)} />
+                <Campo rotulo="Ganhamos" valor={simNao(registro.ganhamos)} />
+                <Campo rotulo="Perdemos" valor={simNao(registro.perdemos)} />
+                <Campo rotulo="Processo baixado" valor={txt(registro.processo_baixado)} />
+                <Campo rotulo="Trânsito em julgado" valor={simNao(registro.transito_julgado)} />
+                <Campo rotulo="Data do trânsito" valor={fmtData(registro.data_transito_julgado)} />
+                {registro.resultado_outra && (
+                  <Campo rotulo="Outro resultado" valor={txt(registro.resultado_outra)} className="col-span-2 sm:col-span-3" />
+                )}
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Recursos" icone={Scale}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Tipo de recurso" valor={txt(registro.tipo_recurso)} />
+                <Campo rotulo="Tipo automático (IA)" valor={simNao(registro.tipo_recurso_auto)} />
+                <Campo rotulo="Chance de êxito" valor={txt(registro.chance_exito)} />
+                <Campo rotulo="Bem aparelhado" valor={simNao(registro.recurso_bem_aparelhado)} />
+                <Campo rotulo="Mal aparelhado" valor={simNao(registro.recurso_mal_aparelhado)} />
+                <Campo rotulo="Recurso de terceiros" valor={txt(registro.recurso_terceiros || registro.recurso_terceiro)} />
+                <Campo rotulo="Turma favorável" valor={simNao(registro.posicao_turma_favoravel)} />
+                <Campo rotulo="Turma desfavorável" valor={simNao(registro.posicao_turma_desfavoravel)} />
+                <Campo rotulo="Relator favorável" valor={simNao(registro.posicao_relator_favoravel)} />
+                <Campo rotulo="Relator desfavorável" valor={simNao(registro.posicao_relator_desfavoravel)} />
+              </div>
+              <div className="mt-2 space-y-2">
+                <BlocoRecurso
+                  titulo="Reclamante"
+                  tipo={registro.tipo_recurso_reclamante}
+                  materias={registro.materias_recurso_reclamante}
+                  aparelhamento={registro.aparelhamento_reclamante}
+                  chance={registro.chance_exito_reclamante}
+                />
+                <BlocoRecurso
+                  titulo="Banco / Reclamada"
+                  tipo={registro.tipo_recurso_banco}
+                  materias={registro.materias_recurso_banco}
+                  aparelhamento={registro.aparelhamento_banco}
+                  chance={registro.chance_exito_banco}
+                />
+                <BlocoRecurso
+                  titulo="Terceiro"
+                  tipo={registro.tipo_recurso_terceiro}
+                  materias={registro.materias_recurso_terceiro}
+                  aparelhamento={registro.aparelhamento_terceiro}
+                  chance={registro.chance_exito_terceiro}
+                />
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Análise e risco" icone={AlertTriangle}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Análise quarteirizado" valor={txt(registro.analise_quarteirizado)} />
+                <Campo rotulo="Decisão quarteirizado" valor={txt(registro.decisao_quarteirizado)} />
+                <Campo rotulo="Risco de mídia" valor={txt(registro.risco_midia)} />
+                <Campo rotulo="Nível de risco" valor={txt(registro.risco_nivel)} />
+                <Campo rotulo="Mídia negativa" valor={txt(registro.midia_negativa)} />
+                <Campo rotulo="Provas digitais" valor={txt(registro.provas_digitais)} />
+                <Campo rotulo="Execução" valor={txt(registro.execucao)} />
+                {registro.risco_descricao && (
+                  <Campo rotulo="Descrição do risco" valor={txt(registro.risco_descricao)} className="col-span-2 sm:col-span-3" />
+                )}
+                {registro.materias_analise_reclamante && (
+                  <Campo rotulo="Matérias em análise (reclamante)" valor={txt(registro.materias_analise_reclamante)} className="col-span-2 sm:col-span-3" />
+                )}
+                {registro.materias_analise_banco && (
+                  <Campo rotulo="Matérias em análise (banco)" valor={txt(registro.materias_analise_banco)} className="col-span-2 sm:col-span-3" />
+                )}
+              </div>
+            </Bloco>
+
+            <Bloco titulo="Marcadores e controle" icone={Landmark}>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
+                <Campo rotulo="Em análise" valor={simNao(registro.em_analise)} />
+                <Campo rotulo="Analisado" valor={simNao(registro.analisado)} />
+                <Campo rotulo="CEJUSC" valor={simNao(registro.cejusc)} />
+                <Campo rotulo="Acordo" valor={simNao(registro.acordo)} />
+                <Campo rotulo="Segredo de justiça" valor={simNao(registro.segredo_justica)} />
+                <Campo rotulo="Outro escritório" valor={simNao(registro.processo_outro_escritorio)} />
+                <Campo rotulo="Subida em massa" valor={simNao(registro.subida_em_massa)} />
+                <Campo rotulo="Benner atualizado" valor={simNao(registro.benner_atualizado)} />
+                <Campo rotulo="Duplicado" valor={simNao(registro.ic_duplicado)} />
+                <Campo rotulo="Tem matérias por dossiê" valor={simNao(registro.tem_materias_dossie)} />
+                <Campo rotulo="Sem pendência" valor={simNao(registro.sem_pendencia)} />
+                <Campo rotulo="Revisar lista de matérias" valor={simNao(registro.revisar_lista_materias)} />
+                <Campo rotulo="Pendências verificadas em" valor={fmtDataHora(registro.pendencias_verificado_em)} />
+                <Campo rotulo="Judit preenchido" valor={simNao(registro.judit_preenchido)} />
+                <Campo rotulo="Judit preenchido em" valor={fmtDataHora(registro.judit_preenchido_em)} />
+                <Campo rotulo="Problema Judit" valor={simNao(registro.problema_judit)} />
+                <Campo rotulo="Erro Judit" valor={simNao(registro.erro_judit)} />
+                <Campo rotulo="Cadastrado em" valor={fmtDataHora(registro.created_at)} />
+                <Campo rotulo="Atualizado em" valor={fmtDataHora(registro.updated_at)} />
+              </div>
+            </Bloco>
+
+            {(registro.observacoes || registro.observacao_advogado || registro.notas) && (
+              <Bloco titulo="Observações" icone={FileText}>
+                <div className="space-y-2">
+                  {registro.observacoes && <Campo rotulo="Observações" valor={txt(registro.observacoes)} />}
+                  {registro.observacao_advogado && <Campo rotulo="Observação do advogado" valor={txt(registro.observacao_advogado)} />}
+                  {registro.notas && <Campo rotulo="Notas" valor={txt(registro.notas)} />}
+                </div>
+              </Bloco>
             )}
           </TabsContent>
         </div>
