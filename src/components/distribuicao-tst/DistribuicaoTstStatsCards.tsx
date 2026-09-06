@@ -36,6 +36,8 @@ interface Props {
   stats: DistribuicaoTstStats;
   loading: boolean;
   activeKey?: StatsCardKey | null;
+  /** Vários cards podem estar ativos ao mesmo tempo (filtros combinados). */
+  activeKeys?: StatsCardKey[] | null;
   onCardClick?: (key: StatsCardKey) => void;
   /** Totais do responsável logado, exibido logo após o card "Total de Processos". */
   responsavelCard?: { atribuidos: number; prontos: number; nome?: string } | null;
@@ -63,7 +65,10 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+  const isKeyActive = (k: StatsCardKey) =>
+    activeKeys ? activeKeys.includes(k) : activeKey === k;
+
 
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
@@ -132,7 +137,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-1.5 md:gap-2">
       {cards.map((c) => {
-        const isActive = activeKey === c.key;
+        const isActive = isKeyActive(c.key);
         const clickable = !!onCardClick;
         // Helper: render a "Sim / Não" combined card with two clickable values
         const renderCombined = (opts: {
@@ -148,8 +153,8 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
           rightLabel: string;
           rightColor: string;
         }) => {
-          const lActive = activeKey === opts.leftKey;
-          const rActive = activeKey === opts.rightKey;
+          const lActive = isKeyActive(opts.leftKey);
+          const rActive = isKeyActive(opts.rightKey);
           return (
             <Card
               key={opts.keyId}
@@ -224,8 +229,8 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, onCardCli
           });
         }
         if (c.key === "bennerSim") {
-          const simActive = activeKey === "bennerSim";
-          const naoActive = activeKey === "bennerNao";
+          const simActive = isKeyActive("bennerSim");
+          const naoActive = isKeyActive("bennerNao");
           return (
             <Card
               key="bennerCombined"

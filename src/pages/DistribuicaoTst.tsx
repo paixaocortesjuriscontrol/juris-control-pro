@@ -781,118 +781,127 @@ export default function DistribuicaoTst() {
     setSelectedIds(new Set());
   };
 
-  // Estado do card ativo (sincroniza visual + aplica filtros). Derivado dos selects.
-  const activeCardKey = (() => {
-    if (filtroRevisarListaMaterias || semMateriaDossieIds) return "revisarListaMaterias" as const;
-    if (filtroMultiResp) return "multiResp" as const;
-    if (filtroComPendencia) return "prontoComPendencia" as const;
-    if (filtroSemPendencia) return "prontoSemPendencia" as const;
-
-    if (filtroProcessoStatus === "valido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosValidos" as const;
-    if (filtroProcessoStatus === "invalido" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosInvalidos" as const;
-    if (filtroDossieStatus === "valido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesValidos" as const;
-    if (filtroDossieStatus === "invalido_ou_nao_preenchido" && filtroProcessoStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "dossiesInvalidos" as const;
-    if (filtroJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditPreenchido" as const;
-    if (filtroJudit === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroBenner === "todos") return "juditNaoPreenchido" as const;
-    if (filtroBenner === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerSim" as const;
-    if (filtroBenner === "nao" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos") return "bennerNao" as const;
-    if (filtroSituacaoProcesso === "ativo" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "processosAtivos" as const;
-    if (filtroSituacaoProcesso === "transito" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "transitoJulgado" as const;
-    if (filtroSituacaoProcesso === "a_fazer" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "aFazer" as const;
-    if (filtroSituacaoProcesso === "nao_precisa_fazer" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos") return "naoPrecisaFazer" as const;
-    if (filtroSemTurma && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos") return "semTurma" as const;
-    if (filtroProblemaJudit === "sim" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma) return "problemaJudit" as const;
-    if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") return "ate2025" as const;
-    if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") return "de2026" as const;
-    if (filtroStatus === "concluidos" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroSituacaoProcesso === "todos" && !filtroSemTurma && filtroProblemaJudit !== "sim") return "prontoEnvio" as const;
-    if (filtroEquipe === "sim") return "comEquipe" as const;
-    if (filtroEquipe === "nao") return "semEquipe" as const;
-    if (filtroSituacaoProcesso === "todos" && filtroProcessoStatus === "todos" && filtroDossieStatus === "todos" && filtroJudit === "todos" && filtroBenner === "todos" && filtroStatus === "todos" && !filtroSemTurma && filtroProblemaJudit === "todos" && filtroEquipe === "todos" && !filtroDataInicio && !filtroDataFim) return "total" as const;
-    return null;
+  // Cards ativos (podem ser vários ao mesmo tempo). Derivados dos filtros.
+  type CardKey = import("@/components/distribuicao-tst/DistribuicaoTstStatsCards").StatsCardKey;
+  const activeCardKeys = (() => {
+    const keys: CardKey[] = [];
+    if (filtroProcessoStatus === "valido") keys.push("processosValidos");
+    if (filtroProcessoStatus === "invalido") keys.push("processosInvalidos");
+    if (filtroDossieStatus === "valido") keys.push("dossiesValidos");
+    if (filtroDossieStatus === "invalido_ou_nao_preenchido") keys.push("dossiesInvalidos");
+    if (filtroJudit === "sim") keys.push("juditPreenchido");
+    if (filtroJudit === "nao") keys.push("juditNaoPreenchido");
+    if (filtroBenner === "sim") keys.push("bennerSim");
+    if (filtroBenner === "nao") keys.push("bennerNao");
+    if (filtroSituacaoProcesso === "ativo") keys.push("processosAtivos");
+    if (filtroSituacaoProcesso === "transito") keys.push("transitoJulgado");
+    if (filtroSituacaoProcesso === "a_fazer") keys.push("aFazer");
+    if (filtroSituacaoProcesso === "nao_precisa_fazer") keys.push("naoPrecisaFazer");
+    if (filtroSemTurma) keys.push("semTurma");
+    if (filtroProblemaJudit === "sim") keys.push("problemaJudit");
+    if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") keys.push("ate2025");
+    if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") keys.push("de2026");
+    if (filtroEquipe === "sim") keys.push("comEquipe");
+    if (filtroEquipe === "nao") keys.push("semEquipe");
+    if (filtroMultiResp) keys.push("multiResp");
+    if (filtroResponsavelIds.includes("__sem_responsavel__")) keys.push("semResponsavel");
+    if (filtroRevisarListaMaterias || semMateriaDossieIds) keys.push("revisarListaMaterias");
+    if (filtroComPendencia) keys.push("prontoComPendencia");
+    if (filtroSemPendencia) keys.push("prontoSemPendencia");
+    if (
+      filtroStatus === "concluidos" &&
+      !filtroSemPendencia &&
+      !filtroComPendencia &&
+      !filtroRevisarListaMaterias
+    ) keys.push("prontoEnvio");
+    if (keys.length === 0 && filtroStatus === "todos") keys.push("total");
+    return keys;
   })();
 
-  const handleCardClick = (key: import("@/components/distribuicao-tst/DistribuicaoTstStatsCards").StatsCardKey) => {
-    // Se já está ativo, limpa filtros desses 4 selects (volta a "Total" do escopo atual)
-    const isActive = activeCardKey === key;
-    // Reseta os 4 selects de classificação
-    setFiltroProcessoStatus("todos");
-    setFiltroDossieStatus("todos");
-    setFiltroJudit("todos");
-    setFiltroBenner("todos");
-    setFiltroSituacaoProcesso("todos");
-    setFiltroSemTurma(false);
-    setFiltroProblemaJudit("todos");
-    setFiltroEquipe("todos");
-    // Reseta o filtro "Mais de um responsável" ao alternar cards (re-aplica se for o próprio)
-    setFiltroMultiResp(false);
-    // Reseta filtro de status (Pronto para Enviar) ao alternar cards
-    if (key === "prontoEnvio" || isActive) setFiltroStatus("todos");
-    // "Pronto sem/com pendência" reaproveitam o filtro de status = concluidos.
-    if (key === "prontoSemPendencia" || key === "prontoComPendencia") setFiltroStatus("todos");
-    // Sempre desliga os filtros de pendência ao alternar/limpar cards;
-    // serão religados no switch abaixo se este for o card ativado.
-    setFiltroSemPendencia(false);
-    setFiltroComPendencia(false);
-    setSemMateriaDossieIds(null);
-    setFiltroRevisarListaMaterias(false);
+  const activeCardKey = activeCardKeys[0] ?? null;
 
-    // Reseta filtro "sem responsável" ao alternar cards
-    if (key === "semResponsavel" || isActive) setFiltroResponsavelIds([]);
+  // Clique em card: liga/desliga APENAS o filtro daquele card, mantendo os
+  // demais cards já clicados (filtros combinados).
+  const handleCardClick = (key: CardKey) => {
+    const isActive = activeCardKeys.includes(key);
     setSelectedIds(new Set());
-    // Reseta filtros de data ao alternar cards
-    if (key === "ate2025" || key === "de2026" || isActive) {
+
+    if (key === "total") {
+      // "Total Geral" limpa todos os filtros vindos de cards.
+      setFiltroProcessoStatus("todos");
+      setFiltroDossieStatus("todos");
+      setFiltroJudit("todos");
+      setFiltroBenner("todos");
+      setFiltroSituacaoProcesso("todos");
+      setFiltroSemTurma(false);
+      setFiltroProblemaJudit("todos");
+      setFiltroEquipe("todos");
+      setFiltroMultiResp(false);
+      setFiltroStatus("todos");
+      setFiltroSemPendencia(false);
+      setFiltroComPendencia(false);
+      setSemMateriaDossieIds(null);
+      setFiltroRevisarListaMaterias(false);
+      setFiltroResponsavelIds([]);
       setFiltroDataInicio("");
       setFiltroDataFim("");
       setFiltroMesAno("todos");
+      return;
     }
-    if (isActive || key === "total") return;
+
+    const off = isActive;
     switch (key) {
-      case "processosValidos": setFiltroProcessoStatus("valido"); break;
-      case "processosInvalidos": setFiltroProcessoStatus("invalido"); break;
-      case "dossiesValidos": setFiltroDossieStatus("valido"); break;
-      case "dossiesInvalidos": setFiltroDossieStatus("invalido_ou_nao_preenchido"); break;
-      case "juditPreenchido": setFiltroJudit("sim"); break;
-      case "juditNaoPreenchido": setFiltroJudit("nao"); break;
-      case "bennerSim": setFiltroBenner("sim"); break;
-      case "bennerNao": setFiltroBenner("nao"); break;
-      case "processosAtivos": setFiltroSituacaoProcesso("ativo"); break;
-      case "transitoJulgado": setFiltroSituacaoProcesso("transito"); break;
-      case "aFazer": setFiltroSituacaoProcesso("a_fazer"); break;
-      case "naoPrecisaFazer": setFiltroSituacaoProcesso("nao_precisa_fazer"); break;
-      case "semTurma": setFiltroSemTurma(true); break;
-      case "problemaJudit": setFiltroProblemaJudit("sim"); break;
+      case "processosValidos": setFiltroProcessoStatus(off ? "todos" : "valido"); break;
+      case "processosInvalidos": setFiltroProcessoStatus(off ? "todos" : "invalido"); break;
+      case "dossiesValidos": setFiltroDossieStatus(off ? "todos" : "valido"); break;
+      case "dossiesInvalidos": setFiltroDossieStatus(off ? "todos" : "invalido_ou_nao_preenchido"); break;
+      case "juditPreenchido": setFiltroJudit(off ? "todos" : "sim"); break;
+      case "juditNaoPreenchido": setFiltroJudit(off ? "todos" : "nao"); break;
+      case "bennerSim": setFiltroBenner(off ? "todos" : "sim"); break;
+      case "bennerNao": setFiltroBenner(off ? "todos" : "nao"); break;
+      case "processosAtivos": setFiltroSituacaoProcesso(off ? "todos" : "ativo"); break;
+      case "transitoJulgado": setFiltroSituacaoProcesso(off ? "todos" : "transito"); break;
+      case "aFazer": setFiltroSituacaoProcesso(off ? "todos" : "a_fazer"); break;
+      case "naoPrecisaFazer": setFiltroSituacaoProcesso(off ? "todos" : "nao_precisa_fazer"); break;
+      case "semTurma": setFiltroSemTurma(!off); break;
+      case "problemaJudit": setFiltroProblemaJudit(off ? "todos" : "sim"); break;
       case "ate2025":
-        setFiltroDataInicio("");
-        setFiltroDataFim("2025-12-31");
         setFiltroMesAno("todos");
+        setFiltroDataInicio("");
+        setFiltroDataFim(off ? "" : "2025-12-31");
         break;
       case "de2026":
-        setFiltroDataInicio("2026-01-01");
-        setFiltroDataFim("");
         setFiltroMesAno("todos");
+        setFiltroDataFim("");
+        setFiltroDataInicio(off ? "" : "2026-01-01");
         break;
-      case "prontoEnvio": setFiltroStatus("concluidos"); break;
+      case "prontoEnvio":
+        setFiltroStatus(off ? "todos" : "concluidos");
+        break;
       case "prontoSemPendencia":
-        setFiltroStatus("concluidos");
-        setFiltroSemPendencia(true);
+        setFiltroSemPendencia(!off);
+        setFiltroComPendencia(false);
+        setFiltroStatus(off ? "todos" : "concluidos");
         break;
       case "prontoComPendencia":
-        setFiltroStatus("concluidos");
-        setFiltroComPendencia(true);
-        break;
-
-      case "semResponsavel":
-        setFiltroResponsavelIds(["__sem_responsavel__"]);
+        setFiltroComPendencia(!off);
+        setFiltroSemPendencia(false);
+        setFiltroStatus(off ? "todos" : "concluidos");
         break;
       case "revisarListaMaterias":
-        setFiltroStatus("concluidos");
-        setFiltroRevisarListaMaterias(true);
+        setSemMateriaDossieIds(null);
+        setFiltroRevisarListaMaterias(!off);
+        setFiltroStatus(off ? "todos" : "concluidos");
         break;
-      case "comEquipe": setFiltroEquipe("sim"); break;
-      case "semEquipe": setFiltroEquipe("nao"); break;
-      case "multiResp": setFiltroMultiResp(true); break;
+      case "semResponsavel":
+        setFiltroResponsavelIds(off ? [] : ["__sem_responsavel__"]);
+        break;
+      case "comEquipe": setFiltroEquipe(off ? "todos" : "sim"); break;
+      case "semEquipe": setFiltroEquipe(off ? "todos" : "nao"); break;
+      case "multiResp": setFiltroMultiResp(!off); break;
     }
   };
+
 
   const handleDelete = async (id: string) => {
     if (!isAdminOrCoordinator) {
@@ -1988,6 +1997,7 @@ export default function DistribuicaoTst() {
             stats={statsWithGeral}
             loading={statsLoading}
             activeKey={activeCardKey}
+            activeKeys={activeCardKeys}
             onCardClick={handleCardClick}
             prontoSemPendencia={{
               count: prontoSemPendenciaCount,
