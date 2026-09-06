@@ -44,10 +44,18 @@ function fmtMoeda(v: any): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 function txt(v: any): string {
+  if (Array.isArray(v)) {
+    const itens = v
+      .map((i) => (i && typeof i === "object" ? i.materia || i.nome || i.descricao || i.tema || "" : String(i ?? "")))
+      .map((s) => String(s).trim())
+      .filter(Boolean);
+    return itens.length ? itens.join(", ") : "—";
+  }
   const s = v === null || v === undefined ? "" : String(v).trim();
   if (!s || /^n[ãa]o informado$/i.test(s)) return "—";
   return s;
 }
+
 
 /** Booleano do banco → "Sim"/"Não"/"—" (leitura). */
 function sn(v: any): string {
