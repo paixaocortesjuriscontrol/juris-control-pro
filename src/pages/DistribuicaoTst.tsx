@@ -3460,6 +3460,14 @@ export default function DistribuicaoTst() {
           setOverlayRegistro(null);
           if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
         }}
+        onSaveDistribuicao={async (d, id) => {
+          const targetId = id || overlayRegistro?.id || undefined;
+          const result = await saveDado(d, targetId);
+          if (result) refetchProntoSemPendencia();
+          const savedId = typeof result === "string" ? result : (targetId || null);
+          if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
+          return result;
+        }}
       />
     </MainLayout>
   );
