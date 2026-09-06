@@ -367,6 +367,13 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
   const relacionados: any[] = Array.isArray(principal?.related_lawsuits) ? principal.related_lawsuits : [];
   const fases: any[] = Array.isArray(principal?.phase_history) ? principal.phase_history : [];
 
+  const { pedidosSet } = usePedidosPorDossie(open ? registro?.dossie : null);
+  const assuntoNoDossie = (nome: any) => {
+    const n = normalizeMateriaNome(String(nome || ""));
+    return !!n && pedidosSet.size > 0 && pedidosSet.has(n);
+  };
+  const qtdAssuntosDossie = assuntos.filter((a) => assuntoNoDossie(a?.name)).length;
+
   const dataDistribuicao = registro?.data_distribuicao_real || registro?.data_distribuicao_planilha;
 
   if (!registro) return null;
