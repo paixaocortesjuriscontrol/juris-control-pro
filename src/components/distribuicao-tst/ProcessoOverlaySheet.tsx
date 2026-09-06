@@ -767,6 +767,8 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 <Campo rotulo="Tipo de Recurso do Reclamante (C)" valor={txt(ficha.tipo_recurso_reclamante)} />
                 <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_reclamante)} />
+                <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_reclamante)} />
+                <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_reclamante)} />
                 <Campo rotulo="Matérias Recurso Reclamante" valor={txt(ficha.materias_recurso_reclamante)} className="col-span-2" />
               </div>
               <MateriasAnalise titulo="Análise por matéria (Reclamante)" lista={ficha.materias_analise_reclamante} />
@@ -776,10 +778,13 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 <Campo rotulo="Tipo de Recurso do Banco (C)" valor={txt(ficha.tipo_recurso_banco)} />
                 <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_banco)} />
+                <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_banco)} />
+                <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_banco)} />
                 <Campo rotulo="Matérias Recurso do Banco" valor={txt(ficha.materias_recurso_banco)} className="col-span-2" />
               </div>
               <MateriasAnalise titulo="Análise por matéria (Banco)" lista={ficha.materias_analise_banco} />
             </Bloco>
+
 
             <Bloco titulo="Recurso de terceiro">
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
