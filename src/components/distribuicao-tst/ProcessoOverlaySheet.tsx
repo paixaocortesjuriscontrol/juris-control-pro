@@ -314,6 +314,7 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
               Movimentações {movimentos.length > 0 && <span className="ml-1 text-muted-foreground">({movimentos.length})</span>}
             </TabsTrigger>
             <TabsTrigger value="judit" className="h-6 px-3 text-xs">Dados da Judit</TabsTrigger>
+            <TabsTrigger value="ficha" className="h-6 px-3 text-xs">Ficha completa</TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-1.5">
             {processoNumero && (
