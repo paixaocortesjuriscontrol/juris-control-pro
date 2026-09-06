@@ -1,5 +1,5 @@
 import { PedidosPorDossieDialog } from "@/components/distribuicao-tst/PedidosPorDossieDialog";
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3059,8 +3059,8 @@ export default function DistribuicaoTst() {
                 const isCejusc = (d as any).cejusc === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
+                <Fragment key={d.id}>
                 <TableRow
-                  key={d.id}
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle",
                     (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
@@ -3201,14 +3201,6 @@ export default function DistribuicaoTst() {
                                 </Badge>
                               )}
                             </div>
-                            <div className="mt-1">
-                              <ProcessoTagPicker
-                                dadoId={d.id}
-                                tagIds={tagsMap?.get(d.id) || []}
-                                compact
-                                readOnly={!isAdminOrCoordinator}
-                              />
-                            </div>
                             {resto && <div className="text-xs text-muted-foreground italic">{resto}</div>}
                           </div>
                         );
@@ -3278,14 +3270,6 @@ export default function DistribuicaoTst() {
                               CEJUSC
                             </Badge>
                           )}
-                        </div>
-                        <div className="mt-1">
-                          <ProcessoTagPicker
-                            dadoId={d.id}
-                            tagIds={tagsMap?.get(d.id) || []}
-                            compact
-                            readOnly={!isAdminOrCoordinator}
-                          />
                         </div>
                         </div>
                       );
@@ -3383,6 +3367,26 @@ export default function DistribuicaoTst() {
                     </TableCell>
                   )}
                 </TableRow>
+                <TableRow
+                  className={cn(
+                    "cursor-pointer hover:bg-muted/50",
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                  )}
+                  onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
+                >
+                  <TableCell
+                    colSpan={(isAdminOrCoordinator ? 7 : 6) + (mostrarPendencias ? 1 : 0)}
+                    className="py-1"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <ProcessoTagPicker
+                      dadoId={d.id}
+                      tagIds={tagsMap?.get(d.id) || []}
+                      readOnly={!isAdminOrCoordinator}
+                    />
+                  </TableCell>
+                </TableRow>
+                </Fragment>
                 );
               })}
             </TableBody>
