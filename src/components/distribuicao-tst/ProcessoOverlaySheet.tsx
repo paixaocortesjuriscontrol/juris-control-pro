@@ -88,21 +88,22 @@ function coletarLawsuits(raw: any): Lawsuit[] {
   const out: Lawsuit[] = [];
   const visto = new Set<any>();
   const walk = (node: any, depth: number) => {
-    if (!node || typeof node !== "object" || depth > 6 || visto.has(node)) return;
+    if (!node || typeof node !== "object" || depth > 12 || visto.has(node)) return;
     visto.add(node);
     if (Array.isArray(node)) {
       node.forEach((n) => walk(n, depth + 1));
       return;
     }
-    if (node.response_data && typeof node.response_data === "object") {
-      walk(node.response_data, depth + 1);
-    }
-    const pareceProcesso = ("steps" in node && Array.isArray(node.steps)) || ("code" in node && ("phase" in node || "parties" in node));
+    const pareceProcesso =
+      ("steps" in node && Array.isArray(node.steps)) || ("code" in node && ("phase" in node || "parties" in node));
     if (pareceProcesso) out.push(node);
-    ["page_data", "lawsuits", "data", "crawler", "cache_lookup", "results"].forEach((k) => {
-      if (node[k]) walk(node[k], depth + 1);
+    // percorre todos os ramos (o payload real vem em _judit_raw.crawler.page_data[].response_data)
+    Object.keys(node).forEach((k) => {
+      const v = node[k];
+      if (v && typeof v === "object") walk(v, depth + 1);
     });
   };
+
   walk(raw, 0);
   return out;
 }
