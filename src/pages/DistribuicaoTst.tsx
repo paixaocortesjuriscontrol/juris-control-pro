@@ -3059,8 +3059,9 @@ export default function DistribuicaoTst() {
                 const isCejusc = (d as any).cejusc === true;
                 const relatorDisplay = (d.relator || "").replace(/subida\s+em\s+massa.*$/i, "").trim().replace(/[-–—:]\s*$/, "").trim();
                 return (
+                <Fragment key={d.id}>
                 <TableRow
-                  key={d.id}
+                  className={cn(
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle",
                     (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
