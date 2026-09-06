@@ -3127,7 +3127,7 @@ export default function DistribuicaoTst() {
                 <Fragment key={d.id}>
                 <TableRow
                   className={cn(
-                    "cursor-pointer hover:bg-muted/50 align-middle",
+                    "cursor-pointer hover:bg-muted/50 align-middle [&>td]:py-1 [&>td]:align-middle",
                     (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
                   )}
                   onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
