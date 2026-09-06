@@ -7,8 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap, PanelRightOpen } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
+import { ProcessoOverlaySheet } from "@/components/distribuicao-tst/ProcessoOverlaySheet";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
 
@@ -171,6 +172,7 @@ export default function DistribuicaoTst() {
   const [mostrarCards, setMostrarCards] = useState(true);
   const [mostrarFiltros, setMostrarFiltros] = useState(true);
   const [editando, setEditando] = useState<DistTst | null>(null);
+  const [overlayRegistro, setOverlayRegistro] = useState<any | null>(null);
   type SortKey = "data_distribuicao_planilha" | "data_distribuicao_real" | "processo_numero" | "dossie" | "responsaveis" | "benner_atualizado";
   const [sortBy, setSortBy] = useState<SortKey | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -3301,6 +3303,15 @@ export default function DistribuicaoTst() {
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6"
+                          onClick={() => setOverlayRegistro(d)}
+                          title="Abrir painel do processo (dados e movimentações da Judit)"
+                        >
+                          <PanelRightOpen className="w-4 h-4 text-primary" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
                           onClick={() => handleToggleSubidaMassaRow(d.id, !isSubidaMassa, d.processo_numero)}
                           title={isSubidaMassa ? "Desmarcar Subida em Massa" : "Marcar Subida em Massa"}
                         >
@@ -3438,6 +3449,18 @@ export default function DistribuicaoTst() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ProcessoOverlaySheet
+        open={!!overlayRegistro}
+        onOpenChange={(o) => { if (!o) setOverlayRegistro(null); }}
+        registro={overlayRegistro}
+        responsaveis={overlayRegistro ? (responsaveisMap.get(overlayRegistro.id) || []) : []}
+        onAbrirFicha={() => {
+          const reg = overlayRegistro;
+          setOverlayRegistro(null);
+          if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
+        }}
+      />
     </MainLayout>
   );
 }
