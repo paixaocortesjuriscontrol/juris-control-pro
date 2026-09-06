@@ -303,6 +303,24 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
     },
   });
 
+  // Linha completa de dados_benner: a lista traz só os campos mapeados, e a
+  // aba "Distribuição TST" precisa de todos (resultado_*, notas, julgamento…).
+  const { data: rowCompleto } = useQuery({
+    queryKey: ["dist-tst-overlay-row", registro?.id],
+    enabled: open && !!registro?.id,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dados_benner" as any)
+        .select("*")
+        .eq("id", registro!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data as any;
+    },
+  });
+  const ficha: any = rowCompleto || registro || {};
+
   const lawsuits = useMemo(() => coletarLawsuits(log?.raw_response), [log]);
   const principal: Lawsuit = useMemo(() => {
     if (!lawsuits.length) return {};
