@@ -69,7 +69,7 @@ export default function ValidaKurier() {
     [credenciais],
   );
 
-  const { data, isFetching, refetch } = useQuery({
+  const { data, isFetching, refetch, error } = useQuery({
     queryKey: ["valida-kurier-por-login", logins.join(","), dataIni, dataFim, run],
     enabled: run > 0,
     queryFn: async () => {
@@ -198,6 +198,11 @@ export default function ValidaKurier() {
       subtitle="Mostra o que o Kurier encontrou e o DJEN Termos Servidor não encontrou, usando as coordenações já vinculadas a cada login"
     >
       <div className="space-y-4">
+        {error && (
+          <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            Não foi possível concluir a comparação: {(error as any)?.message || "erro inesperado"}. Tente um período menor.
+          </div>
+        )}
         <Card>
           <CardHeader>
             <CardTitle>Parâmetros</CardTitle>
