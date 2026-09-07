@@ -77,11 +77,37 @@ async function lerLastModified(
   return null;
 }
 
+/** Só alerta se alguma rotina de pautas (browser ou servidor) estiver ativa. */
+async function rotinaPautasAtiva(): Promise<boolean> {
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !key) return true; // sem acesso ao banco, mantém comportamento anterior
+    const res = await fetch(
+      `${url}/rest/v1/configuracoes_monitoramento?select=tipo,ativo&tipo=in.(djet_pautas,djet_pautas_servidor)`,
+      { headers: { apikey: key, Authorization: `Bearer ${key}` } },
+    );
+    if (!res.ok) return true;
+    const rows = (await res.json()) as Array<{ ativo?: boolean }>;
+    if (!Array.isArray(rows) || rows.length === 0) return false;
+    return rows.some((r) => r?.ativo === true);
+  } catch {
+    return true;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
+    if (!(await rotinaPautasAtiva())) {
+      return new Response(
+        JSON.stringify({ success: true, skipped: true, motivo: "rotina DJEN Pautas desativada" }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
     const hojeIso = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
     const slots = await poolSlots();
+
 
     const atrasados: Array<{ tribunal: string; edicao: string | null; atraso: number }> = [];
     const verificados: Array<Record<string, unknown>> = [];
