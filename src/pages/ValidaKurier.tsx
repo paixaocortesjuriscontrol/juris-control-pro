@@ -63,7 +63,7 @@ export default function ValidaKurier() {
   const [logins, setLogins] = useState<string[]>([]);
   const [run, setRun] = useState(0);
 
-  const { credenciais } = useKurierCredenciais();
+  const { data: credenciais } = useKurierCredenciais();
   const loginsAtivos = useMemo(
     () => (credenciais ?? []).filter((c: any) => c.ativo).map((c: any) => c.login as string),
     [credenciais],
