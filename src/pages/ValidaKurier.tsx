@@ -225,8 +225,13 @@ export default function ValidaKurier() {
       toast.error("A data inicial não pode ser maior que a final");
       return;
     }
-    setRun((n) => n + 1);
-    setTimeout(() => refetch(), 0);
+    setParams((prev) => ({
+      logins: [...logins],
+      vinculos: [...vinculos],
+      ini: dataIni,
+      fim: dataFim,
+      run: (prev?.run ?? 0) + 1,
+    }));
   }
 
   return (
