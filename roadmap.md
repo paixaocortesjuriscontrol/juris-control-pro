@@ -41,3 +41,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 ## Redesign tela do processo (04/09)
 - [ ] Escolher direção visual (sem cantos arredondados, alinhada ao painel lateral) — protótipo deve incluir menu principal completo e chrome de admin (versão, alertas, novidades, usuário)
+
+## Valida Kurier (07/09)
+- [x] Comparar por login do Kurier usando as coordenações já vinculadas; foco na lista "Só Kurier" (o que o DJEN Termos Servidor não achou), comparação feita no banco

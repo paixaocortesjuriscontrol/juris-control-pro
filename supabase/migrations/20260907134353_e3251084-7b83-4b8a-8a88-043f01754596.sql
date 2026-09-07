@@ -1,0 +1,1 @@
+GRANT EXECUTE ON FUNCTION public.comparar_kurier_djen_por_login(text[], date, date, integer) TO service_role;

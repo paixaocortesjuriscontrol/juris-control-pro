@@ -4,228 +4,125 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { ChevronDown, Download, FileSpreadsheet, Loader2, Search } from "lucide-react";
+import { useKurierCredenciais } from "@/hooks/useKurierCredenciais";
 import * as XLSX from "xlsx";
 
-type Pub = {
+type Origem = "so_kurier" | "so_djen" | "ambos";
+
+type Linha = {
+  origem: Origem;
+  login: string;
   id: string;
   id_djen: string | null;
   processo_numero: string | null;
   tribunal: string | null;
+  orgao: string | null;
+  tipo_comunicacao: string | null;
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
-  tipo_comunicacao: string | null;
-  orgao: string | null;
-  kurier_login: string | null;
-  fonte: string | null;
-  sistema_origem?: "djen_local" | "djen_servidor" | "kurier";
+  coordenacao: string | null;
 };
 
-const KURIER_COORD_DEFAULT_ID = "a7843a1f-a90e-4a2f-8f6b-12160ce3e86d";
-const ALL_COORDS = "__ALL__";
+type ResumoLogin = {
+  login: string;
+  total_kurier: number;
+  total_djen: number;
+  ambos: number;
+  so_kurier: number;
+  so_djen: number;
+  coordenacoes: string[];
+};
+
+type TribunalRow = { tribunal: string; ambos: number; so_kurier: number; so_djen: number };
+
+type Comparacao = {
+  resumo: ResumoLogin[];
+  tribunais: TribunalRow[];
+  linhas: Linha[];
+  limite: number;
+};
 
 function todayBRT(): string {
   const fmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" });
   return fmt.format(new Date());
 }
 
-function onlyDigits(s: string | null | undefined) {
-  return (s ?? "").replace(/\D+/g, "");
-}
-
-function dateRef(p: Pub): string {
-  return (p.data_disponibilizacao || p.data_publicacao || "").slice(0, 10);
-}
-
-function comparisonKey(p: Pub): string {
-  return `${onlyDigits(p.processo_numero)}|${dateRef(p)}`;
-}
-
-function djenIdKey(p: Pub): string | null {
-  return p.id_djen ? `djen:${p.id_djen}` : null;
-}
-
-function identityKey(p: Pub): string {
-  if (p.id_djen) return `djen:${p.id_djen}`;
-  return [comparisonKey(p), p.tribunal ?? "", p.orgao ?? "", p.tipo_comunicacao ?? ""].join("|");
-}
-
-function dedupeDjenRows(rows: Pub[]): Pub[] {
-  const map = new Map<string, Pub>();
-  for (const row of rows) {
-    const key = identityKey(row);
-    const current = map.get(key);
-    if (!current || current.sistema_origem === "djen_local") {
-      map.set(key, row);
-    }
-  }
-  return Array.from(map.values());
-}
-
-async function fetchAll(coordId: string, ini: string, fim: string, side: "djen" | "kurier"): Promise<Pub[]> {
-  const PAGE = 1000;
-  // data_disponibilizacao é TIMESTAMP — usar lt no dia seguinte para incluir o dia todo
-  const fimNext = (() => {
-    const d = new Date(`${fim}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + 1);
-    return d.toISOString().slice(0, 10);
-  })();
-
-  async function fetchTable(table: "publicacoes_djen" | "publicacoes_djen_servidor", sistema: Pub["sistema_origem"]) {
-    let from = 0;
-    const out: Pub[] = [];
-    while (true) {
-      let q = (supabase as any)
-      .from(table)
-      .select("id, id_djen, processo_numero, tribunal, data_disponibilizacao, data_publicacao, tipo_comunicacao, orgao, kurier_login, fonte")
-      .gte("data_disponibilizacao", ini)
-      .lt("data_disponibilizacao", fimNext)
-      .order("data_disponibilizacao", { ascending: false })
-      .range(from, from + PAGE - 1);
-      if (coordId !== ALL_COORDS) q = q.eq("coordenacao_id", coordId);
-      q = side === "kurier" ? q.eq("fonte", "kurier") : q.or("fonte.is.null,fonte.neq.kurier");
-      const { data, error } = await q;
-      if (error) throw error;
-      const rows = ((data ?? []) as Pub[]).map((row) => ({ ...row, sistema_origem: sistema }));
-      out.push(...rows);
-      if (rows.length < PAGE) break;
-      from += PAGE;
-    }
-    return out;
-  }
-
-  if (side === "kurier") {
-    return fetchTable("publicacoes_djen", "kurier");
-  }
-
-  const [local, servidor] = await Promise.all([
-    fetchTable("publicacoes_djen", "djen_local"),
-    fetchTable("publicacoes_djen_servidor", "djen_servidor"),
-  ]);
-  return dedupeDjenRows([...local, ...servidor]);
-}
-
-type Comparison = {
-  soDjen: Pub[];
-  soKurier: Pub[];
-  ambos: { djen: Pub; kurier: Pub }[];
-  matchedDjen: Pub[];
-  matchedKurier: Pub[];
-};
-
-function comparar(djen: Pub[], kurier: Pub[]): Comparison {
-  // Match prioritário por id_djen; fallback por processo+data
-  const dById = new Map<string, Pub[]>();
-  const dByKey = new Map<string, Pub[]>();
-  const kById = new Map<string, Pub[]>();
-  const kByKey = new Map<string, Pub[]>();
-  for (const p of djen) {
-    const id = djenIdKey(p);
-    if (id) dById.set(id, [...(dById.get(id) ?? []), p]);
-    const key = comparisonKey(p);
-    if (!key.startsWith("|")) dByKey.set(key, [...(dByKey.get(key) ?? []), p]);
-  }
-  for (const p of kurier) {
-    const id = djenIdKey(p);
-    if (id) kById.set(id, [...(kById.get(id) ?? []), p]);
-    const key = comparisonKey(p);
-    if (!key.startsWith("|")) kByKey.set(key, [...(kByKey.get(key) ?? []), p]);
-  }
-
-  const matchDjen = (p: Pub): Pub | null => {
-    const id = djenIdKey(p);
-    if (id && kById.has(id)) return kById.get(id)![0];
-    const key = comparisonKey(p);
-    if (!key.startsWith("|") && kByKey.has(key)) return kByKey.get(key)![0];
-    return null;
-  };
-  const matchKurier = (p: Pub): Pub | null => {
-    const id = djenIdKey(p);
-    if (id && dById.has(id)) return dById.get(id)![0];
-    const key = comparisonKey(p);
-    if (!key.startsWith("|") && dByKey.has(key)) return dByKey.get(key)![0];
-    return null;
-  };
-
-  const matchedDjen = djen.filter((p) => matchDjen(p));
-  const soDjen = djen.filter((p) => !matchDjen(p));
-  const matchedKurier = kurier.filter((p) => matchKurier(p));
-  const soKurier = kurier.filter((p) => !matchKurier(p));
-  const ambos = matchedKurier.map((k) => ({ djen: matchKurier(k)!, kurier: k }));
-  return { soDjen, soKurier, ambos, matchedDjen, matchedKurier };
-}
-
 export default function ValidaKurier() {
-  const [coordDjenId, setCoordDjenId] = useState<string>(ALL_COORDS);
-  const [coordKurierId, setCoordKurierId] = useState<string>(KURIER_COORD_DEFAULT_ID);
   const today = todayBRT();
   const [dataIni, setDataIni] = useState<string>(today);
   const [dataFim, setDataFim] = useState<string>(today);
+  const [logins, setLogins] = useState<string[]>([]);
   const [run, setRun] = useState(0);
 
-  const { data: coords } = useQuery({
-    queryKey: ["valida-kurier-coords"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("coordenacoes")
-        .select("id, nome")
-        .order("nome");
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
+  const { data: credenciais } = useKurierCredenciais();
+  const loginsAtivos = useMemo(
+    () => (credenciais ?? []).filter((c: any) => c.ativo).map((c: any) => c.login as string),
+    [credenciais],
+  );
 
-  const enabled = run > 0 && (!!coordDjenId || !!coordKurierId);
   const { data, isFetching, refetch } = useQuery({
-    queryKey: ["valida-kurier", coordDjenId, coordKurierId, dataIni, dataFim, run],
-    enabled,
+    queryKey: ["valida-kurier-por-login", logins.join(","), dataIni, dataFim, run],
+    enabled: run > 0,
     queryFn: async () => {
-      const [djen, kurier] = await Promise.all([
-        fetchAll(coordDjenId, dataIni, dataFim, "djen"),
-        fetchAll(coordKurierId, dataIni, dataFim, "kurier"),
-      ]);
-      return { djen, kurier, cmp: comparar(djen, kurier) };
+      const { data, error } = await (supabase as any).rpc("comparar_kurier_djen_por_login", {
+        p_logins: logins.length > 0 ? logins : null,
+        p_ini: dataIni,
+        p_fim: dataFim,
+        p_limite: 5000,
+      });
+      if (error) throw error;
+      const r = (data ?? {}) as Comparacao;
+      return {
+        resumo: r.resumo ?? [],
+        tribunais: r.tribunais ?? [],
+        linhas: r.linhas ?? [],
+        limite: r.limite ?? 5000,
+      } as Comparacao;
     },
   });
 
-  const resumo = useMemo(() => {
+  const totais = useMemo(() => {
     if (!data) return null;
-    const totalDjen = data.djen.length;
-    const totalKurier = data.kurier.length;
-    const ambos = data.cmp.ambos.length;
-    const soDjen = data.cmp.soDjen.length;
-    const soKurier = data.cmp.soKurier.length;
-    const coberturaKurier = totalDjen > 0 ? (data.cmp.matchedDjen.length / totalDjen) * 100 : 0;
-    const coberturaDjen = totalKurier > 0 ? (data.cmp.matchedKurier.length / totalKurier) * 100 : 0;
-    // Breakdown por tribunal
-    const byTrib = new Map<string, { soDjen: number; soKurier: number; ambos: number }>();
-    const bump = (t: string | null | undefined, k: "soDjen" | "soKurier" | "ambos") => {
-      const key = t || "—";
-      const r = byTrib.get(key) ?? { soDjen: 0, soKurier: 0, ambos: 0 };
-      r[k] += 1;
-      byTrib.set(key, r);
-    };
-    data.cmp.soDjen.forEach((p) => bump(p.tribunal, "soDjen"));
-    data.cmp.soKurier.forEach((p) => bump(p.tribunal, "soKurier"));
-    data.cmp.ambos.forEach(({ kurier }) => bump(kurier.tribunal, "ambos"));
-    const tribunais = Array.from(byTrib.entries())
-      .map(([tribunal, v]) => ({ tribunal, ...v, total: v.soDjen + v.soKurier + v.ambos }))
-      .sort((a, b) => b.total - a.total);
-    return { totalDjen, totalKurier, ambos, soDjen, soKurier, coberturaKurier, coberturaDjen, tribunais };
+    const t = data.resumo.reduce(
+      (acc, r) => ({
+        totalKurier: acc.totalKurier + Number(r.total_kurier || 0),
+        totalDjen: acc.totalDjen + Number(r.total_djen || 0),
+        ambos: acc.ambos + Number(r.ambos || 0),
+        soKurier: acc.soKurier + Number(r.so_kurier || 0),
+        soDjen: acc.soDjen + Number(r.so_djen || 0),
+      }),
+      { totalKurier: 0, totalDjen: 0, ambos: 0, soKurier: 0, soDjen: 0 },
+    );
+    const cobertura = t.totalKurier > 0 ? (t.ambos / t.totalKurier) * 100 : 0;
+    return { ...t, cobertura };
   }, [data]);
 
-  const nomeCoord = (id: string) => id === ALL_COORDS ? "Todas as coordenações" : (coords?.find((c: any) => c.id === id)?.nome ?? id);
+  const linhasPor = (origem: Origem) => (data?.linhas ?? []).filter((l) => l.origem === origem);
 
-  function rowsParaExport(list: Pub[], origem: string) {
+  const soKurier = useMemo(() => linhasPor("so_kurier"), [data]);
+  const soDjen = useMemo(() => linhasPor("so_djen"), [data]);
+  const ambos = useMemo(() => linhasPor("ambos"), [data]);
+
+  const rotuloLogins = logins.length === 0 ? "Todos os logins ativos" : logins.length === 1 ? logins[0] : `${logins.length} logins`;
+
+  function toggleLogin(login: string) {
+    setLogins((prev) => (prev.includes(login) ? prev.filter((l) => l !== login) : [...prev, login]));
+  }
+
+  function rowsParaExport(list: Linha[], origem: string) {
     return list.map((p) => ({
       Origem: origem,
+      Login: p.login ?? "",
+      Coordenação: p.coordenacao ?? "",
       Processo: p.processo_numero ?? "",
       Tribunal: p.tribunal ?? "",
       Órgão: p.orgao ?? "",
@@ -233,20 +130,15 @@ export default function ValidaKurier() {
       "Data Disponibilização": (p.data_disponibilizacao ?? "").slice(0, 10),
       "Data Publicação": (p.data_publicacao ?? "").slice(0, 10),
       "ID DJEN": p.id_djen ?? "",
-      "Kurier Login": p.kurier_login ?? "",
-      Fonte: p.fonte ?? "",
-      "Origem Sistema": p.sistema_origem === "djen_servidor" ? "DJEN Servidor" : p.sistema_origem === "djen_local" ? "DJEN Local" : "Kurier",
     }));
   }
 
   function exportCSV() {
     if (!data) return;
     const all = [
-      ...rowsParaExport(data.cmp.soDjen, "Só DJEN"),
-      ...rowsParaExport(data.cmp.soKurier, "Só Kurier"),
-      ...data.cmp.ambos.flatMap(({ djen, kurier }) =>
-        rowsParaExport([djen], "Em ambos (DJEN)").concat(rowsParaExport([kurier], "Em ambos (Kurier)")),
-      ),
+      ...rowsParaExport(soKurier, "Só Kurier"),
+      ...rowsParaExport(soDjen, "Só DJEN"),
+      ...rowsParaExport(ambos, "Em ambos"),
     ];
     const ws = XLSX.utils.json_to_sheet(all);
     const csv = XLSX.utils.sheet_to_csv(ws, { FS: ";" });
@@ -260,46 +152,40 @@ export default function ValidaKurier() {
   }
 
   function exportXLSX() {
-    if (!data || !resumo) return;
+    if (!data || !totais) return;
     const wb = XLSX.utils.book_new();
-    const resumoRows = [
-      { Métrica: "Coordenação DJEN", Valor: nomeCoord(coordDjenId) },
-      { Métrica: "Coordenação Kurier", Valor: nomeCoord(coordKurierId) },
-      { Métrica: "Período", Valor: `${dataIni} → ${dataFim}` },
-      { Métrica: "Total DJEN", Valor: resumo.totalDjen },
-      { Métrica: "Total Kurier", Valor: resumo.totalKurier },
-      { Métrica: "Em ambos", Valor: resumo.ambos },
-      { Métrica: "Só DJEN", Valor: resumo.soDjen },
-      { Métrica: "Só Kurier", Valor: resumo.soKurier },
-      { Métrica: "Cobertura Kurier vs DJEN", Valor: `${resumo.coberturaKurier.toFixed(1)}%` },
-      { Métrica: "Cobertura DJEN vs Kurier", Valor: `${resumo.coberturaDjen.toFixed(1)}%` },
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoRows), "Resumo");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumo.tribunais), "Por Tribunal");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsParaExport(data.cmp.soDjen, "Só DJEN")), "Só DJEN");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsParaExport(data.cmp.soKurier, "Só Kurier")), "Só Kurier");
-    const ambosRows = data.cmp.ambos.map(({ djen, kurier }) => ({
-      Processo: djen.processo_numero ?? kurier.processo_numero ?? "",
-      Tribunal: djen.tribunal ?? kurier.tribunal ?? "",
-      "Data Disp.": (djen.data_disponibilizacao ?? kurier.data_disponibilizacao ?? "").slice(0, 10),
-      "ID DJEN": djen.id_djen ?? kurier.id_djen ?? "",
-      "Tipo (DJEN)": djen.tipo_comunicacao ?? "",
-      "Tipo (Kurier)": kurier.tipo_comunicacao ?? "",
-      "Órgão (DJEN)": djen.orgao ?? "",
-      "Órgão (Kurier)": kurier.orgao ?? "",
-      "Kurier Login": kurier.kurier_login ?? "",
+    const resumoRows = data.resumo.map((r) => ({
+      Login: r.login,
+      Coordenações: (r.coordenacoes ?? []).join(" | "),
+      "Total Kurier": Number(r.total_kurier || 0),
+      "Total DJEN": Number(r.total_djen || 0),
+      "Em ambos": Number(r.ambos || 0),
+      "Só Kurier": Number(r.so_kurier || 0),
+      "Só DJEN": Number(r.so_djen || 0),
+      Cobertura: `${(Number(r.total_kurier || 0) > 0 ? (Number(r.ambos || 0) / Number(r.total_kurier)) * 100 : 0).toFixed(1)}%`,
     }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(ambosRows), "Em ambos");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumoRows), "Resumo por login");
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(
+        data.tribunais.map((t) => ({
+          Tribunal: t.tribunal,
+          "Em ambos": Number(t.ambos || 0),
+          "Só Kurier": Number(t.so_kurier || 0),
+          "Só DJEN": Number(t.so_djen || 0),
+        })),
+      ),
+      "Por Tribunal",
+    );
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsParaExport(soKurier, "Só Kurier")), "Só Kurier");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsParaExport(soDjen, "Só DJEN")), "Só DJEN");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsParaExport(ambos, "Em ambos")), "Em ambos");
     XLSX.writeFile(wb, `valida-kurier_${dataIni}_a_${dataFim}.xlsx`);
   }
 
   function executar() {
-    if (!coordDjenId && !coordKurierId) {
-      toast.error("Selecione ao menos uma coordenação");
-      return;
-    }
-    if (coordDjenId && coordKurierId && coordDjenId !== ALL_COORDS && coordDjenId === coordKurierId) {
-      toast.error("Escolha coordenações diferentes");
+    if (dataIni > dataFim) {
+      toast.error("A data inicial não pode ser maior que a final");
       return;
     }
     setRun((n) => n + 1);
@@ -309,7 +195,7 @@ export default function ValidaKurier() {
   return (
     <MainLayout
       title="Valida Kurier"
-      subtitle="Compara publicações encontradas pelo Kurier com as encontradas no DJEN para a coordenação escolhida"
+      subtitle="Mostra o que o Kurier encontrou e o DJEN Termos Servidor não encontrou, usando as coordenações já vinculadas a cada login"
     >
       <div className="space-y-4">
         <Card>
@@ -318,27 +204,32 @@ export default function ValidaKurier() {
           </CardHeader>
           <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <Label>Coordenação DJEN</Label>
-              <Select value={coordDjenId} onValueChange={setCoordDjenId}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_COORDS}>Todas as coordenações</SelectItem>
-                  {(coords ?? []).map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Coordenação Kurier</Label>
-              <Select value={coordKurierId} onValueChange={setCoordKurierId}>
-                <SelectTrigger><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>
-                  {(coords ?? []).map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label>Login do Kurier</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    <span className="truncate">{rotuloLogins}</span>
+                    <ChevronDown className="w-4 h-4 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  <div className="max-h-72 overflow-y-auto space-y-1">
+                    <button
+                      type="button"
+                      className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent"
+                      onClick={() => setLogins([])}
+                    >
+                      Todos os logins ativos
+                    </button>
+                    {loginsAtivos.map((login) => (
+                      <label key={login} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer">
+                        <Checkbox checked={logins.includes(login)} onCheckedChange={() => toggleLogin(login)} />
+                        <span className="text-sm">{login}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label>Data inicial</Label>
@@ -348,11 +239,13 @@ export default function ValidaKurier() {
               <Label>Data final</Label>
               <Input type="date" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
             </div>
-            <div className="md:col-span-4 flex items-center gap-2">
-              <Button onClick={executar} disabled={isFetching}>
+            <div className="flex items-end">
+              <Button onClick={executar} disabled={isFetching} className="w-full">
                 {isFetching ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Search className="w-4 h-4 mr-2" />}
                 Comparar
               </Button>
+            </div>
+            <div className="md:col-span-4 flex items-center gap-2">
               <Button variant="outline" onClick={exportCSV} disabled={!data}>
                 <Download className="w-4 h-4 mr-2" /> CSV
               </Button>
@@ -363,39 +256,87 @@ export default function ValidaKurier() {
           </CardContent>
         </Card>
 
-        {resumo && (
+        {totais && (
           <Card>
             <CardHeader><CardTitle>Resumo executivo</CardTitle></CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <Kpi label="Total DJEN" value={resumo.totalDjen} />
-                <Kpi label="Total Kurier" value={resumo.totalKurier} />
-                <Kpi label="Em ambos" value={resumo.ambos} tone="success" />
-                <Kpi label="Só DJEN" value={resumo.soDjen} tone="warn" />
-                <Kpi label="Só Kurier" value={resumo.soKurier} tone="info" />
-                <Kpi label="Cobertura Kurier vs DJEN" value={`${resumo.coberturaKurier.toFixed(1)}%`} />
-                <Kpi label="Cobertura DJEN vs Kurier" value={`${resumo.coberturaDjen.toFixed(1)}%`} />
+                <Kpi label="Total Kurier" value={totais.totalKurier} />
+                <Kpi label="Total DJEN Servidor" value={totais.totalDjen} />
+                <Kpi label="Em ambos" value={totais.ambos} tone="success" />
+                <Kpi label="Só Kurier (o DJEN não achou)" value={totais.soKurier} tone="info" />
+                <Kpi label="Só DJEN" value={totais.soDjen} tone="warn" />
+                <Kpi label="Cobertura do DJEN sobre o Kurier" value={`${totais.cobertura.toFixed(1)}%`} />
               </div>
-              {resumo.tribunais.length > 0 && (
+
+              {totais.totalKurier === 0 && (
+                <div className="mt-3 text-sm text-amber-600">
+                  Nenhuma publicação do Kurier no período selecionado — verifique se a captura do Kurier rodou nesses dias.
+                </div>
+              )}
+              {totais.totalDjen === 0 && (
+                <div className="mt-1 text-sm text-amber-600">
+                  Nenhuma publicação do DJEN Termos Servidor no período — confira se os logins escolhidos têm coordenações vinculadas.
+                </div>
+              )}
+
+              {data && data.resumo.length > 0 && (
+                <div className="mt-4 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Login</TableHead>
+                        <TableHead>Coordenações comparadas</TableHead>
+                        <TableHead className="text-right">Kurier</TableHead>
+                        <TableHead className="text-right">DJEN</TableHead>
+                        <TableHead className="text-right">Em ambos</TableHead>
+                        <TableHead className="text-right">Só Kurier</TableHead>
+                        <TableHead className="text-right">Só DJEN</TableHead>
+                        <TableHead className="text-right">Cobertura</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.resumo.map((r) => {
+                        const tk = Number(r.total_kurier || 0);
+                        const cob = tk > 0 ? (Number(r.ambos || 0) / tk) * 100 : 0;
+                        return (
+                          <TableRow key={r.login}>
+                            <TableCell className="font-medium">{r.login}</TableCell>
+                            <TableCell className="max-w-[320px] text-xs text-muted-foreground">
+                              {(r.coordenacoes ?? []).join(" • ") || "—"}
+                            </TableCell>
+                            <TableCell className="text-right">{tk}</TableCell>
+                            <TableCell className="text-right">{Number(r.total_djen || 0)}</TableCell>
+                            <TableCell className="text-right text-emerald-600">{Number(r.ambos || 0)}</TableCell>
+                            <TableCell className="text-right font-semibold text-sky-600">{Number(r.so_kurier || 0)}</TableCell>
+                            <TableCell className="text-right text-amber-600">{Number(r.so_djen || 0)}</TableCell>
+                            <TableCell className="text-right">{cob.toFixed(1)}%</TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+
+              {data && data.tribunais.length > 0 && (
                 <div className="mt-4 overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Tribunal</TableHead>
                         <TableHead className="text-right">Em ambos</TableHead>
-                        <TableHead className="text-right">Só DJEN</TableHead>
                         <TableHead className="text-right">Só Kurier</TableHead>
-                        <TableHead className="text-right">Total</TableHead>
+                        <TableHead className="text-right">Só DJEN</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {resumo.tribunais.map((t) => (
+                      {data.tribunais.map((t) => (
                         <TableRow key={t.tribunal}>
                           <TableCell>{t.tribunal}</TableCell>
-                          <TableCell className="text-right">{t.ambos}</TableCell>
-                          <TableCell className="text-right">{t.soDjen}</TableCell>
-                          <TableCell className="text-right">{t.soKurier}</TableCell>
-                          <TableCell className="text-right font-medium">{t.total}</TableCell>
+                          <TableCell className="text-right">{Number(t.ambos || 0)}</TableCell>
+                          <TableCell className="text-right">{Number(t.so_kurier || 0)}</TableCell>
+                          <TableCell className="text-right">{Number(t.so_djen || 0)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -410,19 +351,15 @@ export default function ValidaKurier() {
           <Card>
             <CardHeader><CardTitle>Detalhamento</CardTitle></CardHeader>
             <CardContent>
-              <Tabs defaultValue="soDjen">
+              <Tabs defaultValue="soKurier">
                 <TabsList>
-                  <TabsTrigger value="soDjen">Só DJEN ({data.cmp.soDjen.length})</TabsTrigger>
-                  <TabsTrigger value="soKurier">Só Kurier ({data.cmp.soKurier.length})</TabsTrigger>
-                  <TabsTrigger value="ambos">Em ambos ({data.cmp.ambos.length})</TabsTrigger>
+                  <TabsTrigger value="soKurier">Só Kurier ({soKurier.length})</TabsTrigger>
+                  <TabsTrigger value="soDjen">Só DJEN ({soDjen.length})</TabsTrigger>
+                  <TabsTrigger value="ambos">Em ambos ({ambos.length})</TabsTrigger>
                 </TabsList>
-                <TabsContent value="soDjen"><PubTable rows={data.cmp.soDjen} /></TabsContent>
-                <TabsContent value="soKurier"><PubTable rows={data.cmp.soKurier} /></TabsContent>
-                <TabsContent value="ambos">
-                  <PubTable rows={data.cmp.ambos.map((x) => x.djen)} extraRight={(_, i) => (
-                    <Badge variant="outline">{data.cmp.ambos[i].kurier.kurier_login ?? "kurier"}</Badge>
-                  )} />
-                </TabsContent>
+                <TabsContent value="soKurier"><PubTable rows={soKurier} /></TabsContent>
+                <TabsContent value="soDjen"><PubTable rows={soDjen} /></TabsContent>
+                <TabsContent value="ambos"><PubTable rows={ambos} /></TabsContent>
               </Tabs>
             </CardContent>
           </Card>
@@ -446,7 +383,7 @@ function Kpi({ label, value, tone }: { label: string; value: number | string; to
   );
 }
 
-function PubTable({ rows, extraRight }: { rows: Pub[]; extraRight?: (p: Pub, i: number) => React.ReactNode }) {
+function PubTable({ rows }: { rows: Linha[] }) {
   if (!rows.length) return <div className="text-sm text-muted-foreground py-6 text-center">Nenhum registro.</div>;
   return (
     <div className="overflow-x-auto">
@@ -459,12 +396,12 @@ function PubTable({ rows, extraRight }: { rows: Pub[]; extraRight?: (p: Pub, i: 
             <TableHead>Tipo</TableHead>
             <TableHead>Data Disp.</TableHead>
             <TableHead>ID DJEN</TableHead>
-            <TableHead>Origem</TableHead>
+            <TableHead>Login / Coordenação</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {rows.slice(0, 500).map((p, i) => (
-            <TableRow key={p.id}>
+          {rows.slice(0, 500).map((p) => (
+            <TableRow key={`${p.origem}-${p.id}`}>
               <TableCell className="font-mono text-xs">{p.processo_numero ?? "—"}</TableCell>
               <TableCell>{p.tribunal ?? "—"}</TableCell>
               <TableCell className="max-w-[260px] truncate" title={p.orgao ?? ""}>{p.orgao ?? "—"}</TableCell>
@@ -472,9 +409,8 @@ function PubTable({ rows, extraRight }: { rows: Pub[]; extraRight?: (p: Pub, i: 
               <TableCell>{(p.data_disponibilizacao ?? "").slice(0, 10) || "—"}</TableCell>
               <TableCell className="font-mono text-xs">{p.id_djen ?? "—"}</TableCell>
               <TableCell className="space-x-1">
-                <Badge variant="secondary">{p.fonte ?? "—"}</Badge>
-                {p.kurier_login && <Badge variant="outline">{p.kurier_login}</Badge>}
-                {extraRight?.(p, i)}
+                <Badge variant="outline">{p.login}</Badge>
+                {p.coordenacao && <Badge variant="secondary" className="max-w-[220px] truncate">{p.coordenacao}</Badge>}
               </TableCell>
             </TableRow>
           ))}
