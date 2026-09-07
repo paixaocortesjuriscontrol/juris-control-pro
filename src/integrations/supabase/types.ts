@@ -10282,6 +10282,15 @@ export type Database = {
         Returns: boolean
       }
       cancelar_execucao_servidor: { Args: { p_id: string }; Returns: undefined }
+      comparar_kurier_djen_por_login: {
+        Args: {
+          p_fim?: string
+          p_ini?: string
+          p_limite?: number
+          p_logins?: string[]
+        }
+        Returns: Json
+      }
       compute_djen_conteudo_dedup_key: {
         Args: {
           p_conteudo: string
