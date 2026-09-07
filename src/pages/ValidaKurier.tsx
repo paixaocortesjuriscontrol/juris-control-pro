@@ -69,7 +69,7 @@ export default function ValidaKurier() {
     [credenciais],
   );
 
-  const { data, isFetching, refetch } = useQuery({
+  const { data, isFetching, refetch, error } = useQuery({
     queryKey: ["valida-kurier-por-login", logins.join(","), dataIni, dataFim, run],
     enabled: run > 0,
     queryFn: async () => {
