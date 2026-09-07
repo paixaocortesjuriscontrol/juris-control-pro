@@ -316,9 +316,9 @@ export default function ValidaKurier() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Kpi label="Total Kurier" value={totais.totalKurier} />
-                <Kpi label="Total DJEN Servidor" value={totais.totalDjen} />
-                <Kpi label="Em ambos" value={totais.ambos} tone="success" />
-                <Kpi label="Só Kurier (o DJEN não achou)" value={totais.soKurier} tone="info" />
+                <Kpi label="Total DJEN (coordenações do login)" value={totais.totalDjen} />
+                <Kpi label="Em ambos (DJEN achou em alguma coordenação)" value={totais.ambos} tone="success" />
+                <Kpi label="Só Kurier (o DJEN não achou em nenhuma coordenação)" value={totais.soKurier} tone="info" />
                 <Kpi label="Só DJEN" value={totais.soDjen} tone="warn" />
                 <Kpi label="Cobertura do DJEN sobre o Kurier" value={`${totais.cobertura.toFixed(1)}%`} />
               </div>
