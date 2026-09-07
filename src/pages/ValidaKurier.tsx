@@ -30,6 +30,7 @@ type Linha = {
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
   coordenacao: string | null;
+  coordenacao_djen: string | null;
 };
 
 type ResumoLogin = {
@@ -141,6 +142,7 @@ export default function ValidaKurier() {
       Origem: origem,
       Login: p.login ?? "",
       Coordenação: p.coordenacao ?? "",
+      "Coordenação onde o DJEN achou": p.coordenacao_djen ?? "",
       Processo: p.processo_numero ?? "",
       Tribunal: p.tribunal ?? "",
       Órgão: p.orgao ?? "",
@@ -314,9 +316,9 @@ export default function ValidaKurier() {
             <CardContent>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Kpi label="Total Kurier" value={totais.totalKurier} />
-                <Kpi label="Total DJEN Servidor" value={totais.totalDjen} />
-                <Kpi label="Em ambos" value={totais.ambos} tone="success" />
-                <Kpi label="Só Kurier (o DJEN não achou)" value={totais.soKurier} tone="info" />
+                <Kpi label="Total DJEN (coordenações do login)" value={totais.totalDjen} />
+                <Kpi label="Em ambos (DJEN achou em alguma coordenação)" value={totais.ambos} tone="success" />
+                <Kpi label="Só Kurier (o DJEN não achou em nenhuma coordenação)" value={totais.soKurier} tone="info" />
                 <Kpi label="Só DJEN" value={totais.soDjen} tone="warn" />
                 <Kpi label="Cobertura do DJEN sobre o Kurier" value={`${totais.cobertura.toFixed(1)}%`} />
               </div>
@@ -449,6 +451,7 @@ function PubTable({ rows }: { rows: Linha[] }) {
             <TableHead>Data Disp.</TableHead>
             <TableHead>ID DJEN</TableHead>
             <TableHead>Login / Coordenação</TableHead>
+            <TableHead>DJEN achou em</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -463,6 +466,9 @@ function PubTable({ rows }: { rows: Linha[] }) {
               <TableCell className="space-x-1">
                 <Badge variant="outline">{p.login}</Badge>
                 {p.coordenacao && <Badge variant="secondary" className="max-w-[220px] truncate">{p.coordenacao}</Badge>}
+              </TableCell>
+              <TableCell className="max-w-[220px] truncate" title={p.coordenacao_djen ?? ""}>
+                {p.coordenacao_djen ?? "—"}
               </TableCell>
             </TableRow>
           ))}
