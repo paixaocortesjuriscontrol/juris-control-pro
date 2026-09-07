@@ -10284,10 +10284,10 @@ export type Database = {
       cancelar_execucao_servidor: { Args: { p_id: string }; Returns: undefined }
       comparar_kurier_djen_por_login: {
         Args: {
-          p_fim?: string
-          p_ini?: string
+          p_fim: string
+          p_ini: string
           p_limite?: number
-          p_logins?: string[]
+          p_logins: string[]
         }
         Returns: Json
       }
