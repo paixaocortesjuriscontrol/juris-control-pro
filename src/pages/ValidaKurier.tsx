@@ -122,10 +122,19 @@ export default function ValidaKurier() {
   const ambos = useMemo(() => linhasPor("ambos"), [data]);
 
   const rotuloLogins = logins.length === 0 ? "Todos os logins ativos" : logins.length === 1 ? logins[0] : `${logins.length} logins`;
+  const rotuloVinculos =
+    vinculos.length === 0
+      ? "Todas (exceto só Kurier)"
+      : VINCULOS.filter((v) => vinculos.includes(v.id)).map((v) => v.label).join(", ");
 
   function toggleLogin(login: string) {
     setLogins((prev) => (prev.includes(login) ? prev.filter((l) => l !== login) : [...prev, login]));
   }
+
+  function toggleVinculo(id: string) {
+    setVinculos((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  }
+
 
   function rowsParaExport(list: Linha[], origem: string) {
     return list.map((p) => ({
