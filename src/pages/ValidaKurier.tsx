@@ -451,6 +451,7 @@ function PubTable({ rows }: { rows: Linha[] }) {
             <TableHead>Data Disp.</TableHead>
             <TableHead>ID DJEN</TableHead>
             <TableHead>Login / Coordenação</TableHead>
+            <TableHead>DJEN achou em</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
