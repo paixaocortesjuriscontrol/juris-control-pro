@@ -10288,6 +10288,7 @@ export type Database = {
           p_ini: string
           p_limite?: number
           p_logins: string[]
+          p_vinculos?: string[]
         }
         Returns: Json
       }
