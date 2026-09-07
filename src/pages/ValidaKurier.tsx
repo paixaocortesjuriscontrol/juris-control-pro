@@ -467,6 +467,9 @@ function PubTable({ rows }: { rows: Linha[] }) {
                 <Badge variant="outline">{p.login}</Badge>
                 {p.coordenacao && <Badge variant="secondary" className="max-w-[220px] truncate">{p.coordenacao}</Badge>}
               </TableCell>
+              <TableCell className="max-w-[220px] truncate" title={p.coordenacao_djen ?? ""}>
+                {p.coordenacao_djen ?? "—"}
+              </TableCell>
             </TableRow>
           ))}
         </TableBody>
