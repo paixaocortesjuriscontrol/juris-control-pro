@@ -30,6 +30,7 @@ type Linha = {
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
   coordenacao: string | null;
+  coordenacao_djen: string | null;
 };
 
 type ResumoLogin = {
