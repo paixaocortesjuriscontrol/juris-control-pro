@@ -69,7 +69,14 @@ export default function ValidaKurier() {
   const [dataFim, setDataFim] = useState<string>(today);
   const [logins, setLogins] = useState<string[]>([]);
   const [vinculos, setVinculos] = useState<string[]>([]);
-  const [run, setRun] = useState(0);
+  // Parâmetros congelados no clique em "Comparar" — alterar filtros não dispara consulta.
+  const [params, setParams] = useState<{
+    logins: string[];
+    vinculos: string[];
+    ini: string;
+    fim: string;
+    run: number;
+  } | null>(null);
 
   const { data: credenciais } = useKurierCredenciais();
   const loginsAtivos = useMemo(
