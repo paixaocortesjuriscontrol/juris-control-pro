@@ -56,11 +56,18 @@ function todayBRT(): string {
   return fmt.format(new Date());
 }
 
+const VINCULOS = [
+  { id: "captura_total", label: "Captura total" },
+  { id: "so_kurier", label: "Só Kurier" },
+  { id: "termos_djen", label: "Termos DJEN" },
+] as const;
+
 export default function ValidaKurier() {
   const today = todayBRT();
   const [dataIni, setDataIni] = useState<string>(today);
   const [dataFim, setDataFim] = useState<string>(today);
   const [logins, setLogins] = useState<string[]>([]);
+  const [vinculos, setVinculos] = useState<string[]>([]);
   const [run, setRun] = useState(0);
 
   const { data: credenciais } = useKurierCredenciais();
@@ -70,7 +77,7 @@ export default function ValidaKurier() {
   );
 
   const { data, isFetching, refetch, error } = useQuery({
-    queryKey: ["valida-kurier-por-login", logins.join(","), dataIni, dataFim, run],
+    queryKey: ["valida-kurier-por-login", logins.join(","), vinculos.join(","), dataIni, dataFim, run],
     enabled: run > 0,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("comparar_kurier_djen_por_login", {
@@ -78,6 +85,7 @@ export default function ValidaKurier() {
         p_ini: dataIni,
         p_fim: dataFim,
         p_limite: 5000,
+        p_vinculos: vinculos.length > 0 ? vinculos : null,
       });
       if (error) throw error;
       const r = (data ?? {}) as Comparacao;
@@ -89,6 +97,7 @@ export default function ValidaKurier() {
       } as Comparacao;
     },
   });
+
 
   const totais = useMemo(() => {
     if (!data) return null;
