@@ -56,11 +56,18 @@ function todayBRT(): string {
   return fmt.format(new Date());
 }
 
+const VINCULOS = [
+  { id: "captura_total", label: "Captura total" },
+  { id: "so_kurier", label: "Só Kurier" },
+  { id: "termos_djen", label: "Termos DJEN" },
+] as const;
+
 export default function ValidaKurier() {
   const today = todayBRT();
   const [dataIni, setDataIni] = useState<string>(today);
   const [dataFim, setDataFim] = useState<string>(today);
   const [logins, setLogins] = useState<string[]>([]);
+  const [vinculos, setVinculos] = useState<string[]>([]);
   const [run, setRun] = useState(0);
 
   const { data: credenciais } = useKurierCredenciais();
@@ -70,7 +77,7 @@ export default function ValidaKurier() {
   );
 
   const { data, isFetching, refetch, error } = useQuery({
-    queryKey: ["valida-kurier-por-login", logins.join(","), dataIni, dataFim, run],
+    queryKey: ["valida-kurier-por-login", logins.join(","), vinculos.join(","), dataIni, dataFim, run],
     enabled: run > 0,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("comparar_kurier_djen_por_login", {
@@ -78,6 +85,7 @@ export default function ValidaKurier() {
         p_ini: dataIni,
         p_fim: dataFim,
         p_limite: 5000,
+        p_vinculos: vinculos.length > 0 ? vinculos : null,
       });
       if (error) throw error;
       const r = (data ?? {}) as Comparacao;
@@ -89,6 +97,7 @@ export default function ValidaKurier() {
       } as Comparacao;
     },
   });
+
 
   const totais = useMemo(() => {
     if (!data) return null;
@@ -113,10 +122,19 @@ export default function ValidaKurier() {
   const ambos = useMemo(() => linhasPor("ambos"), [data]);
 
   const rotuloLogins = logins.length === 0 ? "Todos os logins ativos" : logins.length === 1 ? logins[0] : `${logins.length} logins`;
+  const rotuloVinculos =
+    vinculos.length === 0
+      ? "Todas (exceto só Kurier)"
+      : VINCULOS.filter((v) => vinculos.includes(v.id)).map((v) => v.label).join(", ");
 
   function toggleLogin(login: string) {
     setLogins((prev) => (prev.includes(login) ? prev.filter((l) => l !== login) : [...prev, login]));
   }
+
+  function toggleVinculo(id: string) {
+    setVinculos((prev) => (prev.includes(id) ? prev.filter((v) => v !== id) : [...prev, id]));
+  }
+
 
   function rowsParaExport(list: Linha[], origem: string) {
     return list.map((p) => ({
@@ -236,6 +254,35 @@ export default function ValidaKurier() {
                 </PopoverContent>
               </Popover>
             </div>
+            <div className="space-y-1">
+              <Label>Tipo de vínculo por coordenação</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    <span className="truncate">{rotuloVinculos}</span>
+                    <ChevronDown className="w-4 h-4 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent"
+                      onClick={() => setVinculos([])}
+                    >
+                      Todas (exceto só Kurier)
+                    </button>
+                    {VINCULOS.map((v) => (
+                      <label key={v.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer">
+                        <Checkbox checked={vinculos.includes(v.id)} onCheckedChange={() => toggleVinculo(v.id)} />
+                        <span className="text-sm">{v.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
             <div className="space-y-1">
               <Label>Data inicial</Label>
               <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} />
