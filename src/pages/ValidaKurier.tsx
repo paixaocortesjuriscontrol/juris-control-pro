@@ -142,6 +142,7 @@ export default function ValidaKurier() {
       Origem: origem,
       Login: p.login ?? "",
       Coordenação: p.coordenacao ?? "",
+      "Coordenação onde o DJEN achou": p.coordenacao_djen ?? "",
       Processo: p.processo_numero ?? "",
       Tribunal: p.tribunal ?? "",
       Órgão: p.orgao ?? "",
