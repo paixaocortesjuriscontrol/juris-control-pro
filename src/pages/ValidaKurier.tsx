@@ -69,7 +69,14 @@ export default function ValidaKurier() {
   const [dataFim, setDataFim] = useState<string>(today);
   const [logins, setLogins] = useState<string[]>([]);
   const [vinculos, setVinculos] = useState<string[]>([]);
-  const [run, setRun] = useState(0);
+  // Parâmetros congelados no clique em "Comparar" — alterar filtros não dispara consulta.
+  const [params, setParams] = useState<{
+    logins: string[];
+    vinculos: string[];
+    ini: string;
+    fim: string;
+    run: number;
+  } | null>(null);
 
   const { data: credenciais } = useKurierCredenciais();
   const loginsAtivos = useMemo(
@@ -77,16 +84,26 @@ export default function ValidaKurier() {
     [credenciais],
   );
 
-  const { data, isFetching, refetch, error } = useQuery({
-    queryKey: ["valida-kurier-por-login", logins.join(","), vinculos.join(","), dataIni, dataFim, run],
-    enabled: run > 0,
+  const { data, isFetching, error } = useQuery({
+    queryKey: [
+      "valida-kurier-por-login",
+      params?.logins.join(",") ?? "",
+      params?.vinculos.join(",") ?? "",
+      params?.ini ?? "",
+      params?.fim ?? "",
+      params?.run ?? 0,
+    ],
+    enabled: !!params,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
+      const p = params!;
       const { data, error } = await (supabase as any).rpc("comparar_kurier_djen_por_login", {
-        p_logins: logins.length > 0 ? logins : null,
-        p_ini: dataIni,
-        p_fim: dataFim,
+        p_logins: p.logins.length > 0 ? p.logins : null,
+        p_ini: p.ini,
+        p_fim: p.fim,
         p_limite: 5000,
-        p_vinculos: vinculos.length > 0 ? vinculos : null,
+        p_vinculos: p.vinculos.length > 0 ? p.vinculos : null,
       });
       if (error) throw error;
       const r = (data ?? {}) as Comparacao;
@@ -208,8 +225,13 @@ export default function ValidaKurier() {
       toast.error("A data inicial não pode ser maior que a final");
       return;
     }
-    setRun((n) => n + 1);
-    setTimeout(() => refetch(), 0);
+    setParams((prev) => ({
+      logins: [...logins],
+      vinculos: [...vinculos],
+      ini: dataIni,
+      fim: dataFim,
+      run: (prev?.run ?? 0) + 1,
+    }));
   }
 
   return (
