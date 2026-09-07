@@ -255,6 +255,35 @@ export default function ValidaKurier() {
               </Popover>
             </div>
             <div className="space-y-1">
+              <Label>Tipo de vínculo por coordenação</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-between font-normal">
+                    <span className="truncate">{rotuloVinculos}</span>
+                    <ChevronDown className="w-4 h-4 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  <div className="space-y-1">
+                    <button
+                      type="button"
+                      className="w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent"
+                      onClick={() => setVinculos([])}
+                    >
+                      Todas (exceto só Kurier)
+                    </button>
+                    {VINCULOS.map((v) => (
+                      <label key={v.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer">
+                        <Checkbox checked={vinculos.includes(v.id)} onCheckedChange={() => toggleVinculo(v.id)} />
+                        <span className="text-sm">{v.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="space-y-1">
               <Label>Data inicial</Label>
               <Input type="date" value={dataIni} onChange={(e) => setDataIni(e.target.value)} />
             </div>
