@@ -277,8 +277,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5" />
             {isReagendar ? "Reagendar audiência" : "Nova audiência (a partir da atual)"}
