@@ -346,10 +346,9 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
               )}
             </div>
           )}
+          </div>
 
-
-
-          <DialogFooter>
+          <DialogFooter className="shrink-0 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Icon className="h-4 w-4 mr-2" />}
