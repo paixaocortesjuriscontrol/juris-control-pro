@@ -1549,20 +1549,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {isNovo && (
                     <FormField
-                      label={modoCaso ? "Número do Processo (opcional — pode incluir depois)" : "Número do Processo *"}
+                      label="Número do Processo *"
                       className="md:col-span-2"
                     >
                       <Input
                         className={inputCls}
                         placeholder={
-                          modoCaso
-                            ? "Deixe em branco se o processo ainda não foi distribuído"
-                            : (form.tipo_processo || "judicial") === "administrativo"
-                              ? "14152.127256/2023-39"
-                              : (form.tipo_processo || "judicial") === "outro"
-                                ? "Digite o número em qualquer formato"
-                                : "0000000-00.0000.0.00.0000"
+                          (form.tipo_processo || "judicial") === "administrativo"
+                            ? "14152.127256/2023-39"
+                            : (form.tipo_processo || "judicial") === "outro"
+                              ? "Digite o número em qualquer formato"
+                              : "0000000-00.0000.0.00.0000"
                         }
+
                         value={form.numero || ""}
                         maxLength={60}
                         onChange={(e) => {
