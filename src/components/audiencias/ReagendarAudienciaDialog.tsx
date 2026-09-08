@@ -277,8 +277,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <Icon className="h-5 w-5" />
             {isReagendar ? "Reagendar audiência" : "Nova audiência (a partir da atual)"}
@@ -290,7 +290,8 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-4 pr-1 -mr-1 pb-1">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="r_data">Nova data *</Label>
@@ -345,10 +346,9 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
               )}
             </div>
           )}
+          </div>
 
-
-
-          <DialogFooter>
+          <DialogFooter className="shrink-0 pt-4">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={isLoading}>
               {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Icon className="h-4 w-4 mr-2" />}
