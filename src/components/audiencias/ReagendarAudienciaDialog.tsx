@@ -290,7 +290,7 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto flex-1 min-h-0 pr-1 -mr-1">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="r_data">Nova data *</Label>
