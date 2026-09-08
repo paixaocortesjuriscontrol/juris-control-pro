@@ -439,7 +439,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const numeroValido = numeroLivre
         ? numeroRaw.length >= 3
         : numeroRaw.replace(/\D/g, "").length >= 5;
-      if (!modoCaso && (!numeroRaw || !numeroValido)) {
+      // O número/identificador é sempre obrigatório — o sistema nunca gera um
+      // código automático (isso causava cadastros repetidos).
+      if (!numeroRaw || !numeroValido) {
         if (!silent) {
           toast.error(
             numeroLivre
@@ -449,10 +451,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
         return;
       }
-      if (modoCaso && numeroRaw && !numeroValido) {
-        if (!silent) toast.error("O número informado é inválido. Deixe em branco para incluir depois.");
-        return;
-      }
+
 
       if (!String(form.area || "").trim()) {
         if (!silent) toast.error("Selecione a área do processo antes de salvar.");
