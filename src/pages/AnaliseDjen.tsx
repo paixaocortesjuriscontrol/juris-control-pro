@@ -3781,7 +3781,17 @@ const AnaliseDjen = () => {
   const formatDateShort = (dateString: string | null) => {
     if (!dateString) return "-";
     try {
-      return format(parseISO(dateString), "dd/MM HH:mm", { locale: ptBR });
+      // Sempre no fuso de Brasília, independente do fuso do navegador.
+      return new Intl.DateTimeFormat("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+        .format(new Date(dateString))
+        .replace(",", "");
     } catch {
       return dateString;
     }
@@ -5338,7 +5348,7 @@ const AnaliseDjen = () => {
                                 <div className="flex flex-wrap items-center gap-1 md:gap-2 mb-1.5 md:mb-2">
                                   {/* Data da publicação à esquerda */}
                                   <span className="text-[10px] md:text-xs text-muted-foreground flex-shrink-0">
-                                    {formatDateShort(pub.data_publicacao)}
+                                    {formatDateOnly(pub.data_publicacao)}
                                   </span>
                                   {/* Badge da Coordenação - sempre visível quando há nome */}
                                   {pub.coordenacao_nome && (
