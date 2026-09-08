@@ -439,7 +439,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       const numeroValido = numeroLivre
         ? numeroRaw.length >= 3
         : numeroRaw.replace(/\D/g, "").length >= 5;
-      if (!modoCaso && (!numeroRaw || !numeroValido)) {
+      // O número/identificador é sempre obrigatório — o sistema nunca gera um
+      // código automático (isso causava cadastros repetidos).
+      if (!numeroRaw || !numeroValido) {
         if (!silent) {
           toast.error(
             numeroLivre
@@ -449,10 +451,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         }
         return;
       }
-      if (modoCaso && numeroRaw && !numeroValido) {
-        if (!silent) toast.error("O número informado é inválido. Deixe em branco para incluir depois.");
-        return;
-      }
+
 
       if (!String(form.area || "").trim()) {
         if (!silent) toast.error("Selecione a área do processo antes de salvar.");
@@ -490,26 +489,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
-        // Modo "Novo Caso" sem número: gera identificador provisório, já que
-        // `numero` é obrigatório no banco. O advogado troca depois pelo CNJ.
-        payload.numero = numeroInformado || `CASO-${Date.now()}`;
-        if (!numeroInformado && modoCaso) {
-          const { data: novoCaso, error: errCaso } = await supabase
-            .from("processos")
-            .insert(
-              Object.fromEntries(
-                Object.entries(payload).filter(([, v]) => v !== null && v !== undefined)
-              ) as any
-            )
-            .select("id")
-            .single();
-          if (errCaso) throw errCaso;
-          if (!silent) toast.success("Caso criado. Você pode incluir o número do processo depois.");
-          await queryClient.invalidateQueries({ queryKey: ["processos"] });
-          await queryClient.invalidateQueries({ queryKey: ["processos-paginados"] });
-          navigate(`/processos/${novoCaso!.id}`, { replace: true });
+        if (!numeroInformado) {
+          if (!silent) toast.error("Informe o número do processo antes de salvar.");
           return;
         }
+        payload.numero = numeroInformado;
+
         // Antes de inserir, verifica se o número já existe no sistema — o
         // índice único global (`processos_numero_uidx`) recusaria o INSERT com
         // uma mensagem técnica de "duplicate key".
@@ -1564,20 +1549,19 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {isNovo && (
                     <FormField
-                      label={modoCaso ? "Número do Processo (opcional — pode incluir depois)" : "Número do Processo *"}
+                      label="Número do Processo *"
                       className="md:col-span-2"
                     >
                       <Input
                         className={inputCls}
                         placeholder={
-                          modoCaso
-                            ? "Deixe em branco se o processo ainda não foi distribuído"
-                            : (form.tipo_processo || "judicial") === "administrativo"
-                              ? "14152.127256/2023-39"
-                              : (form.tipo_processo || "judicial") === "outro"
-                                ? "Digite o número em qualquer formato"
-                                : "0000000-00.0000.0.00.0000"
+                          (form.tipo_processo || "judicial") === "administrativo"
+                            ? "14152.127256/2023-39"
+                            : (form.tipo_processo || "judicial") === "outro"
+                              ? "Digite o número em qualquer formato"
+                              : "0000000-00.0000.0.00.0000"
                         }
+
                         value={form.numero || ""}
                         maxLength={60}
                         onChange={(e) => {
