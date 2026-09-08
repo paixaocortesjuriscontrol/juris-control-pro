@@ -489,26 +489,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
-        // Modo "Novo Caso" sem número: gera identificador provisório, já que
-        // `numero` é obrigatório no banco. O advogado troca depois pelo CNJ.
-        payload.numero = numeroInformado || `CASO-${Date.now()}`;
-        if (!numeroInformado && modoCaso) {
-          const { data: novoCaso, error: errCaso } = await supabase
-            .from("processos")
-            .insert(
-              Object.fromEntries(
-                Object.entries(payload).filter(([, v]) => v !== null && v !== undefined)
-              ) as any
-            )
-            .select("id")
-            .single();
-          if (errCaso) throw errCaso;
-          if (!silent) toast.success("Caso criado. Você pode incluir o número do processo depois.");
-          await queryClient.invalidateQueries({ queryKey: ["processos"] });
-          await queryClient.invalidateQueries({ queryKey: ["processos-paginados"] });
-          navigate(`/processos/${novoCaso!.id}`, { replace: true });
+        if (!numeroInformado) {
+          if (!silent) toast.error("Informe o número do processo antes de salvar.");
           return;
         }
+        payload.numero = numeroInformado;
+
         // Antes de inserir, verifica se o número já existe no sistema — o
         // índice único global (`processos_numero_uidx`) recusaria o INSERT com
         // uma mensagem técnica de "duplicate key".
