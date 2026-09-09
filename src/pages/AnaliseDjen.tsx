@@ -3272,6 +3272,33 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Excel Clipping — Controle de Prazos" (modelo da Bruna) =====
+  const [gerandoClipping, setGerandoClipping] = useState(false);
+  const handleGerarClipping = async () => {
+    const pubs = getPubsParaGerar();
+    if (pubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoClipping(true);
+    const toastId = toast.loading(`Gerando Clipping de prazos (${pubs.length})...`);
+    try {
+      const [{ gerarClippingPrazosExcel }, comentariosMap] = await Promise.all([
+        import("@/lib/clippingPrazosExcel"),
+        fetchComentariosMap(pubs.map((p) => p.id)),
+      ]);
+      await gerarClippingPrazosExcel(
+        pubs as any,
+        comentariosMap,
+        `CLIPPING_CONTROLE_PRAZOS_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`,
+      );
+      toast.success(`Clipping gerado: ${pubs.length} publicação(ões)`, { id: toastId });
+    } catch (e: any) {
+      toast.error(`Erro ao gerar Clipping: ${e?.message ?? e}`, { id: toastId });
+    } finally {
+      setGerandoClipping(false);
+    }
+  };
 
 
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
@@ -5111,8 +5138,28 @@ const AnaliseDjen = () => {
               <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarExcel("intimacao-sem-rep"), 0)}>
                 Excel Intimações sem repetição
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setTimeout(() => handleGerarClipping(), 0)}>
+                Excel Clipping — Controle de Prazos
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarClipping}
+            disabled={allPublicacoes.length === 0 || gerandoClipping}
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3 border-sky-300 text-sky-700 hover:bg-sky-50 dark:border-sky-700 dark:text-sky-400 dark:hover:bg-sky-950/30"
+          >
+            {gerandoClipping ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoClipping ? "Gerando..." : "Clipping Prazos"}</span>
+            <span className="sm:hidden">Clipping</span>
+          </Button>
+
 
 
 
