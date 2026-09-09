@@ -303,68 +303,86 @@ export function ProcessoDetalhesCompletos({
     eventosAgenda.map((e: any) => String(e.id)).filter(Boolean)
   );
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
-  // Eventos com repetição ficam gravados em um único registro: aqui abrimos as
-  // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha.
-  const [seriesEventosAbertas, setSeriesEventosAbertas] = useState<Set<string>>(new Set());
-  const seriesEventos = useMemo(() => {
-    const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const linhas: { chave: string; original: any; principal: any; repeticoes: any[] }[] = [];
-    for (const evento of eventosDoProcesso) {
-      const isRecorrente = !!evento.recorrencia_tipo && !evento.grupo_parcelas;
-      if (!isRecorrente) {
-        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
-        continue;
-      }
-      const datas = expandirOcorrencias(
-        evento.data_inicio,
-        {
-          tipo: evento.recorrencia_tipo,
-          intervalo: evento.recorrencia_intervalo,
-          fim: evento.recorrencia_fim,
-          diasSemana: evento.recorrencia_dias_semana,
-        },
-        windowStart,
-        windowEnd
-      );
-      const ocorrencias = datas
-        .map((d) => ({
-          ...evento,
-          id: `${evento.id}::${d.toISOString().slice(0, 10)}`,
-          data_inicio: d.toISOString(),
-          recorrencia_pai_id: evento.id,
-        }))
-        .sort(
-          (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
-        );
-      if (ocorrencias.length === 0) {
-        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
-        continue;
-      }
-      const idxPrincipal = Math.max(
-        0,
-        ocorrencias.findIndex((o) => new Date(o.data_inicio) >= hoje)
-      );
-      linhas.push({
-        chave: `serie-${evento.id}`,
-        original: evento,
-        principal: ocorrencias[idxPrincipal] ?? ocorrencias[0],
-        repeticoes: ocorrencias.filter((_, i) => i !== idxPrincipal),
-      });
-    }
-    return linhas.sort(
-      (a, b) =>
-        new Date(a.principal.data_inicio || 0).getTime() -
-        new Date(b.principal.data_inicio || 0).getTime()
-    );
-  }, [eventosDoProcesso]);
-  const alternarSerieEvento = (chave: string) =>
-    setSeriesEventosAbertas((prev) => {
+  // Itens com repetição ficam gravados em um único registro: aqui abrimos as
+  // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha,
+  // mostrando a mais próxima e permitindo expandir as demais.
+  const [seriesAbertas, setSeriesAbertas] = useState<Set<string>>(new Set());
+  const alternarSerie = (chave: string) =>
+    setSeriesAbertas((prev) => {
       const next = new Set(prev);
       next.has(chave) ? next.delete(chave) : next.add(chave);
       return next;
     });
+  const renderSerie = (
+    linha: LinhaSerie<any>,
+    renderItem: (item: any) => JSX.Element,
+    opts?: { corBorda?: string; rotulo?: (n: number) => string; rotuloOculto?: string }
+  ) => {
+    const aberta = seriesAbertas.has(linha.chave);
+    const qtd = linha.repeticoes.length;
+    const rotulo = opts?.rotulo ?? ((n: number) => `${n} ${n === 1 ? "repetição" : "repetições"}`);
+    return (
+      <div key={linha.chave} className="space-y-2">
+        {renderItem(linha.principal)}
+        {qtd > 0 && (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] text-muted-foreground"
+              onClick={() => alternarSerie(linha.chave)}
+            >
+              {aberta ? opts?.rotuloOculto ?? "Ocultar repetições" : `+ ${rotulo(qtd)}`}
+            </Button>
+            {aberta && (
+              <div className={`space-y-2 pl-3 border-l-2 ${opts?.corBorda ?? "border-muted"}`}>
+                {linha.repeticoes.map((oc: any) => renderItem(oc))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+  const seriesEventos = useMemo(
+    () =>
+      agruparSerieRecorrente<any>(eventosDoProcesso, {
+        dataBase: (e) => e.data_inicio,
+        regra: (e) =>
+          e.recorrencia_tipo && !e.grupo_parcelas
+            ? {
+                tipo: e.recorrencia_tipo,
+                intervalo: e.recorrencia_intervalo,
+                fim: e.recorrencia_fim,
+                diasSemana: e.recorrencia_dias_semana,
+              }
+            : null,
+        aplicarData: (e, d) => ({
+          ...e,
+          id: `${e.id}::${d.toISOString().slice(0, 10)}`,
+          data_inicio: d.toISOString(),
+          recorrencia_pai_id: e.id,
+        }),
+      }).sort(
+        (a, b) =>
+          new Date(a.principal.data_inicio || 0).getTime() -
+          new Date(b.principal.data_inicio || 0).getTime()
+      ),
+    [eventosDoProcesso]
+  );
+  const seriesParcelamentos = useMemo(
+    () =>
+      agruparPorGrupo<any>(parcelamentosDoProcesso, {
+        grupoDe: (p) => p.grupo_parcelas,
+        dataDe: (p) => p.data_inicio,
+      }).sort(
+        (a, b) =>
+          new Date(a.principal.data_inicio || 0).getTime() -
+          new Date(b.principal.data_inicio || 0).getTime()
+      ),
+    [parcelamentosDoProcesso]
+  );
+
   const processoPreSelecionado = processo
     ? { id: processo.id, numero: processo.numero || "", coordenacao_id: (processo as any).coordenacao_id ?? null }
     : null;
