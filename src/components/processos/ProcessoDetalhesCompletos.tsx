@@ -351,30 +351,38 @@ export function ProcessoDetalhesCompletos({
   };
   const seriesEventos = useMemo(
     () =>
-      agruparSerieRecorrente<any>(eventosDoProcesso, {
-        dataBase: (e) => e.data_inicio,
-        regra: (e) =>
-          e.recorrencia_tipo && !e.grupo_parcelas
-            ? {
-                tipo: e.recorrencia_tipo,
-                intervalo: e.recorrencia_intervalo,
-                fim: e.recorrencia_fim,
-                diasSemana: e.recorrencia_dias_semana,
-              }
-            : null,
-        aplicarData: (e, d) => ({
-          ...e,
-          id: `${e.id}::${d.toISOString().slice(0, 10)}`,
-          data_inicio: d.toISOString(),
-          recorrencia_pai_id: e.id,
+      mesclarLinhasRepetidas<any>(
+        agruparSerieRecorrente<any>(eventosDoProcesso, {
+          dataBase: (e) => e.data_inicio,
+          regra: (e) =>
+            e.recorrencia_tipo && !e.grupo_parcelas
+              ? {
+                  tipo: e.recorrencia_tipo,
+                  intervalo: e.recorrencia_intervalo,
+                  fim: e.recorrencia_fim,
+                  diasSemana: e.recorrencia_dias_semana,
+                }
+              : null,
+          aplicarData: (e, d) => ({
+            ...e,
+            id: `${e.id}::${d.toISOString().slice(0, 10)}`,
+            data_inicio: d.toISOString(),
+            recorrencia_pai_id: e.id,
+          }),
         }),
-      }).sort(
+        {
+          chaveDe: (e) =>
+            e.grupo_parcelas ? null : `${tituloNormalizado(e.titulo)}|${e.responsavel_id ?? ""}`,
+          dataDe: (e) => e.data_inicio,
+        }
+      ).sort(
         (a, b) =>
           new Date(a.principal.data_inicio || 0).getTime() -
           new Date(b.principal.data_inicio || 0).getTime()
       ),
     [eventosDoProcesso]
   );
+
   const seriesParcelamentos = useMemo(
     () =>
       agruparPorGrupo<any>(parcelamentosDoProcesso, {
