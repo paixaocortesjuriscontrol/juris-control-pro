@@ -579,7 +579,10 @@ export function ProcessoItensLateral({
         </div>
 
         <TabsContent value="resumo" className="m-0 min-h-0 flex-1">
-          <ScrollArea className="h-full">
+          {/* O ScrollArea global força min-w-0 no filho do viewport (display:table),
+              o que faz o conteúdo encolher para a largura do texto. Aqui restauramos
+              min-w-full para os blocos do resumo sempre ocuparem toda a largura. */}
+          <ScrollArea className="h-full [&_[data-radix-scroll-area-viewport]>div]:!min-w-full">
             <ProcessoLateralResumo processoId={processoId} />
           </ScrollArea>
         </TabsContent>
