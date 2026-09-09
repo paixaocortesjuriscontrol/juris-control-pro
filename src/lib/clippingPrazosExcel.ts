@@ -1,14 +1,5 @@
-/**
- * "Excel Clipping — Controle de Prazos" (modelo PLANILHA_TST.xlsx da Bruna).
- *
- * Aba GERAL: replica o layout E o estilo original (cabeçalho vinho #602826 com
- * texto branco, Calibri 9, bordas finas, células centralizadas com quebra de
- * texto, "Hoje:" em amarelo claro, alturas de linha do modelo).
- * Aba DADOS: todas as informações disponíveis da publicação (inclusive conteúdo
- * integral), para o advogado consultar sem sair da planilha.
- */
-
-import * as XLSX from "xlsx-js-style";
+/** Exportação do Clipping — Controle de Prazos no modelo da Paixão Côrtes. */
+import ExcelJS from "exceljs";
 
 export interface ClippingPub {
   id: string;
@@ -34,6 +25,13 @@ export interface ClippingPub {
 }
 
 const MAX_CELULA = 32000;
+const VINHO = "602826";
+const AMARELO_CLARO = "FFFFE5";
+const BRANCO = "FFFFFF";
+const PRETO = "000000";
+const FONTE = "Calibri";
+const TAM = 9;
+
 const cap = (v: any) => {
   const s = String(v ?? "");
   return s.length > MAX_CELULA ? `${s.slice(0, MAX_CELULA)} […texto truncado]` : s;
@@ -49,10 +47,9 @@ const toDate = (v?: string | null): Date | null => {
   const ymd = String(v).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) return null;
   const [y, m, d] = ymd.split("-").map(Number);
-  return new Date(y, m - 1, d);
+  return new Date(y, m - 1, d, 12);
 };
 
-/** UF a partir do tribunal (TRT2 → SP, TJSP → SP, TRT10 → DF...). */
 const REGIAO_UF: Record<string, string> = {
   "1": "RJ", "2": "SP", "3": "MG", "4": "RS", "5": "BA", "6": "PE", "7": "CE",
   "8": "PA", "9": "PR", "10": "DF", "11": "AM", "12": "SC", "13": "PB",
@@ -66,55 +63,61 @@ const ufDaPub = (pub: ClippingPub): string => {
   const trt = trib.match(/^TRT(\d{1,2})$/);
   if (trt) return REGIAO_UF[String(Number(trt[1]))] || "";
   const tj = trib.match(/^(TJ|TRE)([A-Z]{2})$/);
-  if (tj) return tj[2];
-  return "";
+  return tj ? tj[2] : "";
 };
 
-/* ---------------- Estilos extraídos do modelo ---------------- */
-const VINHO = "602826";          // accent2 (C0504D) com tint -50%, igual ao modelo
-const AMARELO_CLARO = "FFFFE5";  // destaque "Hoje:"
-const FONTE = "Calibri";
-const TAM = 9;
-
-const borda = {
-  top: { style: "thin", color: { rgb: "000000" } },
-  bottom: { style: "thin", color: { rgb: "000000" } },
-  left: { style: "thin", color: { rgb: "000000" } },
-  right: { style: "thin", color: { rgb: "000000" } },
-} as const;
-
-const centro = { horizontal: "center", vertical: "center", wrapText: true } as const;
-
-const estiloTitulo = {
-  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "FFFFFF" } },
-  fill: { patternType: "solid", fgColor: { rgb: VINHO } },
-  alignment: centro,
-  border: borda,
+const thinBorder: Partial<ExcelJS.Borders> = {
+  top: { style: "thin", color: { argb: PRETO } },
+  bottom: { style: "thin", color: { argb: PRETO } },
+  left: { style: "thin", color: { argb: PRETO } },
+  right: { style: "thin", color: { argb: PRETO } },
 };
 
-const estiloCabecalho = estiloTitulo;
-
-const estiloCelula = {
-  font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
-  alignment: centro,
-  border: borda,
+const aplicarCelula = (cell: ExcelJS.Cell, bold = false) => {
+  cell.font = { name: FONTE, size: TAM, bold, color: { argb: PRETO } };
+  cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+  cell.border = thinBorder;
 };
 
-const estiloCelulaBold = {
-  ...estiloCelula,
-  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "000000" } },
+/** Gera uma imagem nítida da marca para manter o cabeçalho igual ao modelo. */
+const gerarLogoBase64 = (): string => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 720;
+  canvas.height = 150;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  ctx.scale(2, 2);
+  ctx.strokeStyle = `#${VINHO}`;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(8, 13, 39, 47);
+  ctx.beginPath();
+  ctx.moveTo(15, 53); ctx.lineTo(15, 22); ctx.lineTo(39, 22); ctx.lineTo(39, 31);
+  ctx.lineTo(24, 31); ctx.lineTo(24, 52); ctx.lineTo(47, 52);
+  ctx.stroke();
+
+  ctx.fillStyle = "#423438";
+  ctx.font = "25px Georgia, serif";
+  ctx.fillText("PAIXÃO CÔRTES", 60, 39);
+  ctx.font = "8px Arial, sans-serif";
+  const subtitulo = "A D V O G A D O S";
+  ctx.fillText(subtitulo, 112, 55);
+  return canvas.toDataURL("image/png").split(",")[1] || "";
 };
 
-const estiloHoje = {
-  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "000000" } },
-  fill: { patternType: "solid", fgColor: { rgb: AMARELO_CLARO } },
-  alignment: centro,
-  border: borda,
-};
-
-const estiloRotulo = {
-  font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
-  alignment: { horizontal: "right", vertical: "center", wrapText: true },
+const baixar = async (wb: ExcelJS.Workbook, filename: string) => {
+  const buffer = await wb.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 };
 
 export async function gerarClippingPrazosExcel(
@@ -122,161 +125,156 @@ export async function gerarClippingPrazosExcel(
   comentariosPorPub: Map<string, Array<{ autor: string; comentario: string; created_at: string }>>,
   filename: string,
 ) {
-  // ---------- Aba GERAL (modelo Clipping) ----------
-  const HEADERS = [
-    "PUBLICAÇÃO", "PROCESSO", "RECLAMANTE", "PROVIDÊNCIA", "PRAZO (DIAS)",
-    "PRAZO FATAL", "STATUS ATUAL", "CLIENTE/     POPULAÇÃO", "UF",
+  const wb = new ExcelJS.Workbook();
+  wb.creator = "Juris Control — Paixão Côrtes Advogados";
+  wb.created = new Date();
+  wb.calcProperties.fullCalcOnLoad = true;
+
+  const ws = wb.addWorksheet("GERAL", { views: [{ state: "frozen", ySplit: 6 }] });
+  const headers = [
+    "PUBLICAÇÃO", "PROCESSO", "RECLAMANTE", "PROVIDÊNCIA", "PRAZO\n(DIAS)",
+    "PRAZO FATAL", "STATUS ATUAL", "CLIENTE/\nPOPULAÇÃO", "UF",
     "RESPONSÁVEL", "OBSERVAÇÃO", "DEP. RECURSAL OU JUDICIAL", "CUSTAS",
   ];
+  const widths = [10, 25, 29, 31, 8, 11, 13, 16, 5, 17, 25, 14, 15];
+  widths.forEach((width, i) => { ws.getColumn(i + 1).width = width; });
+  [13.5, 25, 25, 8, 20, 34].forEach((height, i) => { ws.getRow(i + 1).height = height; });
 
-  const aoa: any[][] = [
-    [], // 1
-    [null, null, "Hoje:", null], // 2
-    [], // 3
-    [], // 4
-    ["CLIPPING - CONTROLE DE PRAZOS"], // 5
-    HEADERS, // 6
-  ];
+  ws.mergeCells("A2:B3");
+  const logo = gerarLogoBase64();
+  if (logo) {
+    const logoId = wb.addImage({ base64: logo, extension: "png" });
+    ws.addImage(logoId, { tl: { col: 0.08, row: 1.08 }, ext: { width: 245, height: 53 } });
+  }
 
-  pubs.forEach((pub) => {
-    const coms = (comentariosPorPub.get(pub.id) || [])
+  ws.getCell("C2").value = "Hoje:";
+  ws.getCell("C2").font = { name: FONTE, size: TAM, color: { argb: PRETO } };
+  ws.getCell("C2").alignment = { horizontal: "right", vertical: "middle" };
+  ws.mergeCells("D2:E2");
+  ws.mergeCells("D3:E3");
+  ws.getCell("D2").value = { formula: "TODAY()" };
+  ws.getCell("D2").numFmt = "dd/mm/yyyy";
+  ws.getCell("D3").value = { formula: "WEEKDAY(D2,1)" };
+  ws.getCell("D3").numFmt = "dddd";
+  ["D2", "D3"].forEach((ref) => {
+    const cell = ws.getCell(ref);
+    aplicarCelula(cell, true);
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AMARELO_CLARO } };
+  });
+
+  ws.mergeCells("A5:M5");
+  ws.getCell("A5").value = "CLIPPING - CONTROLE DE PRAZOS";
+  ws.getCell("A5").font = { name: FONTE, size: TAM, bold: true, color: { argb: BRANCO } };
+  ws.getCell("A5").fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINHO } };
+  ws.getCell("A5").alignment = { horizontal: "center", vertical: "middle" };
+  ws.getCell("A5").border = thinBorder;
+
+  const headerRow = ws.getRow(6);
+  headerRow.values = headers;
+  headerRow.eachCell((cell) => {
+    cell.font = { name: FONTE, size: TAM, bold: true, color: { argb: BRANCO } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINHO } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.border = thinBorder;
+  });
+
+  pubs.forEach((pub, index) => {
+    const rowNumber = index + 7;
+    const comentarios = (comentariosPorPub.get(pub.id) || [])
       .map((c) => `${c.autor}: ${c.comentario}`)
       .join(" | ");
-    const observacao = [pub.tribunal, pub.orgao, coms].filter(Boolean).join(" — ");
-    aoa.push([
+    const observacao = [pub.tribunal, pub.orgao, comentarios].filter(Boolean).join(" — ");
+    const row = ws.getRow(rowNumber);
+    row.height = 30;
+    row.values = [
       toDate(pub.data_disponibilizacao || pub.data_publicacao),
       cap(pub.processo_numero || ""),
       cap(pub.polo_ativo || nomes(pub.partes_json)),
       cap(pub.tipo_comunicacao || ""),
-      null, // PRAZO (DIAS) — preenchido pelo advogado
-      null, // PRAZO FATAL — fórmula
-      null, // STATUS ATUAL — fórmula
+      null,
+      { formula: `IF(OR(A${rowNumber}="",E${rowNumber}=""),"",WORKDAY(A${rowNumber},E${rowNumber}))` },
+      { formula: `IF(F${rowNumber}="","",IF(F${rowNumber}=$D$2,"VENCE HOJE",IF(F${rowNumber}<$D$2,"VENCIDO","NO PRAZO")))` },
       cap(pub.monitoramento_descricao || pub.monitoramento_termo || ""),
       ufDaPub(pub),
       cap(pub.coordenacao_nome || ""),
       cap(observacao),
       null,
       null,
-    ]);
+    ];
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => aplicarCelula(cell, colNumber === 7));
+    row.getCell(1).numFmt = "dd/mm/yyyy";
+    row.getCell(5).numFmt = "0";
+    row.getCell(6).numFmt = "dd/mm/yyyy";
   });
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
-  const enc = XLSX.utils.encode_cell;
-
-  // Título (linha 5) e cabeçalho (linha 6) com o vinho do modelo
-  for (let c = 0; c <= 12; c++) {
-    const tit = enc({ r: 4, c });
-    if (!ws[tit]) ws[tit] = { t: "z" };
-    ws[tit].s = estiloTitulo;
-    const cab = enc({ r: 5, c });
-    if (!ws[cab]) ws[cab] = { t: "s", v: "" };
-    ws[cab].s = estiloCabecalho;
-  }
-
-  // "Hoje:" + data/dia da semana
-  const rotulo = ws[enc({ r: 1, c: 2 })];
-  if (rotulo) rotulo.s = estiloRotulo;
-  ws[enc({ r: 1, c: 3 })] = { t: "n", f: "TODAY()", z: "dd/mm/yyyy", s: estiloHoje };
-  ws[enc({ r: 2, c: 3 })] = { t: "n", f: "WEEKDAY(D2,1)", z: "dddd", s: estiloHoje };
-
-  pubs.forEach((_, i) => {
-    const linha = 7 + i; // 1-indexado
-    const r = linha - 1;
-    const dataCel = ws[enc({ r, c: 0 })];
-    if (dataCel) dataCel.z = "dd/mm/yyyy";
-    ws[enc({ r, c: 5 })] = { t: "n", f: `WORKDAY(A${linha},E${linha},)`, z: "dd/mm/yyyy", s: estiloCelula };
-    ws[enc({ r, c: 6 })] = {
-      t: "s",
-      v: "",
-      f: `IF(F${linha}=GERAL!$D$2,"VENCE HOJE",IF(F${linha}<GERAL!$D$2,"VENCIDO","NO PRAZO"))`,
-      s: estiloCelulaBold,
-    };
-    for (let c = 0; c <= 12; c++) {
-      if (c === 5 || c === 6) continue;
-      const ref = enc({ r, c });
-      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
-      ws[ref].s = estiloCelula;
+  if (pubs.length > 0) {
+    for (let rowNumber = 7; rowNumber <= pubs.length + 6; rowNumber++) {
+      ws.getCell(`E${rowNumber}`).dataValidation = {
+        type: "whole",
+        operator: "greaterThanOrEqual",
+        allowBlank: true,
+        formulae: [0],
+        showErrorMessage: true,
+        errorTitle: "Prazo inválido",
+        error: "Informe a quantidade de dias como número inteiro.",
+      };
     }
+  }
+  ws.autoFilter = { from: "A6", to: `M${Math.max(6, pubs.length + 6)}` };
+
+  const dados = wb.addWorksheet("DADOS", { views: [{ state: "frozen", ySplit: 1 }] });
+  const dadosHeaders = [
+    "#", "Data publicação", "Data disponibilização", "Nº do processo", "Tribunal", "UF",
+    "Órgão / Vara", "Tipo de comunicação", "Meio", "Polo ativo", "Polo passivo", "Advogados",
+    "Monitoramento", "Tipo do monitoramento", "Coordenação", "Lida", "Comentários", "Conteúdo integral",
+  ];
+  dados.addRow(dadosHeaders);
+  dados.getRow(1).height = 34;
+  dados.getRow(1).eachCell((cell) => {
+    cell.font = { name: FONTE, size: TAM, bold: true, color: { argb: BRANCO } };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: VINHO } };
+    cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+    cell.border = thinBorder;
   });
+  [5, 14, 18, 26, 12, 5, 30, 24, 12, 34, 34, 34, 28, 16, 22, 8, 40, 120]
+    .forEach((width, i) => { dados.getColumn(i + 1).width = width; });
 
-  ws["!cols"] = [
-    { wch: 10 }, { wch: 25 }, { wch: 29 }, { wch: 31 }, { wch: 6 }, { wch: 10 },
-    { wch: 12 }, { wch: 16 }, { wch: 5 }, { wch: 15 }, { wch: 25 }, { wch: 12 }, { wch: 15 },
-  ];
-  ws["!rows"] = [
-    { hpt: 13.5 }, { hpt: 18 }, { hpt: 20.25 }, { hpt: 10.5 }, { hpt: 17.25 }, { hpt: 28.2 },
-    ...pubs.map(() => ({ hpt: 24.6 })),
-  ];
-  ws["!merges"] = [
-    { s: { r: 1, c: 3 }, e: { r: 1, c: 4 } },
-    { s: { r: 2, c: 3 }, e: { r: 2, c: 4 } },
-    { s: { r: 4, c: 0 }, e: { r: 4, c: 9 } },
-  ];
-  ws["!autofilter"] = { ref: `A6:M${6 + Math.max(pubs.length, 1)}` };
-
-  // ---------- Aba DADOS (máximo de informações) ----------
-  const fmt = (v?: string | null) => {
-    const d = toDate(v);
-    if (!d) return "";
-    const p = (n: number) => String(n).padStart(2, "0");
-    return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
-  };
-  const dados = pubs.map((pub, idx) => {
+  pubs.forEach((pub, index) => {
     const conteudo = String(pub.conteudo || "")
       .replace(/<[^>]+>/g, " ")
       .replace(/&nbsp;/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    return {
-      "#": idx + 1,
-      "Data publicação": fmt(pub.data_publicacao),
-      "Data disponibilização": fmt(pub.data_disponibilizacao),
-      "Nº do processo": cap(pub.processo_numero || ""),
-      Tribunal: cap(pub.tribunal || ""),
-      UF: ufDaPub(pub),
-      "Órgão / Vara": cap(pub.orgao || ""),
-      "Tipo de comunicação": cap(pub.tipo_comunicacao || ""),
-      Meio: cap(pub.meio || ""),
-      "Polo ativo": cap(pub.polo_ativo || nomes(pub.partes_json)),
-      "Polo passivo": cap(pub.polo_passivo || ""),
-      Advogados: cap(nomes(pub.advogados_json)),
-      Monitoramento: cap(pub.monitoramento_descricao || pub.monitoramento_termo || ""),
-      "Tipo do monitoramento": cap(pub.monitoramento_tipo || ""),
-      Coordenação: cap(pub.coordenacao_nome || ""),
-      Lida: pub.lida ? "Sim" : "Não",
-      Comentários: cap(
-        (comentariosPorPub.get(pub.id) || []).map((c) => `${c.autor}: ${c.comentario}`).join(" | "),
-      ),
-      "Conteúdo integral": cap(conteudo),
-    };
+    const row = dados.addRow([
+      index + 1,
+      toDate(pub.data_publicacao),
+      toDate(pub.data_disponibilizacao),
+      cap(pub.processo_numero || ""),
+      cap(pub.tribunal || ""),
+      ufDaPub(pub),
+      cap(pub.orgao || ""),
+      cap(pub.tipo_comunicacao || ""),
+      cap(pub.meio || ""),
+      cap(pub.polo_ativo || nomes(pub.partes_json)),
+      cap(pub.polo_passivo || ""),
+      cap(nomes(pub.advogados_json)),
+      cap(pub.monitoramento_descricao || pub.monitoramento_termo || ""),
+      cap(pub.monitoramento_tipo || ""),
+      cap(pub.coordenacao_nome || ""),
+      pub.lida ? "Sim" : "Não",
+      cap((comentariosPorPub.get(pub.id) || []).map((c) => `${c.autor}: ${c.comentario}`).join(" | ")),
+      cap(conteudo),
+    ]);
+    row.height = 30;
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.font = { name: FONTE, size: TAM, color: { argb: PRETO } };
+      cell.alignment = { vertical: "top", wrapText: true };
+      cell.border = thinBorder;
+    });
+    row.getCell(2).numFmt = "dd/mm/yyyy";
+    row.getCell(3).numFmt = "dd/mm/yyyy";
   });
+  dados.autoFilter = { from: "A1", to: `R${Math.max(1, pubs.length + 1)}` };
 
-  const wsDados = XLSX.utils.json_to_sheet(dados);
-  wsDados["!cols"] = [
-    { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 26 }, { wch: 12 }, { wch: 5 },
-    { wch: 30 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 34 }, { wch: 34 },
-    { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 8 }, { wch: 40 }, { wch: 120 },
-  ];
-
-  const estiloDados = {
-    font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
-    alignment: { vertical: "top", wrapText: true },
-    border: borda,
-  };
-  const totalCols = 18;
-  for (let c = 0; c < totalCols; c++) {
-    const cab = enc({ r: 0, c });
-    if (wsDados[cab]) wsDados[cab].s = estiloCabecalho;
-    for (let r = 1; r <= dados.length; r++) {
-      const ref = enc({ r, c });
-      if (!wsDados[ref]) wsDados[ref] = { t: "s", v: "" };
-      wsDados[ref].s = estiloDados;
-    }
-  }
-  wsDados["!rows"] = [{ hpt: 28.2 }, ...dados.map(() => ({ hpt: 24.6 }))];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "GERAL");
-  XLSX.utils.book_append_sheet(wb, wsDados, "DADOS");
-  XLSX.writeFile(wb, filename);
+  await baixar(wb, filename);
 }
