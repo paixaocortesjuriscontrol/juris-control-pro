@@ -1,11 +1,14 @@
 /**
  * "Excel Clipping — Controle de Prazos" (modelo PLANILHA_TST.xlsx da Bruna).
  *
- * Aba GERAL: replica o layout original (Hoje / =TODAY(), cabeçalho na linha 6,
- * fórmulas =WORKDAY e =IF de STATUS ATUAL por linha).
+ * Aba GERAL: replica o layout E o estilo original (cabeçalho vinho #602826 com
+ * texto branco, Calibri 9, bordas finas, células centralizadas com quebra de
+ * texto, "Hoje:" em amarelo claro, alturas de linha do modelo).
  * Aba DADOS: todas as informações disponíveis da publicação (inclusive conteúdo
  * integral), para o advogado consultar sem sair da planilha.
  */
+
+import * as XLSX from "xlsx-js-style";
 
 export interface ClippingPub {
   id: string;
@@ -67,13 +70,58 @@ const ufDaPub = (pub: ClippingPub): string => {
   return "";
 };
 
+/* ---------------- Estilos extraídos do modelo ---------------- */
+const VINHO = "602826";          // accent2 (C0504D) com tint -50%, igual ao modelo
+const AMARELO_CLARO = "FFFFE5";  // destaque "Hoje:"
+const FONTE = "Calibri";
+const TAM = 9;
+
+const borda = {
+  top: { style: "thin", color: { rgb: "000000" } },
+  bottom: { style: "thin", color: { rgb: "000000" } },
+  left: { style: "thin", color: { rgb: "000000" } },
+  right: { style: "thin", color: { rgb: "000000" } },
+} as const;
+
+const centro = { horizontal: "center", vertical: "center", wrapText: true } as const;
+
+const estiloTitulo = {
+  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "FFFFFF" } },
+  fill: { patternType: "solid", fgColor: { rgb: VINHO } },
+  alignment: centro,
+  border: borda,
+};
+
+const estiloCabecalho = estiloTitulo;
+
+const estiloCelula = {
+  font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
+  alignment: centro,
+  border: borda,
+};
+
+const estiloCelulaBold = {
+  ...estiloCelula,
+  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "000000" } },
+};
+
+const estiloHoje = {
+  font: { name: FONTE, sz: TAM, bold: true, color: { rgb: "000000" } },
+  fill: { patternType: "solid", fgColor: { rgb: AMARELO_CLARO } },
+  alignment: centro,
+  border: borda,
+};
+
+const estiloRotulo = {
+  font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
+  alignment: { horizontal: "right", vertical: "center", wrapText: true },
+};
+
 export async function gerarClippingPrazosExcel(
   pubs: ClippingPub[],
   comentariosPorPub: Map<string, Array<{ autor: string; comentario: string; created_at: string }>>,
   filename: string,
 ) {
-  const XLSX = await import("xlsx");
-
   // ---------- Aba GERAL (modelo Clipping) ----------
   const HEADERS = [
     "PUBLICAÇÃO", "PROCESSO", "RECLAMANTE", "PROVIDÊNCIA", "PRAZO (DIAS)",
@@ -115,24 +163,49 @@ export async function gerarClippingPrazosExcel(
   const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true });
   const enc = XLSX.utils.encode_cell;
 
-  ws[enc({ r: 1, c: 3 })] = { t: "n", f: "TODAY()", z: "dd/mm/yyyy" };
-  ws[enc({ r: 2, c: 3 })] = { t: "n", f: "WEEKDAY(D2,1)", z: "dddd" };
+  // Título (linha 5) e cabeçalho (linha 6) com o vinho do modelo
+  for (let c = 0; c <= 12; c++) {
+    const tit = enc({ r: 4, c });
+    if (!ws[tit]) ws[tit] = { t: "z" };
+    ws[tit].s = estiloTitulo;
+    const cab = enc({ r: 5, c });
+    if (!ws[cab]) ws[cab] = { t: "s", v: "" };
+    ws[cab].s = estiloCabecalho;
+  }
+
+  // "Hoje:" + data/dia da semana
+  const rotulo = ws[enc({ r: 1, c: 2 })];
+  if (rotulo) rotulo.s = estiloRotulo;
+  ws[enc({ r: 1, c: 3 })] = { t: "n", f: "TODAY()", z: "dd/mm/yyyy", s: estiloHoje };
+  ws[enc({ r: 2, c: 3 })] = { t: "n", f: "WEEKDAY(D2,1)", z: "dddd", s: estiloHoje };
 
   pubs.forEach((_, i) => {
     const linha = 7 + i; // 1-indexado
     const r = linha - 1;
     const dataCel = ws[enc({ r, c: 0 })];
     if (dataCel) dataCel.z = "dd/mm/yyyy";
-    ws[enc({ r, c: 5 })] = { t: "n", f: `WORKDAY(A${linha},E${linha},)`, z: "dd/mm/yyyy" };
+    ws[enc({ r, c: 5 })] = { t: "n", f: `WORKDAY(A${linha},E${linha},)`, z: "dd/mm/yyyy", s: estiloCelula };
     ws[enc({ r, c: 6 })] = {
       t: "s",
+      v: "",
       f: `IF(F${linha}=GERAL!$D$2,"VENCE HOJE",IF(F${linha}<GERAL!$D$2,"VENCIDO","NO PRAZO"))`,
+      s: estiloCelulaBold,
     };
+    for (let c = 0; c <= 12; c++) {
+      if (c === 5 || c === 6) continue;
+      const ref = enc({ r, c });
+      if (!ws[ref]) ws[ref] = { t: "s", v: "" };
+      ws[ref].s = estiloCelula;
+    }
   });
 
   ws["!cols"] = [
     { wch: 10 }, { wch: 25 }, { wch: 29 }, { wch: 31 }, { wch: 6 }, { wch: 10 },
     { wch: 12 }, { wch: 16 }, { wch: 5 }, { wch: 15 }, { wch: 25 }, { wch: 12 }, { wch: 15 },
+  ];
+  ws["!rows"] = [
+    { hpt: 13.5 }, { hpt: 18 }, { hpt: 20.25 }, { hpt: 10.5 }, { hpt: 17.25 }, { hpt: 28.2 },
+    ...pubs.map(() => ({ hpt: 24.6 })),
   ];
   ws["!merges"] = [
     { s: { r: 1, c: 3 }, e: { r: 1, c: 4 } },
@@ -184,6 +257,23 @@ export async function gerarClippingPrazosExcel(
     { wch: 30 }, { wch: 24 }, { wch: 12 }, { wch: 34 }, { wch: 34 }, { wch: 34 },
     { wch: 28 }, { wch: 16 }, { wch: 22 }, { wch: 8 }, { wch: 40 }, { wch: 120 },
   ];
+
+  const estiloDados = {
+    font: { name: FONTE, sz: TAM, color: { rgb: "000000" } },
+    alignment: { vertical: "top", wrapText: true },
+    border: borda,
+  };
+  const totalCols = 18;
+  for (let c = 0; c < totalCols; c++) {
+    const cab = enc({ r: 0, c });
+    if (wsDados[cab]) wsDados[cab].s = estiloCabecalho;
+    for (let r = 1; r <= dados.length; r++) {
+      const ref = enc({ r, c });
+      if (!wsDados[ref]) wsDados[ref] = { t: "s", v: "" };
+      wsDados[ref].s = estiloDados;
+    }
+  }
+  wsDados["!rows"] = [{ hpt: 28.2 }, ...dados.map(() => ({ hpt: 24.6 }))];
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "GERAL");
