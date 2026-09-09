@@ -44,3 +44,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 ## Valida Kurier (07/09)
 - [x] Comparar por login do Kurier usando as coordenações já vinculadas; foco na lista "Só Kurier" (o que o DJEN Termos Servidor não achou), comparação feita no banco
+
+## Clipping de prazos (09/09)
+- [x] Reproduzir o cabeçalho do modelo com logomarca da Paixão Côrtes
+- [x] Manter a coluna Prazo (dias) como número em todas as linhas e evitar fórmulas com erro
