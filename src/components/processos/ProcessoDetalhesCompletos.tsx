@@ -1033,7 +1033,7 @@ export function ProcessoDetalhesCompletos({
             </nav>
           </div>
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
-          <ScrollArea className="hidden sm:block h-[calc(100vh-112px)] sticky top-0">
+          <div className="hidden sm:block sticky top-0">
             <nav className="py-2">
               <button
                 onClick={onVoltar}
