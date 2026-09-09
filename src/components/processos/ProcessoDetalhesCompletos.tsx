@@ -60,7 +60,14 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
 import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
-import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
+import {
+  expandirOcorrencias,
+  janelaRecorrenciaPadrao,
+  agruparSerieRecorrente,
+  agruparPorGrupo,
+  totalOcorrencias,
+  type LinhaSerie,
+} from "@/utils/recorrencia";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
