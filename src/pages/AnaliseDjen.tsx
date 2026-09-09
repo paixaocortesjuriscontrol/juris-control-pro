@@ -3272,6 +3272,33 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== "Excel Clipping — Controle de Prazos" (modelo da Bruna) =====
+  const [gerandoClipping, setGerandoClipping] = useState(false);
+  const handleGerarClipping = async () => {
+    const pubs = getPubsParaGerar();
+    if (pubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    setGerandoClipping(true);
+    const toastId = toast.loading(`Gerando Clipping de prazos (${pubs.length})...`);
+    try {
+      const [{ gerarClippingPrazosExcel }, comentariosMap] = await Promise.all([
+        import("@/lib/clippingPrazosExcel"),
+        fetchComentariosMap(pubs.map((p) => p.id)),
+      ]);
+      await gerarClippingPrazosExcel(
+        pubs as any,
+        comentariosMap,
+        `CLIPPING_CONTROLE_PRAZOS_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`,
+      );
+      toast.success(`Clipping gerado: ${pubs.length} publicação(ões)`, { id: toastId });
+    } catch (e: any) {
+      toast.error(`Erro ao gerar Clipping: ${e?.message ?? e}`, { id: toastId });
+    } finally {
+      setGerandoClipping(false);
+    }
+  };
 
 
   // ===== "Gerar Docs TST" - Classifica publicações por palavras-chave (sem IA) e gera até 5 documentos Word
