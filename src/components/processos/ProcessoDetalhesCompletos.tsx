@@ -63,9 +63,12 @@ import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
 import {
   agruparSerieRecorrente,
   agruparPorGrupo,
+  mesclarLinhasRepetidas,
+  tituloNormalizado,
   totalOcorrencias,
   type LinhaSerie,
 } from "@/utils/recorrencia";
+
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
