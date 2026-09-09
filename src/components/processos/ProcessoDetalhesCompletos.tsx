@@ -60,7 +60,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
 import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
-import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
+import {
+  agruparSerieRecorrente,
+  agruparPorGrupo,
+  totalOcorrencias,
+  type LinhaSerie,
+} from "@/utils/recorrencia";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -303,68 +308,86 @@ export function ProcessoDetalhesCompletos({
     eventosAgenda.map((e: any) => String(e.id)).filter(Boolean)
   );
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
-  // Eventos com repetição ficam gravados em um único registro: aqui abrimos as
-  // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha.
-  const [seriesEventosAbertas, setSeriesEventosAbertas] = useState<Set<string>>(new Set());
-  const seriesEventos = useMemo(() => {
-    const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const linhas: { chave: string; original: any; principal: any; repeticoes: any[] }[] = [];
-    for (const evento of eventosDoProcesso) {
-      const isRecorrente = !!evento.recorrencia_tipo && !evento.grupo_parcelas;
-      if (!isRecorrente) {
-        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
-        continue;
-      }
-      const datas = expandirOcorrencias(
-        evento.data_inicio,
-        {
-          tipo: evento.recorrencia_tipo,
-          intervalo: evento.recorrencia_intervalo,
-          fim: evento.recorrencia_fim,
-          diasSemana: evento.recorrencia_dias_semana,
-        },
-        windowStart,
-        windowEnd
-      );
-      const ocorrencias = datas
-        .map((d) => ({
-          ...evento,
-          id: `${evento.id}::${d.toISOString().slice(0, 10)}`,
-          data_inicio: d.toISOString(),
-          recorrencia_pai_id: evento.id,
-        }))
-        .sort(
-          (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
-        );
-      if (ocorrencias.length === 0) {
-        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
-        continue;
-      }
-      const idxPrincipal = Math.max(
-        0,
-        ocorrencias.findIndex((o) => new Date(o.data_inicio) >= hoje)
-      );
-      linhas.push({
-        chave: `serie-${evento.id}`,
-        original: evento,
-        principal: ocorrencias[idxPrincipal] ?? ocorrencias[0],
-        repeticoes: ocorrencias.filter((_, i) => i !== idxPrincipal),
-      });
-    }
-    return linhas.sort(
-      (a, b) =>
-        new Date(a.principal.data_inicio || 0).getTime() -
-        new Date(b.principal.data_inicio || 0).getTime()
-    );
-  }, [eventosDoProcesso]);
-  const alternarSerieEvento = (chave: string) =>
-    setSeriesEventosAbertas((prev) => {
+  // Itens com repetição ficam gravados em um único registro: aqui abrimos as
+  // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha,
+  // mostrando a mais próxima e permitindo expandir as demais.
+  const [seriesAbertas, setSeriesAbertas] = useState<Set<string>>(new Set());
+  const alternarSerie = (chave: string) =>
+    setSeriesAbertas((prev) => {
       const next = new Set(prev);
       next.has(chave) ? next.delete(chave) : next.add(chave);
       return next;
     });
+  const renderSerie = (
+    linha: LinhaSerie<any>,
+    renderItem: (item: any) => JSX.Element,
+    opts?: { corBorda?: string; rotulo?: (n: number) => string; rotuloOculto?: string }
+  ) => {
+    const aberta = seriesAbertas.has(linha.chave);
+    const qtd = linha.repeticoes.length;
+    const rotulo = opts?.rotulo ?? ((n: number) => `${n} ${n === 1 ? "repetição" : "repetições"}`);
+    return (
+      <div key={linha.chave} className="space-y-2">
+        {renderItem(linha.principal)}
+        {qtd > 0 && (
+          <>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 text-[11px] text-muted-foreground"
+              onClick={() => alternarSerie(linha.chave)}
+            >
+              {aberta ? opts?.rotuloOculto ?? "Ocultar repetições" : `+ ${rotulo(qtd)}`}
+            </Button>
+            {aberta && (
+              <div className={`space-y-2 pl-3 border-l-2 ${opts?.corBorda ?? "border-muted"}`}>
+                {linha.repeticoes.map((oc: any) => renderItem(oc))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+  };
+  const seriesEventos = useMemo(
+    () =>
+      agruparSerieRecorrente<any>(eventosDoProcesso, {
+        dataBase: (e) => e.data_inicio,
+        regra: (e) =>
+          e.recorrencia_tipo && !e.grupo_parcelas
+            ? {
+                tipo: e.recorrencia_tipo,
+                intervalo: e.recorrencia_intervalo,
+                fim: e.recorrencia_fim,
+                diasSemana: e.recorrencia_dias_semana,
+              }
+            : null,
+        aplicarData: (e, d) => ({
+          ...e,
+          id: `${e.id}::${d.toISOString().slice(0, 10)}`,
+          data_inicio: d.toISOString(),
+          recorrencia_pai_id: e.id,
+        }),
+      }).sort(
+        (a, b) =>
+          new Date(a.principal.data_inicio || 0).getTime() -
+          new Date(b.principal.data_inicio || 0).getTime()
+      ),
+    [eventosDoProcesso]
+  );
+  const seriesParcelamentos = useMemo(
+    () =>
+      agruparPorGrupo<any>(parcelamentosDoProcesso, {
+        grupoDe: (p) => p.grupo_parcelas,
+        dataDe: (p) => p.data_inicio,
+      }).sort(
+        (a, b) =>
+          new Date(a.principal.data_inicio || 0).getTime() -
+          new Date(b.principal.data_inicio || 0).getTime()
+      ),
+    [parcelamentosDoProcesso]
+  );
+
   const processoPreSelecionado = processo
     ? { id: processo.id, numero: processo.numero || "", coordenacao_id: (processo as any).coordenacao_id ?? null }
     : null;
@@ -401,6 +424,33 @@ export function ProcessoDetalhesCompletos({
     }));
   const tarefasSemPrazo = anexarResponsaveis(tarefas.filter((t: any) => !isPrazoTarefa(t.tipo_tarefa)));
   const prazosDoProcesso = anexarResponsaveis(tarefas.filter((t: any) => isPrazoTarefa(t.tipo_tarefa)));
+
+  // Tarefas/prazos com repetição: uma linha por série, ocorrência mais próxima
+  // em destaque e as demais sob "+ N repetições".
+  const agruparTarefas = (lista: any[]) =>
+    agruparSerieRecorrente<any>(lista, {
+      dataBase: (t) => t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at,
+      regra: (t) =>
+        t.recorrencia_tipo
+          ? { tipo: t.recorrencia_tipo, intervalo: t.recorrencia_intervalo, fim: t.recorrencia_fim }
+          : null,
+      aplicarData: (t, d) => {
+        const dia = d.toISOString().slice(0, 10);
+        return {
+          ...t,
+          id: `${t.id}::${dia}`,
+          _ocorrencia_id: `${t.id}::${dia}`,
+          _registro_pai: t,
+          data_vencimento: t.data_vencimento ? dia : t.data_vencimento,
+          data_prevista: t.data_prevista ? dia : t.data_prevista,
+          data_fatal:
+            !t.data_vencimento && !t.data_prevista && t.data_fatal ? dia : t.data_fatal,
+        };
+      },
+    });
+  const seriesTarefas = useMemo(() => agruparTarefas(tarefasSemPrazo), [JSON.stringify(tarefasSemPrazo)]);
+  const seriesPrazos = useMemo(() => agruparTarefas(prazosDoProcesso), [JSON.stringify(prazosDoProcesso)]);
+
 
   // Contagem de atividades (subatividades) vinculadas aos itens do processo,
   // para exibir nas abas laterais (Tarefa, Prazo, Evento, Audiência).
@@ -970,11 +1020,12 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length, iconColor: "text-blue-500" },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: seriesEventos.reduce((acc, l) => acc + 1 + l.repeticoes.length, 0), iconColor: "text-violet-500" },
-        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: totalOcorrencias(seriesTarefas), iconColor: "text-blue-500" },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: totalOcorrencias(seriesEventos), iconColor: "text-violet-500" },
+        { id: "prazo", label: "Prazo", icon: Clock, count: totalOcorrencias(seriesPrazos), iconColor: "text-red-500" },
         { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
-        { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
+        { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: totalOcorrencias(seriesParcelamentos), iconColor: "text-emerald-500" },
+
       ],
     },
     {
@@ -1412,9 +1463,12 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : tarefasSemPrazo.length > 0 ? (
+                      ) : seriesTarefas.length > 0 ? (
                         <div className="space-y-2">
-                          {tarefasSemPrazo.map((tarefa: any) => (
+                          {seriesTarefas.map((linha) =>
+                            renderSerie(
+                              linha,
+                              (tarefa: any) => (
                             <Card 
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer"
@@ -1445,10 +1499,10 @@ export function ProcessoDetalhesCompletos({
                                           {tarefa._responsaveisNomes.join(", ")}
                                         </span>
                                       )}
-                                      {qtdAtividades(tarefa.id) > 0 && (
+                                      {qtdAtividades(tarefa._registro_pai?.id || tarefa.id) > 0 && (
                                         <span className="flex items-center gap-1 text-emerald-600">
                                           <ListChecks className="h-3 w-3" />
-                                          {qtdAtividades(tarefa.id)} atividade{qtdAtividades(tarefa.id) > 1 ? "s" : ""}
+                                          {qtdAtividades(tarefa._registro_pai?.id || tarefa.id)} atividade{qtdAtividades(tarefa._registro_pai?.id || tarefa.id) > 1 ? "s" : ""}
                                         </span>
                                       )}
                                     </div>
@@ -1466,8 +1520,12 @@ export function ProcessoDetalhesCompletos({
                                 </div>
                               </CardContent>
                             </Card>
-                          ))}
+                              ),
+                              { corBorda: "border-blue-200 dark:border-blue-900" }
+                            )
+                          )}
                         </div>
+
                       ) : (
                         <div className="text-center py-8">
                           <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
@@ -1622,9 +1680,12 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : prazosDoProcesso.length > 0 ? (
+                      ) : seriesPrazos.length > 0 ? (
                         <div className="space-y-2">
-                          {prazosDoProcesso.map((tarefa: any) => (
+                          {seriesPrazos.map((linha) =>
+                            renderSerie(
+                              linha,
+                              (tarefa: any) => (
                             <Card
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
@@ -1665,8 +1726,12 @@ export function ProcessoDetalhesCompletos({
                                 </div>
                               </CardContent>
                             </Card>
-                          ))}
+                              ),
+                              { corBorda: "border-destructive/30" }
+                            )
+                          )}
                         </div>
+
                       ) : (
                         <div className="text-center py-6 text-muted-foreground text-sm">
                           Nenhum prazo cadastrado para este processo
@@ -1885,45 +1950,22 @@ export function ProcessoDetalhesCompletos({
                   </div>
                   {seriesEventos.length > 0 ? (
                     <div className="space-y-2">
-                      {seriesEventos.map((linha) => {
-                        const aberta = seriesEventosAbertas.has(linha.chave);
-                        return (
-                          <div key={linha.chave} className="space-y-2">
+                      {seriesEventos.map((linha) =>
+                        renderSerie(
+                          linha,
+                          (oc: any) => (
                             <EventoProcessoCard
-                              evento={linha.principal}
+                              key={oc.id}
+                              evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
                               onClick={() => abrirNovoItem("evento", linha.original)}
                             />
-                            {linha.repeticoes.length > 0 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-[11px] text-muted-foreground"
-                                  onClick={() => alternarSerieEvento(linha.chave)}
-                                >
-                                  {aberta
-                                    ? "Ocultar repetições"
-                                    : `+ ${linha.repeticoes.length} ${linha.repeticoes.length === 1 ? "repetição" : "repetições"}`}
-                                </Button>
-                                {aberta && (
-                                  <div className="space-y-2 pl-3 border-l-2 border-violet-200 dark:border-violet-900">
-                                    {linha.repeticoes.map((oc: any) => (
-                                      <EventoProcessoCard
-                                        key={oc.id}
-                                        evento={oc}
-                                        pessoas={eventosPessoas[String(linha.original.id)]}
-                                        onClick={() => abrirNovoItem("evento", linha.original)}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
+                          ),
+                          { corBorda: "border-violet-200 dark:border-violet-900" }
+                        )
+                      )}
                     </div>
+
                   ) : (
                     <div className="text-center py-8">
                       <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
@@ -1966,35 +2008,46 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Parcelamento
                     </Button>
                   </div>
-                  {parcelamentosDoProcesso.length > 0 ? (
+                  {seriesParcelamentos.length > 0 ? (
                     <div className="space-y-2">
-                      {parcelamentosDoProcesso.map((parcelamento: any) => (
-                        <Card
-                          key={parcelamento.id}
-                          className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-emerald-500"
-                          onClick={() => abrirNovoItem("parcelamento", parcelamento)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 space-y-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{parcelamento.titulo}</p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {formatDateTime(parcelamento.data_inicio)}
-                                </p>
-                                {parcelamento.descricao && (
-                                  <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
-                                )}
-                              </div>
-                              <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
-                                {parcelamento.status || "pendente"}
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                      {seriesParcelamentos.map((linha) =>
+                        renderSerie(
+                          linha,
+                          (parcelamento: any) => (
+                            <Card
+                              key={parcelamento.id}
+                              className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-emerald-500"
+                              onClick={() => abrirNovoItem("parcelamento", parcelamento)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 space-y-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{parcelamento.titulo}</p>
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      {formatDateTime(parcelamento.data_inicio)}
+                                    </p>
+                                    {parcelamento.descricao && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
+                                    )}
+                                  </div>
+                                  <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
+                                    {parcelamento.status || "pendente"}
+                                  </Badge>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ),
+                          {
+                            corBorda: "border-emerald-200 dark:border-emerald-900",
+                            rotulo: (n) => `${n} ${n === 1 ? "parcela" : "parcelas"}`,
+                            rotuloOculto: "Ocultar parcelas",
+                          }
+                        )
+                      )}
                     </div>
                   ) : (
+
                     <div className="text-center py-8">
                       <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Nenhum parcelamento recorrente</p>
