@@ -138,6 +138,11 @@ export default function ReatribuirProcessos() {
     setPage(0);
   }, [buscaAplicada, coordFiltro, respFiltro, situacao]);
 
+  // Ao trocar a coordenação, o responsável atual pode não existir nela
+  useEffect(() => {
+    setRespFiltro("all");
+  }, [coordFiltro]);
+
   const { data: coordenacoes } = useQuery({
     queryKey: ["reatribuir-coordenacoes"],
     queryFn: async () => {
