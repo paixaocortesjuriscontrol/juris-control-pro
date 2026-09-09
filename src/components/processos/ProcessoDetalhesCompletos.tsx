@@ -47,7 +47,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1033,7 +1033,7 @@ export function ProcessoDetalhesCompletos({
             </nav>
           </div>
           {/* Desktop: vertical sidebar agrupado estilo Projuris */}
-          <ScrollArea className="hidden sm:block h-[calc(100vh-112px)] sticky top-0">
+          <div className="hidden sm:block sticky top-0">
             <nav className="py-2">
               <button
                 onClick={onVoltar}
@@ -1078,7 +1078,7 @@ export function ProcessoDetalhesCompletos({
                 </div>
               ))}
             </nav>
-          </ScrollArea>
+          </div>
         </aside>
 
         {/* Content Area */}
