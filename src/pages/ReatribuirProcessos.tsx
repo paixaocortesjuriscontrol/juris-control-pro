@@ -162,6 +162,47 @@ export default function ReatribuirProcessos() {
     },
   });
 
+  // Responsáveis que realmente têm processos na coordenação filtrada
+  const { data: idsRespDaCoordenacao } = useQuery({
+    queryKey: ["reatribuir-resp-da-coordenacao", coordFiltro],
+    enabled: coordFiltro !== "all" && coordFiltro !== "sem",
+    staleTime: 60_000,
+    queryFn: async () => {
+      const ids = new Set<string>();
+      // Vínculos N:N vinculados à coordenação
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("processos_responsaveis")
+          .select("usuario_id")
+          .eq("coordenacao_id", coordFiltro)
+          .range(from, from + 999);
+        if (error) throw error;
+        (data ?? []).forEach((r: any) => r.usuario_id && ids.add(r.usuario_id));
+        if (!data || data.length < 1000) break;
+      }
+      // Responsável principal em processos da coordenação
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("advogado_responsavel_id")
+          .eq("coordenacao_id", coordFiltro)
+          .not("advogado_responsavel_id", "is", null)
+          .range(from, from + 999);
+        if (error) throw error;
+        (data ?? []).forEach((r: any) => r.advogado_responsavel_id && ids.add(r.advogado_responsavel_id));
+        if (!data || data.length < 1000) break;
+      }
+      return Array.from(ids);
+    },
+  });
+
+  const usuariosFiltrados = useMemo(() => {
+    if (coordFiltro === "all" || coordFiltro === "sem") return usuarios ?? [];
+    if (!idsRespDaCoordenacao) return [];
+    const set = new Set(idsRespDaCoordenacao);
+    return (usuarios ?? []).filter((u: any) => set.has(u.id));
+  }, [usuarios, coordFiltro, idsRespDaCoordenacao]);
+
   // IDs do responsável filtrado (considera vínculo N:N + coluna legada)
   const { data: idsDoResponsavel, isFetching: buscandoIds } = useQuery({
     queryKey: ["reatribuir-ids-responsavel", respFiltro],
