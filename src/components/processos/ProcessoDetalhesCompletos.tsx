@@ -1966,35 +1966,46 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Parcelamento
                     </Button>
                   </div>
-                  {parcelamentosDoProcesso.length > 0 ? (
+                  {seriesParcelamentos.length > 0 ? (
                     <div className="space-y-2">
-                      {parcelamentosDoProcesso.map((parcelamento: any) => (
-                        <Card
-                          key={parcelamento.id}
-                          className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-emerald-500"
-                          onClick={() => abrirNovoItem("parcelamento", parcelamento)}
-                        >
-                          <CardContent className="p-3">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 space-y-1 min-w-0">
-                                <p className="text-sm font-medium truncate">{parcelamento.titulo}</p>
-                                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                                  <Calendar className="w-3 h-3" />
-                                  {formatDateTime(parcelamento.data_inicio)}
-                                </p>
-                                {parcelamento.descricao && (
-                                  <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
-                                )}
-                              </div>
-                              <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
-                                {parcelamento.status || "pendente"}
-                              </Badge>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                      {seriesParcelamentos.map((linha) =>
+                        renderSerie(
+                          linha,
+                          (parcelamento: any) => (
+                            <Card
+                              key={parcelamento.id}
+                              className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-emerald-500"
+                              onClick={() => abrirNovoItem("parcelamento", parcelamento)}
+                            >
+                              <CardContent className="p-3">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex-1 space-y-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{parcelamento.titulo}</p>
+                                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                      <Calendar className="w-3 h-3" />
+                                      {formatDateTime(parcelamento.data_inicio)}
+                                    </p>
+                                    {parcelamento.descricao && (
+                                      <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
+                                    )}
+                                  </div>
+                                  <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
+                                    {parcelamento.status || "pendente"}
+                                  </Badge>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          ),
+                          {
+                            corBorda: "border-emerald-200 dark:border-emerald-900",
+                            rotulo: (n) => `${n} ${n === 1 ? "parcela" : "parcelas"}`,
+                            rotuloOculto: "Ocultar parcelas",
+                          }
+                        )
+                      )}
                     </div>
                   ) : (
+
                     <div className="text-center py-8">
                       <Coins className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Nenhum parcelamento recorrente</p>
