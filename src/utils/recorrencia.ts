@@ -88,3 +88,110 @@ export function janelaRecorrenciaPadrao(hoje = new Date()) {
     windowEnd: new Date(hoje.getFullYear(), hoje.getMonth() + 12, 0, 23, 59, 59),
   };
 }
+
+export interface LinhaSerie<T = any> {
+  chave: string;
+  original: T;
+  principal: T;
+  repeticoes: T[];
+}
+
+/**
+ * Agrupa registros com repetição em uma linha por série: a ocorrência principal
+ * é a mais próxima de hoje (>= hoje), as demais ficam disponíveis para expansão.
+ */
+export function agruparSerieRecorrente<T extends Record<string, any>>(
+  registros: T[],
+  opts: {
+    /** Data base para expandir as ocorrências. */
+    dataBase: (r: T) => string | null | undefined;
+    /** Regra de recorrência do registro (null quando não repete). */
+    regra: (r: T) => RegraRecorrencia | null;
+    /** Aplica a data da ocorrência ao clone do registro. */
+    aplicarData: (r: T, data: Date) => T;
+    chaveDe?: (r: T) => string;
+    hoje?: Date;
+  }
+): LinhaSerie<T>[] {
+  const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
+  const hoje = opts.hoje ? new Date(opts.hoje) : new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const chaveDe = opts.chaveDe ?? ((r: T) => String(r.id));
+
+  const linhas: LinhaSerie<T>[] = [];
+  for (const registro of registros) {
+    const regra = opts.regra(registro);
+    const base = opts.dataBase(registro);
+    if (!regra || !regra.tipo || !base) {
+      linhas.push({ chave: chaveDe(registro), original: registro, principal: registro, repeticoes: [] });
+      continue;
+    }
+    const datas = expandirOcorrencias(base, regra, windowStart, windowEnd).sort(
+      (a, b) => a.getTime() - b.getTime()
+    );
+    if (datas.length <= 1) {
+      linhas.push({ chave: chaveDe(registro), original: registro, principal: registro, repeticoes: [] });
+      continue;
+    }
+    const ocorrencias = datas.map((d) => opts.aplicarData(registro, d));
+    const idx = Math.max(0, datas.findIndex((d) => d >= hoje));
+    linhas.push({
+      chave: `serie-${chaveDe(registro)}`,
+      original: registro,
+      principal: ocorrencias[idx] ?? ocorrencias[0],
+      repeticoes: ocorrencias.filter((_, i) => i !== idx),
+    });
+  }
+  return linhas;
+}
+
+/** Total de itens (principais + repetições) de uma lista de séries. */
+export function totalOcorrencias(linhas: LinhaSerie[]) {
+  return linhas.reduce((acc, l) => acc + 1 + l.repeticoes.length, 0);
+}
+
+/**
+ * Agrupa registros que já existem individualmente (ex.: parcelas de um
+ * parcelamento) por uma chave de grupo, elegendo a ocorrência mais próxima.
+ */
+export function agruparPorGrupo<T extends Record<string, any>>(
+  registros: T[],
+  opts: {
+    grupoDe: (r: T) => string | null | undefined;
+    dataDe: (r: T) => string | null | undefined;
+    hoje?: Date;
+  }
+): LinhaSerie<T>[] {
+  const hoje = opts.hoje ? new Date(opts.hoje) : new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const soltos: LinhaSerie<T>[] = [];
+  const grupos = new Map<string, T[]>();
+  for (const r of registros) {
+    const g = opts.grupoDe(r);
+    if (!g) {
+      soltos.push({ chave: String(r.id), original: r, principal: r, repeticoes: [] });
+      continue;
+    }
+    const lista = grupos.get(g) ?? [];
+    lista.push(r);
+    grupos.set(g, lista);
+  }
+  const agrupados: LinhaSerie<T>[] = [];
+  for (const [g, lista] of grupos) {
+    const ordenada = [...lista].sort(
+      (a, b) => new Date(opts.dataDe(a) || 0).getTime() - new Date(opts.dataDe(b) || 0).getTime()
+    );
+    const idx = Math.max(
+      0,
+      ordenada.findIndex((r) => new Date(opts.dataDe(r) || 0) >= hoje)
+    );
+    agrupados.push({
+      chave: `grupo-${g}`,
+      original: ordenada[idx] ?? ordenada[0],
+      principal: ordenada[idx] ?? ordenada[0],
+      repeticoes: ordenada.filter((_, i) => i !== idx),
+    });
+  }
+  return [...agrupados, ...soltos];
+}
+
