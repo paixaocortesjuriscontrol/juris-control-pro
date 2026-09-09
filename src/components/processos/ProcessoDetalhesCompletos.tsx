@@ -1078,7 +1078,7 @@ export function ProcessoDetalhesCompletos({
                 </div>
               ))}
             </nav>
-          </ScrollArea>
+          </div>
         </aside>
 
         {/* Content Area */}
