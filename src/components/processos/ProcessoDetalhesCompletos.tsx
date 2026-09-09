@@ -1412,9 +1412,12 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : tarefasSemPrazo.length > 0 ? (
+                      ) : seriesTarefas.length > 0 ? (
                         <div className="space-y-2">
-                          {tarefasSemPrazo.map((tarefa: any) => (
+                          {seriesTarefas.map((linha) =>
+                            renderSerie(
+                              linha,
+                              (tarefa: any) => (
                             <Card 
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer"
@@ -1445,10 +1448,10 @@ export function ProcessoDetalhesCompletos({
                                           {tarefa._responsaveisNomes.join(", ")}
                                         </span>
                                       )}
-                                      {qtdAtividades(tarefa.id) > 0 && (
+                                      {qtdAtividades(tarefa._registro_pai?.id || tarefa.id) > 0 && (
                                         <span className="flex items-center gap-1 text-emerald-600">
                                           <ListChecks className="h-3 w-3" />
-                                          {qtdAtividades(tarefa.id)} atividade{qtdAtividades(tarefa.id) > 1 ? "s" : ""}
+                                          {qtdAtividades(tarefa._registro_pai?.id || tarefa.id)} atividade{qtdAtividades(tarefa._registro_pai?.id || tarefa.id) > 1 ? "s" : ""}
                                         </span>
                                       )}
                                     </div>
@@ -1466,8 +1469,12 @@ export function ProcessoDetalhesCompletos({
                                 </div>
                               </CardContent>
                             </Card>
-                          ))}
+                              ),
+                              { corBorda: "border-blue-200 dark:border-blue-900" }
+                            )
+                          )}
                         </div>
+
                       ) : (
                         <div className="text-center py-8">
                           <ListTodo className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
