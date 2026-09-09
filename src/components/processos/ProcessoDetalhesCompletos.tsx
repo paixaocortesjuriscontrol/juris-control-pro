@@ -436,26 +436,34 @@ export function ProcessoDetalhesCompletos({
   // Tarefas/prazos com repetição: uma linha por série, ocorrência mais próxima
   // em destaque e as demais sob "+ N repetições".
   const agruparTarefas = (lista: any[]) =>
-    agruparSerieRecorrente<any>(lista, {
-      dataBase: (t) => t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at,
-      regra: (t) =>
-        t.recorrencia_tipo
-          ? { tipo: t.recorrencia_tipo, intervalo: t.recorrencia_intervalo, fim: t.recorrencia_fim }
-          : null,
-      aplicarData: (t, d) => {
-        const dia = d.toISOString().slice(0, 10);
-        return {
-          ...t,
-          id: `${t.id}::${dia}`,
-          _ocorrencia_id: `${t.id}::${dia}`,
-          _registro_pai: t,
-          data_vencimento: t.data_vencimento ? dia : t.data_vencimento,
-          data_prevista: t.data_prevista ? dia : t.data_prevista,
-          data_fatal:
-            !t.data_vencimento && !t.data_prevista && t.data_fatal ? dia : t.data_fatal,
-        };
-      },
-    });
+    mesclarLinhasRepetidas<any>(
+      agruparSerieRecorrente<any>(lista, {
+        dataBase: (t) => t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at,
+        regra: (t) =>
+          t.recorrencia_tipo
+            ? { tipo: t.recorrencia_tipo, intervalo: t.recorrencia_intervalo, fim: t.recorrencia_fim }
+            : null,
+        aplicarData: (t, d) => {
+          const dia = d.toISOString().slice(0, 10);
+          return {
+            ...t,
+            id: `${t.id}::${dia}`,
+            _ocorrencia_id: `${t.id}::${dia}`,
+            _registro_pai: t,
+            data_vencimento: t.data_vencimento ? dia : t.data_vencimento,
+            data_prevista: t.data_prevista ? dia : t.data_prevista,
+            data_fatal:
+              !t.data_vencimento && !t.data_prevista && t.data_fatal ? dia : t.data_fatal,
+          };
+        },
+      }),
+      {
+        chaveDe: (t) =>
+          `${tituloNormalizado(t.titulo)}|${t.tipo_tarefa ?? ""}|${t.responsavel_id ?? ""}`,
+        dataDe: (t) => t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at,
+      }
+    );
+
   const seriesTarefas = useMemo(() => agruparTarefas(tarefasSemPrazo), [JSON.stringify(tarefasSemPrazo)]);
   const seriesPrazos = useMemo(() => agruparTarefas(prazosDoProcesso), [JSON.stringify(prazosDoProcesso)]);
 
