@@ -129,8 +129,6 @@ export async function gerarClippingPrazosExcel(
   wb.creator = "Juris Control — Paixão Côrtes Advogados";
   wb.created = new Date();
   wb.calcProperties.fullCalcOnLoad = true;
-  wb.calcProperties.forceFullCalc = true;
-  wb.calcProperties.calcMode = "auto";
 
   const ws = wb.addWorksheet("GERAL", { views: [{ state: "frozen", ySplit: 6 }] });
   const headers = [
@@ -203,22 +201,24 @@ export async function gerarClippingPrazosExcel(
       null,
       null,
     ];
-    row.eachCell({ includeEmpty: true }, (cell) => aplicarCelula(cell, cell.col === 7));
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => aplicarCelula(cell, colNumber === 7));
     row.getCell(1).numFmt = "dd/mm/yyyy";
     row.getCell(5).numFmt = "0";
     row.getCell(6).numFmt = "dd/mm/yyyy";
   });
 
   if (pubs.length > 0) {
-    ws.dataValidations.add(`E7:E${pubs.length + 6}`, {
-      type: "whole",
-      operator: "greaterThanOrEqual",
-      allowBlank: true,
-      formulae: [0],
-      showErrorMessage: true,
-      errorTitle: "Prazo inválido",
-      error: "Informe a quantidade de dias como número inteiro.",
-    });
+    for (let rowNumber = 7; rowNumber <= pubs.length + 6; rowNumber++) {
+      ws.getCell(`E${rowNumber}`).dataValidation = {
+        type: "whole",
+        operator: "greaterThanOrEqual",
+        allowBlank: true,
+        formulae: [0],
+        showErrorMessage: true,
+        errorTitle: "Prazo inválido",
+        error: "Informe a quantidade de dias como número inteiro.",
+      };
+    }
   }
   ws.autoFilter = { from: "A6", to: `M${Math.max(6, pubs.length + 6)}` };
 
