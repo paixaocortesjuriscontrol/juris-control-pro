@@ -150,6 +150,71 @@ export function totalOcorrencias(linhas: LinhaSerie[]) {
   return linhas.reduce((acc, l) => acc + 1 + l.repeticoes.length, 0);
 }
 
+/** Remove prefixo de data ("04/11/2024 - ") e normaliza o texto do título. */
+export function tituloNormalizado(titulo: string | null | undefined) {
+  return String(titulo ?? "")
+    .replace(/^\s*\d{2}\/\d{2}\/\d{4}\s*[-–—:]\s*/, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Mescla linhas sem repetição que representam o mesmo item lançado várias vezes
+ * (ex.: importações do Astrea, que gravam um registro por data em vez de uma
+ * regra de recorrência). A principal é a ocorrência mais próxima de hoje.
+ */
+export function mesclarLinhasRepetidas<T extends Record<string, any>>(
+  linhas: LinhaSerie<T>[],
+  opts: {
+    chaveDe: (r: T) => string | null | undefined;
+    dataDe: (r: T) => string | null | undefined;
+    hoje?: Date;
+  }
+): LinhaSerie<T>[] {
+  const hoje = opts.hoje ? new Date(opts.hoje) : new Date();
+  hoje.setHours(0, 0, 0, 0);
+  const resultado: LinhaSerie<T>[] = [];
+  const grupos = new Map<string, LinhaSerie<T>[]>();
+
+  for (const linha of linhas) {
+    const chave = linha.repeticoes.length === 0 ? opts.chaveDe(linha.original) : null;
+    if (!chave) {
+      resultado.push(linha);
+      continue;
+    }
+    const lista = grupos.get(chave) ?? [];
+    lista.push(linha);
+    grupos.set(chave, lista);
+  }
+
+  for (const [chave, lista] of grupos) {
+    if (lista.length === 1) {
+      resultado.push(lista[0]);
+      continue;
+    }
+    const ordenada = [...lista].sort(
+      (a, b) =>
+        new Date(opts.dataDe(a.principal) || 0).getTime() -
+        new Date(opts.dataDe(b.principal) || 0).getTime()
+    );
+    const idx = Math.max(
+      0,
+      ordenada.findIndex((l) => new Date(opts.dataDe(l.principal) || 0) >= hoje)
+    );
+    const escolhida = ordenada[idx] ?? ordenada[0];
+    resultado.push({
+      chave: `repetidos-${chave}`,
+      original: escolhida.original,
+      principal: escolhida.principal,
+      repeticoes: ordenada.filter((_, i) => i !== idx).map((l) => l.principal),
+    });
+  }
+
+  return resultado;
+}
+
+
 /**
  * Agrupa registros que já existem individualmente (ex.: parcelas de um
  * parcelamento) por uma chave de grupo, elegendo a ocorrência mais próxima.
