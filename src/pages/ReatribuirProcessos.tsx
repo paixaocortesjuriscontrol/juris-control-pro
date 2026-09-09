@@ -463,7 +463,7 @@ export default function ReatribuirProcessos() {
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent className="max-h-72">
                     <SelectItem value="all">Todos</SelectItem>
-                    {(usuarios ?? []).map((u: any) => (
+                    {usuariosFiltrados.map((u: any) => (
                       <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>
                     ))}
                   </SelectContent>
