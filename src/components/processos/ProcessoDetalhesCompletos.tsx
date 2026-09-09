@@ -1622,9 +1622,12 @@ export function ProcessoDetalhesCompletos({
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : prazosDoProcesso.length > 0 ? (
+                      ) : seriesPrazos.length > 0 ? (
                         <div className="space-y-2">
-                          {prazosDoProcesso.map((tarefa: any) => (
+                          {seriesPrazos.map((linha) =>
+                            renderSerie(
+                              linha,
+                              (tarefa: any) => (
                             <Card
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
@@ -1665,8 +1668,12 @@ export function ProcessoDetalhesCompletos({
                                 </div>
                               </CardContent>
                             </Card>
-                          ))}
+                              ),
+                              { corBorda: "border-destructive/30" }
+                            )
+                          )}
                         </div>
+
                       ) : (
                         <div className="text-center py-6 text-muted-foreground text-sm">
                           Nenhum prazo cadastrado para este processo
