@@ -60,6 +60,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
 import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
+import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -302,6 +303,68 @@ export function ProcessoDetalhesCompletos({
     eventosAgenda.map((e: any) => String(e.id)).filter(Boolean)
   );
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
+  // Eventos com repetição ficam gravados em um único registro: aqui abrimos as
+  // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha.
+  const [seriesEventosAbertas, setSeriesEventosAbertas] = useState<Set<string>>(new Set());
+  const seriesEventos = useMemo(() => {
+    const { windowStart, windowEnd } = janelaRecorrenciaPadrao();
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const linhas: { chave: string; original: any; principal: any; repeticoes: any[] }[] = [];
+    for (const evento of eventosDoProcesso) {
+      const isRecorrente = !!evento.recorrencia_tipo && !evento.grupo_parcelas;
+      if (!isRecorrente) {
+        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
+        continue;
+      }
+      const datas = expandirOcorrencias(
+        evento.data_inicio,
+        {
+          tipo: evento.recorrencia_tipo,
+          intervalo: evento.recorrencia_intervalo,
+          fim: evento.recorrencia_fim,
+          diasSemana: evento.recorrencia_dias_semana,
+        },
+        windowStart,
+        windowEnd
+      );
+      const ocorrencias = datas
+        .map((d) => ({
+          ...evento,
+          id: `${evento.id}::${d.toISOString().slice(0, 10)}`,
+          data_inicio: d.toISOString(),
+          recorrencia_pai_id: evento.id,
+        }))
+        .sort(
+          (a, b) => new Date(a.data_inicio).getTime() - new Date(b.data_inicio).getTime()
+        );
+      if (ocorrencias.length === 0) {
+        linhas.push({ chave: String(evento.id), original: evento, principal: evento, repeticoes: [] });
+        continue;
+      }
+      const idxPrincipal = Math.max(
+        0,
+        ocorrencias.findIndex((o) => new Date(o.data_inicio) >= hoje)
+      );
+      linhas.push({
+        chave: `serie-${evento.id}`,
+        original: evento,
+        principal: ocorrencias[idxPrincipal] ?? ocorrencias[0],
+        repeticoes: ocorrencias.filter((_, i) => i !== idxPrincipal),
+      });
+    }
+    return linhas.sort(
+      (a, b) =>
+        new Date(a.principal.data_inicio || 0).getTime() -
+        new Date(b.principal.data_inicio || 0).getTime()
+    );
+  }, [eventosDoProcesso]);
+  const alternarSerieEvento = (chave: string) =>
+    setSeriesEventosAbertas((prev) => {
+      const next = new Set(prev);
+      next.has(chave) ? next.delete(chave) : next.add(chave);
+      return next;
+    });
   const processoPreSelecionado = processo
     ? { id: processo.id, numero: processo.numero || "", coordenacao_id: (processo as any).coordenacao_id ?? null }
     : null;
@@ -908,7 +971,7 @@ export function ProcessoDetalhesCompletos({
       label: "Prazos & Eventos",
       items: [
         { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length, iconColor: "text-blue-500" },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: eventosDoProcesso.length, iconColor: "text-violet-500" },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: seriesEventos.reduce((acc, l) => acc + 1 + l.repeticoes.length, 0), iconColor: "text-violet-500" },
         { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
         { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
         { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
@@ -1820,16 +1883,46 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Evento
                     </Button>
                   </div>
-                  {eventosDoProcesso.length > 0 ? (
+                  {seriesEventos.length > 0 ? (
                     <div className="space-y-2">
-                      {eventosDoProcesso.map((evento: any) => (
-                        <EventoProcessoCard
-                          key={evento.id}
-                          evento={evento}
-                          pessoas={eventosPessoas[evento.id]}
-                          onClick={() => abrirNovoItem("evento", evento)}
-                        />
-                      ))}
+                      {seriesEventos.map((linha) => {
+                        const aberta = seriesEventosAbertas.has(linha.chave);
+                        return (
+                          <div key={linha.chave} className="space-y-2">
+                            <EventoProcessoCard
+                              evento={linha.principal}
+                              pessoas={eventosPessoas[String(linha.original.id)]}
+                              onClick={() => abrirNovoItem("evento", linha.original)}
+                            />
+                            {linha.repeticoes.length > 0 && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 text-[11px] text-muted-foreground"
+                                  onClick={() => alternarSerieEvento(linha.chave)}
+                                >
+                                  {aberta
+                                    ? "Ocultar repetições"
+                                    : `+ ${linha.repeticoes.length} ${linha.repeticoes.length === 1 ? "repetição" : "repetições"}`}
+                                </Button>
+                                {aberta && (
+                                  <div className="space-y-2 pl-3 border-l-2 border-violet-200 dark:border-violet-900">
+                                    {linha.repeticoes.map((oc: any) => (
+                                      <EventoProcessoCard
+                                        key={oc.id}
+                                        evento={oc}
+                                        pessoas={eventosPessoas[String(linha.original.id)]}
+                                        onClick={() => abrirNovoItem("evento", linha.original)}
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8">
