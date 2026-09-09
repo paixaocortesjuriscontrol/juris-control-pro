@@ -61,8 +61,6 @@ import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
 import { EventoProcessoCard, useEventosPessoas } from "./EventoProcessoCard";
 import {
-  expandirOcorrencias,
-  janelaRecorrenciaPadrao,
   agruparSerieRecorrente,
   agruparPorGrupo,
   totalOcorrencias,
