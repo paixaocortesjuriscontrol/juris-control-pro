@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+
 
 /** Módulos onde uma etiqueta pode aparecer (modelo Astrea). */
 export const ETIQUETA_MODULOS = [
@@ -72,21 +74,30 @@ export const ETIQUETA_COLOR_PALETTE = [
 /**
  * Catálogo de etiquetas. Sem coordenacaoId retorna todas as etiquetas visíveis
  * ao usuário (a RLS já limita às coordenações das quais ele é membro).
+ * Com coordenacaoId, mostra as etiquetas daquela coordenação E também as das
+ * coordenações do próprio usuário — assim ninguém "perde" suas etiquetas ao
+ * abrir um item de outra equipe.
  */
 export function useEtiquetas(coordenacaoId?: string | null, modulo?: EtiquetaModulo) {
   // Administrador pode usar qualquer etiqueta, de qualquer coordenação.
   const { role } = useUserRole();
   const isAdmin = role === "admin";
-  const filtroCoordenacao = isAdmin ? null : coordenacaoId;
+  const { coordenacoes } = useCoordenacoesDoUsuario();
+  const minhasIds = coordenacoes.map((c) => c.id);
+  const permitidas = isAdmin
+    ? null
+    : coordenacaoId
+      ? Array.from(new Set([coordenacaoId, ...minhasIds]))
+      : null;
   return useQuery({
-    queryKey: ["etiquetas", filtroCoordenacao ?? "todas"],
+    queryKey: ["etiquetas", permitidas ? permitidas.slice().sort().join(",") : "todas"],
     queryFn: async () => {
       let q = supabase
         .from("etiquetas")
         .select("*")
         .eq("ativo", true)
         .order("nome", { ascending: true });
-      if (filtroCoordenacao) q = q.eq("coordenacao_id", filtroCoordenacao);
+      if (permitidas && permitidas.length) q = q.in("coordenacao_id", permitidas);
       const { data, error } = await q;
       if (error) throw error;
       return ((data as any[]) || []) as Etiqueta[];
@@ -96,6 +107,7 @@ export function useEtiquetas(coordenacaoId?: string | null, modulo?: EtiquetaMod
       modulo ? rows.filter((e) => (e.modulos || []).includes(modulo)) : rows,
   });
 }
+
 
 /** Carrega o mapa { entidade_id => etiquetaIds[] } para uma lista de ids. */
 export function useEtiquetasDeItens(entidade: EtiquetaEntidade, ids: string[]) {

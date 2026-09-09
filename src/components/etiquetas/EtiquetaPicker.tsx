@@ -137,11 +137,17 @@ export function EtiquetaPicker({
           </div>
         ) : filtradas.length === 0 ? (
           <div className="text-xs text-muted-foreground py-2 space-y-1">
-            <p>
-              Nenhuma etiqueta cadastrada para este módulo
-              {coordenacaoNome ? ` na coordenação ${coordenacaoNome}` : ""}.
-            </p>
-            <p>Cadastre a etiqueta e habilite o módulo correspondente.</p>
+            {catalogo.length > 0 ? (
+              <p>Nenhuma etiqueta encontrada para "{busca.trim()}".</p>
+            ) : (
+              <>
+                <p>
+                  Nenhuma etiqueta cadastrada para este módulo
+                  {coordenacaoNome ? ` na coordenação ${coordenacaoNome}` : ""}.
+                </p>
+                <p>Cadastre a etiqueta e habilite o módulo correspondente.</p>
+              </>
+            )}
             <Link
               to="/etiquetas"
               className="inline-flex items-center gap-1 text-primary hover:underline"
@@ -149,6 +155,7 @@ export function EtiquetaPicker({
               <Plus className="w-3 h-3" /> Gerenciar etiquetas
             </Link>
           </div>
+
         ) : (
           <div className="max-h-64 overflow-auto space-y-1">
             {filtradas.map((e) => {
