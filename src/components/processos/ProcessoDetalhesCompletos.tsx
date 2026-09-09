@@ -1885,45 +1885,22 @@ export function ProcessoDetalhesCompletos({
                   </div>
                   {seriesEventos.length > 0 ? (
                     <div className="space-y-2">
-                      {seriesEventos.map((linha) => {
-                        const aberta = seriesEventosAbertas.has(linha.chave);
-                        return (
-                          <div key={linha.chave} className="space-y-2">
+                      {seriesEventos.map((linha) =>
+                        renderSerie(
+                          linha,
+                          (oc: any) => (
                             <EventoProcessoCard
-                              evento={linha.principal}
+                              key={oc.id}
+                              evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
                               onClick={() => abrirNovoItem("evento", linha.original)}
                             />
-                            {linha.repeticoes.length > 0 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-6 text-[11px] text-muted-foreground"
-                                  onClick={() => alternarSerieEvento(linha.chave)}
-                                >
-                                  {aberta
-                                    ? "Ocultar repetições"
-                                    : `+ ${linha.repeticoes.length} ${linha.repeticoes.length === 1 ? "repetição" : "repetições"}`}
-                                </Button>
-                                {aberta && (
-                                  <div className="space-y-2 pl-3 border-l-2 border-violet-200 dark:border-violet-900">
-                                    {linha.repeticoes.map((oc: any) => (
-                                      <EventoProcessoCard
-                                        key={oc.id}
-                                        evento={oc}
-                                        pessoas={eventosPessoas[String(linha.original.id)]}
-                                        onClick={() => abrirNovoItem("evento", linha.original)}
-                                      />
-                                    ))}
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
+                          ),
+                          { corBorda: "border-violet-200 dark:border-violet-900" }
+                        )
+                      )}
                     </div>
+
                   ) : (
                     <div className="text-center py-8">
                       <CalendarDays className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
