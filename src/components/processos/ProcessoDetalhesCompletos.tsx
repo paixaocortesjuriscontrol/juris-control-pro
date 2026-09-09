@@ -1022,11 +1022,12 @@ export function ProcessoDetalhesCompletos({
     {
       label: "Prazos & Eventos",
       items: [
-        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: tarefasSemPrazo.length, iconColor: "text-blue-500" },
-        { id: "agenda", label: "Evento", icon: CalendarPlus, count: seriesEventos.reduce((acc, l) => acc + 1 + l.repeticoes.length, 0), iconColor: "text-violet-500" },
-        { id: "prazo", label: "Prazo", icon: Clock, count: prazosDoProcesso.length, iconColor: "text-red-500" },
+        { id: "tarefas", label: "Tarefa", icon: ClipboardList, count: totalOcorrencias(seriesTarefas), iconColor: "text-blue-500" },
+        { id: "agenda", label: "Evento", icon: CalendarPlus, count: totalOcorrencias(seriesEventos), iconColor: "text-violet-500" },
+        { id: "prazo", label: "Prazo", icon: Clock, count: totalOcorrencias(seriesPrazos), iconColor: "text-red-500" },
         { id: "audiencias", label: "Audiência", icon: Gavel, count: audiencias.length, iconColor: "text-yellow-500" },
-        { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: parcelamentosDoProcesso.length, iconColor: "text-emerald-500" },
+        { id: "parcelamento", label: "Parc. Recor.", icon: Coins, count: totalOcorrencias(seriesParcelamentos), iconColor: "text-emerald-500" },
+
       ],
     },
     {
