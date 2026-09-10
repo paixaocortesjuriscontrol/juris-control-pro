@@ -453,8 +453,18 @@ export function AudienciaFormSimplificado({
       }
 
       await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
+      if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+        const { error: errComentario } = await supabase.from("comentarios_audiencias").insert({
+          audiencia_id: audienciaParaEditar.id,
+          autor_id: user.id,
+          conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+        } as any);
+        if (errComentario) console.error("Falha ao gravar comentário da situação:", errComentario);
+        setComentarioSituacao("");
+      }
       await invalidarItensAgenda(queryClient, invalidateKey ? [invalidateKey] : []);
       toast.success("Audiência atualizada com sucesso!");
+
     } else {
       const criada: any = await criarAudiencia.mutateAsync(payload);
       // Vincular à publicação via tabela de junção correta conforme origem
