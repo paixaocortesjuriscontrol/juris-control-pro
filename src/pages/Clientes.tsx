@@ -115,6 +115,56 @@ export default function Clientes() {
     },
   });
 
+  const { data: etiquetasNomes } = useQuery({
+    queryKey: ["etiquetas-nomes"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("etiquetas").select("id, nome");
+      if (error) throw error;
+      return new Map<string, string>(((data as any[]) || []).map((e) => [e.id, e.nome as string]));
+    },
+  });
+
+  const [exportando, setExportando] = useState(false);
+
+  const handleExportarExcel = () => {
+    if (filteredClientes.length === 0) {
+      toast({ title: "Nada para exportar", description: "Nenhum cliente com os filtros atuais.", variant: "destructive" });
+      return;
+    }
+    setExportando(true);
+    try {
+      const linhas = filteredClientes.map((c: any) => {
+        const coords = (coordsPorCliente?.get(c.id) || []).join(", ");
+        const etiquetas = (etiquetasPorCliente?.get(c.id) || [])
+          .map((id) => etiquetasNomes?.get(id) || "")
+          .filter(Boolean)
+          .join(", ");
+        return {
+          "Nome": c.nome || "",
+          "Tipo": c.tipo === "pessoa_fisica" ? "Pessoa Física" : "Pessoa Jurídica",
+          "CPF/CNPJ": c.cpf_cnpj || "",
+          "Email": c.email || "",
+          "Telefone": c.telefone || "",
+          "Coordenações": coords,
+          "Etiquetas": etiquetas,
+          "Cadastrado em": c.created_at ? format(new Date(c.created_at), "dd/MM/yyyy") : "",
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(linhas);
+      ws["!cols"] = [{ wch: 45 }, { wch: 16 }, { wch: 20 }, { wch: 32 }, { wch: 18 }, { wch: 40 }, { wch: 40 }, { wch: 14 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+      XLSX.writeFile(wb, `clientes_${format(new Date(), "dd-MM-yyyy")}.xlsx`);
+      toast({ title: "Exportação concluída", description: `${linhas.length} cliente(s) exportado(s).` });
+    } catch (e: any) {
+      console.error("Erro ao exportar clientes:", e);
+      toast({ title: "Erro ao exportar", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const coordenacoesDisponiveis = useMemo(() => {
     const set = new Set<string>();
     if (coordsPorCliente) for (const nomes of coordsPorCliente.values()) nomes.forEach((n) => set.add(n));
