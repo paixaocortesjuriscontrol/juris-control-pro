@@ -19,6 +19,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { situacoesDisponiveis, valorConcluidoSucesso, type TipoSituacaoItem } from "@/constants/situacoesItem";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { tipoSituacaoDoItemAgenda, tipoTarefaPermissao } from "@/utils/tipoItemPermissao";
+
 import {
   buscarBaixaOcorrencia,
   dadosOcorrencia,
