@@ -111,22 +111,35 @@ export default function Clientes() {
 
       if (error) throw error;
 
-      const info = (data ?? {}) as { processos_desvinculados?: number; pastas_desvinculadas?: number };
+      const info = (data ?? {}) as {
+        processos_desvinculados?: number;
+        pastas_desvinculadas?: number;
+        etiquetas_excluidas?: number;
+      };
       const partes: string[] = [];
       if ((info.processos_desvinculados ?? 0) > 0)
         partes.push(`${info.processos_desvinculados} processo(s)/caso(s)`);
       if ((info.pastas_desvinculadas ?? 0) > 0)
         partes.push(`${info.pastas_desvinculadas} pasta(s)`);
+      const etq = info.etiquetas_excluidas ?? 0;
 
       toast({
         title: "Cliente excluído",
-        description: partes.length
-          ? `Cliente excluído e desvinculado de ${partes.join(" e ")}.`
-          : "O cliente foi excluído com sucesso.",
+        description: [
+          partes.length
+            ? `Cliente excluído e desvinculado de ${partes.join(" e ")}.`
+            : "O cliente foi excluído com sucesso.",
+          etq > 0 ? `${etq} etiqueta(s) do cliente também foram excluídas.` : "",
+        ]
+          .filter(Boolean)
+          .join(" "),
       });
 
       await queryClient.invalidateQueries({ queryKey: ["clientes"] });
       await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+      await queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+      await queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+
 
     } catch (error: any) {
       console.error("Error deleting cliente:", error);
