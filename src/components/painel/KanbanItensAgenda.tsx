@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
@@ -13,6 +15,7 @@ import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from 
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+
 
 interface KanbanItensAgendaProps {
   itens: ItemAgendaUnificado[];
