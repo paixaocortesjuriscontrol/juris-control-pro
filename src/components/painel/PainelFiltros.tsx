@@ -87,6 +87,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.dataFatal,
     filtros.situacoes.length > 0,
     filtros.classificacoes.length > 0,
+    filtros.comentarios !== "todas",
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
     filtros.responsavelIds.length > 0,
