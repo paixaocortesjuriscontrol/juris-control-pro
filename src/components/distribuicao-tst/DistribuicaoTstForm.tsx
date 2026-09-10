@@ -1184,10 +1184,36 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     // posicao_turma_*, posicao_relator_*) a partir da nova lista por matéria.
     // A planilha Benner e relatórios antigos continuam lendo esses campos —
     // mantemos compatibilidade sem precisar mexer no template.
-    const matRecl = (bennerExtraRef.current as any).materias_analise_reclamante as MateriaAnaliseItem[] | null;
-    const matBanco = (bennerExtraRef.current as any).materias_analise_banco as MateriaAnaliseItem[] | null;
+    // Limpa resíduos: linhas de "Análise por matéria" de matérias que não
+    // estão mais selecionadas no campo "Matérias Recurso ..." (sobras de
+    // edições antigas) geram avisos/pendências fantasmas e não devem ficar
+    // gravadas.
+    const podarAnalise = (campoJsonb: string, campoMaterias: string) => {
+      const atual = (bennerExtraRef.current as any)[campoJsonb];
+      if (!Array.isArray(atual) || atual.length === 0) return atual ?? null;
+      const podado = itensAnaliseSelecionados(
+        { [campoJsonb]: atual, [campoMaterias]: (form as any)[campoMaterias] },
+        campoJsonb,
+      );
+      if (podado.length !== atual.length) {
+        bennerDirtyRef.current.add(campoJsonb);
+        setBennerExtra((prev) => ({ ...prev, [campoJsonb]: podado }));
+        (bennerExtraRef.current as any)[campoJsonb] = podado;
+      }
+      return podado;
+    };
+    const matRecl = podarAnalise(
+      "materias_analise_reclamante",
+      "materias_recurso_reclamante",
+    ) as MateriaAnaliseItem[] | null;
+    const matBanco = podarAnalise(
+      "materias_analise_banco",
+      "materias_recurso_banco",
+    ) as MateriaAnaliseItem[] | null;
+    podarAnalise("materias_analise_terceiro", "materias_recurso_terceiro");
     const aggRecl = derivarAgregadosDeMaterias(matRecl);
     const aggBanco = derivarAgregadosDeMaterias(matBanco);
+
     const payload: DistribuicaoTstInsert = { ...payloadJudit };
     if (aggRecl.aparelhamento !== null) (payload as any).aparelhamento_reclamante = aggRecl.aparelhamento;
     if (aggBanco.aparelhamento !== null) (payload as any).aparelhamento_banco = aggBanco.aparelhamento;
