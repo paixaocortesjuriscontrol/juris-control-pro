@@ -10131,6 +10131,8 @@ export type Database = {
           iniciado_por: string | null
           observacoes: string | null
           processo_id: string | null
+          publicacao_origem_id: string | null
+          publicacao_origem_tipo: string | null
           status: string
           updated_at: string
           workflow_id: string
@@ -10143,6 +10145,8 @@ export type Database = {
           iniciado_por?: string | null
           observacoes?: string | null
           processo_id?: string | null
+          publicacao_origem_id?: string | null
+          publicacao_origem_tipo?: string | null
           status?: string
           updated_at?: string
           workflow_id: string
@@ -10155,6 +10159,8 @@ export type Database = {
           iniciado_por?: string | null
           observacoes?: string | null
           processo_id?: string | null
+          publicacao_origem_id?: string | null
+          publicacao_origem_tipo?: string | null
           status?: string
           updated_at?: string
           workflow_id?: string
