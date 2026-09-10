@@ -138,7 +138,7 @@ export function AgendaItemRow({
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
   temComentario?: boolean;
-  autoriaComentario?: "meu" | "outros" | "ambos" | null;
+  autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
 
 }) {
   const concluido = isItemTratado(item);

@@ -87,7 +87,7 @@ function ProcessoItemRow({
   onSelect: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   temComentario?: boolean;
-  autoriaComentario?: "meu" | "outros" | "ambos" | null;
+  autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
   qtdAtividades?: number;
 
 }) {
