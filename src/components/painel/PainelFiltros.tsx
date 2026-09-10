@@ -38,6 +38,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   classificacoes: [],
   souResponsavel: false,
   estouEnvolvido: false,
+  comentarios: "todas",
   statusGroup: "todas",
   periodoInicio: "",
   periodoFim: "",
@@ -50,6 +51,12 @@ const CLASSIFICACOES = [
   { value: "prazo", label: "Prazos" },
   { value: "audiencia", label: "Audiências" },
   { value: "parcelamento", label: "Parcelamento recorrente" },
+];
+
+const COMENTARIOS_OPTIONS: { value: PainelFiltrosState["comentarios"]; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "com", label: "Com comentário" },
+  { value: "sem", label: "Sem comentário" },
 ];
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
