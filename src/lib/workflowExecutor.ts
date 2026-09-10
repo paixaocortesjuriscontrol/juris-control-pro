@@ -195,7 +195,8 @@ export async function criarItemWorkflow(
     status: WORKFLOW_ITEM_SITUACAO_INICIAL[tipo],
   };
   if (processoId) itemBase.processo_id = processoId;
-  if (processoNumero) itemBase.processo_numero = processoNumero;
+  // processo_numero existe apenas em audiencias_detectadas; não incluir em itemBase
+  // (tarefas/eventos_agenda não possuem essa coluna).
 
   /**
    * Cria as ATIVIDADES (subatividades) pré-definidas da etapa dentro do item
