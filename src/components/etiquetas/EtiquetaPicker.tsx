@@ -16,10 +16,21 @@ import {
   useEtiquetasDoItem,
   useToggleEtiquetaItem,
   useRemoverTodasEtiquetasDoItem,
+  useCriarEtiqueta,
+  useAplicarEtiquetaClienteBase,
   moduloDaEntidade,
+  ETIQUETA_COLOR_PALETTE,
   type Etiqueta,
   type EtiquetaEntidade,
 } from "@/hooks/useEtiquetas";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EtiquetaBadges } from "./EtiquetaBadges";
 
 interface Props {
@@ -33,7 +44,13 @@ interface Props {
   etiquetaIds?: string[];
   /** Nome da coordenação, exibido no cabeçalho do painel. */
   coordenacaoNome?: string | null;
+  /**
+   * Habilita o atalho "Criar etiqueta com o nome do cliente". A etiqueta criada
+   * fica vinculada ao cliente e é aplicada automaticamente aos processos dele.
+   */
+  clienteParaEtiqueta?: { id: string; nome: string } | null;
 }
+
 
 /**
  * Popover de etiquetas (modelo Astrea): ícone de etiqueta, busca em ordem
