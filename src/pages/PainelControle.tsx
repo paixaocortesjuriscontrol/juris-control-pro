@@ -1762,18 +1762,31 @@ export default function PainelControle() {
     (atividadesCalendario as any[]).forEach((a) => {
       const key = String(a.data_prevista).slice(0, 10);
       if (!key) return;
+      const pai = itemPorRawId.get(getItemRawId(String(a.item_id ?? "")));
       // Respeita o filtro de tipo das sub-abas (Prazos, Audiências, Tarefas...):
       // as atividades seguem a classificação do item pai.
       if (tiposSel.length > 0) {
-        const pai = itemPorRawId.get(getItemRawId(String(a.item_id ?? "")));
         const tipo = pai ? classificarItem(pai) : String(a.tipo_item ?? "");
         if (!tiposSel.includes(tipo)) return;
+      }
+      // Busca: a atividade só aparece se ela (ou o item pai) casar com o termo.
+      if (buscaProcessoDigits.length >= 4 || buscaTexto) {
+        if (!pai) return;
+        if (!passaFiltrosPainel(pai)) return;
       }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     });
     return map;
-  }, [atividadesCalendario, painelFiltros.classificacoes, itemPorRawId]);
+  }, [
+    atividadesCalendario,
+    painelFiltros.classificacoes,
+    itemPorRawId,
+    buscaProcessoDigits,
+    buscaTexto,
+    passaFiltrosPainel,
+  ]);
+
 
 
   const itensComAtividades = useMemo(() => {
