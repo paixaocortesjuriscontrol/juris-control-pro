@@ -236,10 +236,12 @@ export function ultimoComentarioItem(
 export function autoriaComentarioItem(
   mapa: MapaComentarios,
   item: ItemAgendaUnificado | { id: string }
-): "meu" | "outros" | "ambos" | null {
+): "meu" | "outros" | "ambos" | "cobranca" | null {
   if (!mapa || !(mapa instanceof Map) || !item?.id) return null;
   const valor: any = mapa.get(chaveComentarioItem(item));
   if (!valor || typeof valor === "string") return null;
+  // Cobrança tem prioridade visual (vermelho) sobre a autoria.
+  if (valor.cobranca) return "cobranca";
   if (valor.meu && valor.outros) return "ambos";
   if (valor.meu) return "meu";
   if (valor.outros) return "outros";
