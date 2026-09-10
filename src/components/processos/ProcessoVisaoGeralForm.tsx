@@ -53,6 +53,17 @@ import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
+import { garantirEtiquetaCliente } from "@/lib/etiquetaCliente";
 
 // Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
 // Judit preencheu enquanto o usuário navega entre as abas da tela.
@@ -263,6 +274,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Dialog de cadastro/edição rápida de cliente (usado na seção Partes)
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [clienteEmEdicao, setClienteEmEdicao] = useState<any>(null);
+  const [clienteBuscaOpen, setClienteBuscaOpen] = useState(false);
+  const clienteSelecionadoNome = useMemo(
+    () => (clientesLista as any[]).find((c) => c.id === form?.cliente_id)?.nome || "",
+    [clientesLista, form?.cliente_id],
+  );
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Último payload Judit desta sessão. No modo criação não existe `processo.id`,
@@ -1803,57 +1819,105 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <FormField label="Cliente (cadastro)">
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={form.cliente_id || "__none__"}
-                        onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
-                      >
-                        <SelectTrigger className={cn(inputCls, "flex-1 min-w-0")}>
-                          <SelectValue placeholder="Selecione o cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
-                          {clientesLista.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0"
-                        title="Cadastrar novo cliente"
-                        onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
-                      >
-                        <Plus className="w-3.5 h-3.5 mr-1" /> Novo
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0"
-                        disabled={!form.cliente_id}
-                        title="Alterar o nome/dados do cliente selecionado"
-                        onClick={async () => {
-                          const { data, error } = await supabase
-                            .from("clientes")
-                            .select("*")
-                            .eq("id", form.cliente_id)
-                            .maybeSingle();
-                          if (error || !data) {
-                            toast.error("Não foi possível carregar o cliente.");
-                            return;
-                          }
-                          setClienteEmEdicao(data);
-                          setClienteDialogOpen(true);
-                        }}
-                      >
-                        Alterar nome
-                      </Button>
-                    </div>
-                  </FormField>
+                  <div className="md:col-span-2">
+                    <FormField label="Cliente (cadastro)">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Popover open={clienteBuscaOpen} onOpenChange={setClienteBuscaOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                inputCls,
+                                "flex-1 min-w-[280px] justify-between font-normal",
+                                !form.cliente_id && "text-muted-foreground",
+                              )}
+                            >
+                              <span className="truncate text-left">
+                                {clienteSelecionadoNome || "Selecione o cliente"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[min(680px,90vw)] p-0"
+                            align="start"
+                          >
+                            <Command>
+                              <CommandInput placeholder="Buscar cliente pelo nome..." />
+                              <CommandList className="max-h-72">
+                                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="Sem cliente vinculado"
+                                    onSelect={() => {
+                                      update("cliente_id", null);
+                                      setClienteBuscaOpen(false);
+                                    }}
+                                  >
+                                    Sem cliente vinculado
+                                  </CommandItem>
+                                  {clientesLista.map((c: any) => (
+                                    <CommandItem
+                                      key={c.id}
+                                      value={c.nome}
+                                      onSelect={() => {
+                                        update("cliente_id", c.id);
+                                        setClienteBuscaOpen(false);
+                                      }}
+                                    >
+                                      <CheckCircle
+                                        className={cn(
+                                          "mr-2 h-3.5 w-3.5 shrink-0",
+                                          form.cliente_id === c.id ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="whitespace-normal break-words">{c.nome}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          title="Cadastrar novo cliente"
+                          onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          disabled={!form.cliente_id}
+                          title="Alterar o nome/dados do cliente selecionado"
+                          onClick={async () => {
+                            const { data, error } = await supabase
+                              .from("clientes")
+                              .select("*")
+                              .eq("id", form.cliente_id)
+                              .maybeSingle();
+                            if (error || !data) {
+                              toast.error("Não foi possível carregar o cliente.");
+                              return;
+                            }
+                            setClienteEmEdicao(data);
+                            setClienteDialogOpen(true);
+                          }}
+                        >
+                          Alterar nome
+                        </Button>
+                      </div>
+                    </FormField>
+                  </div>
+
                   <FormField label="Cliente / Envolvido (texto livre)">
                     <Input
                       className={inputCls}
@@ -2102,9 +2166,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         open={clienteDialogOpen}
         onOpenChange={(o) => { setClienteDialogOpen(o); if (!o) setClienteEmEdicao(null); }}
         cliente={clienteEmEdicao}
-        onSaved={(c) => {
+        onSaved={async (c) => {
           update("cliente_id", c.id);
-          queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          // Cria (ou reaproveita) a etiqueta com o nome do cliente na
+          // coordenação do processo e aplica nos processos/casos dele.
+          const etiquetaId = await garantirEtiquetaCliente({
+            clienteId: c.id,
+            nome: c.nome,
+            coordenacaoId: form.coordenacao_id || null,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          if (etiquetaId) {
+            await queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+            await queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+          }
           if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
         }}
       />
