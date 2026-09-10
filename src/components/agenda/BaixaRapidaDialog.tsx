@@ -62,15 +62,13 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
   const { isAdmin, role } = useUserRole();
   const queryClient = useQueryClient();
 
-  const tipoSituacao: TipoSituacaoItem = item
-    ? item.tipo === "prazo"
-      ? "prazo"
-      : item.origem === "tarefa"
-        ? "tarefa"
-        : "evento"
-    : "tarefa";
+  const tipoSituacao: TipoSituacaoItem = item ? tipoSituacaoDoItemAgenda(item as any) : "tarefa";
 
-  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao();
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
+    (item?.coordenacao_id as string) || (item?.processo?.coordenacao_id as string) || null,
+    tipoTarefaPermissao(tipoSituacao),
+  );
+
 
   const [situacao, setSituacao] = useState<string>("");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("");
