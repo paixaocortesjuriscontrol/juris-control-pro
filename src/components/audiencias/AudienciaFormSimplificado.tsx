@@ -32,6 +32,8 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
@@ -148,6 +150,9 @@ export function AudienciaFormSimplificado({
 
   const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
   const situacaoInicial = audienciaParaEditar?.status ?? "pendente";
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
+  const { user } = useAuth();
+
   // Reagendamento: nova data obrigatória para a audiência mudar de dia no painel
   const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
@@ -170,7 +175,7 @@ export function AudienciaFormSimplificado({
     audienciaParaEditar?.coordenacao_id ?? ""
   );
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "AUDIÊNCIA");
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(coordenacaoId || null, "AUDIÊNCIA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   useEffect(() => {
@@ -322,6 +327,12 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
+    const situacaoMudou = isEditing && situacao !== situacaoInicial;
+    if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {
+      toast.error("O comentário da mudança de situação é obrigatório.");
+      return;
+    }
+
     const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
     // Se o usuário não informar nova data, mantém a data atual — o item continua
     // visível no calendário/painel apenas com a situação alterada.
@@ -442,8 +453,18 @@ export function AudienciaFormSimplificado({
       }
 
       await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
+      if (situacaoMudou && comentarioSituacao.trim() && user?.id) {
+        const { error: errComentario } = await supabase.from("comentarios_audiencias").insert({
+          audiencia_id: audienciaParaEditar.id,
+          autor_id: user.id,
+          conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentarioSituacao.trim()}`,
+        } as any);
+        if (errComentario) console.error("Falha ao gravar comentário da situação:", errComentario);
+        setComentarioSituacao("");
+      }
       await invalidarItensAgenda(queryClient, invalidateKey ? [invalidateKey] : []);
       toast.success("Audiência atualizada com sucesso!");
+
     } else {
       const criada: any = await criarAudiencia.mutateAsync(payload);
       // Vincular à publicação via tabela de junção correta conforme origem
@@ -507,7 +528,21 @@ export function AudienciaFormSimplificado({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isEditing && situacao !== situacaoInicial && (
+        <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+          <Label className="text-xs font-semibold">
+            Comentário da mudança de situação{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
+          </Label>
+          <Textarea
+            value={comentarioSituacao}
+            onChange={(e) => setComentarioSituacao(e.target.value)}
+            placeholder="Explique o motivo da mudança de situação..."
+            className="min-h-[64px] text-sm"
+          />
+        </div>
+      )}
       {situacao === "reagendado" && situacao !== situacaoInicial && (
+
         <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
           <Label className="text-xs font-semibold">
             Nova data do reagendamento (opcional)

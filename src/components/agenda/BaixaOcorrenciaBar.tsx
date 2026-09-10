@@ -19,6 +19,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { situacoesDisponiveis, valorConcluidoSucesso, type TipoSituacaoItem } from "@/constants/situacoesItem";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { tipoSituacaoDoItemAgenda, tipoTarefaPermissao } from "@/utils/tipoItemPermissao";
+
 import {
   buscarBaixaOcorrencia,
   dadosOcorrencia,
@@ -45,10 +47,12 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   const { user } = useAuth();
   const { isAdmin, role } = useUserRole();
   const queryClient = useQueryClient();
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao();
+  const tipoSituacao: TipoSituacaoItem = tipoSituacaoDoItemAgenda(item as any);
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
+    (item.coordenacao_id as string) || (item.processo?.coordenacao_id as string) || null,
+    tipoTarefaPermissao(tipoSituacao),
+  );
 
-  const tipoSituacao: TipoSituacaoItem =
-    item.tipo === "prazo" ? "prazo" : item.origem === "tarefa" ? "tarefa" : "evento";
 
   const [situacao, setSituacao] = useState<string>(
     item.status || valorConcluidoSucesso(tipoSituacao),
@@ -92,9 +96,21 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
     onUpdate?.();
   };
 
+  const situacaoMudou = situacao !== (item.status || "");
+
+  const validar = () => {
+    if (situacaoMudou && comentarioObrigatorio && !observacao.trim()) {
+      toast.error("O comentário da mudança de situação é obrigatório.");
+      return false;
+    }
+    return true;
+  };
+
   const baixarSomenteEsta = async () => {
+    if (!validar()) return;
     setSalvando("esta");
     try {
+
       await enviarAnexosPendentes();
       await salvarBaixaOcorrencia({
         origem: info.origem,
@@ -114,7 +130,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   };
 
   const baixarSerie = async () => {
+    if (!validar()) return;
     setSalvando("serie");
+
     try {
       await enviarAnexosPendentes();
       const concluido = situacao === valorConcluidoSucesso(tipoSituacao);
@@ -195,7 +213,10 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
           </Select>
         </div>
         <div className="space-y-1 flex-1 min-w-[180px]">
-          <Label className="text-[11px] text-muted-foreground">Observação (opcional)</Label>
+          <Label className="text-[11px] text-muted-foreground">
+            Comentário{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
+          </Label>
+
           <Input
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
