@@ -90,8 +90,9 @@ export function EtiquetaPicker({
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
-  }, [catalogo, busca]);
+    const base = q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
+    return agruparEtiquetasPorNome(base, coordenacaoId ?? null);
+  }, [catalogo, busca, coordenacaoId]);
 
   const nomeCliente = (clienteParaEtiqueta?.nome || "").trim();
   const jaTemEtiquetaDoCliente = useMemo(() => {
