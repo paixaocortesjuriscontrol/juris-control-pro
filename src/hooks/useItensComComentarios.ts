@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 /**
  * Mapeia um item da agenda para o identificador real usado nas tabelas de
