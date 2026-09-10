@@ -66,7 +66,7 @@ function dataOcorrenciaItem(item: ItemAgendaUnificado): string | null {
 }
 
 /** Info agregada dos comentários de um item. */
-export type InfoComentario = { ultimo: string | null; meu: boolean; outros: boolean };
+export type InfoComentario = { ultimo: string | null; meu: boolean; outros: boolean; cobranca: boolean };
 
 export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined) {
   const { user } = useAuth();
@@ -125,6 +125,7 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
           ultimo: info.ultimo && (!atual.ultimo || info.ultimo > atual.ultimo) ? info.ultimo : atual.ultimo,
           meu: atual.meu || info.meu,
           outros: atual.outros || info.outros,
+          cobranca: atual.cobranca || info.cobranca,
         });
       };
 
@@ -140,21 +141,28 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
         // ref (e ref|dia) -> info agregada
         const porRef = new Map<string, InfoComentario>();
         const porRefDia = new Map<string, InfoComentario>();
-        const acumular = (mapa: Map<string, InfoComentario>, chave: string, iso: string, meu: boolean) => {
+        const acumular = (
+          mapa: Map<string, InfoComentario>,
+          chave: string,
+          iso: string,
+          meu: boolean,
+          cobranca: boolean
+        ) => {
           const atual = mapa.get(chave);
           if (!atual) {
-            mapa.set(chave, { ultimo: iso, meu, outros: !meu });
+            mapa.set(chave, { ultimo: iso, meu, outros: !meu, cobranca });
             return;
           }
           if (!atual.ultimo || iso > atual.ultimo) atual.ultimo = iso;
           if (meu) atual.meu = true;
           else atual.outros = true;
+          if (cobranca) atual.cobranca = true;
         };
         await Promise.all(
           chunks.map(async (chunk) => {
             const { data, error } = await (supabase as any)
               .from(tabela)
-              .select(`${fk}, created_at, autor_id`)
+              .select(`${fk}, created_at, autor_id, is_cobranca`)
               .in(fk, chunk);
             if (error) throw error;
             (data || []).forEach((row: any) => {
@@ -166,8 +174,9 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
               ).padStart(2, "0")}`;
               const iso = d.toISOString();
               const meu = !!userId && row.autor_id === userId;
-              acumular(porRef, ref, iso, meu);
-              acumular(porRefDia, `${ref}|${dia}`, iso, meu);
+              const cobranca = !!row.is_cobranca;
+              acumular(porRef, ref, iso, meu, cobranca);
+              acumular(porRefDia, `${ref}|${dia}`, iso, meu, cobranca);
             });
           })
         );
