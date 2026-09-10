@@ -1213,23 +1213,18 @@ export default function PainelControle() {
       // observações, tipo, partes, local, responsável, cliente...)
       if (buscaTexto) {
         const it: any = item;
+        // Somente o conteúdo do próprio item (e o número do processo).
+        // Assunto/classe do processo NÃO entram, senão uma tarefa qualquer de um
+        // processo de "cobrança" aparecia na busca por "cobra".
         const alvo = [
           it.titulo,
           it.descricao,
           it.observacoes,
           it.tipo_tarefa,
           it.tipo_evento,
-          it.tipo,
           it.local,
           it.orgao,
-          it.partes_ativas,
-          it.partes_passivas,
-          it.outras_partes,
-          it.polo_ativo,
-          it.polo_passivo,
-          it.status,
           it.processo?.numero,
-          it.processo?.assunto,
           it.processo_numero,
           it.responsavel?.nome,
         ]
@@ -1239,6 +1234,7 @@ export default function PainelControle() {
         const palavras = buscaTexto.split(/\s+/).filter(Boolean);
         if (!palavras.every((p) => alvo.includes(p))) return false;
       }
+
 
       return true;
     },
