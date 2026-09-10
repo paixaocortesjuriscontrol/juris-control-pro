@@ -1663,7 +1663,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Matérias Recurso do Banco{recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
-              onChange={(v) => set("materias_recurso_banco", v)}
+              onChange={(v) => setMateriasRecurso("materias_recurso_banco", "materias_analise_banco", v)}
               pedidosDossie={pedidosDossieSet}
             />
           </div>
