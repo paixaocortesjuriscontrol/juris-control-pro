@@ -302,6 +302,7 @@ export default function Clientes() {
                       <TableHead>CPF/CNPJ</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Telefone</TableHead>
+                      <TableHead>Coordenações</TableHead>
                       <TableHead>Etiquetas</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
