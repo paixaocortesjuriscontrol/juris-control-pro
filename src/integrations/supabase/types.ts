@@ -1028,6 +1028,48 @@ export type Database = {
         }
         Relationships: []
       }
+      auditoria_exclusao_clientes: {
+        Row: {
+          cliente_cpf_cnpj: string | null
+          cliente_email: string | null
+          cliente_id: string
+          cliente_nome: string
+          cliente_telefone: string | null
+          created_at: string
+          excluido_por: string | null
+          excluido_por_nome: string | null
+          id: string
+          pastas_desvinculadas: number
+          processos_desvinculados: number
+        }
+        Insert: {
+          cliente_cpf_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_id: string
+          cliente_nome: string
+          cliente_telefone?: string | null
+          created_at?: string
+          excluido_por?: string | null
+          excluido_por_nome?: string | null
+          id?: string
+          pastas_desvinculadas?: number
+          processos_desvinculados?: number
+        }
+        Update: {
+          cliente_cpf_cnpj?: string | null
+          cliente_email?: string | null
+          cliente_id?: string
+          cliente_nome?: string
+          cliente_telefone?: string | null
+          created_at?: string
+          excluido_por?: string | null
+          excluido_por_nome?: string | null
+          id?: string
+          pastas_desvinculadas?: number
+          processos_desvinculados?: number
+        }
+        Relationships: []
+      }
       auditoria_lotes_admin_tst: {
         Row: {
           arquivo_nome: string | null
@@ -10446,6 +10488,10 @@ export type Database = {
           p_tipo: string
         }
         Returns: string
+      }
+      excluir_cliente_com_desvinculo: {
+        Args: { p_cliente_id: string }
+        Returns: Json
       }
       extract_cnj_from_text: { Args: { p_text: string }; Returns: string }
       find_processo_by_digits: {
