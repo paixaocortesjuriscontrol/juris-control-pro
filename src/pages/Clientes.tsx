@@ -269,8 +269,10 @@ export default function Clientes() {
                             entidade="cliente"
                             entidadeId={cliente.id}
                             etiquetaIds={etiquetasPorCliente?.get(cliente.id) || []}
+                            clienteParaEtiqueta={{ id: cliente.id, nome: cliente.nome }}
                             compact
                           />
+
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
