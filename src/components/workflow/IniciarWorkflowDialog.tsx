@@ -48,9 +48,11 @@ export function IniciarWorkflowDialog({
   const [search, setSearch] = useState("");
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
   const [responsavelInicial, setResponsavelInicial] = useState("");
+  const [semProcesso, setSemProcesso] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const hoje = new Date().toISOString().split("T")[0];
   const [dataInicio, setDataInicio] = useState(hoje);
+
 
   const { data: usuarios = [] } = useUsuariosCoordenacao(coordenacaoId || undefined);
 
@@ -83,8 +85,13 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
+    if (!selectedProcesso && !semProcesso) {
+      toast.error("Selecione o processo (ou marque \"Sem processo vinculado\")");
+      return;
+    }
     await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
+
       processo_id: selectedProcesso?.id,
       processo_numero: selectedProcesso?.numero,
       coordenacao_id: coordenacaoId,
@@ -103,6 +110,8 @@ export function IniciarWorkflowDialog({
     setSearch("");
     setSelectedProcesso(preSelectedProcesso || null);
     setResponsavelInicial("");
+    setSemProcesso(false);
+
     setObservacoes("");
     setDataInicio(hoje);
   };
@@ -156,7 +165,19 @@ export function IniciarWorkflowDialog({
 
           {!preSelectedProcesso && (
             <div className="space-y-2">
-              <Label htmlFor="proc">Processo</Label>
+              <Label htmlFor="proc">Processo *</Label>
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={semProcesso}
+                  onChange={(e) => {
+                    setSemProcesso(e.target.checked);
+                    if (e.target.checked) setSelectedProcesso(null);
+                  }}
+                />
+                Sem processo vinculado
+              </label>
+
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
