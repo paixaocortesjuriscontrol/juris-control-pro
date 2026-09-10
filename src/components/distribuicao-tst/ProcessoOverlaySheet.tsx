@@ -26,6 +26,12 @@ import { toast } from "sonner";
 import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
 import { normalizeMateriaNome } from "@/utils/outraMateria";
+import {
+  getPendenciasEAvisos,
+  type Pendencia,
+} from "@/utils/distribuicaoTstPendencias";
+import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
+import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import { cn } from "@/lib/utils";
 
 
@@ -241,6 +247,34 @@ function BlocoRecurso({
   );
 }
 
+function ListaConferencia({ itens }: { itens: Pendencia[] }) {
+  const grupos = itens.reduce<Record<string, Pendencia[]>>((acc, item) => {
+    const grupo = item.quadrinho || "Outros";
+    (acc[grupo] ||= []).push(item);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-2">
+      {Object.entries(grupos).map(([grupo, pendencias]) => (
+        <div key={grupo}>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+            {grupo}
+          </div>
+          <ul className="space-y-1">
+            {pendencias.map((item) => (
+              <li key={item.key} className="flex items-start gap-1.5 text-xs leading-5">
+                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+                <span className="break-words">{item.label}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ListaPartes({ partes }: { partes: any[] }) {
   if (!partes.length) return <p className="text-sm italic text-muted-foreground">Nenhuma parte retornada.</p>;
   return (
@@ -340,6 +374,24 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
     if (base) return { ...base, ...(bennerToDistribuicao(base) as any) };
     return registro || {};
   }, [rowCompleto, registro]);
+
+  const {
+    data: conferencia,
+    isLoading: carregandoConferencia,
+    isError: erroConferencia,
+  } = useQuery({
+    queryKey: ["dist-tst-overlay-pendencias", registro?.id, rowCompleto?.updated_at],
+    enabled: open && aba === "ficha" && !!registro?.id && !!rowCompleto,
+    staleTime: 60_000,
+    queryFn: async () => {
+      await Promise.all([ensureMateriasOficiais(), ensurePedidosPorDossie()]);
+      const itens = getPendenciasEAvisos(ficha);
+      return {
+        pendencias: itens.filter((item) => !item.aviso),
+        avisos: itens.filter((item) => item.aviso),
+      };
+    },
+  });
 
 
   const lawsuits = useMemo(() => coletarLawsuits(log?.raw_response), [log]);
@@ -767,6 +819,41 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
 
           {/* ─── Distribuição TST (mesmos campos do formulário, em leitura) ─── */}
           <TabsContent value="ficha" className="mt-0 space-y-3">
+            <Bloco titulo="Pendências e avisos" icone={AlertTriangle}>
+              {carregandoConferencia ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Conferindo preenchimento...
+                </div>
+              ) : erroConferencia ? (
+                <p className="text-xs text-destructive">Não foi possível conferir as pendências agora.</p>
+              ) : !conferencia?.pendencias.length && !conferencia?.avisos.length ? (
+                <div className="flex items-center gap-2 text-xs text-success">
+                  <CheckCircle2 className="h-4 w-4" /> Sem pendências ou avisos
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {!!conferencia?.pendencias.length && (
+                    <section className="rounded-md border border-destructive/30 bg-destructive/5 p-2.5 text-destructive">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        {conferencia.pendencias.length} {conferencia.pendencias.length === 1 ? "pendência" : "pendências"}
+                      </div>
+                      <ListaConferencia itens={conferencia.pendencias} />
+                    </section>
+                  )}
+                  {!!conferencia?.avisos.length && (
+                    <section className="rounded-md border border-warning/40 bg-warning/10 p-2.5 text-warning-foreground">
+                      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold">
+                        <AlertTriangle className="h-3.5 w-3.5 text-warning" />
+                        {conferencia.avisos.length} {conferencia.avisos.length === 1 ? "aviso" : "avisos"}
+                      </div>
+                      <ListaConferencia itens={conferencia.avisos} />
+                    </section>
+                  )}
+                </div>
+              )}
+            </Bloco>
+
             <Bloco titulo="Dados Básicos" icone={FileText}>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2 md:grid-cols-3">
                 <Campo rotulo="Data Distribuição Planilha (D)" valor={fmtData(ficha.data_distribuicao_planilha)} />
