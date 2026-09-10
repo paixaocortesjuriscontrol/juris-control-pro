@@ -105,19 +105,51 @@ export default function Clientes() {
 
     setDeleting(true);
     try {
-      const { error } = await supabase
+      // Verifica vínculos que impedem a exclusão
+      const [{ count: qtdProcessos, error: errProc }, { count: qtdPastas, error: errPastas }] =
+        await Promise.all([
+          supabase
+            .from("processos")
+            .select("id", { count: "exact", head: true })
+            .eq("cliente_id", clienteToDelete.id),
+          supabase
+            .from("pastas")
+            .select("id", { count: "exact", head: true })
+            .eq("cliente_id", clienteToDelete.id),
+        ]);
+
+      if (errProc) throw errProc;
+      if (errPastas) throw errPastas;
+
+      if ((qtdProcessos ?? 0) > 0 || (qtdPastas ?? 0) > 0) {
+        const partes: string[] = [];
+        if ((qtdProcessos ?? 0) > 0) partes.push(`${qtdProcessos} processo(s)/caso(s)`);
+        if ((qtdPastas ?? 0) > 0) partes.push(`${qtdPastas} pasta(s)`);
+        throw new Error(
+          `Este cliente está vinculado a ${partes.join(" e ")}. Troque ou remova o cliente nesses registros antes de excluí-lo.`
+        );
+      }
+
+      const { data, error } = await supabase
         .from("clientes")
         .delete()
-        .eq("id", clienteToDelete.id);
+        .eq("id", clienteToDelete.id)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Você não tem permissão para excluir este cliente. Fale com o coordenador."
+        );
+      }
 
       toast({
         title: "Cliente excluído",
         description: "O cliente foi excluído com sucesso.",
       });
 
-      queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      await queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
     } catch (error: any) {
       console.error("Error deleting cliente:", error);
       toast({
@@ -131,6 +163,7 @@ export default function Clientes() {
       setClienteToDelete(null);
     }
   };
+
 
   const pessoasFisicas = clientes.filter((c) => c.tipo === "pessoa_fisica").length;
   const pessoasJuridicas = clientes.filter((c) => c.tipo === "pessoa_juridica").length;
