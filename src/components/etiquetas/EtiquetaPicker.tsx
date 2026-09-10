@@ -174,6 +174,43 @@ export function EtiquetaPicker({
             {coordenacaoNome || "Selecione as etiquetas deste item"}
           </DialogDescription>
         </DialogHeader>
+        {clienteParaEtiqueta && nomeCliente && !jaTemEtiquetaDoCliente && (
+          <div className="rounded-md border bg-muted/40 p-2 space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Criar uma etiqueta com o nome do cliente. Ela será aplicada
+              automaticamente a todos os processos e casos deste cliente.
+            </p>
+            {!coordenacaoId && !unicaCoordenacaoId && coordenacoes.length > 0 && (
+              <Select value={coordEscolhida} onValueChange={setCoordEscolhida}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Escolha a coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-full gap-1.5 text-xs"
+              disabled={!coordParaCriar || criandoEtiquetaCliente}
+              onClick={criarEtiquetaDoCliente}
+            >
+              {criandoEtiquetaCliente ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+              Criar etiqueta "{nomeCliente}"
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-start justify-end gap-2">
           {aplicadas.length > 0 && (
             <button
