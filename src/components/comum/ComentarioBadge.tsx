@@ -24,7 +24,7 @@ const TITULO_AUTORIA: Record<string, string> = {
   meu: "Você comentou",
   outros: "Comentário de outro usuário",
   ambos: "Comentários seus e de outros usuários",
-  cobranca: "Comentário de cobrança",
+  cobranca: "Comentário importante",
 };
 
 /**
