@@ -38,6 +38,7 @@ export function ComentarioBadge({
   naoVisto = false,
   autoria = null,
 }: ComentarioBadgeProps) {
+  const importante = autoria === "cobranca";
   const cor = (autoria && COR_AUTORIA[autoria]) || "text-amber-500";
   const tituloBase = (autoria && TITULO_AUTORIA[autoria]) || title;
   return (
@@ -46,11 +47,20 @@ export function ComentarioBadge({
       className="relative inline-flex shrink-0 items-center justify-center"
     >
       <MessageCircle
-        className={cn("w-4 h-4", cor, className)}
+        className={cn("w-4 h-4", importante ? "text-red-600" : cor, className)}
         strokeWidth={2.5}
+        fill={importante ? "#dc2626" : "none"}
         aria-hidden
       />
-      {naoVisto && (
+      {importante && (
+        <span
+          className="absolute inset-0 flex items-center justify-center text-white text-[9px] font-bold leading-none select-none"
+          aria-hidden
+        >
+          i
+        </span>
+      )}
+      {naoVisto && !importante && (
         <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-red-500 ring-1 ring-background" />
       )}
     </span>
