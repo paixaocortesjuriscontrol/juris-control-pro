@@ -1242,7 +1242,7 @@ export default function PainelControle() {
 
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
+    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
 
 
   );
