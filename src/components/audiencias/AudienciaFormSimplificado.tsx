@@ -32,6 +32,8 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/AuthContext";
+
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
