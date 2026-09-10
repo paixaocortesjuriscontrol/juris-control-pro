@@ -45,10 +45,12 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   const { user } = useAuth();
   const { isAdmin, role } = useUserRole();
   const queryClient = useQueryClient();
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao();
+  const tipoSituacao: TipoSituacaoItem = tipoSituacaoDoItemAgenda(item as any);
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
+    (item.coordenacao_id as string) || (item.processo?.coordenacao_id as string) || null,
+    tipoTarefaPermissao(tipoSituacao),
+  );
 
-  const tipoSituacao: TipoSituacaoItem =
-    item.tipo === "prazo" ? "prazo" : item.origem === "tarefa" ? "tarefa" : "evento";
 
   const [situacao, setSituacao] = useState<string>(
     item.status || valorConcluidoSucesso(tipoSituacao),
