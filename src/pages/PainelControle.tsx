@@ -2493,7 +2493,7 @@ export default function PainelControle() {
                 <Input
                   value={buscaProcesso}
                   onChange={(e) => setBuscaProcesso(e.target.value)}
-                  placeholder="Buscar processo..."
+                  placeholder="Buscar processo ou palavra..."
                   title="Digite o número do processo para ver apenas as tarefas e atividades dele"
                   className="h-7 w-[290px] min-w-[220px] pl-7 pr-7 text-xs font-mono"
                 />
