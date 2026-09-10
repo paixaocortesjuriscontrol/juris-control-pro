@@ -109,6 +109,45 @@ export function useEtiquetas(coordenacaoId?: string | null, modulo?: EtiquetaMod
 }
 
 
+/** Grupo de etiquetas com o mesmo nome (a mesma etiqueta em várias coordenações). */
+export interface EtiquetaGrupo {
+  /** Etiqueta representativa (preferindo a coordenação do item). */
+  principal: Etiqueta;
+  nome: string;
+  cor: string;
+  /** Todos os ids que compartilham esse nome. */
+  ids: string[];
+}
+
+/**
+ * Agrupa etiquetas de nome igual para não repetir a mesma etiqueta na lista
+ * quando ela existe em mais de uma coordenação.
+ */
+export function agruparEtiquetasPorNome(
+  etiquetas: Etiqueta[],
+  coordenacaoPreferida?: string | null,
+): EtiquetaGrupo[] {
+  const map = new Map<string, EtiquetaGrupo>();
+  for (const e of etiquetas) {
+    const key = e.nome.trim().toLowerCase();
+    const atual = map.get(key);
+    if (!atual) {
+      map.set(key, { principal: e, nome: e.nome.trim(), cor: e.cor, ids: [e.id] });
+      continue;
+    }
+    atual.ids.push(e.id);
+    const preferir =
+      coordenacaoPreferida &&
+      e.coordenacao_id === coordenacaoPreferida &&
+      atual.principal.coordenacao_id !== coordenacaoPreferida;
+    if (preferir) {
+      atual.principal = e;
+      atual.cor = e.cor;
+    }
+  }
+  return Array.from(map.values());
+}
+
 /** Carrega o mapa { entidade_id => etiquetaIds[] } para uma lista de ids. */
 export function useEtiquetasDeItens(entidade: EtiquetaEntidade, ids: string[]) {
   const key = JSON.stringify([...ids].sort());

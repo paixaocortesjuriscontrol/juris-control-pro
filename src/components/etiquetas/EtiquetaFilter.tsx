@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tag, X } from "lucide-react";
-import { useEtiquetas, type EtiquetaModulo } from "@/hooks/useEtiquetas";
+import { useEtiquetas, agruparEtiquetasPorNome, type EtiquetaModulo } from "@/hooks/useEtiquetas";
 
 interface Props {
   modulo: EtiquetaModulo;
@@ -21,18 +21,25 @@ export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, classNa
   const [busca, setBusca] = useState("");
   const [open, setOpen] = useState(false);
 
-  const filtradas = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
-  }, [catalogo, busca]);
-
-  const selecionadas = useMemo(
-    () => catalogo.filter((e) => value.includes(e.id)),
-    [catalogo, value],
+  const grupos = useMemo(
+    () => agruparEtiquetasPorNome(catalogo, coordenacaoId ?? null),
+    [catalogo, coordenacaoId],
   );
 
-  const toggle = (id: string, checked: boolean) => {
-    onChange(checked ? [...value, id] : value.filter((v) => v !== id));
+  const filtradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return q ? grupos.filter((g) => g.nome.toLowerCase().includes(q)) : grupos;
+  }, [grupos, busca]);
+
+  const selecionadas = useMemo(
+    () => grupos.filter((g) => g.ids.some((id) => value.includes(id))),
+    [grupos, value],
+  );
+
+  /** Marca/desmarca todas as variações da etiqueta (mesmo nome em coordenações diferentes). */
+  const toggle = (ids: string[], checked: boolean) => {
+    if (checked) onChange(Array.from(new Set([...value, ...ids])));
+    else onChange(value.filter((v) => !ids.includes(v)));
   };
 
   if (catalogo.length === 0) return null;
@@ -59,20 +66,20 @@ export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, classNa
             className="h-7 text-xs mb-2"
           />
           <div className="max-h-64 overflow-auto space-y-1">
-            {filtradas.map((e) => (
+            {filtradas.map((g) => (
               <label
-                key={e.id}
+                key={g.principal.id}
                 className="flex items-center gap-2 text-xs px-1 py-1 rounded hover:bg-muted/60 cursor-pointer"
               >
                 <Checkbox
-                  checked={value.includes(e.id)}
-                  onCheckedChange={(v) => toggle(e.id, !!v)}
+                  checked={g.ids.some((id) => value.includes(id))}
+                  onCheckedChange={(v) => toggle(g.ids, !!v)}
                 />
                 <span
                   className="w-3 h-3 rounded-full shrink-0"
-                  style={{ backgroundColor: e.cor }}
+                  style={{ backgroundColor: g.cor }}
                 />
-                <span className="truncate">{e.nome}</span>
+                <span className="truncate">{g.nome}</span>
               </label>
             ))}
           </div>
@@ -88,16 +95,16 @@ export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, classNa
         </PopoverContent>
       </Popover>
 
-      {selecionadas.map((e) => (
+      {selecionadas.map((g) => (
         <Badge
-          key={e.id}
+          key={g.principal.id}
           className="text-[10px] h-6 gap-1 text-primary-foreground"
-          style={{ backgroundColor: e.cor }}
+          style={{ backgroundColor: g.cor }}
         >
-          {e.nome}
+          {g.nome}
           <button
             type="button"
-            onClick={() => toggle(e.id, false)}
+            onClick={() => toggle(g.ids, false)}
             title="Remover filtro"
             className="hover:opacity-80"
           >
