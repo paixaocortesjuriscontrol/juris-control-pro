@@ -448,27 +448,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     }
     // Validação mínima para criação
     if (isNovo) {
-      const numeroRaw = String(form.numero || "").trim();
-      const tipoAtual = String(form.tipo_processo || "judicial");
-      // Em "Outro" (e administrativo) o identificador é livre: qualquer texto serve.
-      const numeroLivre = tipoAtual === "outro" || tipoAtual === "administrativo";
-      const numeroValido = numeroLivre
-        ? numeroRaw.length >= 3
-        : numeroRaw.replace(/\D/g, "").length >= 5;
-      // O número/identificador é sempre obrigatório — o sistema nunca gera um
-      // código automático (isso causava cadastros repetidos).
-      if (!numeroRaw || !numeroValido) {
-        if (!silent) {
-          toast.error(
-            numeroLivre
-              ? "Informe um identificador com pelo menos 3 caracteres."
-              : "Informe o número do processo antes de salvar.",
-          );
-        }
-        return;
-      }
-
-
+      // O número/identificador NÃO é obrigatório — quando em branco, o sistema
+      // gera um identificador interno único (SEM-NUMERO-<timestamp>) para
+      // satisfazer a coluna `numero` (NOT NULL) e o índice único global.
       if (!String(form.area || "").trim()) {
         if (!silent) toast.error("Selecione a área do processo antes de salvar.");
         return;
