@@ -281,6 +281,20 @@ export default function Clientes() {
                 <SelectItem value="pessoa_juridica">Pessoa Jurídica</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Filtrar por coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as coordenações</SelectItem>
+                <SelectItem value="sem">Sem coordenação</SelectItem>
+                {coordenacoesDisponiveis.map((nome) => (
+                  <SelectItem key={nome} value={nome}>
+                    {nome}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button onClick={handleNewCliente}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Cliente
