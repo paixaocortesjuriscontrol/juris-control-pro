@@ -49,6 +49,8 @@ export default function Clientes() {
   const [clienteToDelete, setClienteToDelete] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
+
   const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   
