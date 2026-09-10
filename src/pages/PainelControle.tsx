@@ -1626,6 +1626,7 @@ export default function PainelControle() {
       // independentemente do filtro de status escolhido pelo usuário.
       // Isso evita contabilizar prazos/tarefas já tratados, cumpridos ou cancelados.
       if (isItemEncerrado(item) || isItemTratado(item) || isItemCancelado(item)) return false;
+      if (!itemPassaFiltroComentario(item)) return false;
       const statusGroup = painelFiltros.statusGroup ?? "todas";
       if (statusGroup === "concluidas" || statusGroup === "canceladas") {
         // Nesses filtros o calendário mostra encerrados; os cards continuam zerados.
