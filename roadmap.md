@@ -48,3 +48,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Clipping de prazos (09/09)
 - [x] Reproduzir o cabeçalho do modelo com logomarca da Paixão Côrtes
 - [x] Manter a coluna Prazo (dias) como número em todas as linhas e evitar fórmulas com erro
+
+## Distribuição TST (10/09)
+- [ ] Exibir as pendências existentes no menu lateral direito da ficha
