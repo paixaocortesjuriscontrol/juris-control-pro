@@ -196,6 +196,27 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             </div>
           </div>
 
+          {/* Comentários */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Comentários
+            </p>
+            <div className="space-y-1.5">
+              {COMENTARIOS_OPTIONS.map((opcao) => (
+                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painel-comentarios"
+                    checked={draft.comentarios === opcao.value}
+                    onChange={() => setDraft({ ...draft, comentarios: opcao.value })}
+                    className="accent-primary"
+                  />
+                  {opcao.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
           {/* Prazo */}
           <div>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
