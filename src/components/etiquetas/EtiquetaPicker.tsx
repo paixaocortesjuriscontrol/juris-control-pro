@@ -18,6 +18,7 @@ import {
   useRemoverTodasEtiquetasDoItem,
   useCriarEtiqueta,
   useAplicarEtiquetaClienteBase,
+  agruparEtiquetasPorNome,
   moduloDaEntidade,
   ETIQUETA_COLOR_PALETTE,
   type Etiqueta,
@@ -257,8 +258,10 @@ export function EtiquetaPicker({
 
         ) : (
           <div className="max-h-64 overflow-auto space-y-1">
-            {filtradas.map((e) => {
-              const checked = aplicadosIds.includes(e.id);
+            {filtradas.map((g) => {
+              const e = g.principal;
+              const aplicadosDoGrupo = g.ids.filter((id) => aplicadosIds.includes(id));
+              const checked = aplicadosDoGrupo.length > 0;
               return (
                 <label
                   key={e.id}
@@ -266,14 +269,26 @@ export function EtiquetaPicker({
                 >
                   <Checkbox
                     checked={checked}
-                    onCheckedChange={(v) =>
-                      toggle.mutate({
-                        etiquetaId: e.id,
-                        entidade,
-                        entidadeId,
-                        checked: !!v,
-                      })
-                    }
+                    onCheckedChange={async (v) => {
+                      if (v) {
+                        await toggle.mutateAsync({
+                          etiquetaId: e.id,
+                          entidade,
+                          entidadeId,
+                          checked: true,
+                        });
+                      } else {
+                        // remove todas as variações do mesmo nome
+                        for (const id of aplicadosDoGrupo) {
+                          await toggle.mutateAsync({
+                            etiquetaId: id,
+                            entidade,
+                            entidadeId,
+                            checked: false,
+                          });
+                        }
+                      }
+                    }}
                   />
                   <span
                     className="w-3 h-3 rounded-full shrink-0"

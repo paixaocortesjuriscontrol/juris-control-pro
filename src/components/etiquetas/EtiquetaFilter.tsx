@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tag, X } from "lucide-react";
-import { useEtiquetas, type EtiquetaModulo } from "@/hooks/useEtiquetas";
+import { useEtiquetas, agruparEtiquetasPorNome, type EtiquetaModulo } from "@/hooks/useEtiquetas";
 
 interface Props {
   modulo: EtiquetaModulo;
@@ -21,18 +21,25 @@ export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, classNa
   const [busca, setBusca] = useState("");
   const [open, setOpen] = useState(false);
 
-  const filtradas = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
-  }, [catalogo, busca]);
-
-  const selecionadas = useMemo(
-    () => catalogo.filter((e) => value.includes(e.id)),
-    [catalogo, value],
+  const grupos = useMemo(
+    () => agruparEtiquetasPorNome(catalogo, coordenacaoId ?? null),
+    [catalogo, coordenacaoId],
   );
 
-  const toggle = (id: string, checked: boolean) => {
-    onChange(checked ? [...value, id] : value.filter((v) => v !== id));
+  const filtradas = useMemo(() => {
+    const q = busca.trim().toLowerCase();
+    return q ? grupos.filter((g) => g.nome.toLowerCase().includes(q)) : grupos;
+  }, [grupos, busca]);
+
+  const selecionadas = useMemo(
+    () => grupos.filter((g) => g.ids.some((id) => value.includes(id))),
+    [grupos, value],
+  );
+
+  /** Marca/desmarca todas as variações da etiqueta (mesmo nome em coordenações diferentes). */
+  const toggle = (ids: string[], checked: boolean) => {
+    if (checked) onChange(Array.from(new Set([...value, ...ids])));
+    else onChange(value.filter((v) => !ids.includes(v)));
   };
 
   if (catalogo.length === 0) return null;
