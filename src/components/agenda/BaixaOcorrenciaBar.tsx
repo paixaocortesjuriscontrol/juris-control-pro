@@ -130,7 +130,9 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   };
 
   const baixarSerie = async () => {
+    if (!validar()) return;
     setSalvando("serie");
+
     try {
       await enviarAnexosPendentes();
       const concluido = situacao === valorConcluidoSucesso(tipoSituacao);
