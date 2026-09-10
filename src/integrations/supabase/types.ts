@@ -1699,6 +1699,7 @@ export type Database = {
           conteudo: string
           created_at: string
           id: string
+          is_cobranca: boolean
           mencionados: string[]
           updated_at: string
         }
@@ -1708,6 +1709,7 @@ export type Database = {
           conteudo: string
           created_at?: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           updated_at?: string
         }
@@ -1717,6 +1719,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           updated_at?: string
         }
@@ -1737,6 +1740,7 @@ export type Database = {
           created_at: string
           evento_id: string
           id: string
+          is_cobranca: boolean
           mencionados: string[]
           updated_at: string
         }
@@ -1746,6 +1750,7 @@ export type Database = {
           created_at?: string
           evento_id: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           updated_at?: string
         }
@@ -1755,6 +1760,7 @@ export type Database = {
           created_at?: string
           evento_id?: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           updated_at?: string
         }
@@ -1809,6 +1815,7 @@ export type Database = {
           conteudo: string
           created_at: string
           id: string
+          is_cobranca: boolean
           mencionados: string[]
           tarefa_id: string
         }
@@ -1817,6 +1824,7 @@ export type Database = {
           conteudo: string
           created_at?: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           tarefa_id: string
         }
@@ -1825,6 +1833,7 @@ export type Database = {
           conteudo?: string
           created_at?: string
           id?: string
+          is_cobranca?: boolean
           mencionados?: string[]
           tarefa_id?: string
         }

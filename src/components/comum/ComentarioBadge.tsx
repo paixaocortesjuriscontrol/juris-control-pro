@@ -10,19 +10,21 @@ interface ComentarioBadgeProps {
    * Autoria dos comentários: "meu" (verde), "outros" (amarelo) e "ambos" (azul).
    * Sem valor, mantém o amarelo padrão.
    */
-  autoria?: "meu" | "outros" | "ambos" | null;
+  autoria?: "meu" | "outros" | "ambos" | "cobranca" | null;
 }
 
 const COR_AUTORIA: Record<string, string> = {
   meu: "text-green-600",
   outros: "text-amber-500",
   ambos: "text-blue-600",
+  cobranca: "text-red-600",
 };
 
 const TITULO_AUTORIA: Record<string, string> = {
   meu: "Você comentou",
   outros: "Comentário de outro usuário",
   ambos: "Comentários seus e de outros usuários",
+  cobranca: "Comentário de cobrança",
 };
 
 /**
