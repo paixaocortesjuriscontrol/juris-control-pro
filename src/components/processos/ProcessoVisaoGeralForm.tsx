@@ -487,16 +487,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
-        if (!numeroInformado) {
-          if (!silent) toast.error("Informe o número do processo antes de salvar.");
-          return;
-        }
-        payload.numero = numeroInformado;
+        // Quando em branco, gera um identificador interno único — a coluna
+        // `numero` é NOT NULL e tem índice único global.
+        payload.numero = numeroInformado || `SEM-NUMERO-${Date.now()}`;
 
         // Antes de inserir, verifica se o número já existe no sistema — o
         // índice único global (`processos_numero_uidx`) recusaria o INSERT com
         // uma mensagem técnica de "duplicate key".
-        const existente = await buscarProcessoPorNumero(payload.numero);
+        const existente = numeroInformado
+          ? await buscarProcessoPorNumero(payload.numero)
+          : null;
         if (existente) {
           setProcessoExistente(existente);
           if (!silent) {
