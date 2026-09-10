@@ -150,6 +150,9 @@ export function AudienciaFormSimplificado({
 
   const [situacao, setSituacao] = useState<string>(audienciaParaEditar?.status ?? "pendente");
   const situacaoInicial = audienciaParaEditar?.status ?? "pendente";
+  const [comentarioSituacao, setComentarioSituacao] = useState("");
+  const { user } = useAuth();
+
   // Reagendamento: nova data obrigatória para a audiência mudar de dia no painel
   const [novaDataReagendamento, setNovaDataReagendamento] = useState<string>("");
   const { podeCancelar } = usePodeCancelarItens();
