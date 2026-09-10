@@ -327,6 +327,12 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
+    const situacaoMudou = isEditing && situacao !== situacaoInicial;
+    if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {
+      toast.error("O comentário da mudança de situação é obrigatório.");
+      return;
+    }
+
     const reagendando = situacao === "reagendado" && situacao !== situacaoInicial;
     // Se o usuário não informar nova data, mantém a data atual — o item continua
     // visível no calendário/painel apenas com a situação alterada.
