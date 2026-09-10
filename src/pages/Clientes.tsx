@@ -49,6 +49,8 @@ export default function Clientes() {
   const [clienteToDelete, setClienteToDelete] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [tipoFilter, setTipoFilter] = useState<string>("all");
+  const [coordenacaoFilter, setCoordenacaoFilter] = useState<string>("all");
+
   const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
   const [deleting, setDeleting] = useState(false);
   
@@ -111,6 +113,12 @@ export default function Clientes() {
     },
   });
 
+  const coordenacoesDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    if (coordsPorCliente) for (const nomes of coordsPorCliente.values()) nomes.forEach((n) => set.add(n));
+    return Array.from(set).sort();
+  }, [coordsPorCliente]);
+
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch =
       cliente.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -123,8 +131,14 @@ export default function Clientes() {
     const matchesEtiquetas =
       etiquetasFiltro.length === 0 || etiquetasFiltro.some((id) => aplicadas.includes(id));
 
-    return matchesSearch && matchesTipo && matchesEtiquetas;
+    const coordsDoCliente = coordsPorCliente?.get(cliente.id) || [];
+    const matchesCoordenacao =
+      coordenacaoFilter === "all" ||
+      (coordenacaoFilter === "sem" ? coordsDoCliente.length === 0 : coordsDoCliente.includes(coordenacaoFilter));
+
+    return matchesSearch && matchesTipo && matchesEtiquetas && matchesCoordenacao;
   });
+
 
   const handleEdit = (cliente: any) => {
     setSelectedCliente(cliente);
@@ -265,6 +279,20 @@ export default function Clientes() {
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="pessoa_fisica">Pessoa Física</SelectItem>
                 <SelectItem value="pessoa_juridica">Pessoa Jurídica</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={coordenacaoFilter} onValueChange={setCoordenacaoFilter}>
+              <SelectTrigger className="w-full sm:w-56">
+                <SelectValue placeholder="Filtrar por coordenação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as coordenações</SelectItem>
+                <SelectItem value="sem">Sem coordenação</SelectItem>
+                {coordenacoesDisponiveis.map((nome) => (
+                  <SelectItem key={nome} value={nome}>
+                    {nome}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button onClick={handleNewCliente}>
