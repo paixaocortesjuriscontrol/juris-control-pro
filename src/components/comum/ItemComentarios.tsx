@@ -165,7 +165,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
                       <span>{format(parseISO(c.created_at), "dd/MM HH:mm", { locale: ptBR })}</span>
                       {c.is_cobranca && (
                         <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-700">
-                          Cobrança
+                          Importante
                         </span>
                       )}
                       {own && (
@@ -207,7 +207,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
           htmlFor={`cobranca-${tipo}-${itemId}`}
           className="text-xs font-medium text-red-700 cursor-pointer"
         >
-          É uma cobrança
+          Importante
         </Label>
       </div>
 
