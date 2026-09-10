@@ -2166,9 +2166,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         open={clienteDialogOpen}
         onOpenChange={(o) => { setClienteDialogOpen(o); if (!o) setClienteEmEdicao(null); }}
         cliente={clienteEmEdicao}
-        onSaved={(c) => {
+        onSaved={async (c) => {
           update("cliente_id", c.id);
-          queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          // Cria (ou reaproveita) a etiqueta com o nome do cliente na
+          // coordenação do processo e aplica nos processos/casos dele.
+          const etiquetaId = await garantirEtiquetaCliente({
+            clienteId: c.id,
+            nome: c.nome,
+            coordenacaoId: form.coordenacao_id || null,
+          });
+          await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+          if (etiquetaId) {
+            await queryClient.invalidateQueries({ queryKey: ["etiquetas"] });
+            await queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+          }
           if (processo?.id) queryClient.invalidateQueries({ queryKey: ["processo", processo.id] });
         }}
       />
