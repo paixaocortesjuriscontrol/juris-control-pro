@@ -22,6 +22,8 @@ import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
 import { Play, Search } from "lucide-react";
 import { toast } from "sonner";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import type { ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 
 interface IniciarWorkflowDialogProps {
   workflowId?: string;
@@ -31,6 +33,8 @@ interface IniciarWorkflowDialogProps {
   /** Renderiza o formulário direto na página, sem abrir janela/popup */
   inline?: boolean;
   onDone?: () => void;
+  publicacaoOrigem?: PublicacaoUnificada | null;
+  onStarted?: (item: { id: string; titulo: string; tipo: ItemCriado["tipo"] }) => void | Promise<void>;
 }
 
 export function IniciarWorkflowDialog({
@@ -40,6 +44,8 @@ export function IniciarWorkflowDialog({
   trigger,
   inline,
   onDone,
+  publicacaoOrigem,
+  onStarted,
 }: IniciarWorkflowDialogProps) {
   const [open, setOpen] = useState(!!inline);
   const { coordenacoes } = useCoordenacoesDoUsuario();
@@ -85,7 +91,7 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
-    await iniciar.mutateAsync({
+    const resultado = await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
 
       processo_id: selectedProcesso?.id,
@@ -94,7 +100,12 @@ export function IniciarWorkflowDialog({
       responsavel_inicial: responsavelInicial || undefined,
       observacoes: observacoes || undefined,
       data_inicio: dataInicio || undefined,
+      publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
+      publicacao_origem_id: publicacaoOrigem?.id,
     });
+    if (resultado.item) {
+      await onStarted?.(resultado.item as { id: string; titulo: string; tipo: ItemCriado["tipo"] });
+    }
     if (!inline) setOpen(false);
     reset();
     onDone?.();
@@ -118,6 +129,7 @@ export function IniciarWorkflowDialog({
             <Label htmlFor="coord">Coordenação *</Label>
             <Select
               value={coordenacaoId}
+              disabled={!!preSelectedProcesso}
               onValueChange={(v) => {
                 setCoordenacaoId(v);
                 setSelectedProcesso(null);

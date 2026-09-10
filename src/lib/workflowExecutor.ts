@@ -65,6 +65,8 @@ export interface WorkflowExecucao {
   data_inicio: string;
   status: "em_andamento" | "concluido" | "cancelado";
   observacoes?: string | null;
+  publicacao_origem_tipo?: string | null;
+  publicacao_origem_id?: string | null;
   created_at: string;
   updated_at: string;
   workflow?: Workflow | null;
@@ -95,7 +97,8 @@ export interface IniciarWorkflowInput {
   observacoes?: string;
   /** Data de início da execução (yyyy-MM-dd). Se vazia, assume o dia atual. */
   data_inicio?: string;
-
+  publicacao_origem_tipo?: "termo" | "processo" | "descartada" | "datajud";
+  publicacao_origem_id?: string;
 }
 
 export function calcularDataOffset(
