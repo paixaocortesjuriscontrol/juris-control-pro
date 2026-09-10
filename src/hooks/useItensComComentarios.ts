@@ -63,7 +63,13 @@ function dataOcorrenciaItem(item: ItemAgendaUnificado): string | null {
   return id.split("::")[1]?.slice(0, 10) ?? null;
 }
 
+/** Info agregada dos comentários de um item. */
+export type InfoComentario = { ultimo: string | null; meu: boolean; outros: boolean };
+
 export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
   // Mapa: chave do item -> { tipo, ref, dataOcorrencia }
   const lookup = useMemo(() => {
     const map = new Map<
