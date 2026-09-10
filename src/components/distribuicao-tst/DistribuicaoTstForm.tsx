@@ -622,6 +622,34 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
+  /**
+   * Alteração das "Matérias Recurso ...": ao remover uma matéria da seleção,
+   * a linha correspondente da "Análise por matéria" é removida na hora e
+   * gravada no banco imediatamente — nada de resíduo órfão gerando aviso.
+   */
+  const setMateriasRecurso = (
+    campoMaterias: string,
+    campoJsonb: string,
+    valor: string | null,
+  ) => {
+    setForm((f) => ({ ...f, [campoMaterias]: valor }));
+    const atual = (bennerExtraRef.current as any)?.[campoJsonb];
+    if (!Array.isArray(atual) || atual.length === 0) return;
+    const podado = itensAnaliseSelecionados(
+      { [campoJsonb]: atual, [campoMaterias]: valor },
+      campoJsonb,
+    );
+    if (podado.length === atual.length) return;
+    bennerDirtyRef.current.add(campoJsonb);
+    setBennerExtra((prev) => ({ ...prev, [campoJsonb]: podado }));
+    (bennerExtraRef.current as any)[campoJsonb] = podado;
+    const targetId =
+      (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
+    if (onSaveBennerExtra && targetId) {
+      void onSaveBennerExtra({ [campoJsonb]: podado }, targetId).catch(() => {});
+    }
+  };
+
   // Mescla o resumo da IA em "Observação Advogado" para que fique persistido
   // de forma definitiva quando o usuário salvar. Evita duplicar o mesmo bloco.
   useEffect(() => {
