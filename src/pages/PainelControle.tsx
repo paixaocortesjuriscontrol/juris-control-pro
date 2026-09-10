@@ -1682,7 +1682,7 @@ export default function PainelControle() {
     });
     base.forEach((it) => { counts[classificarItem(it)]++; });
     return counts;
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+  }, [itensAgenda, painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
