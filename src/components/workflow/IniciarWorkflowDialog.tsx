@@ -85,10 +85,6 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
-    if (!selectedProcesso && !semProcesso) {
-      toast.error("Selecione o processo (ou marque \"Sem processo vinculado\")");
-      return;
-    }
     await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
 
