@@ -24,6 +24,7 @@ import { Play, Search } from "lucide-react";
 import { toast } from "sonner";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import type { ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
+import { supabase } from "@/integrations/supabase/client";
 
 interface IniciarWorkflowDialogProps {
   workflowId?: string;
@@ -82,6 +83,46 @@ export function IniciarWorkflowDialog({
 
   const iniciar = useIniciarWorkflow();
 
+  const vincularPrimeiroItemAPublicacao = async (item: { id: string; tipo: string }) => {
+    if (!publicacaoOrigem?.id) return;
+    const tipo = item.tipo.toLowerCase();
+    if (tipo === "tarefa" || tipo === "prazo") {
+      if (publicacaoOrigem.tipo_origem === "termo") {
+        const { error } = await supabase.from("tarefas_publicacoes").insert({
+          tarefa_id: item.id,
+          publicacao_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "processo") {
+        const { error } = await supabase.from("tarefas_publicacoes_processos").insert({
+          tarefa_id: item.id,
+          publicacao_processo_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      }
+    } else if (tipo === "audiencia") {
+      if (publicacaoOrigem.tipo_origem === "termo") {
+        const { error } = await supabase.from("audiencias_publicacoes").insert({
+          audiencia_id: item.id,
+          publicacao_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "processo") {
+        const { error } = await supabase.from("audiencias_publicacoes_processos").insert({
+          audiencia_id: item.id,
+          publicacao_processo_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "descartada") {
+        const { error } = await supabase.from("audiencias_publicacoes_descartadas").insert({
+          audiencia_id: item.id,
+          publicacao_descartada_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!coordenacaoId) {
       toast.error("Selecione uma coordenação");
@@ -104,6 +145,7 @@ export function IniciarWorkflowDialog({
       publicacao_origem_id: publicacaoOrigem?.id,
     });
     if (resultado.item) {
+      await vincularPrimeiroItemAPublicacao(resultado.item);
       await onStarted?.(resultado.item as { id: string; titulo: string; tipo: ItemCriado["tipo"] });
     }
     if (!inline) setOpen(false);

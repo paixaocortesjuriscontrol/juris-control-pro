@@ -551,9 +551,13 @@ export function useIniciarWorkflow() {
           : null,
       };
     },
-    onSuccess: ({ execucaoId }) => {
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucao", execucaoId] });
+    onSuccess: async ({ execucaoId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucao", execucaoId] }),
+        queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+        queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+      ]);
       toast.success("Workflow iniciado com sucesso!");
     },
     onError: (err: Error) => toast.error("Erro ao iniciar workflow: " + err.message),
