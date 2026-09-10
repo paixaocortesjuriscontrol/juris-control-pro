@@ -1,20 +1,38 @@
-# Opção de processo vinculado por Workflow
+# Iniciar Workflow pela publicação da Análise DJEN
 
-Hoje o campo de processo ao iniciar um Workflow é sempre opcional, e os itens criados sem processo não aparecem no Painel de Controle filtrado por processo. A ideia é que **cada workflow decida** se exige processo ou não.
+A necessidade da Jéssica é usar o Workflow como um **modelo reutilizável para qualquer processo**: ao analisar uma publicação, a usuária escolhe um fluxo, confirma os dados e o sistema inicia aquela sequência para o processo da publicação. Não será uma configuração presa a um processo específico.
 
 ## Como vai funcionar
 
-1. **No editor do workflow** (tela Workflows, ao criar/editar um fluxo), aparece uma nova opção:
-   - **"Exigir processo vinculado ao iniciar"** (liga/desliga), ao lado do nome e descrição do fluxo.
-2. **Na tela de Iniciar Workflow** (e no formulário inline do Painel de Controle / Detalhe do Processo):
-   - Se o workflow tem a opção **ligada**: o campo de busca de processo passa a ser obrigatório, com validação bloqueando o botão "Iniciar execução" até escolher um processo.
-   - Se a opção está **desligada**: comportamento atual (opcional), com um lembrete visual de que os itens ficarão sem vínculo de processo.
-3. Workflows já existentes continuam com a opção **desligada** (nada muda para quem já usa).
+1. No botão **Adicionar** de cada publicação da tela **Análise DJEN**, incluir a opção **Workflow** junto de Tarefa, Evento, Prazo e Audiência.
+2. Ao escolher **Workflow**:
+   - localizar ou criar o cadastro do processo usando o mesmo comportamento já usado pelos demais itens da publicação;
+   - abrir o formulário dentro da própria tela de análise;
+   - listar somente os workflows ativos da coordenação daquela publicação/processo;
+   - mostrar o processo já preenchido e vinculado, sem exigir nova busca manual;
+   - permitir escolher o workflow, a data de início, o responsável inicial e as observações antes de executar.
+3. Ao confirmar, iniciar uma nova execução independente daquele workflow para o processo da publicação. Exemplo:
+   - na publicação do processo A, escolher o fluxo “Acórdão ED → Acórdão RR”;
+   - criar a primeira demanda “ACÓRDÃO - ED” vinculada ao processo A;
+   - quando essa etapa for concluída com sucesso, o mecanismo atual cria “ACÓRDÃO - RR” para o mesmo processo A;
+   - o mesmo fluxo poderá ser usado novamente em publicações dos processos B, C etc.
+4. Manter o início manual de workflow nas outras telas com processo opcional; a obrigatoriedade ocorrerá somente nesse caminho da publicação, porque ali o processo já é conhecido.
+5. Após iniciar, mostrar o primeiro item no quadro **Itens criados a partir desta publicação**, atualizar o Painel de Controle e oferecer o mesmo retorno visual dos demais itens criados nessa tela.
+
+## Regras e proteções
+
+- A publicação selecionada será preservada como origem da execução e do primeiro item criado, permitindo rastrear de onde a demanda nasceu.
+- Se a publicação não tiver número de processo válido ou o processo não puder ser localizado/criado, o workflow não será iniciado e a tela mostrará o motivo.
+- A coordenação da execução será a da publicação/processo, preservando o isolamento entre equipes.
+- Cada clique confirmado cria apenas uma execução; o envio ficará bloqueado enquanto estiver processando para evitar duplicidade.
+- As etapas seguintes continuarão obedecendo às condições, prazos e responsáveis configurados no workflow.
 
 ## Detalhes técnicos
 
-- Migração: `ALTER TABLE public.workflows ADD COLUMN requer_processo boolean NOT NULL DEFAULT false;`
-- `src/hooks/useWorkflows.ts`: incluir `requer_processo` no tipo e nas mutações de criar/atualizar workflow.
-- `src/components/workflow/WorkflowEditor.tsx`: switch/checkbox "Exigir processo vinculado ao iniciar" no formulário do fluxo, salvo junto com nome/descrição.
-- `src/components/workflow/IniciarWorkflowDialog.tsx`: ler `requer_processo` do workflow selecionado; quando `true`, o label vira "Processo *" e `handleSubmit` bloqueia com toast caso não haja processo selecionado. Quando `false`, manter "(opcional)" com texto de ajuda explicando que sem processo os itens não aparecem vinculados a um processo no Painel de Controle.
-- Sem alteração no executor nem em execuções já criadas.
+- Reutilizar o fluxo de `handleAdicionarClick` da Análise DJEN para resolver o processo e abrir `IniciarWorkflowDialog` em modo inline.
+- Estender o menu e o formulário inline de `AnaliseDjen.tsx` para tratar `workflow` como mais um tipo de adição.
+- Adaptar `IniciarWorkflowDialog` para receber a publicação de origem e bloquear a alteração do processo nesse contexto.
+- Fazer `useIniciarWorkflow` retornar também os dados do primeiro item materializado, possibilitando atualizar imediatamente o quadro de itens e os caches após `await invalidateQueries`.
+- Registrar o vínculo entre a publicação e o primeiro item nas tabelas de relacionamento já usadas pela Análise DJEN quando o tipo permitir; manter também a referência da publicação na execução para rastreabilidade genérica entre tipos.
+- Migração em `workflow_execucoes` para guardar a publicação de origem de forma compatível com as origens “termo” e “processo”, com índices, GRANTs existentes preservados e RLS já aplicada por coordenação.
+- Validar o cenário completo: publicação → escolha do workflow → primeira etapa com processo → conclusão da primeira etapa → próxima etapa com o mesmo processo.
