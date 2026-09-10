@@ -319,6 +319,23 @@ export default function Clientes() {
                         <TableCell>{cliente.cpf_cnpj || "-"}</TableCell>
                         <TableCell>{cliente.email || "-"}</TableCell>
                         <TableCell>{cliente.telefone || "-"}</TableCell>
+                        <TableCell className="max-w-[16rem]">
+                          {(coordsPorCliente?.get(cliente.id) || []).length === 0 ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {(coordsPorCliente?.get(cliente.id) || []).map((nome) => (
+                                <Badge
+                                  key={nome}
+                                  variant="outline"
+                                  className="whitespace-normal break-words text-[11px] leading-tight"
+                                >
+                                  {nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <EtiquetaPicker
                             entidade="cliente"
