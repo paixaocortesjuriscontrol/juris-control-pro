@@ -48,7 +48,7 @@ export function IniciarWorkflowDialog({
   const [search, setSearch] = useState("");
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
   const [responsavelInicial, setResponsavelInicial] = useState("");
-  const [semProcesso, setSemProcesso] = useState(false);
+  
   const [observacoes, setObservacoes] = useState("");
   const hoje = new Date().toISOString().split("T")[0];
   const [dataInicio, setDataInicio] = useState(hoje);
