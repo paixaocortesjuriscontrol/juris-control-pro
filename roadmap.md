@@ -50,4 +50,4 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Manter a coluna Prazo (dias) como número em todas as linhas e evitar fórmulas com erro
 
 ## Distribuição TST (10/09)
-- [ ] Exibir pendências vermelhas e avisos amarelos na aba Distribuição TST da janela lateral direita
+- [x] Exibir pendências vermelhas e avisos amarelos na aba Distribuição TST da janela lateral direita
