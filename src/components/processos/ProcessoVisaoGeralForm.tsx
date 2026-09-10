@@ -1803,57 +1803,105 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               <section>
                 <SectionHeader icon={Users} title="Partes e Envolvidos" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <FormField label="Cliente (cadastro)">
-                    <div className="flex items-center gap-2">
-                      <Select
-                        value={form.cliente_id || "__none__"}
-                        onValueChange={(v) => update("cliente_id", v === "__none__" ? null : v)}
-                      >
-                        <SelectTrigger className={cn(inputCls, "flex-1 min-w-0")}>
-                          <SelectValue placeholder="Selecione o cliente" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">Sem cliente vinculado</SelectItem>
-                          {clientesLista.map((c: any) => (
-                            <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0"
-                        title="Cadastrar novo cliente"
-                        onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
-                      >
-                        <Plus className="w-3.5 h-3.5 mr-1" /> Novo
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 shrink-0"
-                        disabled={!form.cliente_id}
-                        title="Alterar o nome/dados do cliente selecionado"
-                        onClick={async () => {
-                          const { data, error } = await supabase
-                            .from("clientes")
-                            .select("*")
-                            .eq("id", form.cliente_id)
-                            .maybeSingle();
-                          if (error || !data) {
-                            toast.error("Não foi possível carregar o cliente.");
-                            return;
-                          }
-                          setClienteEmEdicao(data);
-                          setClienteDialogOpen(true);
-                        }}
-                      >
-                        Alterar nome
-                      </Button>
-                    </div>
-                  </FormField>
+                  <div className="md:col-span-2">
+                    <FormField label="Cliente (cadastro)">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Popover open={clienteBuscaOpen} onOpenChange={setClienteBuscaOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              className={cn(
+                                inputCls,
+                                "flex-1 min-w-[280px] justify-between font-normal",
+                                !form.cliente_id && "text-muted-foreground",
+                              )}
+                            >
+                              <span className="truncate text-left">
+                                {clienteSelecionadoNome || "Selecione o cliente"}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            className="w-[min(680px,90vw)] p-0"
+                            align="start"
+                          >
+                            <Command>
+                              <CommandInput placeholder="Buscar cliente pelo nome..." />
+                              <CommandList className="max-h-72">
+                                <CommandEmpty>Nenhum cliente encontrado.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem
+                                    value="Sem cliente vinculado"
+                                    onSelect={() => {
+                                      update("cliente_id", null);
+                                      setClienteBuscaOpen(false);
+                                    }}
+                                  >
+                                    Sem cliente vinculado
+                                  </CommandItem>
+                                  {clientesLista.map((c: any) => (
+                                    <CommandItem
+                                      key={c.id}
+                                      value={c.nome}
+                                      onSelect={() => {
+                                        update("cliente_id", c.id);
+                                        setClienteBuscaOpen(false);
+                                      }}
+                                    >
+                                      <CheckCircle
+                                        className={cn(
+                                          "mr-2 h-3.5 w-3.5 shrink-0",
+                                          form.cliente_id === c.id ? "opacity-100" : "opacity-0",
+                                        )}
+                                      />
+                                      <span className="whitespace-normal break-words">{c.nome}</span>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          title="Cadastrar novo cliente"
+                          onClick={() => { setClienteEmEdicao(null); setClienteDialogOpen(true); }}
+                        >
+                          <Plus className="w-3.5 h-3.5 mr-1" /> Novo
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="h-8 shrink-0"
+                          disabled={!form.cliente_id}
+                          title="Alterar o nome/dados do cliente selecionado"
+                          onClick={async () => {
+                            const { data, error } = await supabase
+                              .from("clientes")
+                              .select("*")
+                              .eq("id", form.cliente_id)
+                              .maybeSingle();
+                            if (error || !data) {
+                              toast.error("Não foi possível carregar o cliente.");
+                              return;
+                            }
+                            setClienteEmEdicao(data);
+                            setClienteDialogOpen(true);
+                          }}
+                        >
+                          Alterar nome
+                        </Button>
+                      </div>
+                    </FormField>
+                  </div>
+
                   <FormField label="Cliente / Envolvido (texto livre)">
                     <Input
                       className={inputCls}
