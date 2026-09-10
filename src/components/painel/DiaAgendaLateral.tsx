@@ -18,7 +18,7 @@ import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
-import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 
 export const TIPO_TEXTO: Record<string, string> = {
@@ -128,6 +128,7 @@ export function AgendaItemRow({
   temAtividade,
   veioDeWorkflow,
   temComentario,
+  autoriaComentario,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -137,6 +138,8 @@ export function AgendaItemRow({
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
   temComentario?: boolean;
+  autoriaComentario?: "meu" | "outros" | "ambos" | null;
+
 }) {
   const concluido = isItemTratado(item);
   const riscado = isItemRiscado(item);
@@ -177,7 +180,7 @@ export function AgendaItemRow({
           {hora ? `: ${hora}` : ""}
           {temAtividade && <AtividadeBadge />}
           {veioDeWorkflow && <WorkflowBadge />}
-          {temComentario && <ComentarioBadge />}
+          {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
@@ -314,6 +317,7 @@ export function DiaAgendaLateral({
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
               temComentario={temComentarioItem(itensComComentarios, item)}
+              autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
             />
           ))}
           {atividades.map((a: any) => {

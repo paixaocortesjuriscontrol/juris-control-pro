@@ -26,7 +26,7 @@ import {
   useContagemAtividades,
   getItemRawId,
 } from "@/hooks/useItensComAtividades";
-import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { dataInicioAudiencia } from "@/utils/date";
 import { expandirOcorrencias, janelaRecorrenciaPadrao } from "@/utils/recorrencia";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
@@ -79,6 +79,7 @@ function ProcessoItemRow({
   onSelect,
   temAtividade,
   temComentario,
+  autoriaComentario,
   qtdAtividades,
 }: {
   item: ItemAgendaUnificado;
@@ -86,7 +87,9 @@ function ProcessoItemRow({
   onSelect: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   temComentario?: boolean;
+  autoriaComentario?: "meu" | "outros" | "ambos" | null;
   qtdAtividades?: number;
+
 }) {
   const it = item as any;
   const concluido = isItemTratado(item);
@@ -146,7 +149,7 @@ function ProcessoItemRow({
             </Badge>
           )}
           {temAtividade && <AtividadeBadge />}
-          {temComentario && <ComentarioBadge />}
+          {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
           {sou && (
             <span className="rounded border border-border px-1.5 text-[10px] text-muted-foreground">
               Eu
@@ -516,6 +519,7 @@ export function ProcessoItensLateral({
         onSelect={setSelectedItem}
         temAtividade={itensComAtividades.has(rawId)}
         temComentario={temComentarioItem(itensComComentarios, item)}
+        autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
         qtdAtividades={qtdAtividades}
       />
     );

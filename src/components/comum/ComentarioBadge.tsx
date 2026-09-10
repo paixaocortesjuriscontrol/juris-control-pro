@@ -6,7 +6,24 @@ interface ComentarioBadgeProps {
   title?: string;
   /** Exibe a bolinha vermelha de "comentário não visto". */
   naoVisto?: boolean;
+  /**
+   * Autoria dos comentários: "meu" (verde), "outros" (amarelo) e "ambos" (azul).
+   * Sem valor, mantém o amarelo padrão.
+   */
+  autoria?: "meu" | "outros" | "ambos" | null;
 }
+
+const COR_AUTORIA: Record<string, string> = {
+  meu: "text-green-600",
+  outros: "text-amber-500",
+  ambos: "text-blue-600",
+};
+
+const TITULO_AUTORIA: Record<string, string> = {
+  meu: "Você comentou",
+  outros: "Comentário de outro usuário",
+  ambos: "Comentários seus e de outros usuários",
+};
 
 /**
  * Balãozinho de comentários. Sinaliza que um item (tarefa, prazo, audiência,
@@ -17,14 +34,17 @@ export function ComentarioBadge({
   className,
   title = "Possui comentários",
   naoVisto = false,
+  autoria = null,
 }: ComentarioBadgeProps) {
+  const cor = (autoria && COR_AUTORIA[autoria]) || "text-amber-500";
+  const tituloBase = (autoria && TITULO_AUTORIA[autoria]) || title;
   return (
     <span
-      title={naoVisto ? "Comentário não visto" : title}
+      title={naoVisto ? `Comentário não visto — ${tituloBase}` : tituloBase}
       className="relative inline-flex shrink-0 items-center justify-center"
     >
       <MessageCircle
-        className={cn("w-4 h-4 text-amber-500", className)}
+        className={cn("w-4 h-4", cor, className)}
         strokeWidth={2.5}
         aria-hidden
       />

@@ -50,7 +50,7 @@ import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
-import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
@@ -1029,7 +1029,7 @@ export default function ListaAtividadesView({
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span>{r.titulo || "(sem título)"}</span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
-                                {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" />}
+                                {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
                               </div>
                               <div data-stop>
                                 <EtiquetaPicker

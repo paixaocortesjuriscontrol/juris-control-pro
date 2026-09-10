@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { useAuth } from "@/contexts/AuthContext";
+
 
 /**
  * Mapeia um item da agenda para o identificador real usado nas tabelas de
@@ -63,7 +65,13 @@ function dataOcorrenciaItem(item: ItemAgendaUnificado): string | null {
   return id.split("::")[1]?.slice(0, 10) ?? null;
 }
 
+/** Info agregada dos comentários de um item. */
+export type InfoComentario = { ultimo: string | null; meu: boolean; outros: boolean };
+
 export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
   // Mapa: chave do item -> { tipo, ref, dataOcorrencia }
   const lookup = useMemo(() => {
     const map = new Map<
@@ -100,15 +108,24 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
   }, [lookup]);
 
   return useQuery({
-    queryKey: ["itens-com-comentarios", idsPorTipo],
+    queryKey: ["itens-com-comentarios", idsPorTipo, userId],
     enabled: lookup.size > 0,
     staleTime: 30 * 1000,
     queryFn: async () => {
-      // chave do item -> ISO do comentário mais recente
-      const result = new Map<string, string>();
-      const registrar = (chave: string, iso: string | null) => {
+      // chave do item -> info do comentário (mais recente + autoria)
+      const result = new Map<string, InfoComentario>();
+      const registrar = (chave: string, info: InfoComentario | null) => {
+        if (!info) return;
         const atual = result.get(chave);
-        if (!atual || (iso && iso > atual)) result.set(chave, iso || atual || "");
+        if (!atual) {
+          result.set(chave, { ...info });
+          return;
+        }
+        result.set(chave, {
+          ultimo: info.ultimo && (!atual.ultimo || info.ultimo > atual.ultimo) ? info.ultimo : atual.ultimo,
+          meu: atual.meu || info.meu,
+          outros: atual.outros || info.outros,
+        });
       };
 
       const consultar = async (
@@ -120,50 +137,49 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
         if (ids.length === 0) return;
         const chunks: string[][] = [];
         for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
-        // ref -> datas (yyyy-MM-dd) em que existem comentários
-        const datasPorRef = new Map<string, Set<string>>();
-        // ref -> ISO do comentário mais recente (geral e por dia)
-        const ultimoPorRef = new Map<string, string>();
-        const ultimoPorRefDia = new Map<string, string>();
+        // ref (e ref|dia) -> info agregada
+        const porRef = new Map<string, InfoComentario>();
+        const porRefDia = new Map<string, InfoComentario>();
+        const acumular = (mapa: Map<string, InfoComentario>, chave: string, iso: string, meu: boolean) => {
+          const atual = mapa.get(chave);
+          if (!atual) {
+            mapa.set(chave, { ultimo: iso, meu, outros: !meu });
+            return;
+          }
+          if (!atual.ultimo || iso > atual.ultimo) atual.ultimo = iso;
+          if (meu) atual.meu = true;
+          else atual.outros = true;
+        };
         await Promise.all(
           chunks.map(async (chunk) => {
             const { data, error } = await (supabase as any)
               .from(tabela)
-              .select(`${fk}, created_at`)
+              .select(`${fk}, created_at, autor_id`)
               .in(fk, chunk);
             if (error) throw error;
             (data || []).forEach((row: any) => {
               const ref = row[fk];
-              if (!ref) return;
-              if (!datasPorRef.has(ref)) datasPorRef.set(ref, new Set<string>());
-              if (row.created_at) {
-                const d = new Date(row.created_at);
-                const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-                  d.getDate()
-                ).padStart(2, "0")}`;
-                datasPorRef.get(ref)!.add(dia);
-                const iso = new Date(row.created_at).toISOString();
-                if (!ultimoPorRef.has(ref) || ultimoPorRef.get(ref)! < iso) ultimoPorRef.set(ref, iso);
-                const chaveDia = `${ref}|${dia}`;
-                if (!ultimoPorRefDia.has(chaveDia) || ultimoPorRefDia.get(chaveDia)! < iso)
-                  ultimoPorRefDia.set(chaveDia, iso);
-              }
+              if (!ref || !row.created_at) return;
+              const d = new Date(row.created_at);
+              const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+                d.getDate()
+              ).padStart(2, "0")}`;
+              const iso = d.toISOString();
+              const meu = !!userId && row.autor_id === userId;
+              acumular(porRef, ref, iso, meu);
+              acumular(porRefDia, `${ref}|${dia}`, iso, meu);
             });
           })
         );
         lookup.forEach((info, chave) => {
           if (info.tipo !== tipo) return;
-          const datas = datasPorRef.get(info.ref);
-          if (!datas) return;
           // Item simples: basta existir comentário.
           if (!info.dataOcorrencia) {
-            registrar(chave, ultimoPorRef.get(info.ref) ?? null);
+            registrar(chave, porRef.get(info.ref) ?? null);
             return;
           }
           // Ocorrência de série: só marca no dia em que o comentário foi escrito.
-          if (datas.has(info.dataOcorrencia)) {
-            registrar(chave, ultimoPorRefDia.get(`${info.ref}|${info.dataOcorrencia}`) ?? null);
-          }
+          registrar(chave, porRefDia.get(`${info.ref}|${info.dataOcorrencia}`) ?? null);
         });
       };
 
@@ -178,11 +194,13 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
   });
 }
 
+type MapaComentarios = Set<string> | Map<string, InfoComentario> | Map<string, string> | undefined;
+
 /**
  * Verifica o badge "C" de um item da agenda, respeitando ocorrências recorrentes.
  */
 export function temComentarioItem(
-  set: Set<string> | Map<string, string> | undefined,
+  set: MapaComentarios,
   item: ItemAgendaUnificado | { id: string }
 ): boolean {
   if (!set || !item?.id) return false;
@@ -202,12 +220,32 @@ export function chaveComentarioItem(item: ItemAgendaUnificado | { id: string }):
  * ISO do comentário mais recente do item (quando o hook retorna o Map).
  */
 export function ultimoComentarioItem(
-  mapa: Set<string> | Map<string, string> | undefined,
+  mapa: MapaComentarios,
   item: ItemAgendaUnificado | { id: string }
 ): string | null {
   if (!mapa || !(mapa instanceof Map) || !item?.id) return null;
-  return mapa.get(chaveComentarioItem(item)) || null;
+  const valor: any = mapa.get(chaveComentarioItem(item));
+  if (!valor) return null;
+  return typeof valor === "string" ? valor : valor.ultimo || null;
 }
+
+/**
+ * Autoria dos comentários do item, usada para colorir o balãozinho:
+ * "meu" (verde), "outros" (amarelo) e "ambos" (azul).
+ */
+export function autoriaComentarioItem(
+  mapa: MapaComentarios,
+  item: ItemAgendaUnificado | { id: string }
+): "meu" | "outros" | "ambos" | null {
+  if (!mapa || !(mapa instanceof Map) || !item?.id) return null;
+  const valor: any = mapa.get(chaveComentarioItem(item));
+  if (!valor || typeof valor === "string") return null;
+  if (valor.meu && valor.outros) return "ambos";
+  if (valor.meu) return "meu";
+  if (valor.outros) return "outros";
+  return null;
+}
+
 
 /**
  * Contagem de comentários de um item específico (para exibir na aba "Comentários").
