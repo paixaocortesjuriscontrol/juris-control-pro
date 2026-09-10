@@ -96,9 +96,21 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
     onUpdate?.();
   };
 
+  const situacaoMudou = situacao !== (item.status || "");
+
+  const validar = () => {
+    if (situacaoMudou && comentarioObrigatorio && !observacao.trim()) {
+      toast.error("O comentário da mudança de situação é obrigatório.");
+      return false;
+    }
+    return true;
+  };
+
   const baixarSomenteEsta = async () => {
+    if (!validar()) return;
     setSalvando("esta");
     try {
+
       await enviarAnexosPendentes();
       await salvarBaixaOcorrencia({
         origem: info.origem,
