@@ -347,6 +347,10 @@ export default function Clientes() {
                 ))}
               </SelectContent>
             </Select>
+            <Button variant="outline" onClick={handleExportarExcel} disabled={exportando}>
+              {exportando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+              Exportar Excel
+            </Button>
             <Button onClick={handleNewCliente}>
               <Plus className="w-4 h-4 mr-2" />
               Novo Cliente
