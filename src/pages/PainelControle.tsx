@@ -95,7 +95,7 @@ import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
-import { useItensComComentarios, temComentarioItem, ultimoComentarioItem, chaveComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensComComentarios, temComentarioItem, ultimoComentarioItem, chaveComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
@@ -2868,7 +2868,7 @@ export default function PainelControle() {
                                     <WorkflowBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
                                   )}
                                   {temComentario && (
-                                    <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                    <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(itensComComentarios, item)} />
                                   )}
                                 </div>
                               )})}
