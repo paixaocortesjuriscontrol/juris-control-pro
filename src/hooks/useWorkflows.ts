@@ -488,6 +488,8 @@ export function useIniciarWorkflow() {
           status: "em_andamento",
           data_inicio: dataInicio,
           observacoes: input.observacoes || null,
+          publicacao_origem_tipo: input.publicacao_origem_tipo || null,
+          publicacao_origem_id: input.publicacao_origem_id || null,
         })
         .select()
         .single();
@@ -538,11 +540,24 @@ export function useIniciarWorkflow() {
         .insert(etapasExecucao);
       if (etapasExecError) throw etapasExecError;
 
-      return execucaoId as string;
+      return {
+        execucaoId: execucaoId as string,
+        item: item
+          ? {
+              id: item.id,
+              tipo: item.tipo === "PARCELAMENTO" ? "evento" : String(item.tipo).toLowerCase(),
+              titulo: (primeiraEtapa as WorkflowEtapa).titulo,
+            }
+          : null,
+      };
     },
-    onSuccess: (id) => {
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucao", id] });
+    onSuccess: async ({ execucaoId }) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucao", execucaoId] }),
+        queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+        queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
+      ]);
       toast.success("Workflow iniciado com sucesso!");
     },
     onError: (err: Error) => toast.error("Erro ao iniciar workflow: " + err.message),

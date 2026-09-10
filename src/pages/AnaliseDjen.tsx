@@ -39,6 +39,7 @@ import {
   RotateCcw,
   Tag,
   FileSpreadsheet,
+  Workflow,
 } from "lucide-react";
 
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -115,6 +116,7 @@ import { ExecucoesDoDiaAdminCard } from "@/components/djen/ExecucoesDoDiaAdminCa
 import { jsPDF } from "jspdf";
 import { dedupePublicacoesDjen, stripDestinatarios, dedupPubsSemDestinatarios } from "@/utils/djenDedup";
 import { PreagendarIaDialog } from "@/components/analise-djen/PreagendarIaDialog";
+import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 
 /** Chave de persistência dos filtros da Análise DJEN (Browser). */
 const FILTROS_DJEN_KEY = "analise-djen:filtros-v1";
@@ -321,6 +323,7 @@ const AnaliseDjen = () => {
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const [novaAudienciaOpen, setNovaAudienciaOpen] = useState(false);
+  const [novoWorkflowOpen, setNovoWorkflowOpen] = useState(false);
   const [adicionarProcessoId, setAdicionarProcessoId] = useState<string | undefined>(undefined);
   const [adicionarProcessoNumero, setAdicionarProcessoNumero] = useState<string | undefined>(undefined);
   // Itens (prazo/evento/tarefa/audiência) criados nesta sessão a partir da
@@ -348,7 +351,7 @@ const AnaliseDjen = () => {
   const resolverProcessoDaPublicacao = async (pub: PublicacaoUnificada) => {
     setAdicionarProcessoId(undefined);
     setAdicionarProcessoNumero(pub.processo_numero ?? undefined);
-    if (!user?.id) return;
+    if (!user?.id) return null;
     try {
       const resolved = await ensureProcessoFromPublicacao(pub, user.id, userCoordenacao);
       if (resolved) {
@@ -360,10 +363,12 @@ const AnaliseDjen = () => {
           queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
           queryClient.invalidateQueries({ queryKey: ["pastas"] }),
         ]);
+        return resolved;
       }
     } catch (err) {
       console.warn("Falha ao resolver/criar processo a partir da publicação", err);
     }
+    return null;
   };
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
@@ -1219,7 +1224,16 @@ const AnaliseDjen = () => {
     // primeiro garante o processo e salva a publicação clicada na aba Pub. DJEN.
     // Não marca como lida automaticamente — só no botão "Salvar e ler".
     setSelectedPublicacao(pub);
-    await resolverProcessoDaPublicacao(pub);
+    return await resolverProcessoDaPublicacao(pub);
+  };
+
+  const handleIniciarWorkflow = async (pub: PublicacaoUnificada) => {
+    const processo = await handleAdicionarClick(pub);
+    if (!processo) {
+      toast.error("Não foi possível localizar ou criar o processo desta publicação");
+      return;
+    }
+    setNovoWorkflowOpen(true);
   };
 
 
@@ -4105,7 +4119,7 @@ const AnaliseDjen = () => {
       <div className="space-y-6">
         {/* Formulário inline de Adicionar (esconde a lista quando aberto) */}
         {(() => {
-          const inlineFormAberto = criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen;
+          const inlineFormAberto = criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || novoWorkflowOpen;
           // Wrapper continua aberto se houver publicação selecionada + form ativo
           // OU se já houver itens criados nesta sessão (mesmo após fechar o
           // form individual — usuário pode escolher outro tipo pelo dropdown
@@ -4128,21 +4142,24 @@ const AnaliseDjen = () => {
             setNovoEventoOpen(false);
             setNovoPrazoOpen(false);
             setNovaAudienciaOpen(false);
+            setNovoWorkflowOpen(false);
             setItemEmEdicao(null);
             setItensCriadosSessao([]);
           };
-          const trocarTipo = (tipo: "tarefa" | "evento" | "prazo" | "audiencia") => {
+          const trocarTipo = (tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "workflow") => {
             setItemEmEdicao(null);
             setCriarTarefaDialogOpen(tipo === "tarefa");
             setNovoEventoOpen(tipo === "evento");
             setNovoPrazoOpen(tipo === "prazo");
             setNovaAudienciaOpen(tipo === "audiencia");
+            setNovoWorkflowOpen(tipo === "workflow");
           };
           const abrirEdicaoItem = (item: ItemCriado) => {
             setCriarTarefaDialogOpen(false);
             setNovoEventoOpen(false);
             setNovoPrazoOpen(false);
             setNovaAudienciaOpen(false);
+            setNovoWorkflowOpen(false);
             setItemEmEdicao({ tipo: item.tipo, id: item.id });
           };
           const fecharEdicaoItem = async () => {
@@ -4294,6 +4311,9 @@ const AnaliseDjen = () => {
                 <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("audiencia"), 0)}>
                   <Gavel className="w-4 h-4 mr-2" /> Audiência
                 </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTimeout(() => trocarTipo("workflow"), 0)}>
+                  <Workflow className="w-4 h-4 mr-2" /> Workflow
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           );
@@ -4388,11 +4408,33 @@ const AnaliseDjen = () => {
                   onAfterCreate={registrarItemCriado("audiencia")}
                 />
               )}
+              {novoWorkflowOpen && selectedPublicacao && adicionarProcessoId && adicionarProcessoNumero && (
+                <div className="rounded-md border bg-background overflow-hidden flex flex-col lg:flex-row min-h-[70vh] max-h-[calc(100vh-12rem)]">
+                  <PublicacaoSidePanel publicacao={selectedPublicacao} />
+                  <div className="w-full lg:w-[640px] overflow-y-auto p-5">
+                    <IniciarWorkflowDialog
+                      inline
+                      preSelectedProcesso={{
+                        id: adicionarProcessoId,
+                        numero: adicionarProcessoNumero,
+                        coordenacao_id: selectedPublicacao.coordenacao_id || userCoordenacao || undefined,
+                      }}
+                      publicacaoOrigem={selectedPublicacao}
+                      onStarted={async (item) => {
+                        registrarItemCriado(item.tipo)({ id: item.id, titulo: item.titulo });
+                        await queryClient.invalidateQueries({ queryKey: ["itens-existentes-publicacao"] });
+                        setNovoWorkflowOpen(false);
+                      }}
+                      onDone={() => setNovoWorkflowOpen(false)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ) : null;
         })()}
 
-        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || !!itemEmEdicao || (!!selectedPublicacao && itensCriadosSessao.length > 0)) && "hidden")}>
+        <div className={cn("space-y-6", (criarTarefaDialogOpen || novoEventoOpen || novoPrazoOpen || novaAudienciaOpen || novoWorkflowOpen || !!itemEmEdicao || (!!selectedPublicacao && itensCriadosSessao.length > 0)) && "hidden")}>
         {/* Banners de execução DJEN */}
         <DjenExecutionBanner />
 
@@ -5659,6 +5701,9 @@ const AnaliseDjen = () => {
                                              <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setNovaAudienciaOpen(true); }, 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
+                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleIniciarWorkflow(pub), 0)}>
+                                               <Workflow className="w-4 h-4 mr-2" /> Workflow
+                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                        
@@ -5765,6 +5810,9 @@ const AnaliseDjen = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setNovaAudienciaOpen(true); }, 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
+                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleIniciarWorkflow(pub), 0)}>
+                                              <Workflow className="w-4 h-4 mr-2" /> Workflow
+                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
                                        </DropdownMenu>
                                       

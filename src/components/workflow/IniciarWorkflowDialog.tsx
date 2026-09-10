@@ -22,6 +22,9 @@ import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
 import { Play, Search } from "lucide-react";
 import { toast } from "sonner";
+import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
+import type { ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
+import { supabase } from "@/integrations/supabase/client";
 
 interface IniciarWorkflowDialogProps {
   workflowId?: string;
@@ -31,6 +34,8 @@ interface IniciarWorkflowDialogProps {
   /** Renderiza o formulário direto na página, sem abrir janela/popup */
   inline?: boolean;
   onDone?: () => void;
+  publicacaoOrigem?: PublicacaoUnificada | null;
+  onStarted?: (item: { id: string; titulo: string; tipo: ItemCriado["tipo"] }) => void | Promise<void>;
 }
 
 export function IniciarWorkflowDialog({
@@ -40,6 +45,8 @@ export function IniciarWorkflowDialog({
   trigger,
   inline,
   onDone,
+  publicacaoOrigem,
+  onStarted,
 }: IniciarWorkflowDialogProps) {
   const [open, setOpen] = useState(!!inline);
   const { coordenacoes } = useCoordenacoesDoUsuario();
@@ -76,6 +83,46 @@ export function IniciarWorkflowDialog({
 
   const iniciar = useIniciarWorkflow();
 
+  const vincularPrimeiroItemAPublicacao = async (item: { id: string; tipo: string }) => {
+    if (!publicacaoOrigem?.id) return;
+    const tipo = item.tipo.toLowerCase();
+    if (tipo === "tarefa" || tipo === "prazo") {
+      if (publicacaoOrigem.tipo_origem === "termo") {
+        const { error } = await supabase.from("tarefas_publicacoes").insert({
+          tarefa_id: item.id,
+          publicacao_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "processo") {
+        const { error } = await supabase.from("tarefas_publicacoes_processos").insert({
+          tarefa_id: item.id,
+          publicacao_processo_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      }
+    } else if (tipo === "audiencia") {
+      if (publicacaoOrigem.tipo_origem === "termo") {
+        const { error } = await supabase.from("audiencias_publicacoes").insert({
+          audiencia_id: item.id,
+          publicacao_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "processo") {
+        const { error } = await supabase.from("audiencias_publicacoes_processos").insert({
+          audiencia_id: item.id,
+          publicacao_processo_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      } else if (publicacaoOrigem.tipo_origem === "descartada") {
+        const { error } = await supabase.from("audiencias_publicacoes_descartadas").insert({
+          audiencia_id: item.id,
+          publicacao_descartada_id: publicacaoOrigem.id,
+        });
+        if (error) throw error;
+      }
+    }
+  };
+
   const handleSubmit = async () => {
     if (!coordenacaoId) {
       toast.error("Selecione uma coordenação");
@@ -85,7 +132,7 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
-    await iniciar.mutateAsync({
+    const resultado = await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
 
       processo_id: selectedProcesso?.id,
@@ -94,7 +141,13 @@ export function IniciarWorkflowDialog({
       responsavel_inicial: responsavelInicial || undefined,
       observacoes: observacoes || undefined,
       data_inicio: dataInicio || undefined,
+      publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
+      publicacao_origem_id: publicacaoOrigem?.id,
     });
+    if (resultado.item) {
+      await vincularPrimeiroItemAPublicacao(resultado.item);
+      await onStarted?.(resultado.item as { id: string; titulo: string; tipo: ItemCriado["tipo"] });
+    }
     if (!inline) setOpen(false);
     reset();
     onDone?.();
@@ -118,6 +171,7 @@ export function IniciarWorkflowDialog({
             <Label htmlFor="coord">Coordenação *</Label>
             <Select
               value={coordenacaoId}
+              disabled={!!preSelectedProcesso}
               onValueChange={(v) => {
                 setCoordenacaoId(v);
                 setSelectedProcesso(null);
