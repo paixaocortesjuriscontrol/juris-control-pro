@@ -1,7 +1,7 @@
 # Pendências no menu lateral da Distribuição TST
 
 ## Objetivo
-Exibir no menu lateral esquerdo da ficha da Distribuição TST as pendências do processo, quando existirem, reutilizando exatamente as regras já usadas pelo botão **Verificar Pendências**.
+Exibir no menu lateral direito da ficha da Distribuição TST as pendências do processo, quando existirem, reutilizando exatamente as regras já usadas pelo botão **Verificar Pendências**.
 
 ## Alterações
 - Adicionar abaixo do botão **Verificar Pendências** um bloco fixo chamado **Pendências**.
