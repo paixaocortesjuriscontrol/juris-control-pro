@@ -448,27 +448,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     }
     // Validação mínima para criação
     if (isNovo) {
-      const numeroRaw = String(form.numero || "").trim();
-      const tipoAtual = String(form.tipo_processo || "judicial");
-      // Em "Outro" (e administrativo) o identificador é livre: qualquer texto serve.
-      const numeroLivre = tipoAtual === "outro" || tipoAtual === "administrativo";
-      const numeroValido = numeroLivre
-        ? numeroRaw.length >= 3
-        : numeroRaw.replace(/\D/g, "").length >= 5;
-      // O número/identificador é sempre obrigatório — o sistema nunca gera um
-      // código automático (isso causava cadastros repetidos).
-      if (!numeroRaw || !numeroValido) {
-        if (!silent) {
-          toast.error(
-            numeroLivre
-              ? "Informe um identificador com pelo menos 3 caracteres."
-              : "Informe o número do processo antes de salvar.",
-          );
-        }
-        return;
-      }
-
-
+      // O número/identificador NÃO é obrigatório — quando em branco, o sistema
+      // gera um identificador interno único (SEM-NUMERO-<timestamp>) para
+      // satisfazer a coluna `numero` (NOT NULL) e o índice único global.
       if (!String(form.area || "").trim()) {
         if (!silent) toast.error("Selecione a área do processo antes de salvar.");
         return;
@@ -505,16 +487,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (isNovo) {
         // Modo criação: INSERT e redireciona para a página do novo processo.
         const numeroInformado = String(form.numero || "").trim();
-        if (!numeroInformado) {
-          if (!silent) toast.error("Informe o número do processo antes de salvar.");
-          return;
-        }
-        payload.numero = numeroInformado;
+        // Quando em branco, gera um identificador interno único — a coluna
+        // `numero` é NOT NULL e tem índice único global.
+        payload.numero = numeroInformado || `SEM-NUMERO-${Date.now()}`;
 
         // Antes de inserir, verifica se o número já existe no sistema — o
         // índice único global (`processos_numero_uidx`) recusaria o INSERT com
         // uma mensagem técnica de "duplicate key".
-        const existente = await buscarProcessoPorNumero(payload.numero);
+        const existente = numeroInformado
+          ? await buscarProcessoPorNumero(payload.numero)
+          : null;
         if (existente) {
           setProcessoExistente(existente);
           if (!silent) {
@@ -1565,7 +1547,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {isNovo && (
                     <FormField
-                      label="Número do Processo *"
+                      label="Número do Processo (opcional)"
                       className="md:col-span-2"
                     >
                       <Input
