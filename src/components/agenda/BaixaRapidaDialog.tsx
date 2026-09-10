@@ -33,6 +33,8 @@ import {
   type TipoSituacaoItem,
 } from "@/constants/situacoesItem";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { tipoSituacaoDoItemAgenda, tipoTarefaPermissao } from "@/utils/tipoItemPermissao";
+
 import {
   buscarBaixaOcorrencia,
   dadosOcorrencia,
