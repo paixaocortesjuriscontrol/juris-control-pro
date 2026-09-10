@@ -53,6 +53,17 @@ import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { ChevronsUpDown } from "lucide-react";
+import { garantirEtiquetaCliente } from "@/lib/etiquetaCliente";
 
 // Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
 // Judit preencheu enquanto o usuário navega entre as abas da tela.
