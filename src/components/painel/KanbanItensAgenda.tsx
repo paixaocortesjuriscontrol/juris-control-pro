@@ -137,6 +137,10 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                 const d = getRefDate(item);
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
+                const it: any = item;
+                const doBanco = partesPorProcesso?.get(it.processo?.id ?? it.processo_id ?? "");
+                const ativo = (it.partes_ativas || it.polo_ativo || doBanco?.ativo || "").trim();
+                const passivo = (it.partes_passivas || it.polo_passivo || doBanco?.passivo || "").trim();
                 return (
                   <Card
                     key={item.id}
@@ -154,6 +158,17 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         {item.processo.numero}
                       </p>
                     )}
+                    {(ativo || passivo) && (
+                      <p
+                        className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2"
+                        title={`${ativo}${ativo && passivo ? " x " : ""}${passivo}`}
+                      >
+                        {ativo && <span><strong>Ativo:</strong> {ativo}</span>}
+                        {ativo && passivo && <span> x </span>}
+                        {passivo && <span><strong>Passivo:</strong> {passivo}</span>}
+                      </p>
+                    )}
+
                     <div className="flex items-center justify-between mt-1.5 gap-2">
                       <span className="text-[10px] text-muted-foreground">
                         {d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "Sem data"}
