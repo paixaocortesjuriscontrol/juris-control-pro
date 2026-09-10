@@ -645,7 +645,8 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
     (bennerExtraRef.current as any)[campoJsonb] = podado;
     const targetId =
       (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
-    if (onSaveBennerExtra && targetId) {
+    // A coluna de terceiro não existe na tabela — só poda em memória.
+    if (onSaveBennerExtra && targetId && campoJsonb !== "materias_analise_terceiro") {
       void onSaveBennerExtra({ [campoJsonb]: podado }, targetId).catch(() => {});
     }
   };
