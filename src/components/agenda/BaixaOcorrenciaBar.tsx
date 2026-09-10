@@ -213,7 +213,10 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
           </Select>
         </div>
         <div className="space-y-1 flex-1 min-w-[180px]">
-          <Label className="text-[11px] text-muted-foreground">Observação (opcional)</Label>
+          <Label className="text-[11px] text-muted-foreground">
+            Comentário{comentarioObrigatorio ? " (obrigatório)" : " (opcional)"}
+          </Label>
+
           <Input
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
