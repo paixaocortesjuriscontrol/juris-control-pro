@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.0.0";
+export const APP_VERSION = "7.0.2";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -62,4 +62,6 @@ export const VERSION_HISTORY = [
   { version: "6.0.0", date: "2026-09-03", notes: "Marco 6.0.0: republish after site outage" },
   { version: "6.0.1", date: "2026-09-04", notes: "Drawer de processo com resumo, tarefas e movimentações; contagem de movimentações na aba" },
   { version: "7.0.0", date: "2026-09-06", notes: "Reformulação da tela Distribuição TST: cards combináveis, linha dupla com tags, indicadores de pendência e matérias por dossiê" },
+  { version: "7.0.1", date: "2026-09-08", notes: "Painel de Controle: busca refinada, filtro de comentários, balão 'Importante' vermelho e comentário obrigatório respeitando a configuração da coordenação" },
+  { version: "7.0.2", date: "2026-09-10", notes: "Exclusão de cliente desvinculando processos/casos/pastas com auditoria de quem excluiu" },
 ];
