@@ -334,6 +334,42 @@ function materiasSelecionadasDe(
     : listaPersistida;
 }
 
+/** Normalização para comparar nomes de matéria (sem acento, minúsculas). */
+const normMateria = (v: any) =>
+  String(v ?? "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR");
+
+/** Coluna de matérias SELECIONADAS correspondente a cada lista de análise. */
+export const CAMPO_MATERIAS_POR_ANALISE: Record<string, string> = {
+  materias_analise_reclamante: "materias_recurso_reclamante",
+  materias_analise_banco: "materias_recurso_banco",
+  materias_analise_terceiro: "materias_recurso_terceiro",
+};
+
+/**
+ * Itens da lista JSONB de análise que AINDA estão selecionados no campo
+ * "Matérias Recurso ...". Matérias removidas pela advogada podem ter ficado
+ * órfãs no JSONB (resíduo de edições antigas) e não devem gerar aviso,
+ * pendência nem exportação — a tela nem as mostra.
+ */
+export function itensAnaliseSelecionados(row: any, campoJsonb: string): any[] {
+  const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
+    (i: any) => i && i.materia && String(i.materia).trim(),
+  );
+  const campoMaterias = CAMPO_MATERIAS_POR_ANALISE[campoJsonb];
+  const selecionadas = String(row?.[campoMaterias] ?? "")
+    .split(/;|\n/)
+    .map((m) => normMateria(m))
+    .filter(Boolean);
+  if (selecionadas.length === 0) return itens;
+  const permitidas = new Set(selecionadas);
+  return itens.filter((i: any) => permitidas.has(normMateria(i.materia)));
+}
+
+
 /** Verifica pendências na lista de "Análise por matéria" (JSONB). Cada matéria
  *  selecionada exige aparelhamento, chance_turma, chance_relator e chance_exito. */
 function pendenciasMateriasAnalise(
@@ -611,9 +647,8 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave as string]) continue;
 
-    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
-      (i: any) => i && i.materia && String(i.materia).trim(),
-    );
+    const itens = itensAnaliseSelecionados(row, campoJsonb);
+
     const foraBloco: string[] = [];
     for (const i of itens) {
       const nome = String(i.materia).trim();
@@ -674,9 +709,8 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave]) continue;
-    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
-      (i: any) => i && i.materia && String(i.materia).trim(),
-    );
+    const itens = itensAnaliseSelecionados(row, campoJsonb);
+
     const foraBloco: string[] = [];
     let validasBloco = 0;
     for (const i of itens) {

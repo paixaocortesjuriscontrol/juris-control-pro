@@ -15,7 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { deriveRecorrenteFromRecursos, normalizeRecorrenteBenner, splitRecursoValues } from "@/utils/recorrenteFromRecursos";
 import { isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
 import { applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
-import { getPendencias } from "@/utils/distribuicaoTstPendencias";
+import { getPendencias, itensAnaliseSelecionados } from "@/utils/distribuicaoTstPendencias";
 import { getMotivoRecursoForaLista, MOTIVO_RECURSO_FORA_LISTA } from "@/utils/tipoRecursoOficial";
 import { getDataDistribuicaoReal } from "@/utils/dataDistribuicaoBenner";
 import { getMotivoRejeicaoDossie } from "@/utils/dossieBenner";
@@ -710,15 +710,22 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         };
         const materiasPorParte: Record<string, any[]> = {
           reclamante: scopeAtivo("reclamante")
-            ? filtrarMateriasExportaveis((d as any).materias_analise_reclamante)
+            ? filtrarMateriasExportaveis(
+                itensAnaliseSelecionados(d, "materias_analise_reclamante"),
+              )
             : [],
           banco: scopeAtivo("banco")
-            ? filtrarMateriasExportaveis((d as any).materias_analise_banco)
+            ? filtrarMateriasExportaveis(
+                itensAnaliseSelecionados(d, "materias_analise_banco"),
+              )
             : [],
           terceiro: scopeAtivo("terceiro")
-            ? filtrarMateriasExportaveis((d as any).materias_analise_terceiro)
+            ? filtrarMateriasExportaveis(
+                itensAnaliseSelecionados(d, "materias_analise_terceiro"),
+              )
             : [],
         };
+
 
         const materiasValidasCount =
           materiasPorParte.reclamante.length +
