@@ -54,7 +54,7 @@ export function ComentarioBadge({
       />
       {importante && (
         <span
-          className="absolute inset-0 flex items-center justify-center text-white text-[9px] font-bold leading-none select-none"
+          className="absolute inset-0 flex items-center justify-center text-white text-[9px] font-bold leading-none select-none translate-x-[0.5px] -translate-y-[0.5px]"
           aria-hidden
         >
           i
