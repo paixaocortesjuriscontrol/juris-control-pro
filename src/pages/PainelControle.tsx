@@ -1831,8 +1831,6 @@ export default function PainelControle() {
   // Itens materializados por Workflow (indicador verde "W")
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgenda);
 
-  // Itens que possuem comentários (indicador âmbar "C")
-  const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensAgenda);
   const { marcarVisto, temNaoVisto } = useComentariosVistos();
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
