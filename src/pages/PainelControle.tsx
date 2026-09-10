@@ -1107,6 +1107,9 @@ export default function PainelControle() {
         if (!match) return false;
       }
 
+      // Comentários
+      if (!itemPassaFiltroComentario(item)) return false;
+
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = normalizeAgendaStatus(item.status);
