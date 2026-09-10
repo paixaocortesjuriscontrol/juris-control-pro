@@ -111,6 +111,12 @@ export default function Clientes() {
     },
   });
 
+  const coordenacoesDisponiveis = useMemo(() => {
+    const set = new Set<string>();
+    if (coordsPorCliente) for (const nomes of coordsPorCliente.values()) nomes.forEach((n) => set.add(n));
+    return Array.from(set).sort();
+  }, [coordsPorCliente]);
+
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch =
       cliente.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -123,8 +129,14 @@ export default function Clientes() {
     const matchesEtiquetas =
       etiquetasFiltro.length === 0 || etiquetasFiltro.some((id) => aplicadas.includes(id));
 
-    return matchesSearch && matchesTipo && matchesEtiquetas;
+    const coordsDoCliente = coordsPorCliente?.get(cliente.id) || [];
+    const matchesCoordenacao =
+      coordenacaoFilter === "all" ||
+      (coordenacaoFilter === "sem" ? coordsDoCliente.length === 0 : coordsDoCliente.includes(coordenacaoFilter));
+
+    return matchesSearch && matchesTipo && matchesEtiquetas && matchesCoordenacao;
   });
+
 
   const handleEdit = (cliente: any) => {
     setSelectedCliente(cliente);
