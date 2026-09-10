@@ -57,10 +57,50 @@ function classifyItem(item: ItemAgendaUnificado): ColunaKey {
   return "futuro";
 }
 
+/** Busca as partes (polo ativo/passivo) dos processos exibidos no Kanban. */
+function usePartesDosProcessos(itens: ItemAgendaUnificado[]) {
+  const ids = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          itens
+            .map((i) => (i as any).processo?.id || (i as any).processo_id)
+            .filter(Boolean) as string[],
+        ),
+      ).sort(),
+    [itens],
+  );
+
+  return useQuery({
+    queryKey: ["kanban-partes-processos", ids],
+    enabled: ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map = new Map<string, { ativo: string; passivo: string }>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const lote = ids.slice(i, i + 200);
+        const { data } = await supabase
+          .from("processos")
+          .select("id, polo_ativo, polo_passivo")
+          .in("id", lote);
+        (data ?? []).forEach((p: any) =>
+          map.set(p.id, {
+            ativo: (p.polo_ativo ?? "").trim(),
+            passivo: (p.polo_passivo ?? "").trim(),
+          }),
+        );
+      }
+      return map;
+    },
+  });
+}
+
 export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum item" }: KanbanItensAgendaProps) {
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
+  const { data: partesPorProcesso } = usePartesDosProcessos(itens);
+
 
   const grupos = useMemo(() => {
     const m = new Map<ColunaKey, ItemAgendaUnificado[]>();
