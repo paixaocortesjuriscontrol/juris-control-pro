@@ -105,51 +105,29 @@ export default function Clientes() {
 
     setDeleting(true);
     try {
-      // Verifica vínculos que impedem a exclusão
-      const [{ count: qtdProcessos, error: errProc }, { count: qtdPastas, error: errPastas }] =
-        await Promise.all([
-          supabase
-            .from("processos")
-            .select("id", { count: "exact", head: true })
-            .eq("cliente_id", clienteToDelete.id),
-          supabase
-            .from("pastas")
-            .select("id", { count: "exact", head: true })
-            .eq("cliente_id", clienteToDelete.id),
-        ]);
-
-      if (errProc) throw errProc;
-      if (errPastas) throw errPastas;
-
-      if ((qtdProcessos ?? 0) > 0 || (qtdPastas ?? 0) > 0) {
-        const partes: string[] = [];
-        if ((qtdProcessos ?? 0) > 0) partes.push(`${qtdProcessos} processo(s)/caso(s)`);
-        if ((qtdPastas ?? 0) > 0) partes.push(`${qtdPastas} pasta(s)`);
-        throw new Error(
-          `Este cliente está vinculado a ${partes.join(" e ")}. Troque ou remova o cliente nesses registros antes de excluí-lo.`
-        );
-      }
-
-      const { data, error } = await supabase
-        .from("clientes")
-        .delete()
-        .eq("id", clienteToDelete.id)
-        .select("id");
+      const { data, error } = await supabase.rpc("excluir_cliente_com_desvinculo", {
+        p_cliente_id: clienteToDelete.id,
+      });
 
       if (error) throw error;
-      if (!data || data.length === 0) {
-        throw new Error(
-          "Você não tem permissão para excluir este cliente. Fale com o coordenador."
-        );
-      }
+
+      const info = (data ?? {}) as { processos_desvinculados?: number; pastas_desvinculadas?: number };
+      const partes: string[] = [];
+      if ((info.processos_desvinculados ?? 0) > 0)
+        partes.push(`${info.processos_desvinculados} processo(s)/caso(s)`);
+      if ((info.pastas_desvinculadas ?? 0) > 0)
+        partes.push(`${info.pastas_desvinculadas} pasta(s)`);
 
       toast({
         title: "Cliente excluído",
-        description: "O cliente foi excluído com sucesso.",
+        description: partes.length
+          ? `Cliente excluído e desvinculado de ${partes.join(" e ")}.`
+          : "O cliente foi excluído com sucesso.",
       });
 
       await queryClient.invalidateQueries({ queryKey: ["clientes"] });
       await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
+
     } catch (error: any) {
       console.error("Error deleting cliente:", error);
       toast({
@@ -347,7 +325,10 @@ export default function Clientes() {
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o cliente "{clienteToDelete?.nome}"?
-              Esta ação não pode ser desfeita.
+              Se ele estiver vinculado a processos, casos ou pastas, o vínculo será
+              removido (os registros continuam existindo). A exclusão fica registrada
+              na auditoria com o seu nome e não pode ser desfeita.
+
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
