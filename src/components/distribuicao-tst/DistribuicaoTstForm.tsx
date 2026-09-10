@@ -1714,7 +1714,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Matérias Recurso (Terceiro) <IaBadge field="materias_recurso_terceiro" value={(form as any).materias_recurso_terceiro} /></Label>
             <MateriasMultiSelect
               value={(form as any).materias_recurso_terceiro || null}
-              onChange={(v) => set("materias_recurso_terceiro", v)}
+              onChange={(v) => setMateriasRecurso("materias_recurso_terceiro", "materias_analise_terceiro", v)}
               pedidosDossie={pedidosDossieSet}
             />
           </div>
