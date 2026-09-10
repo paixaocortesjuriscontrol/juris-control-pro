@@ -20,6 +20,8 @@ export interface PainelFiltrosState {
   // Envolvimento
   souResponsavel: boolean;
   estouEnvolvido: boolean;
+  // Comentários vinculados ao item
+  comentarios: "todas" | "com" | "sem";
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
   // Período (data prevista / fatal conforme escolha em "Prazo")
@@ -36,6 +38,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   classificacoes: [],
   souResponsavel: false,
   estouEnvolvido: false,
+  comentarios: "todas",
   statusGroup: "todas",
   periodoInicio: "",
   periodoFim: "",
@@ -48,6 +51,12 @@ const CLASSIFICACOES = [
   { value: "prazo", label: "Prazos" },
   { value: "audiencia", label: "Audiências" },
   { value: "parcelamento", label: "Parcelamento recorrente" },
+];
+
+const COMENTARIOS_OPTIONS: { value: PainelFiltrosState["comentarios"]; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "com", label: "Com comentário" },
+  { value: "sem", label: "Sem comentário" },
 ];
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
@@ -78,6 +87,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.dataFatal,
     filtros.situacoes.length > 0,
     filtros.classificacoes.length > 0,
+    filtros.comentarios !== "todas",
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
     filtros.responsavelIds.length > 0,
@@ -183,6 +193,27 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                 />
                 Estou Envolvido
               </label>
+            </div>
+          </div>
+
+          {/* Comentários */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Comentários
+            </p>
+            <div className="space-y-1.5">
+              {COMENTARIOS_OPTIONS.map((opcao) => (
+                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painel-comentarios"
+                    checked={draft.comentarios === opcao.value}
+                    onChange={() => setDraft({ ...draft, comentarios: opcao.value })}
+                    className="accent-primary"
+                  />
+                  {opcao.label}
+                </label>
+              ))}
             </div>
           </div>
 

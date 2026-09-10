@@ -1062,6 +1062,26 @@ export default function PainelControle() {
     return dias;
   }, [mesAtual]);
 
+  // Itens com comentários. Inclui também vencidos e drill-down para o filtro
+  // funcionar nas visões que misturam mais de uma consulta.
+  const itensParaComentarios = useMemo(() => {
+    const unicos = new Map<string, ItemAgendaUnificado>();
+    [...itensAgenda, ...(vencidosQuery.data ?? []), ...((drillQuery.data ?? []) as ItemAgendaUnificado[])].forEach((item) => {
+      if (item?.id) unicos.set(`${item.origem}:${item.id}`, item);
+    });
+    return Array.from(unicos.values());
+  }, [itensAgenda, vencidosQuery.data, drillQuery.data]);
+  const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensParaComentarios);
+
+  const itemPassaFiltroComentario = useCallback(
+    (item: ItemAgendaUnificado) => {
+      if (painelFiltros.comentarios === "todas") return true;
+      const temComentario = temComentarioItem(itensComComentarios, item);
+      return painelFiltros.comentarios === "com" ? temComentario : !temComentario;
+    },
+    [painelFiltros.comentarios, itensComComentarios],
+  );
+
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
@@ -1086,6 +1106,9 @@ export default function PainelControle() {
           (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
         if (!match) return false;
       }
+
+      // Comentários
+      if (!itemPassaFiltroComentario(item)) return false;
 
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
@@ -1219,7 +1242,7 @@ export default function PainelControle() {
 
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
+    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
 
 
   );
@@ -1603,6 +1626,7 @@ export default function PainelControle() {
       // independentemente do filtro de status escolhido pelo usuário.
       // Isso evita contabilizar prazos/tarefas já tratados, cumpridos ou cancelados.
       if (isItemEncerrado(item) || isItemTratado(item) || isItemCancelado(item)) return false;
+      if (!itemPassaFiltroComentario(item)) return false;
       const statusGroup = painelFiltros.statusGroup ?? "todas";
       if (statusGroup === "concluidas" || statusGroup === "canceladas") {
         // Nesses filtros o calendário mostra encerrados; os cards continuam zerados.
@@ -1658,7 +1682,7 @@ export default function PainelControle() {
     });
     base.forEach((it) => { counts[classificarItem(it)]++; });
     return counts;
-  }, [itensAgenda, painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+  }, [itensAgenda, painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
@@ -1774,6 +1798,11 @@ export default function PainelControle() {
         if (!pai) return;
         if (!passaFiltrosPainel(pai)) return;
       }
+      // O filtro de comentários também vale para as atividades exibidas no dia,
+      // usando sempre o item pai como referência.
+      if (painelFiltros.comentarios !== "todas") {
+        if (!pai || !itemPassaFiltroComentario(pai)) return;
+      }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     });
@@ -1781,9 +1810,11 @@ export default function PainelControle() {
   }, [
     atividadesCalendario,
     painelFiltros.classificacoes,
+    painelFiltros.comentarios,
     itemPorRawId,
     buscaProcessoDigits,
     buscaTexto,
+    itemPassaFiltroComentario,
     passaFiltrosPainel,
   ]);
 
@@ -1800,8 +1831,6 @@ export default function PainelControle() {
   // Itens materializados por Workflow (indicador verde "W")
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgenda);
 
-  // Itens que possuem comentários (indicador âmbar "C")
-  const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensAgenda);
   const { marcarVisto, temNaoVisto } = useComentariosVistos();
 
   const handleItemClick = (item: ItemAgendaUnificado) => {
