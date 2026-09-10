@@ -106,7 +106,7 @@ export function IniciarWorkflowDialog({
     setSearch("");
     setSelectedProcesso(preSelectedProcesso || null);
     setResponsavelInicial("");
-    setSemProcesso(false);
+
 
     setObservacoes("");
     setDataInicio(hoje);
