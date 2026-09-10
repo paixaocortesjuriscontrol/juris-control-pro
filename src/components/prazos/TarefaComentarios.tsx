@@ -8,6 +8,8 @@ import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTex
 import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Send, Trash2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -18,6 +20,7 @@ interface Comentario {
   autor_id: string;
   conteudo: string;
   created_at: string;
+  is_cobranca?: boolean | null;
   autor?: {
     id: string;
     nome: string;
@@ -32,6 +35,7 @@ interface TarefaComentariosProps {
 export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProps) {
   const [novoComentario, setNovoComentario] = useState("");
   const [mencionados, setMencionados] = useState<string[]>([]);
+  const [isCobranca, setIsCobranca] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -47,7 +51,8 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
           tarefa_id,
           autor_id,
           conteudo,
-          created_at
+          created_at,
+          is_cobranca
         `)
         .eq("tarefa_id", tarefaId)
         .order("created_at", { ascending: true });
@@ -81,6 +86,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
           autor_id: user.id,
           conteudo,
           mencionados,
+          is_cobranca: isCobranca,
         });
 
       if (error) throw error;
@@ -89,6 +95,7 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
       queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa", tarefaId] });
       setNovoComentario("");
       setMencionados([]);
+      setIsCobranca(false);
     },
     onError: (error: any) => {
       toast({
@@ -174,6 +181,11 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
                       <span className="text-xs text-muted-foreground">
                         {format(parseISO(comentario.created_at), "dd/MM HH:mm", { locale: ptBR })}
                       </span>
+                      {comentario.is_cobranca && (
+                        <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-700">
+                          Cobrança
+                        </span>
+                      )}
                       {isOwn && (
                         <Button
                           variant="ghost"
@@ -202,6 +214,20 @@ export function TarefaComentarios({ tarefaId, className }: TarefaComentariosProp
             })}
           </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <Checkbox
+          id={`cobranca-tarefa-${tarefaId}`}
+          checked={isCobranca}
+          onCheckedChange={(v) => setIsCobranca(v === true)}
+        />
+        <Label
+          htmlFor={`cobranca-tarefa-${tarefaId}`}
+          className="text-xs font-medium text-red-700 cursor-pointer"
+        >
+          É uma cobrança
+        </Label>
       </div>
 
       <form onSubmit={handleSubmit} className="flex gap-2">

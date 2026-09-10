@@ -8,6 +8,8 @@ import { MencaoTextarea, ConteudoComMencoes } from "@/components/comum/MencaoTex
 import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Loader2, Send, Trash2, MessageSquare } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -36,12 +38,14 @@ interface Comentario {
   autor_id: string;
   conteudo: string;
   created_at: string;
+  is_cobranca?: boolean | null;
   autor?: { id: string; nome: string } | null;
 }
 
 export function ItemComentarios({ tipo, itemId, className }: Props) {
   const [novo, setNovo] = useState("");
   const [mencionados, setMencionados] = useState<string[]>([]);
+  const [isCobranca, setIsCobranca] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,7 +60,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from(table)
-        .select(`id, autor_id, conteudo, created_at`)
+        .select(`id, autor_id, conteudo, created_at, is_cobranca`)
         .eq(fk, itemId)
         .order("created_at", { ascending: true });
       if (error) throw error;
@@ -76,7 +80,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
   const addMut = useMutation({
     mutationFn: async (conteudo: string) => {
       if (!user || !itemId) throw new Error("Salve o item antes de comentar");
-      const payload: any = { autor_id: user.id, conteudo, mencionados, [fk]: itemId };
+      const payload: any = { autor_id: user.id, conteudo, mencionados, is_cobranca: isCobranca, [fk]: itemId };
       const { error } = await (supabase as any).from(table).insert(payload);
       if (error) throw error;
     },
@@ -88,6 +92,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       ]);
       setNovo("");
       setMencionados([]);
+      setIsCobranca(false);
     },
     onError: (e: any) =>
       toast({ title: "Erro ao enviar comentário", description: e.message, variant: "destructive" }),
@@ -158,6 +163,11 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
                     <div className="flex items-center gap-2 mb-0.5 text-[11px] text-muted-foreground">
                       <span className="font-medium text-foreground">{c.autor?.nome || "Usuário"}</span>
                       <span>{format(parseISO(c.created_at), "dd/MM HH:mm", { locale: ptBR })}</span>
+                      {c.is_cobranca && (
+                        <span className="rounded-sm bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-red-700">
+                          Cobrança
+                        </span>
+                      )}
                       {own && (
                         <Button
                           type="button"
@@ -185,6 +195,20 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
             })}
           </div>
         )}
+      </div>
+
+      <div className="flex items-center gap-2 mb-2">
+        <Checkbox
+          id={`cobranca-${tipo}-${itemId}`}
+          checked={isCobranca}
+          onCheckedChange={(v) => setIsCobranca(v === true)}
+        />
+        <Label
+          htmlFor={`cobranca-${tipo}-${itemId}`}
+          className="text-xs font-medium text-red-700 cursor-pointer"
+        >
+          É uma cobrança
+        </Label>
       </div>
 
       <div className="flex gap-2">
