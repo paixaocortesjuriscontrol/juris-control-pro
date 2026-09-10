@@ -274,6 +274,11 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Dialog de cadastro/edição rápida de cliente (usado na seção Partes)
   const [clienteDialogOpen, setClienteDialogOpen] = useState(false);
   const [clienteEmEdicao, setClienteEmEdicao] = useState<any>(null);
+  const [clienteBuscaOpen, setClienteBuscaOpen] = useState(false);
+  const clienteSelecionadoNome = useMemo(
+    () => (clientesLista as any[]).find((c) => c.id === form?.cliente_id)?.nome || "",
+    [clientesLista, form?.cliente_id],
+  );
   // Campos preenchidos pela Judit nesta sessão (para destacar em verde)
   const [juditSessionFields, setJuditSessionFields] = useState<Set<string>>(new Set());
   // Último payload Judit desta sessão. No modo criação não existe `processo.id`,
