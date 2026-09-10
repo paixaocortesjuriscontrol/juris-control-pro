@@ -16,10 +16,21 @@ import {
   useEtiquetasDoItem,
   useToggleEtiquetaItem,
   useRemoverTodasEtiquetasDoItem,
+  useCriarEtiqueta,
+  useAplicarEtiquetaClienteBase,
   moduloDaEntidade,
+  ETIQUETA_COLOR_PALETTE,
   type Etiqueta,
   type EtiquetaEntidade,
 } from "@/hooks/useEtiquetas";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { EtiquetaBadges } from "./EtiquetaBadges";
 
 interface Props {
@@ -33,7 +44,13 @@ interface Props {
   etiquetaIds?: string[];
   /** Nome da coordenação, exibido no cabeçalho do painel. */
   coordenacaoNome?: string | null;
+  /**
+   * Habilita o atalho "Criar etiqueta com o nome do cliente". A etiqueta criada
+   * fica vinculada ao cliente e é aplicada automaticamente aos processos dele.
+   */
+  clienteParaEtiqueta?: { id: string; nome: string } | null;
 }
+
 
 /**
  * Popover de etiquetas (modelo Astrea): ícone de etiqueta, busca em ordem
@@ -48,6 +65,7 @@ export function EtiquetaPicker({
   compact,
   etiquetaIds,
   coordenacaoNome,
+  clienteParaEtiqueta,
 }: Props) {
   const modulo = moduloDaEntidade(entidade);
   const { data: catalogo = [], isLoading } = useEtiquetas(coordenacaoId ?? undefined, modulo);
@@ -58,8 +76,12 @@ export function EtiquetaPicker({
   const aplicadosIds = etiquetaIds ?? idsDoItem;
   const toggle = useToggleEtiquetaItem();
   const removerTodas = useRemoverTodasEtiquetasDoItem();
+  const criar = useCriarEtiqueta();
+  const aplicarNaBase = useAplicarEtiquetaClienteBase();
+  const { coordenacoes, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const [busca, setBusca] = useState("");
   const [open, setOpen] = useState(false);
+  const [coordEscolhida, setCoordEscolhida] = useState<string>("");
 
   const aplicadas: Etiqueta[] = useMemo(() => {
     const s = new Set(aplicadosIds);
@@ -70,6 +92,45 @@ export function EtiquetaPicker({
     const q = busca.trim().toLowerCase();
     return q ? catalogo.filter((e) => e.nome.toLowerCase().includes(q)) : catalogo;
   }, [catalogo, busca]);
+
+  const nomeCliente = (clienteParaEtiqueta?.nome || "").trim();
+  const jaTemEtiquetaDoCliente = useMemo(() => {
+    if (!clienteParaEtiqueta) return false;
+    return catalogo.some(
+      (e) =>
+        e.cliente_id === clienteParaEtiqueta.id ||
+        e.nome.trim().toLowerCase() === nomeCliente.toLowerCase(),
+    );
+  }, [catalogo, clienteParaEtiqueta, nomeCliente]);
+
+  const coordParaCriar = coordEscolhida || coordenacaoId || unicaCoordenacaoId || "";
+  const criandoEtiquetaCliente = criar.isPending || aplicarNaBase.isPending;
+
+  const criarEtiquetaDoCliente = async () => {
+    if (!clienteParaEtiqueta || !coordParaCriar) return;
+    const cor =
+      ETIQUETA_COLOR_PALETTE[
+        Math.floor(Math.random() * ETIQUETA_COLOR_PALETTE.length)
+      ];
+    const nova = await criar.mutateAsync({
+      coordenacao_id: coordParaCriar,
+      nome: nomeCliente,
+      cor,
+      modulos: ["clientes", "processos", "publicacoes"],
+      cliente_id: clienteParaEtiqueta.id,
+    });
+    if (entidadeId) {
+      await toggle.mutateAsync({
+        etiquetaId: nova.id,
+        entidade,
+        entidadeId,
+        checked: true,
+      });
+    }
+    await aplicarNaBase.mutateAsync({ etiquetaId: nova.id, dryRun: false });
+  };
+
+
 
   if (readOnly || !entidadeId) return <EtiquetaBadges etiquetas={aplicadas} />;
 
@@ -113,6 +174,43 @@ export function EtiquetaPicker({
             {coordenacaoNome || "Selecione as etiquetas deste item"}
           </DialogDescription>
         </DialogHeader>
+        {clienteParaEtiqueta && nomeCliente && !jaTemEtiquetaDoCliente && (
+          <div className="rounded-md border bg-muted/40 p-2 space-y-2">
+            <p className="text-[11px] text-muted-foreground">
+              Criar uma etiqueta com o nome do cliente. Ela será aplicada
+              automaticamente a todos os processos e casos deste cliente.
+            </p>
+            {!coordenacaoId && !unicaCoordenacaoId && coordenacoes.length > 0 && (
+              <Select value={coordEscolhida} onValueChange={setCoordEscolhida}>
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Escolha a coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes.map((c) => (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              className="h-7 w-full gap-1.5 text-xs"
+              disabled={!coordParaCriar || criandoEtiquetaCliente}
+              onClick={criarEtiquetaDoCliente}
+            >
+              {criandoEtiquetaCliente ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
+              Criar etiqueta "{nomeCliente}"
+            </Button>
+          </div>
+        )}
+
         <div className="flex items-start justify-end gap-2">
           {aplicadas.length > 0 && (
             <button
