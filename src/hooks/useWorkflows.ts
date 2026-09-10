@@ -545,7 +545,7 @@ export function useIniciarWorkflow() {
         item: item
           ? {
               id: item.id,
-              tipo: String(item.tipo).toLowerCase(),
+              tipo: item.tipo === "PARCELAMENTO" ? "evento" : String(item.tipo).toLowerCase(),
               titulo: (primeiraEtapa as WorkflowEtapa).titulo,
             }
           : null,
