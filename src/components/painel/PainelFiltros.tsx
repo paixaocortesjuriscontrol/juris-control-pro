@@ -20,6 +20,8 @@ export interface PainelFiltrosState {
   // Envolvimento
   souResponsavel: boolean;
   estouEnvolvido: boolean;
+  // Comentários vinculados ao item
+  comentarios: "todas" | "com" | "sem";
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
   // Período (data prevista / fatal conforme escolha em "Prazo")
