@@ -325,7 +325,10 @@ export default function Clientes() {
             <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir o cliente "{clienteToDelete?.nome}"?
-              Esta ação não pode ser desfeita.
+              Se ele estiver vinculado a processos, casos ou pastas, o vínculo será
+              removido (os registros continuam existindo). A exclusão fica registrada
+              na auditoria com o seu nome e não pode ser desfeita.
+
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
