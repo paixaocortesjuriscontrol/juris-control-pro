@@ -1186,9 +1186,41 @@ export default function PainelControle() {
         if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
       }
 
+      // Busca textual: qualquer palavra no conteúdo do item (título, descrição,
+      // observações, tipo, partes, local, responsável, cliente...)
+      if (buscaTexto) {
+        const it: any = item;
+        const alvo = [
+          it.titulo,
+          it.descricao,
+          it.observacoes,
+          it.tipo_tarefa,
+          it.tipo_evento,
+          it.tipo,
+          it.local,
+          it.orgao,
+          it.partes_ativas,
+          it.partes_passivas,
+          it.outras_partes,
+          it.polo_ativo,
+          it.polo_passivo,
+          it.status,
+          it.processo?.numero,
+          it.processo?.assunto,
+          it.processo_numero,
+          it.responsavel?.nome,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const palavras = buscaTexto.split(/\s+/).filter(Boolean);
+        if (!palavras.every((p) => alvo.includes(p))) return false;
+      }
+
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits],
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
+
 
   );
 
