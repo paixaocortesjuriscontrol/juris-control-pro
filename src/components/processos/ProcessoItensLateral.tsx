@@ -79,6 +79,7 @@ function ProcessoItemRow({
   onSelect,
   temAtividade,
   temComentario,
+  autoriaComentario,
   qtdAtividades,
 }: {
   item: ItemAgendaUnificado;
@@ -86,7 +87,9 @@ function ProcessoItemRow({
   onSelect: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   temComentario?: boolean;
+  autoriaComentario?: "meu" | "outros" | "ambos" | null;
   qtdAtividades?: number;
+
 }) {
   const it = item as any;
   const concluido = isItemTratado(item);

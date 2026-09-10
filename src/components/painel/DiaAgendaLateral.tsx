@@ -128,6 +128,7 @@ export function AgendaItemRow({
   temAtividade,
   veioDeWorkflow,
   temComentario,
+  autoriaComentario,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -137,6 +138,8 @@ export function AgendaItemRow({
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
   temComentario?: boolean;
+  autoriaComentario?: "meu" | "outros" | "ambos" | null;
+
 }) {
   const concluido = isItemTratado(item);
   const riscado = isItemRiscado(item);
