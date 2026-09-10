@@ -10,11 +10,11 @@ interface Props {
 export function EtiquetaBadges({ etiquetas, className }: Props) {
   if (etiquetas.length === 0) return null;
   return (
-    <div className={`inline-flex flex-wrap gap-1 items-center ${className || ""}`}>
+    <div className={`inline-flex min-w-0 max-w-full flex-wrap items-center gap-1 ${className || ""}`}>
       {etiquetas.map((e) => (
         <Badge
           key={e.id}
-          className="text-[10px] px-1 py-0 h-4 text-primary-foreground hover:opacity-90"
+          className="h-auto min-h-5 max-w-full whitespace-normal break-words px-2 py-0.5 text-left text-[10px] leading-tight text-primary-foreground hover:opacity-90"
           style={{ backgroundColor: e.cor }}
           title={e.nome}
         >

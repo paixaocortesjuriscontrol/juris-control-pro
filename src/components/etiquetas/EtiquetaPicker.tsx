@@ -137,7 +137,7 @@ export function EtiquetaPicker({
   return (
     <>
       <span
-        className="inline-flex items-center gap-1.5 align-middle"
+        className="inline-flex min-w-0 max-w-full flex-wrap items-start gap-1.5 align-middle"
         onPointerDown={(e) => e.stopPropagation()}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
@@ -147,7 +147,7 @@ export function EtiquetaPicker({
           type="button"
           variant="outline"
           size="sm"
-          className="h-7 gap-1.5 px-2 text-xs"
+          className="h-7 shrink-0 gap-1.5 px-2 text-xs"
           title="Aplicar etiqueta"
           onClick={(ev) => {
             ev.preventDefault();

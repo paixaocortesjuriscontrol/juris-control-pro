@@ -269,7 +269,7 @@ export default function Clientes() {
                     {filteredClientes.map((cliente) => (
                       <TableRow key={cliente.id}>
                         <TableCell className="font-medium">{cliente.nome}</TableCell>
-                        <TableCell>
+                        <TableCell className="min-w-[18rem] max-w-[28rem]">
                           <Badge variant={cliente.tipo === "pessoa_fisica" ? "outline" : "secondary"}>
                             {cliente.tipo === "pessoa_fisica" ? "Pessoa Física" : "Pessoa Jurídica"}
                           </Badge>
