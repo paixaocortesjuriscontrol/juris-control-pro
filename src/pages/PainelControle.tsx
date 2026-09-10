@@ -1798,6 +1798,11 @@ export default function PainelControle() {
         if (!pai) return;
         if (!passaFiltrosPainel(pai)) return;
       }
+      // O filtro de comentários também vale para as atividades exibidas no dia,
+      // usando sempre o item pai como referência.
+      if (painelFiltros.comentarios !== "todas") {
+        if (!pai || !itemPassaFiltroComentario(pai)) return;
+      }
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(a);
     });
@@ -1805,9 +1810,11 @@ export default function PainelControle() {
   }, [
     atividadesCalendario,
     painelFiltros.classificacoes,
+    painelFiltros.comentarios,
     itemPorRawId,
     buscaProcessoDigits,
     buscaTexto,
+    itemPassaFiltroComentario,
     passaFiltrosPainel,
   ]);
 
