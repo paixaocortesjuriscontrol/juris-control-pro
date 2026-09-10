@@ -284,6 +284,14 @@ export default function PainelControle() {
     () => buscaProcesso.replace(/\D/g, ""),
     [buscaProcesso],
   );
+  // Texto livre: busca em qualquer palavra do conteúdo das tarefas/itens
+  const buscaTexto = useMemo(() => {
+    const t = buscaProcesso.trim().toLowerCase();
+    // Se o usuário digitou só números/pontuação de processo, não faz busca textual
+    if (!t || !/[a-zà-ú]/i.test(t)) return "";
+    return t;
+  }, [buscaProcesso]);
+
   // Aplica os filtros do drill-down do ranking na primeira renderização
   const drillAplicadoRef = useRef(false);
   useEffect(() => {
@@ -1178,9 +1186,41 @@ export default function PainelControle() {
         if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
       }
 
+      // Busca textual: qualquer palavra no conteúdo do item (título, descrição,
+      // observações, tipo, partes, local, responsável, cliente...)
+      if (buscaTexto) {
+        const it: any = item;
+        const alvo = [
+          it.titulo,
+          it.descricao,
+          it.observacoes,
+          it.tipo_tarefa,
+          it.tipo_evento,
+          it.tipo,
+          it.local,
+          it.orgao,
+          it.partes_ativas,
+          it.partes_passivas,
+          it.outras_partes,
+          it.polo_ativo,
+          it.polo_passivo,
+          it.status,
+          it.processo?.numero,
+          it.processo?.assunto,
+          it.processo_numero,
+          it.responsavel?.nome,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const palavras = buscaTexto.split(/\s+/).filter(Boolean);
+        if (!palavras.every((p) => alvo.includes(p))) return false;
+      }
+
       return true;
     },
-    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits],
+    [painelFiltros, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto],
+
 
   );
 
@@ -2453,7 +2493,7 @@ export default function PainelControle() {
                 <Input
                   value={buscaProcesso}
                   onChange={(e) => setBuscaProcesso(e.target.value)}
-                  placeholder="Buscar processo..."
+                  placeholder="Buscar processo ou palavra..."
                   title="Digite o número do processo para ver apenas as tarefas e atividades dele"
                   className="h-7 w-[290px] min-w-[220px] pl-7 pr-7 text-xs font-mono"
                 />

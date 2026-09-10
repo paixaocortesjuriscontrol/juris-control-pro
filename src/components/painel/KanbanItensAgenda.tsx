@@ -1,4 +1,6 @@
 import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
@@ -13,6 +15,7 @@ import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from 
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+
 
 interface KanbanItensAgendaProps {
   itens: ItemAgendaUnificado[];
@@ -54,10 +57,50 @@ function classifyItem(item: ItemAgendaUnificado): ColunaKey {
   return "futuro";
 }
 
+/** Busca as partes (polo ativo/passivo) dos processos exibidos no Kanban. */
+function usePartesDosProcessos(itens: ItemAgendaUnificado[]) {
+  const ids = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          itens
+            .map((i) => (i as any).processo?.id || (i as any).processo_id)
+            .filter(Boolean) as string[],
+        ),
+      ).sort(),
+    [itens],
+  );
+
+  return useQuery({
+    queryKey: ["kanban-partes-processos", ids],
+    enabled: ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map = new Map<string, { ativo: string; passivo: string }>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const lote = ids.slice(i, i + 200);
+        const { data } = await supabase
+          .from("processos")
+          .select("id, polo_ativo, polo_passivo")
+          .in("id", lote);
+        (data ?? []).forEach((p: any) =>
+          map.set(p.id, {
+            ativo: (p.polo_ativo ?? "").trim(),
+            passivo: (p.polo_passivo ?? "").trim(),
+          }),
+        );
+      }
+      return map;
+    },
+  });
+}
+
 export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum item" }: KanbanItensAgendaProps) {
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
+  const { data: partesPorProcesso } = usePartesDosProcessos(itens);
+
 
   const grupos = useMemo(() => {
     const m = new Map<ColunaKey, ItemAgendaUnificado[]>();
@@ -94,6 +137,10 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                 const d = getRefDate(item);
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
+                const it: any = item;
+                const doBanco = partesPorProcesso?.get(it.processo?.id ?? it.processo_id ?? "");
+                const ativo = (it.partes_ativas || it.polo_ativo || doBanco?.ativo || "").trim();
+                const passivo = (it.partes_passivas || it.polo_passivo || doBanco?.passivo || "").trim();
                 return (
                   <Card
                     key={item.id}
@@ -111,6 +158,17 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         {item.processo.numero}
                       </p>
                     )}
+                    {(ativo || passivo) && (
+                      <p
+                        className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2"
+                        title={`${ativo}${ativo && passivo ? " x " : ""}${passivo}`}
+                      >
+                        {ativo && <span><strong>Ativo:</strong> {ativo}</span>}
+                        {ativo && passivo && <span> x </span>}
+                        {passivo && <span><strong>Passivo:</strong> {passivo}</span>}
+                      </p>
+                    )}
+
                     <div className="flex items-center justify-between mt-1.5 gap-2">
                       <span className="text-[10px] text-muted-foreground">
                         {d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "Sem data"}
