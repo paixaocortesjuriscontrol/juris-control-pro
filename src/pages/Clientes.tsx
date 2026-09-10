@@ -70,6 +70,47 @@ export default function Clientes() {
   const clienteIds = useMemo(() => clientes.map((c: any) => c.id), [clientes]);
   const { data: etiquetasPorCliente } = useEtiquetasDeItens("cliente", clienteIds);
 
+  // Coordenações em que cada cliente aparece (via processos/casos vinculados)
+  const { data: coordsPorCliente } = useQuery({
+    queryKey: ["clientes-coordenacoes"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data: coords, error: errCoords } = await supabase
+        .from("coordenacoes")
+        .select("id, nome");
+      if (errCoords) throw errCoords;
+      const nomes = new Map<string, string>(
+        ((coords as any[]) || []).map((c) => [c.id, c.nome as string]),
+      );
+
+      const map = new Map<string, Set<string>>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("cliente_id, coordenacao_id")
+          .not("cliente_id", "is", null)
+          .not("coordenacao_id", "is", null)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = (data as any[]) || [];
+        for (const r of rows) {
+          const nome = nomes.get(r.coordenacao_id);
+          if (!nome) continue;
+          const set = map.get(r.cliente_id) || new Set<string>();
+          set.add(nome);
+          map.set(r.cliente_id, set);
+        }
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      const out = new Map<string, string[]>();
+      for (const [k, v] of map) out.set(k, Array.from(v).sort());
+      return out;
+    },
+  });
+
   const filteredClientes = clientes.filter((cliente) => {
     const matchesSearch =
       cliente.nome.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -261,6 +302,7 @@ export default function Clientes() {
                       <TableHead>CPF/CNPJ</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Telefone</TableHead>
+                      <TableHead>Coordenações</TableHead>
                       <TableHead>Etiquetas</TableHead>
                       <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
@@ -277,6 +319,23 @@ export default function Clientes() {
                         <TableCell>{cliente.cpf_cnpj || "-"}</TableCell>
                         <TableCell>{cliente.email || "-"}</TableCell>
                         <TableCell>{cliente.telefone || "-"}</TableCell>
+                        <TableCell className="max-w-[16rem]">
+                          {(coordsPorCliente?.get(cliente.id) || []).length === 0 ? (
+                            <span className="text-muted-foreground">-</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {(coordsPorCliente?.get(cliente.id) || []).map((nome) => (
+                                <Badge
+                                  key={nome}
+                                  variant="outline"
+                                  className="whitespace-normal break-words text-[11px] leading-tight"
+                                >
+                                  {nome}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <EtiquetaPicker
                             entidade="cliente"
