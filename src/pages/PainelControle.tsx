@@ -1062,6 +1062,26 @@ export default function PainelControle() {
     return dias;
   }, [mesAtual]);
 
+  // Itens com comentários. Inclui também vencidos e drill-down para o filtro
+  // funcionar nas visões que misturam mais de uma consulta.
+  const itensParaComentarios = useMemo(() => {
+    const unicos = new Map<string, ItemAgendaUnificado>();
+    [...itensAgenda, ...(vencidosQuery.data ?? []), ...((drillQuery.data ?? []) as ItemAgendaUnificado[])].forEach((item) => {
+      if (item?.id) unicos.set(`${item.origem}:${item.id}`, item);
+    });
+    return Array.from(unicos.values());
+  }, [itensAgenda, vencidosQuery.data, drillQuery.data]);
+  const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensParaComentarios);
+
+  const itemPassaFiltroComentario = useCallback(
+    (item: ItemAgendaUnificado) => {
+      if (painelFiltros.comentarios === "todas") return true;
+      const temComentario = temComentarioItem(itensComComentarios, item);
+      return painelFiltros.comentarios === "com" ? temComentario : !temComentario;
+    },
+    [painelFiltros.comentarios, itensComComentarios],
+  );
+
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
