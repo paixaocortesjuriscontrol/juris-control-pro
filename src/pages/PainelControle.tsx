@@ -284,6 +284,14 @@ export default function PainelControle() {
     () => buscaProcesso.replace(/\D/g, ""),
     [buscaProcesso],
   );
+  // Texto livre: busca em qualquer palavra do conteúdo das tarefas/itens
+  const buscaTexto = useMemo(() => {
+    const t = buscaProcesso.trim().toLowerCase();
+    // Se o usuário digitou só números/pontuação de processo, não faz busca textual
+    if (!t || !/[a-zà-ú]/i.test(t)) return "";
+    return t;
+  }, [buscaProcesso]);
+
   // Aplica os filtros do drill-down do ranking na primeira renderização
   const drillAplicadoRef = useRef(false);
   useEffect(() => {
