@@ -647,9 +647,8 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave as string]) continue;
 
-    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
-      (i: any) => i && i.materia && String(i.materia).trim(),
-    );
+    const itens = itensAnaliseSelecionados(row, campoJsonb);
+
     const foraBloco: string[] = [];
     for (const i of itens) {
       const nome = String(i.materia).trim();
@@ -710,9 +709,8 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave]) continue;
-    const itens = (Array.isArray(row?.[campoJsonb]) ? row[campoJsonb] : []).filter(
-      (i: any) => i && i.materia && String(i.materia).trim(),
-    );
+    const itens = itensAnaliseSelecionados(row, campoJsonb);
+
     const foraBloco: string[] = [];
     let validasBloco = 0;
     for (const i of itens) {
