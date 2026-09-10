@@ -34,7 +34,9 @@ import {
   recorrenteEnvolveReclamante,
   recorrenteEnvolveBanco,
   recorrenteEhTerceiro,
+  itensAnaliseSelecionados,
 } from "@/utils/distribuicaoTstPendencias";
+
 
 /** Asterisco vermelho indicando campo obrigatório (vide spec da advogada). */
 const ReqMark = () => (
