@@ -622,6 +622,35 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
 
   const set = (field: string, value: any) => setForm(f => ({ ...f, [field]: value }));
 
+  /**
+   * Alteração das "Matérias Recurso ...": ao remover uma matéria da seleção,
+   * a linha correspondente da "Análise por matéria" é removida na hora e
+   * gravada no banco imediatamente — nada de resíduo órfão gerando aviso.
+   */
+  const setMateriasRecurso = (
+    campoMaterias: string,
+    campoJsonb: string,
+    valor: string | null,
+  ) => {
+    setForm((f) => ({ ...f, [campoMaterias]: valor }));
+    const atual = (bennerExtraRef.current as any)?.[campoJsonb];
+    if (!Array.isArray(atual) || atual.length === 0) return;
+    const podado = itensAnaliseSelecionados(
+      { [campoJsonb]: atual, [campoMaterias]: valor },
+      campoJsonb,
+    );
+    if (podado.length === atual.length) return;
+    bennerDirtyRef.current.add(campoJsonb);
+    setBennerExtra((prev) => ({ ...prev, [campoJsonb]: podado }));
+    (bennerExtraRef.current as any)[campoJsonb] = podado;
+    const targetId =
+      (bennerDadoRef.current as any)?.id || activeRecordIdRef.current || dado?.id;
+    // A coluna de terceiro não existe na tabela — só poda em memória.
+    if (onSaveBennerExtra && targetId && campoJsonb !== "materias_analise_terceiro") {
+      void onSaveBennerExtra({ [campoJsonb]: podado }, targetId).catch(() => {});
+    }
+  };
+
   // Mescla o resumo da IA em "Observação Advogado" para que fique persistido
   // de forma definitiva quando o usuário salvar. Evita duplicar o mesmo bloco.
   useEffect(() => {
@@ -1573,7 +1602,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Matérias Recurso Reclamante{recorrenteEnvolveReclamante(form) && <ReqMark />} <IaBadge field="materias_recurso_reclamante" value={form.materias_recurso_reclamante} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_reclamante || null}
-              onChange={(v) => set("materias_recurso_reclamante", v)}
+              onChange={(v) => setMateriasRecurso("materias_recurso_reclamante", "materias_analise_reclamante", v)}
               pedidosDossie={pedidosDossieSet}
             />
           </div>
@@ -1635,7 +1664,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Matérias Recurso do Banco{recorrenteEnvolveBanco(form) && <ReqMark />} <IaBadge field="materias_recurso_banco" value={form.materias_recurso_banco} /></Label>
             <MateriasMultiSelect
               value={form.materias_recurso_banco || null}
-              onChange={(v) => set("materias_recurso_banco", v)}
+              onChange={(v) => setMateriasRecurso("materias_recurso_banco", "materias_analise_banco", v)}
               pedidosDossie={pedidosDossieSet}
             />
           </div>
@@ -1686,7 +1715,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <Label className="flex items-center">Matérias Recurso (Terceiro) <IaBadge field="materias_recurso_terceiro" value={(form as any).materias_recurso_terceiro} /></Label>
             <MateriasMultiSelect
               value={(form as any).materias_recurso_terceiro || null}
-              onChange={(v) => set("materias_recurso_terceiro", v)}
+              onChange={(v) => setMateriasRecurso("materias_recurso_terceiro", "materias_analise_terceiro", v)}
               pedidosDossie={pedidosDossieSet}
             />
           </div>
