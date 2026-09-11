@@ -493,13 +493,15 @@ export async function avancarExecucaoWorkflow(
   etapaConcluida.status = "concluida" as any;
   etapaConcluida.sucesso = sucesso as any;
 
-  let proxima = etapas.find(
+  const candidatas = etapas.filter(
     (e) => (e.etapa?.ordem || 0) > ordemAtual && e.status === "pendente"
   );
-  while (proxima) {
-    const condicao = proxima.etapa?.condicao || "sempre";
+
+  const elegiveis: WorkflowExecucaoEtapa[] = [];
+  for (const cand of candidatas) {
+    const condicao = cand.etapa?.condicao || "sempre";
     if (condicao === "sucesso_anterior") {
-      const refId = proxima.etapa?.etapa_anterior_id;
+      const refId = cand.etapa?.etapa_anterior_id;
       let ok: boolean;
       if (refId) {
         const ref = etapas.find((e) => e.etapa_id === refId);
@@ -511,18 +513,17 @@ export async function avancarExecucaoWorkflow(
         await supabase
           .from("workflow_execucao_etapas")
           .update({ status: "cancelada", sucesso: false })
-          .eq("id", proxima.id);
-        const proximaOrdem = proxima.etapa?.ordem || 0;
-        proxima = etapas.find(
-          (e) => (e.etapa?.ordem || 0) > proximaOrdem && e.status === "pendente"
-        );
+          .eq("id", cand.id);
         continue;
       }
+      elegiveis.push(cand);
+      // Etapa dependente: materializa apenas ela nesta rodada.
+      break;
     }
-    break;
+    elegiveis.push(cand);
   }
 
-  if (!proxima) {
+  if (elegiveis.length === 0) {
     await supabase
       .from("workflow_execucoes")
       .update({ status: "concluido" })
@@ -534,44 +535,47 @@ export async function avancarExecucaoWorkflow(
   const responsavelAnterior = etapaConcluida.item_id
     ? await buscarResponsavelItem(etapaConcluida.item_tipo, etapaConcluida.item_id)
     : null;
-  const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
-    responsavelAnterior,
-    iniciadorId: execucaoCast.iniciado_por,
-  });
 
-  const item = await criarItemWorkflow(
-    execucaoCast as WorkflowExecucao,
-    proxima.etapa as WorkflowEtapa,
-    dataReferencia,
-    responsavel,
-    execucaoCast.processo_id,
-    execucaoCast.processo_numero
-  );
+  for (const proxima of elegiveis) {
+    const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
+      responsavelAnterior,
+      iniciadorId: execucaoCast.iniciado_por,
+    });
 
-  const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
-    | "dias_corridos"
-    | "dias_uteis";
-  const dataPrevista = proxima.etapa?.dias_previsto
-    ? formatarDataISOBrasilia(
-        calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp)
-      )
-    : formatarDataISOBrasilia(dataReferencia);
-  const dataFatal = proxima.etapa?.dias_fatal
-    ? formatarDataISOBrasilia(
-        calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp)
-      )
-    : dataPrevista;
+    const item = await criarItemWorkflow(
+      execucaoCast as WorkflowExecucao,
+      proxima.etapa as WorkflowEtapa,
+      dataReferencia,
+      responsavel,
+      execucaoCast.processo_id,
+      execucaoCast.processo_numero
+    );
 
-  await supabase
-    .from("workflow_execucao_etapas")
-    .update({
-      status: "materializada",
-      item_id: item?.id || null,
-      item_tipo: item?.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
-      data_prevista_calculada: dataPrevista,
-      data_fatal_calculada: dataFatal,
-    })
-    .eq("id", proxima.id);
+    const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
+      | "dias_corridos"
+      | "dias_uteis";
+    const dataPrevista = proxima.etapa?.dias_previsto
+      ? formatarDataISOBrasilia(
+          calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp)
+        )
+      : formatarDataISOBrasilia(dataReferencia);
+    const dataFatal = proxima.etapa?.dias_fatal
+      ? formatarDataISOBrasilia(
+          calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp)
+        )
+      : dataPrevista;
+
+    await supabase
+      .from("workflow_execucao_etapas")
+      .update({
+        status: "materializada",
+        item_id: item?.id || null,
+        item_tipo: item?.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
+        data_prevista_calculada: dataPrevista,
+        data_fatal_calculada: dataFatal,
+      })
+      .eq("id", proxima.id);
+  }
 
   return { concluido: false };
 }

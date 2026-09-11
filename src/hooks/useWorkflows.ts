@@ -497,43 +497,68 @@ export function useIniciarWorkflow() {
 
       const execucaoId = (execucao as any).id;
       const execucaoCast = execucao as any;
-      const primeiraEtapa = etapas[0];
 
       // Referência = data de início informada (ou hoje), ao meio-dia para
       // evitar deslocamento de fuso ao formatar.
       const dataReferencia = new Date(`${dataInicio}T12:00:00`);
 
-      const responsavel = resolverResponsavelEtapa(primeiraEtapa as WorkflowEtapa, {
-        iniciadorId: user.id,
-        responsavelInicial: responsavel_inicial,
+      // Todas as etapas com condição "Ao iniciar o fluxo" são criadas de uma vez.
+      // A primeira etapa é sempre criada, mesmo se configurada como dependente.
+      const iniciais = new Set<string>();
+      etapas.forEach((etapa, idx) => {
+        const condicao = (etapa as WorkflowEtapa).condicao || "sempre";
+        if (idx === 0 || condicao === "sempre") iniciais.add(etapa.id);
       });
 
-      const item = await criarItemWorkflow(
-        execucaoCast as WorkflowExecucao,
-        primeiraEtapa as WorkflowEtapa,
-        dataReferencia,
-        responsavel,
-        processo_id,
-        processo_numero
-      );
+      const criados: Record<string, { id: string; tipo: string } | null> = {};
+      const itensCriados: { id: string; tipo: string; titulo: string }[] = [];
 
-      const dataPrevista = primeiraEtapa.dias_previsto
-        ? calcularDataOffset(dataReferencia, primeiraEtapa.dias_previsto, primeiraEtapa.tipo_prazo as "dias_corridos" | "dias_uteis").toISOString().split("T")[0]
-        : dataInicio;
-      const dataFatal = primeiraEtapa.dias_fatal
-        ? calcularDataOffset(dataReferencia, primeiraEtapa.dias_fatal, primeiraEtapa.tipo_prazo as "dias_corridos" | "dias_uteis").toISOString().split("T")[0]
-        : dataPrevista;
+      for (const etapa of etapas) {
+        if (!iniciais.has(etapa.id)) continue;
+        const responsavel = resolverResponsavelEtapa(etapa as WorkflowEtapa, {
+          iniciadorId: user.id,
+          responsavelInicial: responsavel_inicial,
+        });
+        const item = await criarItemWorkflow(
+          execucaoCast as WorkflowExecucao,
+          etapa as WorkflowEtapa,
+          dataReferencia,
+          responsavel,
+          processo_id,
+          processo_numero
+        );
+        criados[etapa.id] = item ? { id: item.id, tipo: item.tipo } : null;
+        if (item) {
+          itensCriados.push({
+            id: item.id,
+            tipo: item.tipo === "PARCELAMENTO" ? "evento" : String(item.tipo).toLowerCase(),
+            titulo: (etapa as WorkflowEtapa).titulo,
+          });
+        }
+      }
 
-      const etapasExecucao = etapas.map((etapa, idx) => ({
-        execucao_id: execucaoId,
-        etapa_id: etapa.id,
-        ordem: (etapa as WorkflowEtapa).ordem || idx + 1,
-        status: idx === 0 ? "materializada" : "pendente",
-        item_id: idx === 0 ? (item?.id || null) : null,
-        item_tipo: idx === 0 ? (item?.tipo || null) : (etapa as WorkflowEtapa).tipo_item,
-        data_prevista_calculada: idx === 0 ? dataPrevista : null,
-        data_fatal_calculada: idx === 0 ? dataFatal : null,
-      }));
+      const etapasExecucao = etapas.map((etapa, idx) => {
+        const e = etapa as WorkflowEtapa;
+        const criado = iniciais.has(etapa.id);
+        const item = criados[etapa.id] || null;
+        const tp = (e.tipo_prazo || "dias_corridos") as "dias_corridos" | "dias_uteis";
+        const dataPrevista = e.dias_previsto
+          ? calcularDataOffset(dataReferencia, e.dias_previsto, tp).toISOString().split("T")[0]
+          : dataInicio;
+        const dataFatal = e.dias_fatal
+          ? calcularDataOffset(dataReferencia, e.dias_fatal, tp).toISOString().split("T")[0]
+          : dataPrevista;
+        return {
+          execucao_id: execucaoId,
+          etapa_id: etapa.id,
+          ordem: e.ordem || idx + 1,
+          status: criado ? "materializada" : "pendente",
+          item_id: criado ? item?.id || null : null,
+          item_tipo: criado ? item?.tipo || e.tipo_item : e.tipo_item,
+          data_prevista_calculada: criado ? dataPrevista : null,
+          data_fatal_calculada: criado ? dataFatal : null,
+        };
+      });
 
       const { error: etapasExecError } = await supabase
         .from("workflow_execucao_etapas")
@@ -542,23 +567,23 @@ export function useIniciarWorkflow() {
 
       return {
         execucaoId: execucaoId as string,
-        item: item
-          ? {
-              id: item.id,
-              tipo: item.tipo === "PARCELAMENTO" ? "evento" : String(item.tipo).toLowerCase(),
-              titulo: (primeiraEtapa as WorkflowEtapa).titulo,
-            }
-          : null,
+        item: itensCriados[0] || null,
+        itens: itensCriados,
       };
     },
-    onSuccess: async ({ execucaoId }) => {
+    onSuccess: async ({ execucaoId, itens }) => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] }),
         queryClient.invalidateQueries({ queryKey: ["workflow-execucao", execucaoId] }),
         queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
         queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
       ]);
-      toast.success("Workflow iniciado com sucesso!");
+      const qtd = itens?.length || 0;
+      toast.success(
+        qtd > 1
+          ? `Workflow iniciado! ${qtd} demandas criadas.`
+          : "Workflow iniciado com sucesso!"
+      );
     },
     onError: (err: Error) => toast.error("Erro ao iniciar workflow: " + err.message),
   });
