@@ -41,7 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
@@ -2264,22 +2264,6 @@ export default function PainelControle() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Dialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Iniciar Workflow</DialogTitle>
-                  </DialogHeader>
-                  {workflowOpen && (
-                    <IniciarWorkflowDialog
-                      inline
-                      onDone={async () => {
-                        await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                        setWorkflowOpen(false);
-                      }}
-                    />
-                  )}
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
@@ -2981,6 +2965,24 @@ export default function PainelControle() {
             onClose={() => setSelectedItem(null)}
             onUpdate={() => {
               queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+            }}
+          />
+        )}
+      </ItemDrawer>
+
+      {/* Painel sobreposto: iniciar workflow */}
+      <ItemDrawer
+        open={workflowOpen}
+        onOpenChange={setWorkflowOpen}
+        titulo="Iniciar Workflow"
+        subtitulo={null}
+      >
+        {workflowOpen && (
+          <IniciarWorkflowDialog
+            inline
+            onDone={async () => {
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+              setWorkflowOpen(false);
             }}
           />
         )}
