@@ -54,6 +54,130 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
+import {
+  camposDaEtapa,
+  MODOS_DATA_ETAPA,
+  parseExprDataEtapa,
+  montarExprDataEtapa,
+} from "@/lib/camposEtapaWorkflow";
+import type { CampoModelo } from "@/constants/camposModeloTitulo";
+
+/** Um campo do item dentro do formulário da etapa. */
+function CampoEtapaInput({
+  campo,
+  valor,
+  onChange,
+}: {
+  campo: CampoModelo;
+  valor: any;
+  onChange: (v: any) => void;
+}) {
+  if (campo.kind === "date") {
+    const { modo, n } = parseExprDataEtapa(valor);
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs">{campo.label}</Label>
+        <div className="flex gap-2">
+          <Select
+            value={modo || "__prazo__"}
+            onValueChange={(v) =>
+              onChange(montarExprDataEtapa(v === "__prazo__" ? "" : v, n))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {MODOS_DATA_ETAPA.map((m) => (
+                <SelectItem key={m.value || "__prazo__"} value={m.value || "__prazo__"}>
+                  {m.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {(modo === "d" || modo === "du") && (
+            <Input
+              type="number"
+              min={0}
+              className="w-20"
+              value={n}
+              onChange={(e) =>
+                onChange(montarExprDataEtapa(modo, parseInt(e.target.value) || 0))
+              }
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (campo.kind === "select") {
+    return (
+      <div className="space-y-1">
+        <Label className="text-xs">{campo.label}</Label>
+        <Select
+          value={valor || "__vazio__"}
+          onValueChange={(v) => onChange(v === "__vazio__" ? "" : v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Não definir" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__vazio__">Não definir</SelectItem>
+            {(campo.options || []).map((o) => (
+              <SelectItem key={o.value} value={o.value}>
+                {o.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    );
+  }
+
+  if (campo.kind === "bool") {
+    return (
+      <div className="flex items-center gap-2 pt-5">
+        <Switch checked={!!valor} onCheckedChange={(v) => onChange(v)} />
+        <Label className="text-xs">{campo.label}</Label>
+      </div>
+    );
+  }
+
+  if (campo.kind === "textarea") {
+    return (
+      <div className="space-y-1 sm:col-span-2">
+        <Label className="text-xs">{campo.label}</Label>
+        <Textarea
+          value={valor || ""}
+          placeholder={campo.placeholder}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">{campo.label}</Label>
+      <Input
+        type={campo.kind === "time" ? "time" : campo.kind === "number" ? "number" : "text"}
+        value={valor ?? ""}
+        placeholder={campo.placeholder}
+        onChange={(e) =>
+          onChange(
+            campo.kind === "number"
+              ? e.target.value === ""
+                ? ""
+                : parseInt(e.target.value) || 0
+              : e.target.value
+          )
+        }
+      />
+    </div>
+  );
+}
+
 
 const TIPOS: { value: WorkflowItemType; label: string }[] = [
   { value: "PRAZO", label: "Prazo" },
@@ -123,6 +247,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       responsavel_id: null,
       responsaveis: [] as string[],
       atividades: [] as WorkflowEtapaAtividade[],
+      campos_item: {} as Record<string, any>,
+
     });
     setEditing(null);
   };
@@ -175,6 +301,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       dias_fatal: etapa.dias_fatal ?? null,
       responsaveis: respMap[etapa.id] || (etapa.responsavel_id ? [etapa.responsavel_id] : []),
       atividades: (atividadesMap[etapa.id] || []).map((a) => ({ ...a })),
+      campos_item: { ...(((etapa as any).campos_item as Record<string, any>) || {}) },
+
     });
     setDialogOpen(true);
   };
@@ -314,8 +442,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                   <Select
                     value={form.tipo_item || "TAREFA"}
                     onValueChange={(v) =>
-                      setForm({ ...form, tipo_item: v as WorkflowItemType })
+                      setForm({ ...form, tipo_item: v as WorkflowItemType, campos_item: {} })
                     }
+
                   >
                     <SelectTrigger id="tipo">
                       <SelectValue />
@@ -389,6 +518,37 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Campos do item — exatamente os mesmos do formulário do tipo escolhido */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div>
+                  <Label>
+                    Campos de{" "}
+                    {(TIPOS.find((t) => t.value === (form.tipo_item || "TAREFA"))?.label ||
+                      "").toLowerCase()}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Preenchimento padrão do item criado por esta etapa. Datas são contadas a
+                    partir do dia em que a etapa nascer; campos em branco usam o prazo da etapa.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {camposDaEtapa((form.tipo_item || "TAREFA") as WorkflowItemType).map((campo) => (
+                    <CampoEtapaInput
+                      key={campo.key}
+                      campo={campo}
+                      valor={(form.campos_item || {})[campo.key]}
+                      onChange={(v) =>
+                        setForm((prev: any) => ({
+                          ...prev,
+                          campos_item: { ...(prev.campos_item || {}), [campo.key]: v },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="prioridade">Prioridade</Label>
                 <Select

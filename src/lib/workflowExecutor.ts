@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addBusinessDays } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
+
 
 export type WorkflowItemType =
   | "PRAZO"
@@ -27,7 +29,9 @@ export const WORKFLOW_ITEM_SITUACAO_INICIAL: Record<WorkflowItemType, string> = 
 
 export interface WorkflowEtapa {
   id: string;
+  campos_item?: Record<string, any> | null;
   workflow_id: string;
+
   ordem: number;
   titulo: string;
   tipo_item: WorkflowItemType;
@@ -189,6 +193,18 @@ export async function criarItemWorkflow(
 
 
   const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
+
+  // Campos específicos configurados na etapa (mesmos campos do formulário do tipo)
+  const cfg = lerCamposEtapa(etapa, tipo);
+  const dataCfg = (key: string): string | null => {
+    const d = resolverDataEtapa(cfg[key], dataReferencia);
+    return d ? formatarDataISOBrasilia(d) : null;
+  };
+  const txt = (key: string): string | null => {
+    const v = cfg[key];
+    return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
+  };
+
   const itemBase: Record<string, any> = {
     coordenacao_id: execucao.coordenacao_id,
     criado_por: userId,
@@ -254,15 +270,19 @@ export async function criarItemWorkflow(
             // previsto/fatal ficam como orientação de prazo.
             data_vencimento: dataCriacaoStr,
             data_base: dataCriacaoStr,
-            data_prevista: dataBaseStr,
-            data_fatal: dataFatal,
+            data_prevista: dataCfg("data_limite") || dataCfg("data_vencimento") || dataBaseStr,
+            data_fatal: dataCfg("data_fatal") || dataFatal,
+            hora_prevista: txt("hora_prevista"),
+            hora_fatal: txt("hora_fatal"),
+            link_local: txt("local"),
 
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
-            observacoes: etapa.descricao || null,
+            observacoes: txt("observacoes") || etapa.descricao || null,
             prazo_dias: etapa.dias_previsto || 0,
             prazo_unidade: etapa.tipo_prazo === "dias_uteis" ? "uteis" : "corridos",
           } as any)
+
           .select("id")
           .single();
         if (error) throw error;
@@ -275,7 +295,11 @@ export async function criarItemWorkflow(
       }
 
       case "AUDIENCIA": {
-        const dataAudienciaISO = formatarTimestampISOBrasilia(dataBaseStr, "12:00");
+        const horaAudiencia = txt("hora") || "12:00";
+        const dataAudienciaISO = formatarTimestampISOBrasilia(
+          dataCfg("data_audiencia") || dataBaseStr,
+          horaAudiencia
+        );
         const novaAudienciaId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
@@ -288,11 +312,19 @@ export async function criarItemWorkflow(
           titulo: etapa.titulo,
           tipo_audiencia: etapa.titulo,
           data_audiencia: dataAudienciaISO,
-          hora: "12:00",
-          hora_brasilia: "12:00",
-          observacoes: etapa.descricao || null,
+          hora: horaAudiencia,
+          hora_brasilia: horaAudiencia,
+          hora_fim: txt("hora_fim"),
+          modalidade: txt("modalidade"),
+          forum: txt("forum"),
+          sala_forum: txt("sala_forum"),
+          local_audiencia: txt("local_audiencia"),
+          vara_camara: txt("vara_camara"),
+          comarca: txt("comarca"),
+          observacoes: txt("observacoes") || etapa.descricao || null,
           origem: "workflow",
         } as any);
+
         if (error) throw error;
         const id =
           novaAudienciaId ||
@@ -307,19 +339,36 @@ export async function criarItemWorkflow(
       }
 
       case "EVENTO": {
-        const dataInicio = formatarTimestampISOBrasilia(dataBaseStr, "09:00");
+        const horaInicioEv = txt("hora_inicio");
+        const horaFimEv = txt("hora_fim");
+        const dataFimEvStr = dataCfg("data_fim");
+        const diaInteiro =
+          cfg.dia_inteiro !== undefined ? !!cfg.dia_inteiro : !horaInicioEv;
+        const dataInicio = formatarTimestampISOBrasilia(
+          dataCfg("data_inicio") || dataBaseStr,
+          horaInicioEv || "09:00"
+        );
         const { data, error } = await supabase
           .from("eventos_agenda")
           .insert({
             ...itemBase,
             titulo: etapa.titulo,
-            descricao: etapa.descricao || null,
+            descricao: txt("observacoes") || etapa.descricao || null,
             tipo: "evento",
             data_inicio: dataInicio,
-            data_fim: null,
-            dia_inteiro: true,
+            data_fim:
+              dataFimEvStr || horaFimEv
+                ? formatarTimestampISOBrasilia(
+                    dataFimEvStr || dataCfg("data_inicio") || dataBaseStr,
+                    horaFimEv || horaInicioEv || "09:00"
+                  )
+                : null,
+            dia_inteiro: diaInteiro,
+            local: txt("local"),
+            modalidade: txt("modalidade"),
             total_parcelas: null,
           } as any)
+
           .select("id")
           .single();
         if (error) throw error;
@@ -332,11 +381,20 @@ export async function criarItemWorkflow(
       }
 
       case "PARCELAMENTO": {
-        const dataInicio = formatarTimestampISOBrasilia(dataBaseStr, "09:00");
-        const totalParcelas = (etapa as any).total_parcelas || 12;
-        const intervalo = (etapa as any).intervalo_parcelas || "mensal";
+        const primeiraParcelaStr = dataCfg("dataVencimento") || dataBaseStr;
+        const dataInicio = formatarTimestampISOBrasilia(
+          primeiraParcelaStr,
+          txt("hora_alerta") || "09:00"
+        );
+        const totalParcelas =
+          parseInt(String(cfg.totalParcelas ?? "")) || (etapa as any).total_parcelas || 12;
+        const intervalo =
+          txt("intervalo") || (etapa as any).intervalo_parcelas || "mensal";
         const intervaloDias =
-          intervalo === "semanal" ? 7 : intervalo === "quinzenal" ? 15 : 30;
+          intervalo === "semanal" ? 7 : intervalo === "quinzenal" ? 15 : intervalo === "anual" ? 365 : 30;
+        const valorParcela = txt("valorPadrao")
+          ? parseFloat(String(txt("valorPadrao")).replace(/\./g, "").replace(",", ".")) || null
+          : null;
         const { data: evento, error } = await supabase
           .from("eventos_agenda")
           .insert({
@@ -347,6 +405,7 @@ export async function criarItemWorkflow(
             data_inicio: dataInicio,
             dia_inteiro: true,
             total_parcelas: totalParcelas,
+            valor_parcela: valorParcela,
             recorrente: true,
           } as any)
           .select("id")
@@ -357,13 +416,16 @@ export async function criarItemWorkflow(
             .from("participantes_evento")
             .insert(todosResponsaveis.map((u) => ({ evento_id: evento.id, usuario_id: u })));
         }
+        const baseParcelas = new Date(`${primeiraParcelaStr}T12:00:00`);
         const parcelas = Array.from({ length: totalParcelas }, (_, i) => ({
           evento_id: evento.id,
           numero: i + 1,
-          data_vencimento: formatarDataISOBrasilia(addDays(dataBase, i * intervaloDias)),
+          data_vencimento: formatarDataISOBrasilia(addDays(baseParcelas, i * intervaloDias)),
+          valor: valorParcela,
           status: "pendente",
         }));
-        await supabase.from("parcelas_evento").insert(parcelas);
+        await supabase.from("parcelas_evento").insert(parcelas as any);
+
         return await finalizar({ id: evento.id, tipo });
       }
 

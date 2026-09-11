@@ -210,6 +210,7 @@ function sanitizeEtapaPayload(input: Record<string, any>) {
     atividades,
     created_at,
     updated_at,
+    campos_item,
     ...rest
   } = input as any;
 
@@ -218,6 +219,11 @@ function sanitizeEtapaPayload(input: Record<string, any>) {
     const v = rest[k];
     if (v !== null && typeof v === "object") delete rest[k];
   }
+  // campos específicos do tipo de item (jsonb)
+  if (campos_item !== undefined) {
+    rest.campos_item = campos_item && typeof campos_item === "object" ? campos_item : {};
+  }
+
   const uuidFields = ["responsavel_id", "etapa_anterior_id"];
   for (const f of uuidFields) {
     if (f in rest && (rest[f] === "" || rest[f] === undefined)) rest[f] = null;

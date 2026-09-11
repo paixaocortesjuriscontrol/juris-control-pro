@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_etapas ADD COLUMN IF NOT EXISTS campos_item jsonb NOT NULL DEFAULT '{}'::jsonb;
