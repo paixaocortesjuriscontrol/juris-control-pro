@@ -2970,6 +2970,24 @@ export default function PainelControle() {
         )}
       </ItemDrawer>
 
+      {/* Painel sobreposto: iniciar workflow */}
+      <ItemDrawer
+        open={workflowOpen}
+        onOpenChange={setWorkflowOpen}
+        titulo="Iniciar Workflow"
+        subtitulo={null}
+      >
+        {workflowOpen && (
+          <IniciarWorkflowDialog
+            inline
+            onDone={async () => {
+              await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+              setWorkflowOpen(false);
+            }}
+          />
+        )}
+      </ItemDrawer>
+
       {/* Painel sobreposto: novo item */}
       <ItemDrawer
         open={!selectedItem && !!novoItemTipo}
