@@ -297,6 +297,28 @@ const Processos = () => {
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebouncedValue(searchQuery, 300);
 
+  // Pastas localizadas pelo cliente filtrado ou pelo texto da pesquisa
+  const termoBuscaPastas = debouncedSearch?.trim() || "";
+  const { data: pastasDoCliente = [] } = useQuery({
+    queryKey: ["pastas_do_cliente_filtro", JSON.stringify(clienteIds), termoBuscaPastas],
+    enabled:
+      (!!clienteIds && clienteIds.length > 0 && clienteIds[0] !== "no-clients-in-group") ||
+      termoBuscaPastas.length >= 3,
+    queryFn: async () => {
+      let query = supabase
+        .from("pastas")
+        .select("id, nome, descricao, status, cliente_id, clientes(nome)");
+      if (clienteIds && clienteIds.length > 0 && clienteIds[0] !== "no-clients-in-group") {
+        query = query.in("cliente_id", clienteIds);
+      } else if (termoBuscaPastas.length >= 3) {
+        query = query.ilike("nome", `%${termoBuscaPastas}%`);
+      }
+      const { data, error } = await query.order("nome").limit(20);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Atualizar URL quando filtros mudam (preservando outros params, ex: grupo_clientes)
   useEffect(() => {
     // Não atualizar URL enquanto coordenação está sendo carregada
@@ -1059,6 +1081,29 @@ const Processos = () => {
       {isFetching && !isLoading && (
         <div className="mb-2">
           <Skeleton className="h-1 w-full" />
+        </div>
+      )}
+
+      {/* Pastas do(s) cliente(s) filtrado(s) */}
+      {pastasDoCliente.length > 0 && (
+        <div className="bg-card border border-border/50 p-4 mb-4 animate-fade-in">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+            <FolderOpen className="w-4 h-4 text-muted-foreground" />
+            Pastas encontradas ({pastasDoCliente.length})
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {pastasDoCliente.map((pasta: any) => (
+              <button
+                key={pasta.id}
+                onClick={() => navigate(`/pastas/${pasta.id}`)}
+                className="inline-flex items-center gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-1.5 text-sm text-foreground hover:bg-muted/60 transition-colors"
+                title={pasta.descricao || pasta.nome}
+              >
+                <FolderOpen className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                {pasta.nome}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
