@@ -172,7 +172,7 @@ export function AgendaItemRow({
         <p
           className={cn(
             "text-sm text-foreground leading-snug flex items-center gap-1.5",
-            riscado && "line-through",
+            (concluido || riscado) && "line-through",
             (concluido || cancelado) && "text-muted-foreground"
           )}
         >
