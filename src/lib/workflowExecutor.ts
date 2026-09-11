@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { format, addDays, addBusinessDays } from "date-fns";
+import { format, addDays, addBusinessDays, addWeeks, addMonths, addYears } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
 
@@ -204,6 +204,21 @@ export async function criarItemWorkflow(
     const v = cfg[key];
     return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
   };
+  const recorrencia = () => {
+    const recorrenciaTipo = txt("recorrencia_tipo") || "nenhuma";
+    const recorrenciaIntervalo = Math.max(1, Number(cfg.recorrencia_intervalo) || 1);
+    const recorrenciaFim = dataCfg("recorrencia_fim");
+    return {
+      recorrente: recorrenciaTipo !== "nenhuma",
+      recorrencia_tipo: recorrenciaTipo !== "nenhuma" ? recorrenciaTipo : null,
+      recorrencia_intervalo: recorrenciaTipo !== "nenhuma" ? recorrenciaIntervalo : null,
+      recorrencia_fim: recorrenciaTipo !== "nenhuma" ? recorrenciaFim : null,
+      recorrencia_rrule:
+        recorrenciaTipo !== "nenhuma"
+          ? `FREQ=${recorrenciaTipo.toUpperCase()};INTERVAL=${recorrenciaIntervalo}${recorrenciaFim ? `;UNTIL=${recorrenciaFim.replace(/-/g, "")}T235959Z` : ""}`
+          : null,
+    };
+  };
 
   const itemBase: Record<string, any> = {
     coordenacao_id: execucao.coordenacao_id,
@@ -274,6 +289,8 @@ export async function criarItemWorkflow(
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: txt("observacoes") || etapa.descricao || null,
+            alerta_dias: Number(cfg.alerta_dias) || null,
+            alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto > 0 ? etapa.dias_previsto : null,
             prazo_unidade:
               etapa.dias_previsto > 0
@@ -281,6 +298,7 @@ export async function criarItemWorkflow(
                   ? "uteis"
                   : "corridos"
                 : null,
+            ...recorrencia(),
           } as any)
           .select("id")
           .single();
@@ -302,10 +320,8 @@ export async function criarItemWorkflow(
             descricao: etapa.descricao || null,
             tipo_tarefa: tipo,
             origem: "workflow",
-            // A tarefa aparece no Painel a partir do dia em que nasceu;
-            // previsto/fatal ficam como orientação de prazo.
-            data_vencimento: dataCriacaoStr,
-            data_base: dataCriacaoStr,
+            data_vencimento: dataCfg("data_vencimento") || dataBaseStr,
+            data_base: dataCfg("data_base") || dataCriacaoStr,
             data_prevista: dataCfg("data_vencimento") || dataBaseStr,
             data_fatal: dataCfg("data_fatal") || dataFatal || dataBaseStr,
             hora_prevista: txt("hora_prevista"),
@@ -315,8 +331,11 @@ export async function criarItemWorkflow(
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: txt("observacoes") || etapa.descricao || null,
+            alerta_dias: Number(cfg.alerta_dias) || null,
+            alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto || 0,
             prazo_unidade: etapa.tipo_prazo === "dias_uteis" ? "uteis" : "corridos",
+            ...recorrencia(),
           } as any)
 
           .select("id")
@@ -357,6 +376,13 @@ export async function criarItemWorkflow(
           local_audiencia: txt("local_audiencia"),
           vara_camara: txt("vara_camara"),
           comarca: txt("comarca"),
+          polo_ativo: txt("polo_ativo"),
+          cliente: txt("cliente"),
+          terceirizado: txt("terceirizado"),
+          preposto: txt("preposto"),
+          testemunhas: txt("testemunhas"),
+          alerta_valor: Number(cfg.alerta_valor) || null,
+          alerta_unidade: txt("alerta_unidade"),
           observacoes: txt("observacoes") || etapa.descricao || null,
           origem: "workflow",
         } as any);
@@ -402,6 +428,7 @@ export async function criarItemWorkflow(
             dia_inteiro: diaInteiro,
             local: txt("local"),
             modalidade: txt("modalidade"),
+            ...recorrencia(),
             total_parcelas: null,
           } as any)
 
@@ -412,6 +439,13 @@ export async function criarItemWorkflow(
           await supabase
             .from("participantes_evento")
             .insert(todosResponsaveis.map((u) => ({ evento_id: data.id, usuario_id: u })));
+        }
+        const alertaMinutos = Number(cfg.alerta_minutos) || 0;
+        if (alertaMinutos > 0) {
+          const { error: alertaError } = await supabase
+            .from("alertas_evento")
+            .insert({ evento_id: data.id, minutos_antes: alertaMinutos });
+          if (alertaError) throw alertaError;
         }
         return await finalizar({ id: data.id, tipo });
       }
@@ -426,8 +460,6 @@ export async function criarItemWorkflow(
           parseInt(String(cfg.totalParcelas ?? "")) || (etapa as any).total_parcelas || 12;
         const intervalo =
           txt("intervalo") || (etapa as any).intervalo_parcelas || "mensal";
-        const intervaloDias =
-          intervalo === "semanal" ? 7 : intervalo === "quinzenal" ? 15 : intervalo === "anual" ? 365 : 30;
         const valorParcela = txt("valorPadrao")
           ? parseFloat(String(txt("valorPadrao")).replace(/\./g, "").replace(",", ".")) || null
           : null;
@@ -456,7 +488,15 @@ export async function criarItemWorkflow(
         const parcelas = Array.from({ length: totalParcelas }, (_, i) => ({
           evento_id: evento.id,
           numero: i + 1,
-          data_vencimento: formatarDataISOBrasilia(addDays(baseParcelas, i * intervaloDias)),
+          data_vencimento: formatarDataISOBrasilia(
+            intervalo === "semanal"
+              ? addWeeks(baseParcelas, i)
+              : intervalo === "quinzenal"
+                ? addDays(baseParcelas, i * 15)
+                : intervalo === "anual"
+                  ? addYears(baseParcelas, i)
+                  : addMonths(baseParcelas, i)
+          ),
           valor: valorParcela,
           status: "pendente",
         }));
