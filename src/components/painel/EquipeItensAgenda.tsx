@@ -505,7 +505,7 @@ export function EquipeItensAgenda({
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}
-                      {getReclamante(item) !== "-" && (
+                      {item.processo_id && (
                         <p className="text-xs text-muted-foreground truncate" title={getReclamante(item)}>
                           Reclamante: {getReclamante(item)}
                         </p>
