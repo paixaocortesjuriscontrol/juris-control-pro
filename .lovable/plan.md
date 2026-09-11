@@ -10,6 +10,12 @@ Ao escolher Workflow, abre o mesmo formulário de início de workflow já usado 
 - vincular um processo (opcional, com busca);
 - definir data de início, responsável inicial e observações.
 
+## Regra da coordenação
+
+- Se o usuário pertence a uma única coordenação, ela já vem selecionada automaticamente, o seletor fica oculto/desabilitado e a lista mostra somente os workflows ativos dessa coordenação.
+- Se pertence a mais de uma, o seletor permanece, limitado às coordenações dele.
+- Admin pode escolher qualquer coordenação.
+
 Ao confirmar, a primeira demanda do fluxo é criada e o Painel de Controle é atualizado para exibi-la imediatamente. Fechar ou cancelar não cria nada.
 
 ## Detalhes técnicos
