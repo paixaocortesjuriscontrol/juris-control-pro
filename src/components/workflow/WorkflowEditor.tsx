@@ -2,13 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -400,19 +394,18 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       </Card>
 
       <div className="flex justify-end">
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={handleOpen}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova etapa
-            </Button>
-          </DialogTrigger>
-
-          <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar Etapa" : "Nova Etapa"}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
+        <Button onClick={handleOpen}>
+          <Plus className="h-4 w-4 mr-2" />
+          Nova etapa
+        </Button>
+        <ItemDrawer
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          titulo={editing ? "Editar etapa" : "Nova etapa"}
+          subtitulo={workflow?.nome || "Workflow"}
+        >
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+              <div className="space-y-4 pb-24">
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="titulo">Título</Label>
@@ -546,8 +539,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 </Select>
               </div>
 
-              {/* Campos do item — exatamente os mesmos do formulário do tipo escolhido */}
-              <div className="space-y-3 rounded-md border p-3">
+               {/* Campos próprios do formulário do tipo escolhido */}
+               <div className="space-y-3 border p-3">
                 <div>
                   <Label>
                     Campos de{" "}
@@ -555,8 +548,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                       "").toLowerCase()}
                   </Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Preenchimento padrão do item criado por esta etapa. Datas são contadas a
-                    partir do dia em que a etapa nascer; campos em branco usam o prazo da etapa.
+                     Datas são calculadas a partir da publicação ou do nascimento da etapa.
+                     Campos em branco usam o prazo definido acima.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -800,16 +793,15 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 )}
               </div>
 
-              <Button
-                onClick={handleSubmit}
-                disabled={createEtapa.isPending || updateEtapa.isPending}
-                className="w-full"
-              >
+              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t bg-background px-4 py-3 sm:px-6">
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSubmit} disabled={createEtapa.isPending || updateEtapa.isPending}>
                 {editing ? "Salvar etapa" : "Adicionar etapa"}
               </Button>
             </div>
-          </DialogContent>
-        </Dialog>
+        </ItemDrawer>
       </div>
 
       {etapas.length === 0 ? (
