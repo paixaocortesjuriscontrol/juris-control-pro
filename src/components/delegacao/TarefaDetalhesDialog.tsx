@@ -824,7 +824,7 @@ export function TarefaDetalhesDialog({
                             ) : (
                               <Clock className="w-4 h-4 text-blue-500" />
                             )}
-                            <span className={cn(t.status === "cumprido" && "line-through text-muted-foreground")}>
+                            <span className={cn(t.status === "cumprido" && "text-muted-foreground")}>
                               {t.titulo}
                             </span>
                           </div>
