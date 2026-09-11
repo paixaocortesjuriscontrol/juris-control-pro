@@ -5,6 +5,7 @@ import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 import { AudienciaResponsaveisResumo } from "@/components/audiencias/AudienciaResponsaveisResumo";
+import { isItemRiscado } from "@/components/shared/TratadoCheck";
 
 const SITUACAO_AUDIENCIA_LABELS: Record<string, string> = {
   pendente: "Pendente",
@@ -1511,11 +1512,11 @@ export function ProcessoDetalhesCompletos({
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
                                    <div className="flex-1 space-y-1">
-                                     <p className={cn("text-sm font-medium", !ehPendenteItem(tarefa) && "line-through")}>{tarefa.titulo}</p>
-                                     {tarefa.descricao && (
-                                       <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
-                                     )}
-                                     {(tarefa.processo?.numero || processo?.numero) && (
+                                      <p className={cn("text-sm font-medium", isItemRiscado(tarefa) && "line-through")}>{tarefa.titulo}</p>
+                                      {tarefa.descricao && (
+                                        <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
+                                      )}
+                                      {(tarefa.processo?.numero || processo?.numero) && (
                                       <p className="text-[11px] font-mono text-muted-foreground">
                                         Processo: {tarefa.processo?.numero || processo?.numero}
                                       </p>
@@ -1728,11 +1729,11 @@ export function ProcessoDetalhesCompletos({
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
                                    <div className="flex-1 space-y-1">
-                                     <p className={cn("text-sm font-medium", !ehPendenteItem(tarefa) && "line-through")}>{tarefa.titulo}</p>
-                                     {tarefa.descricao && (
-                                       <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
-                                     )}
-                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                      <p className={cn("text-sm font-medium", isItemRiscado(tarefa) && "line-through")}>{tarefa.titulo}</p>
+                                      {tarefa.descricao && (
+                                        <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
+                                      )}
+                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       {tarefa.data_vencimento && (
                                         <span className="flex items-center gap-1">
                                           <Calendar className="h-3 w-3" />

@@ -62,12 +62,11 @@ export function isItemTratado(item: {
 }
 
 /**
- * Situações que recebem apenas o RISCO no texto (line-through), sem alterar
- * cor, ícone verde ou métricas: PROTOCOLADO e BAIXADO.
+ * Situações que recebem o RISCO no texto (line-through): PROTOCOLADO e BAIXADO.
+ * Itens CUMPRIDOS/CONCLUÍDOS NÃO são riscados — eles mantêm o visual original
+ * e apenas o V verde indica que foram tratados.
  */
 export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolean {
-  if (isItemTratado(item)) return true;
-
   const normalize = (value?: string | null) =>
     (value ?? "")
       .normalize("NFD")
