@@ -799,7 +799,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   return false;
 }
 
-export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, stickyId?: string | null) {
+export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
   const [responsaveisMap, setResponsaveisMap] = useState<Map<string, { id: string; nome: string }[]>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -1110,19 +1110,6 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
     setTotalCount(count);
 
-    // Se houver um registro recém-editado (sticky) que NÃO bate mais com
-    // os filtros atuais, busca-o à parte e prepende na lista para que a
-    // advogada continue vendo o que acabou de salvar.
-    if (stickyId && !rows.some((r) => r.id === stickyId)) {
-      const { data: stickyData } = await supabase
-        .from("dados_benner" as any)
-        .select("*")
-        .eq("id", stickyId)
-        .maybeSingle();
-      if (stickyData) {
-        rows = [bennerToDistribuicao(stickyData as any), ...rows];
-      }
-    }
     setDados(rows);
 
     // Carrega responsáveis para os ids visíveis
@@ -1155,7 +1142,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}, sticky
     }
 
     setLoading(false);
-  }, [page, JSON.stringify(filters), stickyId || ""]);
+  }, [page, JSON.stringify(filters)]);
 
   useEffect(() => { fetchDados(); }, [fetchDados]);
 

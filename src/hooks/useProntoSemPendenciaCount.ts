@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DistribuicaoTstFilters,
   fetchAllDistribuicaoTstIds,
@@ -16,44 +16,42 @@ import { invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
 export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
   const [ids, setIds] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [reloadTick, setReloadTick] = useState(0);
   const runIdRef = useRef(0);
   const filtersKey = JSON.stringify(filters);
 
-  useEffect(() => {
+  const fetchIds = useCallback(async () => {
     const runId = ++runIdRef.current;
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const marcados = await fetchAllDistribuicaoTstIds({
-          ...filters,
-          semPendencia: "sem",
-        });
-        if (cancelled || runId !== runIdRef.current) return;
-        setIds(marcados || []);
-      } catch (e) {
-        if (!cancelled && runId === runIdRef.current) {
-          console.warn("[useProntoSemPendenciaCount] falhou:", e);
-          setIds([]);
-        }
-      } finally {
-        if (!cancelled && runId === runIdRef.current) setLoading(false);
+    setLoading(true);
+    try {
+      const marcados = await fetchAllDistribuicaoTstIds({
+        ...filters,
+        semPendencia: "sem",
+      });
+      if (runId !== runIdRef.current) return;
+      setIds(marcados || []);
+    } catch (e) {
+      if (runId === runIdRef.current) {
+        console.warn("[useProntoSemPendenciaCount] falhou:", e);
+        setIds([]);
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    } finally {
+      if (runId === runIdRef.current) setLoading(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtersKey, reloadTick]);
+  }, [filtersKey]);
+
+  useEffect(() => {
+    void fetchIds();
+    return () => { runIdRef.current += 1; };
+  }, [fetchIds]);
 
   return {
     count: ids.length,
     ids,
     loading,
-    refetch: () => {
+    refetch: async () => {
       invalidateDistribuicaoTstCache();
-      setReloadTick((tick) => tick + 1);
+      await fetchIds();
     },
   };
 }
