@@ -345,10 +345,12 @@ export function IniciarWorkflowDialog({
 
   if (inline) {
     return (
-      <div>
-        <p className="text-sm font-semibold">
-          Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}
-        </p>
+      <div className="p-4">
+        {initialWorkflowName && (
+          <p className="mb-2 text-sm font-semibold">
+            Workflow: {initialWorkflowName}
+          </p>
+        )}
         {body}
       </div>
     );
