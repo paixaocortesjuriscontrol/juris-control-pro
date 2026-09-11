@@ -1026,8 +1026,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             if (!matchConteudo && !matchProcesso && !matchTermoMonitor && !matchAdvogados && !matchPartes && !matchPoloAtivo && !matchPoloPassivo && !matchProcessoDigits) return;
           }
 
-          // Verificar se o processo já existe no banco
-          const processoId = pub.processo_id || (pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null);
+          // Verificar se o processo já existe no banco (comparação por dígitos)
+          const processoId = pub.processo_id || (pub.processo_numero ? processosExistentesMap[toDigitsFb(pub.processo_numero)] || null : null);
 
           resultados.push({
             id: pub.id,
