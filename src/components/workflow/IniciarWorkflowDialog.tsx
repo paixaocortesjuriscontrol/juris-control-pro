@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -49,8 +49,15 @@ export function IniciarWorkflowDialog({
   onStarted,
 }: IniciarWorkflowDialogProps) {
   const [open, setOpen] = useState(!!inline);
-  const { coordenacoes } = useCoordenacoesDoUsuario();
-  const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || "");
+  const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
+  const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || unicaCoordenacaoId || "");
+
+  // Coordenação única chega de forma assíncrona: vincula automaticamente quando carregar
+  useEffect(() => {
+    if (!preSelectedProcesso && unicaCoordenacaoId) {
+      setCoordenacaoId((atual) => atual || unicaCoordenacaoId);
+    }
+  }, [unicaCoordenacaoId, preSelectedProcesso]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(initialWorkflowId || "");
   const [search, setSearch] = useState("");
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
@@ -154,7 +161,7 @@ export function IniciarWorkflowDialog({
   };
 
   const reset = () => {
-    setCoordenacaoId(preSelectedProcesso?.coordenacao_id || "");
+    setCoordenacaoId(preSelectedProcesso?.coordenacao_id || unicaCoordenacaoId || "");
     setSelectedWorkflowId(initialWorkflowId || "");
     setSearch("");
     setSelectedProcesso(preSelectedProcesso || null);
@@ -167,29 +174,35 @@ export function IniciarWorkflowDialog({
 
   const body = (
     <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="coord">Coordenação *</Label>
-            <Select
-              value={coordenacaoId}
-              disabled={!!preSelectedProcesso}
-              onValueChange={(v) => {
-                setCoordenacaoId(v);
-                setSelectedProcesso(null);
-                if (!initialWorkflowId) setSelectedWorkflowId("");
-              }}
-            >
-              <SelectTrigger id="coord">
-                <SelectValue placeholder="Selecione a coordenação" />
-              </SelectTrigger>
-              <SelectContent>
-                {coordenacoes?.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {precisaSelecionar || preSelectedProcesso ? (
+            <div className="space-y-2">
+              <Label htmlFor="coord">Coordenação *</Label>
+              <Select
+                value={coordenacaoId}
+                disabled={!!preSelectedProcesso}
+                onValueChange={(v) => {
+                  setCoordenacaoId(v);
+                  setSelectedProcesso(null);
+                  if (!initialWorkflowId) setSelectedWorkflowId("");
+                }}
+              >
+                <SelectTrigger id="coord">
+                  <SelectValue placeholder="Selecione a coordenação" />
+                </SelectTrigger>
+                <SelectContent>
+                  {coordenacoes?.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Coordenação: {coordenacoes?.[0]?.nome || "carregando..."}
+            </p>
+          )}
 
           {!initialWorkflowId && (
             <div className="space-y-2">

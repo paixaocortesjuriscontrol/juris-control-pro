@@ -55,3 +55,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Workflow pela Análise DJEN (10/09)
 - [x] Iniciar um workflow reutilizável pelo menu Adicionar da publicação, herdando processo e coordenação
 - [x] Preservar a publicação como origem da execução e vincular o primeiro item ao quadro da publicação
+
+## Workflow no Painel de Controle
+- [x] Botão Adicionar > Workflow abrindo IniciarWorkflowDialog
+- [x] Coordenação única pré-selecionada (sem escolha); admin escolhe qualquer
