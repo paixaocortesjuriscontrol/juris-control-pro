@@ -389,6 +389,37 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Campos do item — exatamente os mesmos do formulário do tipo escolhido */}
+              <div className="space-y-3 rounded-md border p-3">
+                <div>
+                  <Label>
+                    Campos de{" "}
+                    {(TIPOS.find((t) => t.value === (form.tipo_item || "TAREFA"))?.label ||
+                      "").toLowerCase()}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Preenchimento padrão do item criado por esta etapa. Datas são contadas a
+                    partir do dia em que a etapa nascer; campos em branco usam o prazo da etapa.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {camposDaEtapa((form.tipo_item || "TAREFA") as WorkflowItemType).map((campo) => (
+                    <CampoEtapaInput
+                      key={campo.key}
+                      campo={campo}
+                      valor={(form.campos_item || {})[campo.key]}
+                      onChange={(v) =>
+                        setForm((prev: any) => ({
+                          ...prev,
+                          campos_item: { ...(prev.campos_item || {}), [campo.key]: v },
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="prioridade">Prioridade</Label>
                 <Select
