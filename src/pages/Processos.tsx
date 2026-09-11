@@ -229,6 +229,21 @@ const Processos = () => {
     return undefined;
   }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo, isLoadingClientesDoGrupo, clienteFilter]);
 
+  // Pastas do(s) cliente(s) filtrado(s) — exibidas mesmo quando não há processos
+  const { data: pastasDoCliente = [] } = useQuery({
+    queryKey: ["pastas_do_cliente_filtro", JSON.stringify(clienteIds)],
+    enabled: !!clienteIds && clienteIds.length > 0 && clienteIds[0] !== "no-clients-in-group",
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("pastas")
+        .select("id, nome, descricao, status")
+        .in("cliente_id", clienteIds!)
+        .order("nome");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
   // Nome do grupo para exibição
   const grupoNome = grupoNomeParam || (selectedGrupoId !== "all" ? grupos.find(g => g.id === selectedGrupoId)?.nome : undefined);
   
