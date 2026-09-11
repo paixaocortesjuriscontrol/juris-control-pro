@@ -11,31 +11,57 @@ export function useMonitoramentoCounts() {
   const { processoIds, semRestricao, isLoading: escopoLoading } = useEscopoAcompanhamentoEspecial();
 
   const { data } = useQuery({
-    queryKey: ["monitoramento-counts", semRestricao ? "all" : processoIds.join(",")],
+    queryKey: [
+      "monitoramento-counts",
+      semRestricao ? "all" : `${processoIds.length}:${processoIds.slice(0, 5).join(",")}`,
+    ],
     enabled: !escopoLoading,
     staleTime: 30_000,
     refetchInterval: 120_000,
     queryFn: async () => {
       if (!semRestricao && processoIds.length === 0) return { movimentacoes: 0, divergencias: 0 };
 
-      let qEv = supabase
-        .from("acompanhamento_especial_eventos")
-        .select("id", { count: "exact", head: true })
-        .is("lido_em", null);
-      let qDiv = supabase
-        .from("acompanhamento_especial_divergencias")
-        .select("id", { count: "exact", head: true })
-        .is("resolvido_em", null);
-
-      if (!semRestricao) {
-        qEv = qEv.in("processo_id", processoIds);
-        qDiv = qDiv.in("processo_id", processoIds);
+      if (semRestricao) {
+        const [ev, div] = await Promise.all([
+          supabase
+            .from("acompanhamento_especial_eventos")
+            .select("id", { count: "exact", head: true })
+            .is("lido_em", null),
+          supabase
+            .from("acompanhamento_especial_divergencias")
+            .select("id", { count: "exact", head: true })
+            .is("resolvido_em", null),
+        ]);
+        return { movimentacoes: ev.count ?? 0, divergencias: div.count ?? 0 };
       }
 
-      const [ev, div] = await Promise.all([qEv, qDiv]);
-      return { movimentacoes: ev.count ?? 0, divergencias: div.count ?? 0 };
+      // Escopo restrito: quebrar em lotes para não estourar o tamanho da URL
+      const CHUNK = 150;
+      let movimentacoes = 0;
+      let divergencias = 0;
+
+      for (let i = 0; i < processoIds.length; i += CHUNK) {
+        const lote = processoIds.slice(i, i + CHUNK);
+        const [ev, div] = await Promise.all([
+          supabase
+            .from("acompanhamento_especial_eventos")
+            .select("id", { count: "exact", head: true })
+            .is("lido_em", null)
+            .in("processo_id", lote),
+          supabase
+            .from("acompanhamento_especial_divergencias")
+            .select("id", { count: "exact", head: true })
+            .is("resolvido_em", null)
+            .in("processo_id", lote),
+        ]);
+        movimentacoes += ev.count ?? 0;
+        divergencias += div.count ?? 0;
+      }
+
+      return { movimentacoes, divergencias };
     },
   });
+
 
   const movimentacoes = data?.movimentacoes ?? 0;
   const divergencias = data?.divergencias ?? 0;
