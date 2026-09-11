@@ -260,30 +260,38 @@ export default function Monitoramento() {
     staleTime: 30_000,
     refetchInterval: 120_000,
     queryFn: async () => {
-      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
-
-      let q = supabase
-        .from("acompanhamento_especial_divergencias")
-        .select(
-          "id, processo_id, campo, valor_atual, valor_judit, detectado_em, resolvido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
-        )
-        .order("detectado_em", { ascending: false })
-        .limit(2000);
-
-      if (somentePendentes) q = q.is("resolvido_em", null);
-
+      let desde: string | null = null;
+      let ate: string | null = null;
       if (!dataInicialDiv && !dataFinalDiv && periodoDiv !== "todos") {
-        const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
-        q = q.gte("detectado_em", desde);
+        desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
       }
-      if (dataInicialDiv) q = q.gte("detectado_em", `${dataInicialDiv}T00:00:00-03:00`);
-      if (dataFinalDiv) q = q.lte("detectado_em", `${dataFinalDiv}T23:59:59.999-03:00`);
-      if (!semRestricao) q = q.in("processo_id", processoIds);
+      if (dataInicialDiv) desde = `${dataInicialDiv}T00:00:00-03:00`;
+      if (dataFinalDiv) ate = `${dataFinalDiv}T23:59:59.999-03:00`;
 
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("get_acomp_especial_divergencias", {
+        _somente_pendentes: somentePendentes,
+        _desde: desde,
+        _ate: ate,
+        _limit: 2000,
+      });
       if (error) throw error;
-      return (data ?? []) as unknown as Divergencia[];
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        processo_id: r.processo_id,
+        campo: r.campo,
+        valor_atual: r.valor_atual,
+        valor_judit: r.valor_judit,
+        detectado_em: r.detectado_em,
+        resolvido_em: r.resolvido_em,
+        processo: {
+          numero: r.numero,
+          polo_ativo: r.polo_ativo,
+          polo_passivo: r.polo_passivo,
+          coordenacao_id: r.coordenacao_id,
+        },
+      })) as unknown as Divergencia[];
     },
+
   });
 
 
