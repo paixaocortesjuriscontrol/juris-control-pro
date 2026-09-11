@@ -1869,8 +1869,7 @@ export default function DistribuicaoTst() {
                   judit_preenchido: !!b.judit_preenchido,
                 } as any);
               }
-              if (id) { setStickyId(id); setHighlightUntil(Date.now() + 8000); }
-              handleRefresh();
+              await handleRefresh();
             }}
             onClose={() => {
               // Ao voltar para a lista NÃO recarregamos nada: o salvamento já
