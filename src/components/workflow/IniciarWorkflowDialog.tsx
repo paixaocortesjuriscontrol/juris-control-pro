@@ -48,6 +48,9 @@ export function IniciarWorkflowDialog({
   publicacaoOrigem,
   onStarted,
 }: IniciarWorkflowDialogProps) {
+  const dataBaseInicial =
+    String(publicacaoOrigem?.data_publicacao || publicacaoOrigem?.data_disponibilizacao || "").slice(0, 10) ||
+    new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const [open, setOpen] = useState(!!inline);
   const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || unicaCoordenacaoId || "");
@@ -64,8 +67,11 @@ export function IniciarWorkflowDialog({
   const [responsavelInicial, setResponsavelInicial] = useState("");
   
   const [observacoes, setObservacoes] = useState("");
-  const hoje = new Date().toISOString().split("T")[0];
-  const [dataInicio, setDataInicio] = useState(hoje);
+  const [dataInicio, setDataInicio] = useState(dataBaseInicial);
+
+  useEffect(() => {
+    if (publicacaoOrigem) setDataInicio(dataBaseInicial);
+  }, [publicacaoOrigem?.id, dataBaseInicial]);
 
 
   const { data: usuarios = [] } = useUsuariosCoordenacao(coordenacaoId || undefined);
@@ -169,7 +175,7 @@ export function IniciarWorkflowDialog({
 
 
     setObservacoes("");
-    setDataInicio(hoje);
+    setDataInicio(dataBaseInicial);
   };
 
   const body = (
@@ -304,7 +310,9 @@ export function IniciarWorkflowDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="data-inicio">Data de início da execução</Label>
+            <Label htmlFor="data-inicio">
+              {publicacaoOrigem ? "Data-base da publicação" : "Data de início da execução"}
+            </Label>
             <Input
               id="data-inicio"
               type="date"
@@ -312,8 +320,9 @@ export function IniciarWorkflowDialog({
               onChange={(e) => setDataInicio(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Se ficar em branco, assume a data de hoje. A primeira etapa é criada
-              nesta data; dias previstos e prazo fatal são orientativos.
+              {publicacaoOrigem
+                ? "Os prazos serão contados a partir desta data, como no cadastro normal."
+                : "Se ficar em branco, assume a data de hoje."}
             </p>
           </div>
 

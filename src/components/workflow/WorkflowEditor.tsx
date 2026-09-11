@@ -420,12 +420,35 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                     tipo={TIPO_MODELO_POR_ITEM[(form.tipo_item || "TAREFA") as WorkflowItemType]}
                     coordenacaoId={coordEfetiva || null}
                     onSelect={(m) =>
-                      setForm((prev: any) => ({
-                        ...prev,
-                        titulo: m.titulo,
-                        descricao: prev.descricao?.trim() ? prev.descricao : (m.descricao || ""),
-                        prioridade: m.prioridade || prev.prioridade,
-                      }))
+                      setForm((prev: any) => {
+                        const padroes = (m.padroes || {}) as Record<string, any>;
+                        const dias = Number(padroes.prazo_dias);
+                        const unidade = String(padroes.prazo_unidade || "");
+                        const camposItem = { ...(prev.campos_item || {}) };
+                        for (const campo of camposDaEtapa(
+                          (prev.tipo_item || "TAREFA") as WorkflowItemType
+                        )) {
+                          const valor = padroes[campo.key];
+                          if (valor !== undefined && valor !== null && String(valor).trim() !== "") {
+                            camposItem[campo.key] = valor;
+                          }
+                        }
+                        return {
+                          ...prev,
+                          titulo: m.titulo,
+                          descricao: prev.descricao?.trim() ? prev.descricao : (m.descricao || ""),
+                          prioridade: m.prioridade || prev.prioridade,
+                          dias_previsto:
+                            Number.isFinite(dias) && dias > 0 ? dias : prev.dias_previsto,
+                          tipo_prazo:
+                            unidade === "uteis"
+                              ? "dias_uteis"
+                              : unidade === "corridos"
+                                ? "dias_corridos"
+                                : prev.tipo_prazo,
+                          campos_item: camposItem,
+                        };
+                      })
                     }
                   />
                 </div>
@@ -481,7 +504,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dias_previsto">Dias previsto</Label>
+                  <Label htmlFor="dias_previsto">
+                    {form.tipo_item === "PRAZO" ? "Prazo (dias)" : "Dias previsto"}
+                  </Label>
                   <Input
                     id="dias_previsto"
                     type="number"
@@ -504,7 +529,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="tipo_prazo">Tipo de prazo</Label>
+                <Label htmlFor="tipo_prazo">
+                  {form.tipo_item === "PRAZO" ? "Unidade do prazo" : "Tipo de prazo"}
+                </Label>
                 <Select
                   value={form.tipo_prazo || "dias_corridos"}
                   onValueChange={(v) => setForm({ ...form, tipo_prazo: v })}

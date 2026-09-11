@@ -189,7 +189,7 @@ export async function criarItemWorkflow(
     ? formatarDataISOBrasilia(
         calcularDataOffset(dataReferencia, etapa.dias_fatal, etapa.tipo_prazo || "dias_corridos")
       )
-    : dataBaseStr;
+    : null;
 
 
   const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
@@ -256,7 +256,43 @@ export async function criarItemWorkflow(
 
   try {
     switch (tipo) {
-      case "PRAZO":
+      case "PRAZO": {
+        const dataLimite = dataCfg("data_limite") || dataBaseStr;
+        const dataFatalPrazo = dataCfg("data_fatal") || dataFatal;
+        const { data, error } = await supabase
+          .from("tarefas")
+          .insert({
+            ...itemBase,
+            titulo: etapa.titulo,
+            descricao: etapa.descricao || null,
+            tipo_tarefa: "PRAZO",
+            origem: "workflow",
+            data_vencimento: dataLimite,
+            data_base: dataCriacaoStr,
+            data_prevista: dataLimite,
+            data_fatal: dataFatalPrazo,
+            prioridade: etapa.prioridade || "media",
+            responsavel_id: responsavelPrincipal,
+            observacoes: txt("observacoes") || etapa.descricao || null,
+            prazo_dias: etapa.dias_previsto > 0 ? etapa.dias_previsto : null,
+            prazo_unidade:
+              etapa.dias_previsto > 0
+                ? etapa.tipo_prazo === "dias_uteis"
+                  ? "uteis"
+                  : "corridos"
+                : null,
+          } as any)
+          .select("id")
+          .single();
+        if (error) throw error;
+        if (todosResponsaveis.length) {
+          await supabase.from("tarefa_responsaveis").insert(
+            todosResponsaveis.map((u) => ({ tarefa_id: data.id, usuario_id: u }))
+          );
+        }
+        return await finalizar({ id: data.id, tipo });
+      }
+
       case "TAREFA": {
         const { data, error } = await supabase
           .from("tarefas")
@@ -270,8 +306,8 @@ export async function criarItemWorkflow(
             // previsto/fatal ficam como orientação de prazo.
             data_vencimento: dataCriacaoStr,
             data_base: dataCriacaoStr,
-            data_prevista: dataCfg("data_limite") || dataCfg("data_vencimento") || dataBaseStr,
-            data_fatal: dataCfg("data_fatal") || dataFatal,
+            data_prevista: dataCfg("data_vencimento") || dataBaseStr,
+            data_fatal: dataCfg("data_fatal") || dataFatal || dataBaseStr,
             hora_prevista: txt("hora_prevista"),
             hora_fatal: txt("hora_fatal"),
             link_local: txt("local"),
