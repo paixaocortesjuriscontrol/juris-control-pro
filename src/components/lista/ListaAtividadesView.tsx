@@ -21,7 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { TratadoCheck, isItemTratado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
 import {
   Select,
   SelectContent,
@@ -452,6 +452,29 @@ export default function ListaAtividadesView({
   }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
+  const processoIdsPartes = useMemo(
+    () => Array.from(new Set(rows.map((r: any) => r.processo?.id || r.processo_id).filter(Boolean))) as string[],
+    [rows],
+  );
+  const { data: partesPorProcesso = {} } = useQuery({
+    queryKey: ["lista-atividades-partes", processoIdsPartes.join(",")],
+    enabled: processoIdsPartes.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const map: Record<string, { ativo: string; passivo: string }> = {};
+      for (let i = 0; i < processoIdsPartes.length; i += 200) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select("id, polo_ativo, polo_passivo")
+          .in("id", processoIdsPartes.slice(i, i + 200));
+        if (error) throw error;
+        (data || []).forEach((p: any) => {
+          map[p.id] = { ativo: p.polo_ativo ?? "", passivo: p.polo_passivo ?? "" };
+        });
+      }
+      return map;
+    },
+  });
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(rows.map(tarefaToAgendaItem));
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(rows.map(tarefaToAgendaItem));
   const total = usingExternalItems
@@ -1027,7 +1050,9 @@ export default function ListaAtividadesView({
                               </div>
                               <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
-                                <span>{r.titulo || "(sem título)"}</span>
+                                <span className={cn((isItemTratado({ ...item, ...r }) || isItemRiscado({ ...item, ...r })) && "line-through")}>
+                                  {r.titulo || "(sem título)"}
+                                </span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
                               </div>
@@ -1045,9 +1070,16 @@ export default function ListaAtividadesView({
                                   {r.processo.assunto}
                                 </div>
                               )}
-                              {(r as any).partes_ativas && (
+                              {(r as any).processo_id && (
                                 <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
-                                  <span className="font-medium text-foreground/70">Cliente:</span> {(r as any).partes_ativas}
+                                  <span className="font-medium text-foreground/70">Reclamante:</span>{" "}
+                                  {(r as any).partes_ativas || partesPorProcesso[(r as any).processo_id]?.ativo || "—"}
+                                </div>
+                              )}
+                              {(r as any).processo_id && (
+                                <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
+                                  <span className="font-medium text-foreground/70">Reclamada:</span>{" "}
+                                  {(r as any).partes_passivas || partesPorProcesso[(r as any).processo_id]?.passivo || "—"}
                                 </div>
                               )}
                               {(r as any).observacoes && (

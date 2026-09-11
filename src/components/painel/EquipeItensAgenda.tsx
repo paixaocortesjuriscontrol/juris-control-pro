@@ -11,7 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
-import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
@@ -338,14 +338,14 @@ export function EquipeItensAgenda({
     enabled: processoIds.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const map: Record<string, { polo_ativo?: string | null; cliente?: string | null }> = {};
+      const map: Record<string, { polo_ativo?: string | null; polo_passivo?: string | null }> = {};
       const { data, error } = await supabase
         .from("processos")
-        .select("id, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
+        .select("id, polo_ativo, polo_passivo")
         .in("id", processoIds);
       if (error) throw error;
       (data || []).forEach((p: any) => {
-        map[p.id] = { polo_ativo: p.polo_ativo, cliente: p.cliente?.nome ?? null };
+        map[p.id] = { polo_ativo: p.polo_ativo, polo_passivo: p.polo_passivo };
       });
       return map;
     },
@@ -354,8 +354,8 @@ export function EquipeItensAgenda({
   const getReclamante = (item: ItemAgendaUnificado) =>
     (item.processo_id ? processoInfo[item.processo_id]?.polo_ativo : null) || item.partes_ativas || "-";
 
-  const getCliente = (item: ItemAgendaUnificado) =>
-    (item.processo_id ? processoInfo[item.processo_id]?.cliente : null) || "-";
+  const getReclamada = (item: ItemAgendaUnificado) =>
+    (item.processo_id ? processoInfo[item.processo_id]?.polo_passivo : null) || item.partes_passivas || "-";
 
   const statusBadge = (item: ItemAgendaUnificado) => {
     if (isItemCancelado(item)) {
@@ -489,7 +489,15 @@ export function EquipeItensAgenda({
                     />
                     <div className="max-w-[260px]">
                       <div className="flex items-center gap-1.5">
-                        <p className="font-medium truncate text-sm" title={item.titulo || undefined}>{item.titulo || "(sem título)"}</p>
+                        <p
+                          className={cn(
+                            "font-medium truncate text-sm",
+                            (isItemTratado(item) || isItemRiscado(item)) && "line-through",
+                          )}
+                          title={item.titulo || undefined}
+                        >
+                          {item.titulo || "(sem título)"}
+                        </p>
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
@@ -502,9 +510,9 @@ export function EquipeItensAgenda({
                           Reclamante: {getReclamante(item)}
                         </p>
                       )}
-                      {getCliente(item) !== "-" && (
-                        <p className="text-xs text-muted-foreground truncate" title={getCliente(item)}>
-                          Cliente: {getCliente(item)}
+                      {item.processo_id && (
+                        <p className="text-xs text-muted-foreground truncate" title={getReclamada(item)}>
+                          Reclamada: {getReclamada(item)}
                         </p>
                       )}
                     </div>

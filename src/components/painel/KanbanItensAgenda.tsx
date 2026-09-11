@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
-import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
@@ -148,7 +148,14 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                     className="p-2 cursor-pointer hover:shadow-md transition-shadow bg-card"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-medium line-clamp-2 flex-1">{item.titulo || "(sem título)"}</p>
+                      <p
+                        className={cn(
+                          "text-xs font-medium line-clamp-2 flex-1",
+                          (isItemTratado(item) || isItemRiscado(item)) && "line-through",
+                        )}
+                      >
+                        {item.titulo || "(sem título)"}
+                      </p>
                       {temAtividade && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
@@ -158,14 +165,13 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         {item.processo.numero}
                       </p>
                     )}
-                    {(ativo || passivo) && (
+                    {(it.processo?.id || it.processo_id) && (
                       <p
-                        className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2"
-                        title={`${ativo}${ativo && passivo ? " x " : ""}${passivo}`}
+                        className="text-[10px] text-muted-foreground mt-0.5 space-y-0.5"
+                        title={`Reclamante: ${ativo || "—"}\nReclamada: ${passivo || "—"}`}
                       >
-                        {ativo && <span><strong>Ativo:</strong> {ativo}</span>}
-                        {ativo && passivo && <span> x </span>}
-                        {passivo && <span><strong>Passivo:</strong> {passivo}</span>}
+                        <span className="block line-clamp-1"><strong>Reclamante:</strong> {ativo || "—"}</span>
+                        <span className="block line-clamp-1"><strong>Reclamada:</strong> {passivo || "—"}</span>
                       </p>
                     )}
 
