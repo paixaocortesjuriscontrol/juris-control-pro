@@ -100,6 +100,8 @@ import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
+import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
+import { GitBranch } from "lucide-react";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -1287,6 +1289,7 @@ export default function PainelControle() {
   // ===== Exportação (Excel) com período e tipos selecionáveis =====
   const [exportOpen, setExportOpen] = useState(false);
   const [pessoasLoteOpen, setPessoasLoteOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
 
   const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
     const XLSX = await import("xlsx");
@@ -2256,8 +2259,27 @@ export default function PainelControle() {
                   <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("parcelamento"); }}>
                     <Coins className="w-4 h-4 mr-2" /> Parcelamento recorrente
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setWorkflowOpen(true)}>
+                    <GitBranch className="w-4 h-4 mr-2" /> Workflow
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+              <Dialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Iniciar Workflow</DialogTitle>
+                  </DialogHeader>
+                  {workflowOpen && (
+                    <IniciarWorkflowDialog
+                      inline
+                      onDone={async () => {
+                        await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+                        setWorkflowOpen(false);
+                      }}
+                    />
+                  )}
+                </DialogContent>
+              </Dialog>
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
