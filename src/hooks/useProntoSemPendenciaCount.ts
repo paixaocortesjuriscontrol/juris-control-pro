@@ -23,8 +23,17 @@ export function useProntoSemPendenciaCount(filters: DistribuicaoTstFilters) {
     const runId = ++runIdRef.current;
     setLoading(true);
     try {
+      // "Pronto sem pendência" só faz sentido para processos marcados como
+      // prontos. Sem esse recorte o marcador `sem_pendencia` também contava
+      // registros ainda pendentes e o total podia ficar MAIOR que "Pronto".
+      if (filters.status === "pendentes" || filters.status === "rascunho") {
+        setIds([]);
+        return;
+      }
+      const status = !filters.status || filters.status === "todos" ? "concluidos" : filters.status;
       const marcados = await fetchAllDistribuicaoTstIds({
         ...filters,
+        status,
         semPendencia: "sem",
       });
       if (runId !== runIdRef.current) return;

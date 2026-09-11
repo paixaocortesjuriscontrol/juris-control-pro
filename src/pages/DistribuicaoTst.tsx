@@ -2055,7 +2055,7 @@ export default function DistribuicaoTst() {
                   setSelectedIds(new Set());
                   setFiltroResponsavelIds([filterValue]);
                   setFiltroStatus(
-                    modo === "pronto" || modo === "comPend" || modo === "semMatDossie"
+                    modo === "pronto" || modo === "comPend" || modo === "semMatDossie" || modo === "semPend"
                       ? "concluidos"
                       : modo === "faltam"
                         ? "pendentes"
