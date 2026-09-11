@@ -295,7 +295,11 @@ export async function criarItemWorkflow(
       }
 
       case "AUDIENCIA": {
-        const dataAudienciaISO = formatarTimestampISOBrasilia(dataBaseStr, "12:00");
+        const horaAudiencia = txt("hora") || "12:00";
+        const dataAudienciaISO = formatarTimestampISOBrasilia(
+          dataCfg("data_audiencia") || dataBaseStr,
+          horaAudiencia
+        );
         const novaAudienciaId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
@@ -308,11 +312,19 @@ export async function criarItemWorkflow(
           titulo: etapa.titulo,
           tipo_audiencia: etapa.titulo,
           data_audiencia: dataAudienciaISO,
-          hora: "12:00",
-          hora_brasilia: "12:00",
-          observacoes: etapa.descricao || null,
+          hora: horaAudiencia,
+          hora_brasilia: horaAudiencia,
+          hora_fim: txt("hora_fim"),
+          modalidade: txt("modalidade"),
+          forum: txt("forum"),
+          sala_forum: txt("sala_forum"),
+          local_audiencia: txt("local_audiencia"),
+          vara_camara: txt("vara_camara"),
+          comarca: txt("comarca"),
+          observacoes: txt("observacoes") || etapa.descricao || null,
           origem: "workflow",
         } as any);
+
         if (error) throw error;
         const id =
           novaAudienciaId ||
