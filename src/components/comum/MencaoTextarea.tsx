@@ -52,9 +52,13 @@ export function ConteudoComMencoes({ texto, membros }: { texto: string; membros:
         typeof p === "string" ? (
           <span key={i}>{p}</span>
         ) : (
-          <span key={i} className="font-medium text-primary">
+          <span
+            key={i}
+            className="rounded bg-background px-1 font-medium text-foreground"
+          >
             {p.mencao}
           </span>
+
         )
       )}
     </>
