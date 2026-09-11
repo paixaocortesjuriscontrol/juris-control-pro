@@ -161,7 +161,8 @@ function ProcessoItemRow({
           className={cn(
             "text-[15px] font-medium leading-snug text-foreground",
             riscado && "line-through",
-            (concluido || cancelado) && "text-muted-foreground",
+            // Concluído mantém a cor original (apenas o risco); cancelado fica esmaecido.
+            cancelado && "text-muted-foreground",
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
