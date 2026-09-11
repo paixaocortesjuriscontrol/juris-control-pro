@@ -2264,22 +2264,6 @@ export default function PainelControle() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Dialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Iniciar Workflow</DialogTitle>
-                  </DialogHeader>
-                  {workflowOpen && (
-                    <IniciarWorkflowDialog
-                      inline
-                      onDone={async () => {
-                        await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-                        setWorkflowOpen(false);
-                      }}
-                    />
-                  )}
-                </DialogContent>
-              </Dialog>
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
