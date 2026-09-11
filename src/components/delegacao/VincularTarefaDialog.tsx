@@ -182,7 +182,7 @@ export function VincularTarefaDialog({
                         )}
                         <span className={cn(
                           "text-sm truncate",
-                          tarefa.status === "cumprido" && "line-through text-muted-foreground"
+                          tarefa.status === "cumprido" && "text-muted-foreground"
                         )}>
                           {tarefa.titulo}
                         </span>
