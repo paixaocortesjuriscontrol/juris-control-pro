@@ -1089,7 +1089,7 @@ const Processos = () => {
         <div className="bg-card border border-border/50 p-4 mb-4 animate-fade-in">
           <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
             <FolderOpen className="w-4 h-4 text-muted-foreground" />
-            Pastas do cliente ({pastasDoCliente.length})
+            Pastas encontradas ({pastasDoCliente.length})
           </h3>
           <div className="flex flex-wrap gap-2">
             {pastasDoCliente.map((pasta: any) => (
