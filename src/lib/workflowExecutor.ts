@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { format, addDays, addBusinessDays } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
+import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
+
 
 export type WorkflowItemType =
   | "PRAZO"
@@ -27,7 +29,9 @@ export const WORKFLOW_ITEM_SITUACAO_INICIAL: Record<WorkflowItemType, string> = 
 
 export interface WorkflowEtapa {
   id: string;
+  campos_item?: Record<string, any> | null;
   workflow_id: string;
+
   ordem: number;
   titulo: string;
   tipo_item: WorkflowItemType;
