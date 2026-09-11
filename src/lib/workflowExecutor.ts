@@ -339,19 +339,36 @@ export async function criarItemWorkflow(
       }
 
       case "EVENTO": {
-        const dataInicio = formatarTimestampISOBrasilia(dataBaseStr, "09:00");
+        const horaInicioEv = txt("hora_inicio");
+        const horaFimEv = txt("hora_fim");
+        const dataFimEvStr = dataCfg("data_fim");
+        const diaInteiro =
+          cfg.dia_inteiro !== undefined ? !!cfg.dia_inteiro : !horaInicioEv;
+        const dataInicio = formatarTimestampISOBrasilia(
+          dataCfg("data_inicio") || dataBaseStr,
+          horaInicioEv || "09:00"
+        );
         const { data, error } = await supabase
           .from("eventos_agenda")
           .insert({
             ...itemBase,
             titulo: etapa.titulo,
-            descricao: etapa.descricao || null,
+            descricao: txt("observacoes") || etapa.descricao || null,
             tipo: "evento",
             data_inicio: dataInicio,
-            data_fim: null,
-            dia_inteiro: true,
+            data_fim:
+              dataFimEvStr || horaFimEv
+                ? formatarTimestampISOBrasilia(
+                    dataFimEvStr || dataCfg("data_inicio") || dataBaseStr,
+                    horaFimEv || horaInicioEv || "09:00"
+                  )
+                : null,
+            dia_inteiro: diaInteiro,
+            local: txt("local"),
+            modalidade: txt("modalidade"),
             total_parcelas: null,
           } as any)
+
           .select("id")
           .single();
         if (error) throw error;
