@@ -442,8 +442,9 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                   <Select
                     value={form.tipo_item || "TAREFA"}
                     onValueChange={(v) =>
-                      setForm({ ...form, tipo_item: v as WorkflowItemType })
+                      setForm({ ...form, tipo_item: v as WorkflowItemType, campos_item: {} })
                     }
+
                   >
                     <SelectTrigger id="tipo">
                       <SelectValue />
