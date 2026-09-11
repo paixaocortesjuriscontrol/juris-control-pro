@@ -937,7 +937,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           }
 
           // Verificar se o processo já existe no banco
-          const processoId = pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null;
+          const processoId = pub.processo_numero ? processosExistentesMap[toDigitsFb(pub.processo_numero)] || null : null;
 
           resultados.push({
             id: pub.id,
