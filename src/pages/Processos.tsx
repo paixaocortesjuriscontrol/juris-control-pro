@@ -229,28 +229,6 @@ const Processos = () => {
     return undefined;
   }, [grupoClientesParam, selectedGrupoId, selectedClienteId, clientesDoGrupo, isLoadingClientesDoGrupo, clienteFilter]);
 
-  // Pastas localizadas pelo cliente filtrado ou pelo texto da pesquisa
-  const termoBuscaPastas = debouncedSearch?.trim() || "";
-  const { data: pastasDoCliente = [] } = useQuery({
-    queryKey: ["pastas_do_cliente_filtro", JSON.stringify(clienteIds), termoBuscaPastas],
-    enabled:
-      (!!clienteIds && clienteIds.length > 0 && clienteIds[0] !== "no-clients-in-group") ||
-      termoBuscaPastas.length >= 3,
-    queryFn: async () => {
-      let query = supabase
-        .from("pastas")
-        .select("id, nome, descricao, status, cliente_id, clientes(nome)");
-      if (clienteIds && clienteIds.length > 0 && clienteIds[0] !== "no-clients-in-group") {
-        query = query.in("cliente_id", clienteIds);
-      } else if (termoBuscaPastas.length >= 3) {
-        query = query.ilike("nome", `%${termoBuscaPastas}%`);
-      }
-      const { data, error } = await query.order("nome").limit(20);
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
   // Nome do grupo para exibição
   const grupoNome = grupoNomeParam || (selectedGrupoId !== "all" ? grupos.find(g => g.id === selectedGrupoId)?.nome : undefined);
   
