@@ -10921,6 +10921,13 @@ export type Database = {
           total: number
         }[]
       }
+      get_monitoramento_counts: {
+        Args: never
+        Returns: {
+          divergencias: number
+          movimentacoes: number
+        }[]
+      }
       get_notificacoes_counts_by_coordenacao: {
         Args: {
           p_coordenacao_ids: string[]
