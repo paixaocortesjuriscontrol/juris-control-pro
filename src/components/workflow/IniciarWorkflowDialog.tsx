@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,13 @@ export function IniciarWorkflowDialog({
   const [open, setOpen] = useState(!!inline);
   const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || unicaCoordenacaoId || "");
+
+  // Coordenação única chega de forma assíncrona: vincula automaticamente quando carregar
+  useEffect(() => {
+    if (!preSelectedProcesso && unicaCoordenacaoId) {
+      setCoordenacaoId((atual) => atual || unicaCoordenacaoId);
+    }
+  }, [unicaCoordenacaoId, preSelectedProcesso]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(initialWorkflowId || "");
   const [search, setSearch] = useState("");
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
