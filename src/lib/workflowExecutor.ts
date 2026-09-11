@@ -189,6 +189,18 @@ export async function criarItemWorkflow(
 
 
   const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
+
+  // Campos específicos configurados na etapa (mesmos campos do formulário do tipo)
+  const cfg = lerCamposEtapa(etapa, tipo);
+  const dataCfg = (key: string): string | null => {
+    const d = resolverDataEtapa(cfg[key], dataReferencia);
+    return d ? formatarDataISOBrasilia(d) : null;
+  };
+  const txt = (key: string): string | null => {
+    const v = cfg[key];
+    return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
+  };
+
   const itemBase: Record<string, any> = {
     coordenacao_id: execucao.coordenacao_id,
     criado_por: userId,
