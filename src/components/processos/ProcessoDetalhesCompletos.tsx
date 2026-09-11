@@ -354,7 +354,7 @@ export function ProcessoDetalhesCompletos({
   };
   const seriesEventos = useMemo(
     () =>
-      mesclarLinhasRepetidas<any>(
+      pendentesPrimeiro(mesclarLinhasRepetidas<any>(
         agruparSerieRecorrente<any>(eventosDoProcesso, {
           dataBase: (e) => e.data_inicio,
           regra: (e) =>
@@ -467,8 +467,22 @@ export function ProcessoDetalhesCompletos({
       }
     );
 
-  const seriesTarefas = useMemo(() => agruparTarefas(tarefasSemPrazo), [JSON.stringify(tarefasSemPrazo)]);
-  const seriesPrazos = useMemo(() => agruparTarefas(prazosDoProcesso), [JSON.stringify(prazosDoProcesso)]);
+  // Pendentes sempre no início da lista (concluídos/cumpridos/cancelados vão para o fim).
+  const ehPendenteItem = (t: any) => {
+    const st = String(t?.status ?? "pendente").toLowerCase();
+    return !["cumprido", "concluido", "verificado", "protocolado", "baixado", "cancelado", "cancelada"].includes(st);
+  };
+  const pendentesPrimeiro = <T extends { principal: any }>(linhas: T[]) =>
+    [...linhas].sort((a, b) => Number(!ehPendenteItem(a.principal)) - Number(!ehPendenteItem(b.principal)));
+
+  const seriesTarefas = useMemo(
+    () => pendentesPrimeiro(agruparTarefas(tarefasSemPrazo)),
+    [JSON.stringify(tarefasSemPrazo)]
+  );
+  const seriesPrazos = useMemo(
+    () => pendentesPrimeiro(agruparTarefas(prazosDoProcesso)),
+    [JSON.stringify(prazosDoProcesso)]
+  );
 
 
   // Contagem de atividades (subatividades) vinculadas aos itens do processo,
