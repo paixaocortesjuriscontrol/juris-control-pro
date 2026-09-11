@@ -354,7 +354,7 @@ export function ProcessoDetalhesCompletos({
   };
   const seriesEventos = useMemo(
     () =>
-      mesclarLinhasRepetidas<any>(
+      pendentesPrimeiro(mesclarLinhasRepetidas<any>(
         agruparSerieRecorrente<any>(eventosDoProcesso, {
           dataBase: (e) => e.data_inicio,
           regra: (e) =>
@@ -382,7 +382,7 @@ export function ProcessoDetalhesCompletos({
         (a, b) =>
           new Date(a.principal.data_inicio || 0).getTime() -
           new Date(b.principal.data_inicio || 0).getTime()
-      ),
+      )),
     [eventosDoProcesso]
   );
 
@@ -467,8 +467,23 @@ export function ProcessoDetalhesCompletos({
       }
     );
 
-  const seriesTarefas = useMemo(() => agruparTarefas(tarefasSemPrazo), [JSON.stringify(tarefasSemPrazo)]);
-  const seriesPrazos = useMemo(() => agruparTarefas(prazosDoProcesso), [JSON.stringify(prazosDoProcesso)]);
+  // Pendentes sempre no início da lista (concluídos/cumpridos/cancelados vão para o fim).
+  function ehPendenteItem(t: any) {
+    const st = String(t?.status ?? "pendente").toLowerCase();
+    return !["cumprido", "concluido", "verificado", "protocolado", "baixado", "cancelado", "cancelada"].includes(st);
+  }
+  function pendentesPrimeiro<T extends { principal: any }>(linhas: T[]) {
+    return [...linhas].sort((a, b) => Number(!ehPendenteItem(a.principal)) - Number(!ehPendenteItem(b.principal)));
+  }
+
+  const seriesTarefas = useMemo(
+    () => pendentesPrimeiro(agruparTarefas(tarefasSemPrazo)),
+    [JSON.stringify(tarefasSemPrazo)]
+  );
+  const seriesPrazos = useMemo(
+    () => pendentesPrimeiro(agruparTarefas(prazosDoProcesso)),
+    [JSON.stringify(prazosDoProcesso)]
+  );
 
 
   // Contagem de atividades (subatividades) vinculadas aos itens do processo,
@@ -1495,12 +1510,12 @@ export function ProcessoDetalhesCompletos({
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium">{tarefa.titulo}</p>
-                                    {tarefa.descricao && (
-                                      <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
-                                    )}
-                                    {(tarefa.processo?.numero || processo?.numero) && (
+                                   <div className="flex-1 space-y-1">
+                                     <p className={cn("text-sm font-medium", !ehPendenteItem(tarefa) && "line-through")}>{tarefa.titulo}</p>
+                                     {tarefa.descricao && (
+                                       <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
+                                     )}
+                                     {(tarefa.processo?.numero || processo?.numero) && (
                                       <p className="text-[11px] font-mono text-muted-foreground">
                                         Processo: {tarefa.processo?.numero || processo?.numero}
                                       </p>
@@ -1712,12 +1727,12 @@ export function ProcessoDetalhesCompletos({
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
-                                  <div className="flex-1 space-y-1">
-                                    <p className="text-sm font-medium">{tarefa.titulo}</p>
-                                    {tarefa.descricao && (
-                                      <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
-                                    )}
-                                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                   <div className="flex-1 space-y-1">
+                                     <p className={cn("text-sm font-medium", !ehPendenteItem(tarefa) && "line-through")}>{tarefa.titulo}</p>
+                                     {tarefa.descricao && (
+                                       <p className="text-xs text-muted-foreground line-clamp-1">{tarefa.descricao}</p>
+                                     )}
+                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       {tarefa.data_vencimento && (
                                         <span className="flex items-center gap-1">
                                           <Calendar className="h-3 w-3" />

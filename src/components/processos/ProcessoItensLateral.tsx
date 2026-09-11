@@ -161,7 +161,8 @@ function ProcessoItemRow({
           className={cn(
             "text-[15px] font-medium leading-snug text-foreground",
             riscado && "line-through",
-            (concluido || cancelado) && "text-muted-foreground",
+            // Concluído mantém a cor original (apenas o risco); cancelado fica esmaecido.
+            cancelado && "text-muted-foreground",
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}
@@ -417,8 +418,16 @@ export function ProcessoItensLateral({
         }
       }
 
-      // Do mais novo para o mais antigo (itens sem data no final)
+      // Pendentes sempre no início; dentro de cada grupo, do mais novo
+      // para o mais antigo (itens sem data no final).
+      const pendenteLocal = (i: any) => {
+        const st = String(i.status ?? "").toLowerCase();
+        return !isItemTratado(i) && !["cancelado", "cancelada", "cancelado_oculto"].includes(st);
+      };
       return lista.sort((x, y) => {
+        const px = pendenteLocal(x) ? 0 : 1;
+        const py = pendenteLocal(y) ? 0 : 1;
+        if (px !== py) return px - py;
         const dx = soData(x.data_inicio);
         const dy = soData(y.data_inicio);
         if (!dx && !dy) return 0;
