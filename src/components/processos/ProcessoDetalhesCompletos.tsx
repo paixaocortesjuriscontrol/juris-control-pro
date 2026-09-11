@@ -468,12 +468,13 @@ export function ProcessoDetalhesCompletos({
     );
 
   // Pendentes sempre no início da lista (concluídos/cumpridos/cancelados vão para o fim).
-  const ehPendenteItem = (t: any) => {
+  function ehPendenteItem(t: any) {
     const st = String(t?.status ?? "pendente").toLowerCase();
     return !["cumprido", "concluido", "verificado", "protocolado", "baixado", "cancelado", "cancelada"].includes(st);
-  };
-  const pendentesPrimeiro = <T extends { principal: any }>(linhas: T[]) =>
-    [...linhas].sort((a, b) => Number(!ehPendenteItem(a.principal)) - Number(!ehPendenteItem(b.principal)));
+  }
+  function pendentesPrimeiro<T extends { principal: any }>(linhas: T[]) {
+    return [...linhas].sort((a, b) => Number(!ehPendenteItem(a.principal)) - Number(!ehPendenteItem(b.principal)));
+  }
 
   const seriesTarefas = useMemo(
     () => pendentesPrimeiro(agruparTarefas(tarefasSemPrazo)),
