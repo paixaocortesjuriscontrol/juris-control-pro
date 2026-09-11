@@ -382,7 +382,7 @@ export function ProcessoDetalhesCompletos({
         (a, b) =>
           new Date(a.principal.data_inicio || 0).getTime() -
           new Date(b.principal.data_inicio || 0).getTime()
-      ),
+      )),
     [eventosDoProcesso]
   );
 
