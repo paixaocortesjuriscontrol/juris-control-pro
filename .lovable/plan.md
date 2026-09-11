@@ -1,36 +1,21 @@
-# Reclamação da Jéssica sobre o Workflow "ACÓRDÃO - EDS"
+# Corrigir "processo não cadastrado" na Análise DJEN
 
-## O que os registros mostram
+## O que está acontecendo
 
-A reclamação não procede como falha do sistema. O fluxo criou exatamente a etapa que estava cadastrada no momento do uso.
+O processo 0000044-80.2026.5.10.0009 está cadastrado no sistema (área Trabalhista, criado em 02/08/2026), mas na tela Análise DJEN algumas publicações dele aparecem como não cadastradas, com o botão de importar.
 
-Linha do tempo real do fluxo "ACÓRDÃO - EDS OU RR?":
+Causa confirmada: as publicações do DJEN guardam o número só com números (00000448020265100009), enquanto o cadastro do processo guarda com pontos e traço (0000044-80.2026.5.10.0009). Em um dos caminhos de carregamento da lista, a comparação é feita letra por letra, sem ignorar essa diferença de formatação — então o sistema não encontra o processo e oferece importar. No outro caminho a comparação já ignora a formatação, o que explica por que umas publicações do mesmo processo mostram "Processo Cadastrado" e outras não.
 
-```text
-03/09 20:03  fluxo criado com UMA única etapa, chamada "ACÓRDÃO - RR"
-08/09 11:04  fluxo iniciado -> criou o prazo "ACÓRDÃO - RR" (16/09)
-08/09 19:20  fluxo iniciado de novo -> criou outro prazo "ACÓRDÃO - RR"
-11/09 11:41  fluxo iniciado pela publicação -> criou o prazo "ACÓRDÃO - RR"
-11/09 11:46  a etapa 1 foi RENOMEADA para "ACÓRDÃO - EDS"
-11/09 11:47  a etapa 2 "ACÓRDÃO - RR" foi criada
-```
+## O que será feito
 
-Ou seja: no dia 8 o fluxo ainda não tinha a etapa "ACÓRDÃO - EDS". A primeira e única etapa se chamava "ACÓRDÃO - RR", e foi ela que o sistema agendou. A segunda etapa só passou a existir hoje, minutos depois do último teste.
+- Igualar a comparação nos dois caminhos de carregamento da lista, sempre desprezando pontos, traços e barras do número.
+- Assim, qualquer publicação de um processo já cadastrado passa a exibir "Processo Cadastrado", com o atalho para abrir o processo, e deixa de oferecer importação duplicada.
+- Nenhum dado é alterado no banco: é só a forma de comparar.
 
-Dois pontos secundários confirmados nos registros:
+## Detalhes técnicos
 
-- Os usos de 08/09 não partiram de publicação nenhuma (não há publicação de origem gravada) e ficaram sem processo vinculado. O uso de hoje, 11/09, sim partiu da publicação e já veio com o processo vinculado.
-- Renomear uma etapa não muda os prazos já criados antes: eles continuam com o título antigo.
-
-## O que fazer
-
-1. Responder à Jéssica explicando a linha do tempo: agora que o fluxo tem as duas etapas (ACÓRDÃO - EDS e depois ACÓRDÃO - RR), iniciar pela publicação vai criar primeiro o ACÓRDÃO - EDS, e o ACÓRDÃO - RR nasce quando o primeiro for concluído com sucesso.
-2. Pedir que ela repita o teste em uma publicação para confirmar.
-
-## Melhorias opcionais para evitar a confusão
-
-Só implemento se você aprovar; nenhuma é necessária para o fluxo funcionar.
-
-- Ao iniciar um fluxo, mostrar na confirmação a lista das etapas ("1. ACÓRDÃO - EDS -> 2. ACÓRDÃO - RR") e qual delas será criada agora, para a pessoa perceber na hora se o fluxo está incompleto.
-- Avisar quando o fluxo tiver apenas uma etapa, já que nesse caso não existe "próximo passo" para nascer depois.
-- Limpar/cancelar as três execuções antigas de 03/09 e 08/09 que ficaram penduradas em andamento com o título antigo.
+- Arquivo: `src/hooks/usePublicacoesDjenUnificadas.ts`.
+- No caminho de fallback (queries diretas, ~linhas 975-1020): hoje monta `processosExistentesMap` com a chave `p.numero` literal e resolve com `processosExistentesMap[pub.processo_numero]`.
+- Ajuste: gerar os candidatos com `raw`, dígitos e `formatarCnjPorDigitos(digits)` no `.in('numero', ...)`, indexar o mapa por dígitos e resolver `processo_id` pelos dígitos de `pub.processo_numero` — mesmo padrão já usado no caminho da RPC (`resolveProcessoIdsPromise`, ~linhas 737-765).
+- Aplicar o mesmo ajuste em `src/hooks/usePublicacoesDjenServidorUnificadas.ts` se ele repetir a comparação literal.
+- Depois, validar com o processo 0000044-80.2026.5.10.0009 que as publicações de 11/09 e 14/09 mostram o mesmo selo.
