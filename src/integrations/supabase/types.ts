@@ -9975,6 +9975,7 @@ export type Database = {
       }
       workflow_etapas: {
         Row: {
+          campos_item: Json
           condicao: string
           created_at: string
           descricao: string | null
@@ -9994,6 +9995,7 @@ export type Database = {
           workflow_id: string
         }
         Insert: {
+          campos_item?: Json
           condicao?: string
           created_at?: string
           descricao?: string | null
@@ -10013,6 +10015,7 @@ export type Database = {
           workflow_id: string
         }
         Update: {
+          campos_item?: Json
           condicao?: string
           created_at?: string
           descricao?: string | null
