@@ -894,10 +894,19 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           }
         });
 
-        // Buscar IDs dos processos que já existem no banco
+        // Buscar IDs dos processos que já existem no banco.
+        // Comparar por DÍGITOS: publicações guardam sem máscara e
+        // processos.numero guarda com máscara.
+        const toDigitsFb = (n: string) => (n || '').replace(/\D/g, '');
         let processosExistentesMap: Record<string, string> = {};
         if (numerosProcessosTermo.length > 0) {
-          const uniqueNumeros = [...new Set(numerosProcessosTermo)];
+          const uniqueNumeros = [...new Set(
+            numerosProcessosTermo.flatMap((raw) => {
+              const digits = toDigitsFb(raw);
+              const formatted = formatarCnjPorDigitos(digits);
+              return [raw, digits, formatted].filter(Boolean) as string[];
+            })
+          )];
           const { data: processosExistentes } = await supabase
             .from('processos')
             .select('id, numero')
@@ -905,7 +914,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             .abortSignal(signal);
           
           (processosExistentes || []).forEach((p: any) => {
-            processosExistentesMap[p.numero] = p.id;
+            processosExistentesMap[toDigitsFb(p.numero)] = p.id;
           });
         }
 
@@ -928,7 +937,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           }
 
           // Verificar se o processo já existe no banco
-          const processoId = pub.processo_numero ? processosExistentesMap[pub.processo_numero] || null : null;
+          const processoId = pub.processo_numero ? processosExistentesMap[toDigitsFb(pub.processo_numero)] || null : null;
 
           resultados.push({
             id: pub.id,
