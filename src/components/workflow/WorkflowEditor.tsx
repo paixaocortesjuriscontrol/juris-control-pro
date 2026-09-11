@@ -247,6 +247,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       responsavel_id: null,
       responsaveis: [] as string[],
       atividades: [] as WorkflowEtapaAtividade[],
+      campos_item: {} as Record<string, any>,
+
     });
     setEditing(null);
   };
@@ -299,6 +301,8 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
       dias_fatal: etapa.dias_fatal ?? null,
       responsaveis: respMap[etapa.id] || (etapa.responsavel_id ? [etapa.responsavel_id] : []),
       atividades: (atividadesMap[etapa.id] || []).map((a) => ({ ...a })),
+      campos_item: { ...(((etapa as any).campos_item as Record<string, any>) || {}) },
+
     });
     setDialogOpen(true);
   };
