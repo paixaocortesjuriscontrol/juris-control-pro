@@ -59,3 +59,8 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Workflow no Painel de Controle
 - [x] Botão Adicionar > Workflow abrindo IniciarWorkflowDialog
 - [x] Coordenação única pré-selecionada (sem escolha); admin escolhe qualquer
+
+## Etapas dos workflows (11/09)
+- [x] Nova etapa e edição em painel lateral direito sobreposto
+- [x] Campos próprios de prazo, tarefa, evento, audiência e parcelamento
+- [x] Datas, recorrências, alertas e parcelas mensais alinhados aos cadastros normais
