@@ -15,7 +15,7 @@ export const SEM_RESPONSAVEL_ID = "00000000-0000-0000-0000-000000000000";
  * entram na chave `SEM_RESPONSAVEL_ID`.
  */
 export function useProntoSemPendenciaPorResponsavel(filters: DistribuicaoTstFilters) {
-  const { ids, loading: idsLoading } = useProntoSemPendenciaCount(filters);
+  const { ids, loading: idsLoading, refetch } = useProntoSemPendenciaCount(filters);
   const [map, setMap] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const idsKey = ids.join(",");
@@ -58,5 +58,5 @@ export function useProntoSemPendenciaPorResponsavel(filters: DistribuicaoTstFilt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsKey]);
 
-  return { map, loading: loading || idsLoading };
+  return { map, loading: loading || idsLoading, refetch };
 }

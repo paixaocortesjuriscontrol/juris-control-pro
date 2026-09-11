@@ -298,21 +298,6 @@ export default function DistribuicaoTst() {
   const [selecionarQtdLoading, setSelecionarQtdLoading] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-  // ID do registro recém-editado/salvo. Mantém ele visível (sticky) na lista
-  // mesmo se ele não bater mais com os filtros, e destaca a linha por alguns
-  // segundos para que a advogada localize o que mudou.
-  const [stickyId, setStickyId] = useState<string | null>(null);
-  const [highlightUntil, setHighlightUntil] = useState<number>(0);
-  useEffect(() => {
-    if (!stickyId) return;
-    const t = window.setTimeout(() => {
-      setHighlightUntil(0);
-      // Mantém o sticky até a próxima ação do usuário (mudança de filtro/página),
-      // mas tira o destaque visual após 8s para não poluir.
-    }, 8000);
-    return () => window.clearTimeout(t);
-  }, [stickyId]);
-
   // Filters
   const [filtroAba, setFiltroAba] = useState<string>("todas");
   const [filtroBenner, setFiltroBenner] = useState<string>("todos");
@@ -528,7 +513,7 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
-  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters, stickyId);
+  const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters);
 
   // "Outra Matéria" é neutra: não gera alerta, pendência nem rejeição.
 
@@ -607,12 +592,13 @@ export default function DistribuicaoTst() {
   // Todos os membros da coordenação TST — devem aparecer sempre nos cards,
   // mesmo com zero processos atribuídos.
   const { profiles: membrosCoordenacaoTst } = useProfilesBasic(COORDENACAO_TST_ID);
-  const { map: semPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
+  const { map: semPendenciaPorResp, refetch: refetchSemPendenciaPorResp } = useProntoSemPendenciaPorResponsavel(countsFilters);
   const {
     map: semMateriaDossiePorResp,
     idsPorUsuario: semMateriaDossieIdsPorResp,
     // Total do card "Revisar Lista de matérias" (lido da coluna no banco).
     ids: revisarListaMateriasIds,
+    refetch: refetchMateriasPorResponsavel,
   } = useSemMateriaDossiePorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
@@ -644,13 +630,6 @@ export default function DistribuicaoTst() {
     }
   }, [user?.id, responsavelCounts]);
 
-  // Limpa o sticky se o usuário mexer em filtros, página ou recarregar.
-  // (Mantemos o sticky apenas para o fluxo "salvou e voltou".)
-  useEffect(() => {
-    setStickyId(null);
-    setHighlightUntil(0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), page]);
   const { stats, loading: statsLoading, refetch: refetchStats } = useDistribuicaoTstStats(listFilters);
 
   // Todos os cards (incluindo Total Geral, Prontos para Enviar e A fazer)
@@ -932,6 +911,8 @@ export default function DistribuicaoTst() {
       Promise.resolve(refetchStats()),
       Promise.resolve(refetchResponsavelCounts()),
       Promise.resolve(refetchProntoSemPendencia()),
+      Promise.resolve(refetchSemPendenciaPorResp()),
+      Promise.resolve(refetchMateriasPorResponsavel()),
     ]);
   };
 
@@ -1850,16 +1831,11 @@ export default function DistribuicaoTst() {
             onSaveDistribuicao={async (d, id) => {
               const targetId = id || editando?.id || undefined;
               const result = await saveDado(d, targetId);
-              if (result) refetchProntoSemPendencia();
-              const savedId = typeof result === "string" ? result : (targetId || null);
-              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
             }}
             onSaveBenner={async (d, id) => {
               const targetId = id || editando?.id || undefined;
               const result = await handleSaveBenner(d, targetId);
-              const savedId = typeof result === "string" ? result : (targetId || null);
-              if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
             }}
             onSaved={handleRefresh}
