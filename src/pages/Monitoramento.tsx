@@ -205,32 +205,41 @@ export default function Monitoramento() {
     staleTime: 30_000,
     refetchInterval: 120_000,
     queryFn: async () => {
-      if (!semRestricao && processoIds.length === 0) return [] as Evento[];
-
-      let q = supabase
-        .from("acompanhamento_especial_eventos")
-        .select(
-          "id, processo_id, step_date, criado_em, conteudo, instancia, tribunal, anexos_count, lido_em, retroativo, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
-        )
-        .order("criado_em", { ascending: false })
-        .limit(2000);
-
-      // Filtro de não lidas aplicado no banco: garante que registros antigos
-      // não lidos apareçam mesmo com "Todo o período" (evita corte pelo limite).
-      if (somenteNaoLidas) q = q.is("lido_em", null);
-
+      let desde: string | null = null;
+      let ate: string | null = null;
       if (!dataInicial && !dataFinal && periodo !== "todos") {
-        const desde = new Date(Date.now() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString();
-        q = q.gte("criado_em", desde);
+        desde = new Date(Date.now() - Number(periodo) * 24 * 60 * 60 * 1000).toISOString();
       }
-      if (dataInicial) q = q.gte("criado_em", `${dataInicial}T00:00:00-03:00`);
-      if (dataFinal) q = q.lte("criado_em", `${dataFinal}T23:59:59.999-03:00`);
-      if (!semRestricao) q = q.in("processo_id", processoIds);
+      if (dataInicial) desde = `${dataInicial}T00:00:00-03:00`;
+      if (dataFinal) ate = `${dataFinal}T23:59:59.999-03:00`;
 
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("get_acomp_especial_eventos", {
+        _somente_nao_lidas: somenteNaoLidas,
+        _desde: desde,
+        _ate: ate,
+        _limit: 2000,
+      });
       if (error) throw error;
-      return (data ?? []) as unknown as Evento[];
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        processo_id: r.processo_id,
+        step_date: r.step_date,
+        criado_em: r.criado_em,
+        conteudo: r.conteudo,
+        instancia: r.instancia,
+        tribunal: r.tribunal,
+        anexos_count: r.anexos_count,
+        lido_em: r.lido_em,
+        retroativo: r.retroativo,
+        processo: {
+          numero: r.numero,
+          polo_ativo: r.polo_ativo,
+          polo_passivo: r.polo_passivo,
+          coordenacao_id: r.coordenacao_id,
+        },
+      })) as unknown as Evento[];
     },
+
   });
 
   const {
@@ -251,30 +260,38 @@ export default function Monitoramento() {
     staleTime: 30_000,
     refetchInterval: 120_000,
     queryFn: async () => {
-      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
-
-      let q = supabase
-        .from("acompanhamento_especial_divergencias")
-        .select(
-          "id, processo_id, campo, valor_atual, valor_judit, detectado_em, resolvido_em, processo:processos(numero, polo_ativo, polo_passivo, coordenacao_id)"
-        )
-        .order("detectado_em", { ascending: false })
-        .limit(2000);
-
-      if (somentePendentes) q = q.is("resolvido_em", null);
-
+      let desde: string | null = null;
+      let ate: string | null = null;
       if (!dataInicialDiv && !dataFinalDiv && periodoDiv !== "todos") {
-        const desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
-        q = q.gte("detectado_em", desde);
+        desde = new Date(Date.now() - Number(periodoDiv) * 24 * 60 * 60 * 1000).toISOString();
       }
-      if (dataInicialDiv) q = q.gte("detectado_em", `${dataInicialDiv}T00:00:00-03:00`);
-      if (dataFinalDiv) q = q.lte("detectado_em", `${dataFinalDiv}T23:59:59.999-03:00`);
-      if (!semRestricao) q = q.in("processo_id", processoIds);
+      if (dataInicialDiv) desde = `${dataInicialDiv}T00:00:00-03:00`;
+      if (dataFinalDiv) ate = `${dataFinalDiv}T23:59:59.999-03:00`;
 
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("get_acomp_especial_divergencias", {
+        _somente_pendentes: somentePendentes,
+        _desde: desde,
+        _ate: ate,
+        _limit: 2000,
+      });
       if (error) throw error;
-      return (data ?? []) as unknown as Divergencia[];
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        processo_id: r.processo_id,
+        campo: r.campo,
+        valor_atual: r.valor_atual,
+        valor_judit: r.valor_judit,
+        detectado_em: r.detectado_em,
+        resolvido_em: r.resolvido_em,
+        processo: {
+          numero: r.numero,
+          polo_ativo: r.polo_ativo,
+          polo_passivo: r.polo_passivo,
+          coordenacao_id: r.coordenacao_id,
+        },
+      })) as unknown as Divergencia[];
     },
+
   });
 
 

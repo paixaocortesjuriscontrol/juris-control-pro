@@ -63,19 +63,26 @@ export function AcompanhamentoEspecialDivergencias() {
     queryKey: ["acomp-especial-divergencias", filtro, semRestricao ? "all" : processoIds.join(",")],
     enabled: !escopoLoading,
     queryFn: async () => {
-      if (!semRestricao && processoIds.length === 0) return [] as Divergencia[];
-      let q = supabase
-        .from("acompanhamento_especial_divergencias")
-        .select("id, processo_id, processo_numero, campo, valor_atual, valor_judit, detectado_em, resolvido_em")
-        .order("detectado_em", { ascending: false })
-        .limit(300);
-      if (filtro === "pendentes") q = q.is("resolvido_em", null);
-      if (!semRestricao) q = q.in("processo_id", processoIds);
-      const { data, error } = await q;
+      const { data, error } = await supabase.rpc("get_acomp_especial_divergencias", {
+        _somente_pendentes: filtro === "pendentes",
+        _desde: null,
+        _ate: null,
+        _limit: 300,
+      });
       if (error) throw error;
-      return (data ?? []) as Divergencia[];
+      return ((data ?? []) as any[]).map((r) => ({
+        id: r.id,
+        processo_id: r.processo_id,
+        processo_numero: r.processo_numero ?? r.numero ?? null,
+        campo: r.campo,
+        valor_atual: r.valor_atual,
+        valor_judit: r.valor_judit,
+        detectado_em: r.detectado_em,
+        resolvido_em: r.resolvido_em,
+      })) as Divergencia[];
     },
   });
+
 
   const marcarCiente = async (id: string) => {
     setResolvendo(id);
