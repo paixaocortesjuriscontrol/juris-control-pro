@@ -381,11 +381,20 @@ export async function criarItemWorkflow(
       }
 
       case "PARCELAMENTO": {
-        const dataInicio = formatarTimestampISOBrasilia(dataBaseStr, "09:00");
-        const totalParcelas = (etapa as any).total_parcelas || 12;
-        const intervalo = (etapa as any).intervalo_parcelas || "mensal";
+        const primeiraParcelaStr = dataCfg("dataVencimento") || dataBaseStr;
+        const dataInicio = formatarTimestampISOBrasilia(
+          primeiraParcelaStr,
+          txt("hora_alerta") || "09:00"
+        );
+        const totalParcelas =
+          parseInt(String(cfg.totalParcelas ?? "")) || (etapa as any).total_parcelas || 12;
+        const intervalo =
+          txt("intervalo") || (etapa as any).intervalo_parcelas || "mensal";
         const intervaloDias =
-          intervalo === "semanal" ? 7 : intervalo === "quinzenal" ? 15 : 30;
+          intervalo === "semanal" ? 7 : intervalo === "quinzenal" ? 15 : intervalo === "anual" ? 365 : 30;
+        const valorParcela = txt("valorPadrao")
+          ? parseFloat(String(txt("valorPadrao")).replace(/\./g, "").replace(",", ".")) || null
+          : null;
         const { data: evento, error } = await supabase
           .from("eventos_agenda")
           .insert({
@@ -396,6 +405,7 @@ export async function criarItemWorkflow(
             data_inicio: dataInicio,
             dia_inteiro: true,
             total_parcelas: totalParcelas,
+            valor_parcela: valorParcela,
             recorrente: true,
           } as any)
           .select("id")
@@ -406,13 +416,16 @@ export async function criarItemWorkflow(
             .from("participantes_evento")
             .insert(todosResponsaveis.map((u) => ({ evento_id: evento.id, usuario_id: u })));
         }
+        const baseParcelas = new Date(`${primeiraParcelaStr}T12:00:00`);
         const parcelas = Array.from({ length: totalParcelas }, (_, i) => ({
           evento_id: evento.id,
           numero: i + 1,
-          data_vencimento: formatarDataISOBrasilia(addDays(dataBase, i * intervaloDias)),
+          data_vencimento: formatarDataISOBrasilia(addDays(baseParcelas, i * intervaloDias)),
+          valor: valorParcela,
           status: "pendente",
         }));
-        await supabase.from("parcelas_evento").insert(parcelas);
+        await supabase.from("parcelas_evento").insert(parcelas as any);
+
         return await finalizar({ id: evento.id, tipo });
       }
 
