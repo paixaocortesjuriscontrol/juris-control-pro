@@ -35,6 +35,8 @@ interface Props {
   onSaveDistribuicao: (dado: DistribuicaoTstInsert, id?: string) => Promise<boolean | string>;
   onSaveBenner: (dado: DadoBennerInsert, id?: string) => Promise<boolean | string>;
   onClose: () => void;
+  /** Atualiza a lista após um salvamento explícito, antes de voltar para ela. */
+  onSaved?: () => void | Promise<void>;
   /** Disparado após auto-save do botão Judit para que o parent recarregue
    *  a referência de `dado` e mantenha o destaque verde após sair/voltar.
    *  Quando o auto-save criou um novo registro, recebe o `newId` para que o
@@ -55,7 +57,7 @@ const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null =
  *
  * Evita que o usuário precise voltar à lista para alternar entre as visões.
  */
-export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onAfterJuditSync }: Props) {
+export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onSaved, onAfterJuditSync }: Props) {
   const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
   const processoNumero = currentDado?.processo_numero || "";
   const [processoIdUnico, setProcessoIdUnico] = useState<string | null>((currentDado as any)?.processo_id || null);
@@ -513,7 +515,12 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
         <aside className="lg:w-60 lg:shrink-0 lg:sticky lg:top-2 self-start space-y-4">
           <Button
             className="w-full"
-            onClick={() => handleSaveTop()}
+            onClick={async () => {
+              const saved = await handleSaveTop();
+              if (!saved) return;
+              await onSaved?.();
+              onClose();
+            }}
             disabled={savingTop}
           >
             {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}

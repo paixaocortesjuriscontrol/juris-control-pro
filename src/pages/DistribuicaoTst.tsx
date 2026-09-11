@@ -1862,6 +1862,7 @@ export default function DistribuicaoTst() {
               if (savedId) { setStickyId(savedId); setHighlightUntil(Date.now() + 8000); }
               return result;
             }}
+            onSaved={handleRefresh}
             onAfterJuditSync={async (newId?: string) => {
               // Após o auto-save do botão Judit, recarrega o registro atual
               // do banco e atualiza `editando` para que `judit_preenchido=true`
