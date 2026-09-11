@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.0.3";
+export const APP_VERSION = "7.0.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -65,4 +65,5 @@ export const VERSION_HISTORY = [
   { version: "7.0.1", date: "2026-09-08", notes: "Painel de Controle: busca refinada, filtro de comentários, balão 'Importante' vermelho e comentário obrigatório respeitando a configuração da coordenação" },
   { version: "7.0.2", date: "2026-09-10", notes: "Exclusão de cliente desvinculando processos/casos/pastas com auditoria de quem excluiu" },
   { version: "7.0.3", date: "2026-09-10", notes: "Distribuição TST: remover matéria apaga a linha da análise na hora e limpa resíduos na base" },
+  { version: "7.0.4", date: "2026-09-11", notes: "Atualização de versão" },
 ];
