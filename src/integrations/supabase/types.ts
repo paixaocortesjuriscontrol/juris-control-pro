@@ -10498,6 +10498,10 @@ export type Database = {
         }
         Returns: string
       }
+      escopo_acompanhamento_especial: {
+        Args: { _uid: string }
+        Returns: string[]
+      }
       excluir_cliente_com_desvinculo: {
         Args: { p_cliente_id: string }
         Returns: Json
@@ -10513,6 +10517,52 @@ export type Database = {
       }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
+      get_acomp_especial_divergencias: {
+        Args: {
+          _ate?: string
+          _desde?: string
+          _limit?: number
+          _somente_pendentes?: boolean
+        }
+        Returns: {
+          campo: string
+          coordenacao_id: string
+          detectado_em: string
+          id: string
+          numero: string
+          polo_ativo: string
+          polo_passivo: string
+          processo_id: string
+          processo_numero: string
+          resolvido_em: string
+          valor_atual: string
+          valor_judit: string
+        }[]
+      }
+      get_acomp_especial_eventos: {
+        Args: {
+          _ate?: string
+          _desde?: string
+          _limit?: number
+          _somente_nao_lidas?: boolean
+        }
+        Returns: {
+          anexos_count: number
+          conteudo: string
+          coordenacao_id: string
+          criado_em: string
+          id: string
+          instancia: string
+          lido_em: string
+          numero: string
+          polo_ativo: string
+          polo_passivo: string
+          processo_id: string
+          retroativo: boolean
+          step_date: string
+          tribunal: string
+        }[]
+      }
       get_cliente_ids_for_user: {
         Args: { _user_id: string }
         Returns: string[]
