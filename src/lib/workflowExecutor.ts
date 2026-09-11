@@ -289,6 +289,8 @@ export async function criarItemWorkflow(
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: txt("observacoes") || etapa.descricao || null,
+            alerta_dias: Number(cfg.alerta_dias) || null,
+            alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto > 0 ? etapa.dias_previsto : null,
             prazo_unidade:
               etapa.dias_previsto > 0
@@ -329,6 +331,8 @@ export async function criarItemWorkflow(
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
             observacoes: txt("observacoes") || etapa.descricao || null,
+            alerta_dias: Number(cfg.alerta_dias) || null,
+            alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto || 0,
             prazo_unidade: etapa.tipo_prazo === "dias_uteis" ? "uteis" : "corridos",
             ...recorrencia(),
@@ -377,6 +381,8 @@ export async function criarItemWorkflow(
           terceirizado: txt("terceirizado"),
           preposto: txt("preposto"),
           testemunhas: txt("testemunhas"),
+          alerta_valor: Number(cfg.alerta_valor) || null,
+          alerta_unidade: txt("alerta_unidade"),
           observacoes: txt("observacoes") || etapa.descricao || null,
           origem: "workflow",
         } as any);
@@ -433,6 +439,13 @@ export async function criarItemWorkflow(
           await supabase
             .from("participantes_evento")
             .insert(todosResponsaveis.map((u) => ({ evento_id: data.id, usuario_id: u })));
+        }
+        const alertaMinutos = Number(cfg.alerta_minutos) || 0;
+        if (alertaMinutos > 0) {
+          const { error: alertaError } = await supabase
+            .from("alertas_evento")
+            .insert({ evento_id: data.id, minutos_antes: alertaMinutos });
+          if (alertaError) throw alertaError;
         }
         return await finalizar({ id: data.id, tipo });
       }
