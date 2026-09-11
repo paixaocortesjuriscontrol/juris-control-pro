@@ -270,15 +270,19 @@ export async function criarItemWorkflow(
             // previsto/fatal ficam como orientação de prazo.
             data_vencimento: dataCriacaoStr,
             data_base: dataCriacaoStr,
-            data_prevista: dataBaseStr,
-            data_fatal: dataFatal,
+            data_prevista: dataCfg("data_limite") || dataCfg("data_vencimento") || dataBaseStr,
+            data_fatal: dataCfg("data_fatal") || dataFatal,
+            hora_prevista: txt("hora_prevista"),
+            hora_fatal: txt("hora_fatal"),
+            link_local: txt("local"),
 
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
-            observacoes: etapa.descricao || null,
+            observacoes: txt("observacoes") || etapa.descricao || null,
             prazo_dias: etapa.dias_previsto || 0,
             prazo_unidade: etapa.tipo_prazo === "dias_uteis" ? "uteis" : "corridos",
           } as any)
+
           .select("id")
           .single();
         if (error) throw error;
