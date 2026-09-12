@@ -45,7 +45,7 @@ import {
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
-import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
+import { labelSituacaoAtividade, atividadeEncerrada } from "@/components/comum/ItemAtividades";
 import { BarChart3, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
