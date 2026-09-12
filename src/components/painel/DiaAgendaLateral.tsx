@@ -321,7 +321,11 @@ export function DiaAgendaLateral({
             />
           ))}
           {atividades.map((a: any) => {
-            const encerrada = a.situacao === "concluida" || a.situacao === "cancelada";
+            const paiTratado = itens.some(
+              (it) =>
+                getItemRawId(it.id) === getItemRawId(String(a.item_id ?? "")) && isItemTratado(it),
+            );
+            const encerrada = atividadeEncerrada(a.situacao) || paiTratado;
             const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
             return (
               <button
