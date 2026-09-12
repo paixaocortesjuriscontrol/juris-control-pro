@@ -2884,8 +2884,12 @@ export default function PainelControle() {
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
-                                    (a.situacao === "concluida" || a.situacao === "cancelada") &&
+                                    (atividadeEncerrada(a.situacao) ||
+                                      isItemTratado(
+                                        (itemPorRawId.get(getItemRawId(String(a.item_id ?? ""))) as any) ?? {},
+                                      )) &&
                                       "line-through opacity-70",
+
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
