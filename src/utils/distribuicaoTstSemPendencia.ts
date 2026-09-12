@@ -15,6 +15,8 @@ import {
   invalidateDistribuicaoTstCache,
   COLUNAS_PRONTOS_COMPARTILHADAS,
 } from "@/utils/distribuicaoTstCache";
+import { fetchAllDistribuicaoTstIds, type DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
+
 import {
   getPendencias,
   isNaoPrecisaFazer,
