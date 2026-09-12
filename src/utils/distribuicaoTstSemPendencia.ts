@@ -15,6 +15,8 @@ import {
   invalidateDistribuicaoTstCache,
   COLUNAS_PRONTOS_COMPARTILHADAS,
 } from "@/utils/distribuicaoTstCache";
+import { fetchAllDistribuicaoTstIds, type DistribuicaoTstFilters } from "@/hooks/useDistribuicoesTst";
+
 import {
   getPendencias,
   isNaoPrecisaFazer,
@@ -80,10 +82,15 @@ async function updateSemNenhumaEmLotes(ids: string[], valor: boolean) {
 }
 
 /**
- * Recalcula e grava o marcador para todos os processos com status concluído,
- * limpando marcações antigas de registros que saíram desse conjunto.
+ * Recalcula e grava o marcador para os processos com status concluído.
+ *
+ * Quando `filtros` é informado (botão "Verificar Pendências" da tela), apenas
+ * os registros que atendem aos filtros atuais são lidos e regravados — não é
+ * mais necessário varrer a base inteira.
  */
-export async function recalcularSemPendencia(): Promise<{
+export async function recalcularSemPendencia(
+  filtros?: DistribuicaoTstFilters,
+): Promise<{
   analisados: number;
   semPendencia: number;
   atualizados: number;
@@ -92,7 +99,36 @@ export async function recalcularSemPendencia(): Promise<{
   await ensurePedidosPorDossie().catch(() => {});
   invalidateDistribuicaoTstCache();
 
-  const rows = await fetchProntosRowsCached();
+  const temFiltros = !!filtros && Object.values(filtros).some((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== undefined && v !== null && v !== "",
+  );
+
+  let rows: any[];
+  if (temFiltros) {
+    // Os próprios marcadores são retirados do recorte para que o recálculo não
+    // se limite ao resultado anterior.
+    const base: DistribuicaoTstFilters = {
+      ...filtros!,
+      semPendencia: undefined,
+      revisarListaMaterias: undefined,
+      semNenhumaMateriaDossie: undefined,
+    } as DistribuicaoTstFilters;
+    const ids = await fetchAllDistribuicaoTstIds(base);
+    rows = [];
+    const CHUNK = 300;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const { data, error } = await supabase
+        .from("dados_benner" as any)
+        .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
+        .in("id", ids.slice(i, i + CHUNK))
+        .in("status", STATUS_CONCLUIDOS);
+      if (error) throw error;
+      rows.push(...(((data as any[]) || [])));
+    }
+  } else {
+    rows = await fetchProntosRowsCached();
+  }
+
   const agora = new Date().toISOString();
   const paraTrue: string[] = [];
   const paraFalse: string[] = [];
@@ -123,13 +159,15 @@ export async function recalcularSemPendencia(): Promise<{
   await updateSemNenhumaEmLotes(semNenhumaTrue, true);
   await updateSemNenhumaEmLotes(semNenhumaFalse, false);
 
-  // Registros que deixaram de ser "prontos" mas continuavam marcados.
-  const { error } = await supabase
-    .from("dados_benner" as any)
-    .update({ sem_pendencia: false, revisar_lista_materias: false, sem_nenhuma_materia_dossie: false, pendencias_verificado_em: agora } as any)
-    .is("sem_pendencia", true)
-    .not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
-  if (error) throw error;
+  if (!temFiltros) {
+    // Registros que deixaram de ser "prontos" mas continuavam marcados.
+    const { error } = await supabase
+      .from("dados_benner" as any)
+      .update({ sem_pendencia: false, revisar_lista_materias: false, sem_nenhuma_materia_dossie: false, pendencias_verificado_em: agora } as any)
+      .is("sem_pendencia", true)
+      .not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
+    if (error) throw error;
+  }
 
   invalidateDistribuicaoTstCache();
   return {
@@ -138,6 +176,7 @@ export async function recalcularSemPendencia(): Promise<{
     atualizados: paraTrue.length + paraFalse.length,
   };
 }
+
 
 /**
  * Recalcula e grava o marcador de UM registro. Chamado após cada salvamento
