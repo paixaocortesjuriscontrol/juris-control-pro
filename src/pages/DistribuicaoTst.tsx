@@ -395,7 +395,7 @@ export default function DistribuicaoTst() {
     if (!abrindo) return;
     setRecalcPendenciasRunning(true);
     try {
-      const r = await recalcularSemPendencia();
+      const r = await recalcularSemPendencia(listFilters);
       refetchProntoSemPendencia();
       toast.success(
         `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s) — ${r.atualizados} atualizado(s).`,
