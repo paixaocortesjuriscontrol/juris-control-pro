@@ -35,6 +35,17 @@ export function labelSituacaoAtividade(valor?: string | null): string {
   return SITUACOES_ATIVIDADE.find((s) => s.value === (valor ?? "pendente"))?.label ?? (valor ?? "Pendente");
 }
 
+/** Situações que encerram a atividade (recebem o risco no texto). */
+export function atividadeEncerrada(situacao?: string | null): boolean {
+  const v = (situacao ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return ["concluida", "concluido", "cancelada", "cancelado", "nao_realizada"].includes(v);
+}
+
+
 /** Formata data/hora com segurança (valores inválidos não podem quebrar a aba). */
 function fmtDataHora(valor?: string | null): string | null {
   if (!valor) return null;
