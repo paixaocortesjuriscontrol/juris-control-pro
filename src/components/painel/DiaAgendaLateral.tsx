@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
-import { labelSituacaoAtividade } from "@/components/comum/ItemAtividades";
+import { labelSituacaoAtividade, atividadeEncerrada } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
@@ -321,7 +321,11 @@ export function DiaAgendaLateral({
             />
           ))}
           {atividades.map((a: any) => {
-            const encerrada = a.situacao === "concluida" || a.situacao === "cancelada";
+            const paiTratado = itens.some(
+              (it) =>
+                getItemRawId(it.id) === getItemRawId(String(a.item_id ?? "")) && isItemTratado(it),
+            );
+            const encerrada = atividadeEncerrada(a.situacao) || paiTratado;
             const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
             return (
               <button
