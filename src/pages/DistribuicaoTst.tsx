@@ -608,14 +608,26 @@ export default function DistribuicaoTst() {
     // Ordena pelos que têm MENOS pendências (faltam) primeiro — assim os
     // responsáveis mais adiantados aparecem à esquerda.
     return [...responsavelCounts, ...extras]
-      .map((c) => ({
-        ...c,
-        faltam: Math.max(0, c.count - (c.pronto || 0)),
-        semPendencia: semPendenciaPorResp[c.id] || 0,
-        semMateriaDossie: semMateriaDossiePorResp[c.id] || 0,
-      }))
+      .map((c) => {
+        // Quando a lista já está recortada por pendência, os números por
+        // responsável precisam refletir esse recorte: com o filtro "com
+        // pendência" ativo nenhum registro listado está sem pendência (e
+        // vice-versa). Sem isso o contador "sem pendência" vinha da varredura
+        // global e zerava o total "com pendência".
+        const semPendencia = filtroComPendencia
+          ? 0
+          : filtroSemPendencia
+            ? (c.pronto || 0)
+            : semPendenciaPorResp[c.id] || 0;
+        return {
+          ...c,
+          faltam: Math.max(0, c.count - (c.pronto || 0)),
+          semPendencia,
+          semMateriaDossie: semMateriaDossiePorResp[c.id] || 0,
+        };
+      })
       .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
-  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp]);
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp, filtroComPendencia, filtroSemPendencia]);
 
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
