@@ -2690,6 +2690,7 @@ export type Database = {
           risco_midia: string | null
           risco_nivel: string | null
           segredo_justica: boolean | null
+          sem_nenhuma_materia_dossie: boolean
           sem_pendencia: boolean | null
           situacao_envio_carga_id: string | null
           situacao_processo: string | null
@@ -2818,6 +2819,7 @@ export type Database = {
           risco_midia?: string | null
           risco_nivel?: string | null
           segredo_justica?: boolean | null
+          sem_nenhuma_materia_dossie?: boolean
           sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
@@ -2946,6 +2948,7 @@ export type Database = {
           risco_midia?: string | null
           risco_nivel?: string | null
           segredo_justica?: boolean | null
+          sem_nenhuma_materia_dossie?: boolean
           sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null

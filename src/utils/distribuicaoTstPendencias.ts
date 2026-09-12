@@ -743,6 +743,26 @@ export function precisaRevisarListaMaterias(row: any): boolean {
   return info.partesSemMateriaValida.length > 0;
 }
 
+/** `true` quando nenhuma matéria selecionada das partes recorrentes está na lista do dossiê. */
+export function semNenhumaMateriaDoDossie(row: any): boolean {
+  const dossie = String(row?.dossie ?? "").trim();
+  if (!pedidosDoDossieSync(dossie)) return true;
+  const info = parseParteRecorrente(row);
+  const parteAtiva: Record<string, boolean> = info.valida
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
+    : { reclamante: true, banco: true, terceiro: true };
+  const blocos: Array<[string, string]> = [
+    ["reclamante", "materias_analise_reclamante"],
+    ["banco", "materias_analise_banco"],
+    ["terceiro", "materias_analise_terceiro"],
+  ];
+  return !blocos.some(([parte, campo]) =>
+    parteAtiva[parte] && itensAnaliseSelecionados(row, campo).some((item) =>
+      !isOutraMateria(item.materia) && isMateriaDoDossieSync(dossie, item.materia),
+    ),
+  );
+}
+
 
 /** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
 export function getPendencias(row: any): Pendencia[] {

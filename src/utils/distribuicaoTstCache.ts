@@ -66,6 +66,7 @@ export const COLUNAS_PRONTOS_COMPARTILHADAS = Array.from(
     // Marcador persistido (para saber se precisa gravar de novo).
     "sem_pendencia",
     "revisar_lista_materias",
+    "sem_nenhuma_materia_dossie",
   ]),
 );
 

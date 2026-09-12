@@ -12,7 +12,7 @@ export const SEM_RESPONSAVEL_ID = "00000000-0000-0000-0000-000000000000";
  * consta na lista de pedidos do dossiê ("Revisar Lista de matérias").
  *
  * O cálculo NÃO acontece mais no navegador: ele é gravado na coluna
- * `revisar_lista_materias` sempre que a ficha é salva, no "Marcar Pronto" em
+ * `sem_nenhuma_materia_dossie` sempre que a ficha é salva, no "Marcar Pronto" em
  * lote e no botão "Verificar Pendências". Aqui apenas filtramos por essa
  * coluna no banco e distribuímos os IDs entre os responsáveis.
  */
@@ -31,7 +31,7 @@ export function useSemMateriaDossiePorResponsavel(filters: DistribuicaoTstFilter
       try {
         const alvo = await fetchAllDistribuicaoTstIds({
           ...filters,
-          revisarListaMaterias: "sim",
+          semNenhumaMateriaDossie: "sim",
         });
         if (cancelled) return;
         if (!alvo || alvo.length === 0) {

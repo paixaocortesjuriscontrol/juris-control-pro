@@ -20,6 +20,7 @@ import {
   isNaoPrecisaFazer,
   isMarcadoPronto,
   precisaRevisarListaMaterias,
+  semNenhumaMateriaDoDossie,
 } from "@/utils/distribuicaoTstPendencias";
 
 const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
@@ -67,6 +68,17 @@ async function updateRevisarEmLotes(ids: string[], valor: boolean) {
   }
 }
 
+async function updateSemNenhumaEmLotes(ids: string[], valor: boolean) {
+  const CHUNK = 200;
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { error } = await supabase
+      .from("dados_benner" as any)
+      .update({ sem_nenhuma_materia_dossie: valor } as any)
+      .in("id", ids.slice(i, i + CHUNK));
+    if (error) throw error;
+  }
+}
+
 /**
  * Recalcula e grava o marcador para todos os processos com status concluído,
  * limpando marcações antigas de registros que saíram desse conjunto.
@@ -86,6 +98,8 @@ export async function recalcularSemPendencia(): Promise<{
   const paraFalse: string[] = [];
   const revisarTrue: string[] = [];
   const revisarFalse: string[] = [];
+  const semNenhumaTrue: string[] = [];
+  const semNenhumaFalse: string[] = [];
   let semPendencia = 0;
 
   for (const r of rows) {
@@ -98,17 +112,21 @@ export async function recalcularSemPendencia(): Promise<{
     const atualRevisar = (r as any).revisar_lista_materias;
     if (revisar && atualRevisar !== true) revisarTrue.push((r as any).id);
     else if (!revisar && atualRevisar !== false) revisarFalse.push((r as any).id);
+    const semNenhuma = semNenhumaMateriaDoDossie(r);
+    (semNenhuma ? semNenhumaTrue : semNenhumaFalse).push((r as any).id);
   }
 
   await updateEmLotes(paraTrue, true, agora);
   await updateEmLotes(paraFalse, false, agora);
   await updateRevisarEmLotes(revisarTrue, true);
   await updateRevisarEmLotes(revisarFalse, false);
+  await updateSemNenhumaEmLotes(semNenhumaTrue, true);
+  await updateSemNenhumaEmLotes(semNenhumaFalse, false);
 
   // Registros que deixaram de ser "prontos" mas continuavam marcados.
   const { error } = await supabase
     .from("dados_benner" as any)
-    .update({ sem_pendencia: false, revisar_lista_materias: false, pendencias_verificado_em: agora } as any)
+    .update({ sem_pendencia: false, revisar_lista_materias: false, sem_nenhuma_materia_dossie: false, pendencias_verificado_em: agora } as any)
     .is("sem_pendencia", true)
     .not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
   if (error) throw error;
@@ -145,6 +163,7 @@ export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean
       .update({
         sem_pendencia: ok,
         revisar_lista_materias: concluido ? calcularRevisarListaMaterias(row) : false,
+        sem_nenhuma_materia_dossie: concluido ? semNenhumaMateriaDoDossie(row) : false,
         pendencias_verificado_em: new Date().toISOString(),
       } as any)
       .eq("id", id);
@@ -213,17 +232,23 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
     const paraFalse: string[] = [];
     const revisarTrue: string[] = [];
     const revisarFalse: string[] = [];
+    const semNenhumaTrue: string[] = [];
+    const semNenhumaFalse: string[] = [];
     for (const row of ((data as any[]) || [])) {
       const concluido = STATUS_CONCLUIDOS.includes(String((row as any).status || ""));
       const ok = concluido ? calcularSemPendencia(row) : false;
       (ok ? paraTrue : paraFalse).push((row as any).id);
       const revisar = concluido ? calcularRevisarListaMaterias(row) : false;
       (revisar ? revisarTrue : revisarFalse).push((row as any).id);
+      const semNenhuma = concluido ? semNenhumaMateriaDoDossie(row) : false;
+      (semNenhuma ? semNenhumaTrue : semNenhumaFalse).push((row as any).id);
     }
     await updateEmLotes(paraTrue, true, agora);
     await updateEmLotes(paraFalse, false, agora);
     await updateRevisarEmLotes(revisarTrue, true);
     await updateRevisarEmLotes(revisarFalse, false);
+    await updateSemNenhumaEmLotes(semNenhumaTrue, true);
+    await updateSemNenhumaEmLotes(semNenhumaFalse, false);
   }
   invalidateDistribuicaoTstCache();
 }
