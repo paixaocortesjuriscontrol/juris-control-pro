@@ -284,6 +284,8 @@ export interface DistribuicaoTstFilters {
    * precisa de revisão.
    */
   revisarListaMaterias?: "todos" | "sim";
+  /** Prontos sem nenhuma matéria selecionada presente na lista do dossiê. */
+  semNenhumaMateriaDossie?: "todos" | "sim";
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
   /**
@@ -578,6 +580,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     query = applyPedidosDossieFilter(query, filters);
     query = applySemPendenciaFilter(query, filters);
     query = applyRevisarListaMateriasFilter(query, filters);
+    query = applySemNenhumaMateriaDossieFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -693,6 +696,11 @@ function applySemPendenciaFilter<T>(query: T, filters: DistribuicaoTstFilters): 
 function applyRevisarListaMateriasFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
   if (filters.revisarListaMaterias !== "sim") return query;
   return (query as any).eq("revisar_lista_materias", true) as T;
+}
+
+function applySemNenhumaMateriaDossieFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
+  if (filters.semNenhumaMateriaDossie !== "sim") return query;
+  return (query as any).eq("sem_nenhuma_materia_dossie", true) as T;
 }
 
 /**
@@ -895,6 +903,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     query = applyPedidosDossieFilter(query, filters);
     query = applySemPendenciaFilter(query, filters);
     query = applyRevisarListaMateriasFilter(query, filters);
+    query = applySemNenhumaMateriaDossieFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -1304,6 +1313,7 @@ export async function fetchMesesDataRealFiltered(
     query = applyPedidosDossieFilter(query, f);
     query = applySemPendenciaFilter(query, f);
     query = applyRevisarListaMateriasFilter(query, f);
+    query = applySemNenhumaMateriaDossieFilter(query, f);
     if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
