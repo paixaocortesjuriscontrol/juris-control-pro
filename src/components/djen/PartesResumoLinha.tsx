@@ -15,6 +15,8 @@ interface PartesResumoLinhaProps {
 const ATIVO_RE = /(reclamante|autor|requerente|exequente|impetrante|agravante|recorrente|embargante)/i;
 const PASSIVO_RE = /(reclamad|réu|reu|requerid|executad|impetrad|agravad|recorrid|embargad)/i;
 const INICIO_TEXTO_RE = /\b(?:SENTENÇA|DECISÃO|DESPACHO|ACÓRDÃO|EMENTA|RELATÓRIO|INTIMAÇÃO|CERTIDÃO|EDITAL|CLASSE\s+PROCESSUAL|INTEIRO\s+TEOR)\b/i;
+/** Sinais de que o campo veio "cru" do DJEN, misturando advogados, terceiros e polos. */
+const CONTAMINADO_RE = /(advogad|terceiro\(s\)|interessad|relator|situa[çc][ãa]o|do\s+polo\s+(?:ativo|passivo)|minist[ée]rio\s+p[úu]blico)/i;
 
 /** Impede que o inteiro teor, ocasionalmente gravado junto ao polo, apareça na linha de partes. */
 function limparPolo(bruto: string | null | undefined): string {
@@ -24,6 +26,10 @@ function limparPolo(bruto: string | null | undefined): string {
   const inicioTexto = valor.search(INICIO_TEXTO_RE);
   const limpo = inicioTexto > 0 ? valor.slice(0, inicioTexto).trim() : valor;
 
+  // Campo misturado (advogados/terceiros/relator) não é confiável: partes_json
+  // é a fonte correta para separar ativo e passivo.
+  if (CONTAMINADO_RE.test(limpo)) return "";
+
   // Um nome de parte não deve ocupar um parágrafo. Nesses casos, partes_json
   // é uma fonte mais segura; sem ela, é preferível ocultar a linha contaminada.
   if (limpo.length > 220 || /\b(?:art\.|processo\s+caso|nos\s+termos|decidiu|condena[çc][ãa]o)\b/i.test(limpo)) {
@@ -31,6 +37,7 @@ function limparPolo(bruto: string | null | undefined): string {
   }
   return limpo.replace(/[|;,\-–—:\s]+$/, "").trim();
 }
+
 
 /**
  * Alguns motores gravam as partes como texto, no formato
