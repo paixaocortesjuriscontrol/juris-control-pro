@@ -768,8 +768,9 @@ export function semNenhumaMateriaDoDossie(row: any): boolean {
   if (!pedidosDoDossieSync(dossie)) return true;
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
-    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
-    : { reclamante: true, banco: true, terceiro: true };
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
+    : { reclamante: true, banco: true, terceiro: false };
+
   const blocos: Array<[string, string]> = [
     ["reclamante", "materias_analise_reclamante"],
     ["banco", "materias_analise_banco"],
