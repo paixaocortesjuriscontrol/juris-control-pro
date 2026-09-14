@@ -130,7 +130,7 @@ function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
       advogado = !!(p.is_advogado || p.advogado) || /advogad/i.test(String(p.tipo ?? p.papel ?? ""));
     }
     nome = limparNomeJson(nome);
-    if (!nome || advogado) continue;
+    if (!nome || advogado || !ehNomeDeParteValido(nome)) continue;
     const poloUp = polo.toUpperCase();
     if (poloUp === "P" || poloUp === "POLOP" || /passiv/i.test(polo) || PASSIVO_RE.test(polo)) passivo.push(nome);
     else if (poloUp === "A" || poloUp === "POLOA" || /ativ/i.test(polo) || ATIVO_RE.test(polo)) ativo.push(nome);
