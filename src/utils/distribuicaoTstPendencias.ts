@@ -722,8 +722,9 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   ];
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
-    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
-    : { reclamante: true, banco: true, terceiro: true };
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
+    : { reclamante: true, banco: true, terceiro: false };
+
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave]) continue;
