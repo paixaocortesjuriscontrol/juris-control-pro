@@ -41,18 +41,37 @@ function limparPolo(bruto: string | null | undefined): string {
 
 /**
  * Alguns motores gravam as partes como texto, no formato
- * "[Parte] NOME DA PARTE POLOA" (ou POLOP). Extrai nome + polo desse formato.
+ * "[Polo Ativo] NOME DA PARTE" ou "[Parte] NOME POLOA" (ou POLOP).
  */
-function parseParteString(bruto: string): { nome: string; polo: string } {
+function parseParteString(bruto: string): { nome: string; polo: string; advogado: boolean } {
   let txt = bruto.trim();
-  txt = txt.replace(/^\[[^\]]*\]\s*/, ""); // remove prefixo "[Parte]" / "[Advogado]"
   let polo = "";
+  let advogado = false;
+  const prefixo = txt.match(/^\[([^\]]*)\]\s*/);
+  if (prefixo) {
+    const tag = prefixo[1];
+    if (/advogad/i.test(tag)) advogado = true;
+    if (/passiv/i.test(tag)) polo = "P";
+    else if (/ativ/i.test(tag)) polo = "A";
+    else if (/terceiro|interessad/i.test(tag)) polo = "X";
+    txt = txt.slice(prefixo[0].length).trim();
+  }
   const m = txt.match(/\s*POLO\s*([AP])\s*$/i);
   if (m) {
     polo = m[1].toUpperCase();
     txt = txt.slice(0, m.index).trim();
   }
-  return { nome: txt.trim(), polo };
+  return { nome: txt.trim(), polo, advogado };
+}
+
+/** Limpeza leve para nomes já estruturados (remove OAB e sujeira de pontuação). */
+function limparNomeJson(bruto: string): string {
+  return String(bruto || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\([A-Z]{2}\d{3,}[^)]*\)/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/[|;,\-–—:\s]+$/, "")
+    .trim();
 }
 
 function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
@@ -71,24 +90,28 @@ function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
     if (!p) continue;
     let nome = "";
     let polo = "";
+    let advogado = false;
     if (typeof p === "string") {
       const parsed = parseParteString(p);
       nome = parsed.nome;
       polo = parsed.polo;
+      advogado = parsed.advogado;
     } else {
       nome = String(p.nome ?? p.name ?? p.parte ?? "").trim();
       polo = String(p.polo ?? p.tipo ?? p.tipo_parte ?? p.papel ?? "").trim();
+      advogado = !!(p.is_advogado || p.advogado) || /advogad/i.test(String(p.tipo ?? p.papel ?? ""));
     }
-    nome = limparPolo(nome);
-    if (!nome) continue;
+    nome = limparNomeJson(nome);
+    if (!nome || advogado) continue;
     const poloUp = polo.toUpperCase();
-    if (poloUp === "P" || poloUp === "POLOP" || PASSIVO_RE.test(polo)) passivo.push(nome);
-    else if (poloUp === "A" || poloUp === "POLOA" || ATIVO_RE.test(polo)) ativo.push(nome);
-    else ativo.push(nome);
+    if (poloUp === "P" || poloUp === "POLOP" || /passiv/i.test(polo) || PASSIVO_RE.test(polo)) passivo.push(nome);
+    else if (poloUp === "A" || poloUp === "POLOA" || /ativ/i.test(polo) || ATIVO_RE.test(polo)) ativo.push(nome);
+    // Terceiros, interessados e polos desconhecidos não entram na linha.
   }
   const uniq = (a: string[]) => Array.from(new Set(a)).join("; ");
   return { ativo: uniq(ativo), passivo: uniq(passivo) };
 }
+
 
 
 export function PartesResumoLinha({
