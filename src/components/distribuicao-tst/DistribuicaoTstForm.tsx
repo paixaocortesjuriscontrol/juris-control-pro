@@ -996,7 +996,9 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
         applyJuditOnly("tipo_recurso", normalizarTipoRecurso(data.tipo_recurso));
         applyJuditOnly("tipo_recurso_reclamante", normalizarTipoRecurso(data.tipo_recurso_reclamante));
         applyJuditOnly("tipo_recurso_banco", normalizarTipoRecurso(data.tipo_recurso_banco));
-        applyJuditOnly("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
+        // Terceiro: a Judit não identifica recurso de terceiro de forma
+        // confiável — NUNCA apaga o valor preenchido pela advogada.
+        apply("tipo_recurso_terceiro", normalizarTipoRecurso(data.tipo_recurso_terceiro));
         // Situação do processo / trânsito em julgado
         const situacao = (data.situacao_processo || "").toString();
         if (situacao) apply("situacao_processo", situacao);

@@ -324,7 +324,9 @@ export function buildJuditPatch(
   applyJuditOnly("tipo_recurso", normalizarTipoRecurso(juditData?.tipo_recurso));
   applyJuditOnly("tipo_recurso_reclamante", normalizarTipoRecurso(juditData?.tipo_recurso_reclamante));
   applyJuditOnly("tipo_recurso_banco", normalizarTipoRecurso(juditData?.tipo_recurso_banco));
-  applyJuditOnly("tipo_recurso_terceiro", normalizarTipoRecurso(juditData?.tipo_recurso_terceiro));
+  // Terceiro: a Judit não identifica recurso de terceiro de forma confiável —
+  // NUNCA apaga o valor preenchido manualmente; só preenche se vier valor.
+  apply("tipo_recurso_terceiro", normalizarTipoRecurso(juditData?.tipo_recurso_terceiro));
 
   const situacao = (juditData?.situacao_processo || "").toString();
   if (situacao) patch.situacao_processo = situacao;
