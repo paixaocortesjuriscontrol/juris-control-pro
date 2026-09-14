@@ -1735,9 +1735,10 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           </div>
           <div className={cn("space-y-2 p-2 -m-2", iaClass("tem_chance_exito_terceiro", bennerExtra.tem_chance_exito_terceiro))}>
             <Label className="flex items-center">
-              Tem chance de êxito?{recorrenteEhTerceiro(form) && <ReqMark />}
+              Tem chance de êxito?
               <IaBadge field="tem_chance_exito_terceiro" value={bennerExtra.tem_chance_exito_terceiro} />
             </Label>
+
             <Select
               value={bennerExtra.tem_chance_exito_terceiro || "__none__"}
               onValueChange={(v) => setExtra("tem_chance_exito_terceiro", v === "__none__" ? null : v)}

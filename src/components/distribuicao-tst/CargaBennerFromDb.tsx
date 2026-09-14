@@ -719,11 +719,11 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
                 itensAnaliseSelecionados(d, "materias_analise_banco"),
               )
             : [],
-          terceiro: scopeAtivo("terceiro")
-            ? filtrarMateriasExportaveis(
-                itensAnaliseSelecionados(d, "materias_analise_terceiro"),
-              )
-            : [],
+          // Recurso de terceiro: a linha vai para a planilha com APENAS o tipo
+          // de recurso — matérias/aparelhamento/êxito do quadro de Terceiro
+          // nunca são exportados (nem contam como rejeição).
+          terceiro: [],
+
         };
 
 

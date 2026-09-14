@@ -144,8 +144,11 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
 
   // Quadrinho V – Recurso Terceiro (só quando Parte Recorrente = Terceiro)
+  // Regra: com Terceiro selecionado, o ÚNICO campo obrigatório do quadro é o
+  // Tipo de Recurso. Os demais (matérias, aparelhamento, chance de êxito) não
+  // geram pendência — na Carga Benner só o tipo de recurso é exportado.
   { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
-  { key: "tem_chance_exito_terceiro", label: "Tem chance de êxito (Terceiro)?", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
+
 
   // Quadrinho VI – Análise
   { key: "honra", label: "Matéria de Honra (O)", quadrinho: "VI. Análise" },
@@ -435,8 +438,21 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     }
     return rejeicoesCarga;
   }
-  if (recorrenteSomenteTerceiro(row)) return rejeicoesCarga;
+  
+  if (recorrenteSomenteTerceiro(row)) {
+    // Terceiro sozinho: só o Tipo de Recurso (Terceiro) é exigido.
+    const so: Pendencia[] = [...rejeicoesCarga];
+    if (isEmpty(row?.tipo_recurso_terceiro)) {
+      so.unshift({
+        key: "tipo_recurso_terceiro",
+        label: "Tipo de Recurso (Terceiro) (C)",
+        quadrinho: "V. Recurso Terceiro",
+      });
+    }
+    return so;
+  }
   const out: Pendencia[] = [];
+
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
     const v = getValor(row, c);
@@ -462,9 +478,9 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   if (recorrenteEnvolveBanco(row)) {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "materias_recurso_banco", "Análise Banco", "IV. Recurso do Banco"));
   }
-  if (recorrenteEhTerceiro(row)) {
-    out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
-  }
+  // Quadro de Terceiro: nenhuma pendência de análise por matéria — com
+  // Terceiro selecionado, só o Tipo de Recurso é obrigatório.
+
 
   // Rejeições da Carga Benner (tipo de recurso fora da lista, matérias fora
   // da lista oficial, dossiê inválido) — mesmos motivos avaliados na geração.
@@ -631,10 +647,12 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
   ];
   // Só os quadros das partes efetivamente marcadas em "Parte Recorrente" são
   // avaliados (valores legados de outras partes não vão para a planilha).
+  // O quadro de Terceiro nunca é avaliado: suas matérias não são exportadas.
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
-    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
-    : { reclamante: true, banco: true, terceiro: true };
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
+    : { reclamante: true, banco: true, terceiro: false };
+
   const res: MateriasForaDaLista = {
     reclamante: [],
     banco: [],
@@ -704,8 +722,9 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   ];
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
-    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
-    : { reclamante: true, banco: true, terceiro: true };
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
+    : { reclamante: true, banco: true, terceiro: false };
+
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
     if (!parteAtiva[chave]) continue;
@@ -749,8 +768,9 @@ export function semNenhumaMateriaDoDossie(row: any): boolean {
   if (!pedidosDoDossieSync(dossie)) return true;
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
-    ? { reclamante: info.reclamante, banco: info.banco, terceiro: info.terceiro }
-    : { reclamante: true, banco: true, terceiro: true };
+    ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
+    : { reclamante: true, banco: true, terceiro: false };
+
   const blocos: Array<[string, string]> = [
     ["reclamante", "materias_analise_reclamante"],
     ["banco", "materias_analise_banco"],
