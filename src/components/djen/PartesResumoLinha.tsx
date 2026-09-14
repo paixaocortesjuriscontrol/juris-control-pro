@@ -35,7 +35,13 @@ function limparPolo(bruto: string | null | undefined): string {
   if (limpo.length > 220 || /\b(?:art\.|processo\s+caso|nos\s+termos|decidiu|condena[çc][ãa]o)\b/i.test(limpo)) {
     return "";
   }
-  return limpo.replace(/[|;,\-–—:\s]+$/, "").trim();
+  // Cada nome é limpo individualmente (corta representantes/advogados/OAB) e
+  // só permanece se realmente parecer nome de parte.
+  const nomes = limpo
+    .split(/\s*(?:;|\se\soutros?\b)\s*/i)
+    .map((n) => limparNomeJson(n))
+    .filter((n) => ehNomeDeParteValido(n));
+  return Array.from(new Set(nomes)).join("; ");
 }
 
 
@@ -64,14 +70,42 @@ function parseParteString(bruto: string): { nome: string; polo: string; advogado
   return { nome: txt.trim(), polo, advogado };
 }
 
+/** Marcadores que indicam o fim do nome da parte e o início de outro conteúdo. */
+const FIM_NOME_RE = /\b(?:REPRESENTANTES?|ADVOGAD[OA]S?|PROCURADOR(?:ES|A|AS)?|TERCEIRO|INTERESSAD[OA]S?|POLO\s+(?:ATIVO|PASSIVO)|PARTES?\s+NOME|ID\s+COMUNICA)\b/i;
+/** Fragmentos de texto jurídico que nunca são nome de parte. */
+const NAO_NOME_RE = /\b(?:art\.|artigo|lei\s+n|s[úu]mula|inciso|par[áa]grafo|cpc|cdc|clt|§)\b/i;
+
 /** Limpeza leve para nomes já estruturados (remove OAB e sujeira de pontuação). */
 function limparNomeJson(bruto: string): string {
-  return String(bruto || "")
+  let nome = String(bruto || "")
     .replace(/<[^>]*>/g, " ")
     .replace(/\([A-Z]{2}\d{3,}[^)]*\)/g, " ")
     .replace(/\s+/g, " ")
+    .trim();
+
+  // Corta tudo a partir de marcadores (representantes, advogados, polo, etc.)
+  const corte = nome.search(FIM_NOME_RE);
+  if (corte > 0) nome = nome.slice(0, corte);
+
+  return nome
+    // OAB/registro colado no fim: "NOME - DF79299"
+    .replace(/\s*[-–—]\s*[A-Z]{2}\s*\d{3,}\s*$/i, "")
+    .replace(/\s*[-–—]\s*OAB[^,;]*$/i, "")
+    // sufixos POLOA / POLOP
+    .replace(/\s+POLO\s*[AP]\s*$/i, "")
     .replace(/[|;,\-–—:\s]+$/, "")
     .trim();
+}
+
+/** Um nome de parte precisa parecer um nome, não um trecho de texto legal. */
+function ehNomeDeParteValido(nome: string): boolean {
+  if (!nome || nome.length < 5 || nome.length > 160) return false;
+  if (NAO_NOME_RE.test(nome)) return false;
+  const palavras = nome.split(/\s+/).filter((p) => /[A-Za-zÀ-ÿ]{2,}/.test(p));
+  if (palavras.length < 2) return false;
+  // Muitos dígitos indicam identificadores/valores, não nome
+  const digitos = (nome.match(/\d/g) || []).length;
+  return digitos <= 2;
 }
 
 function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
@@ -102,7 +136,7 @@ function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
       advogado = !!(p.is_advogado || p.advogado) || /advogad/i.test(String(p.tipo ?? p.papel ?? ""));
     }
     nome = limparNomeJson(nome);
-    if (!nome || advogado) continue;
+    if (!nome || advogado || !ehNomeDeParteValido(nome)) continue;
     const poloUp = polo.toUpperCase();
     if (poloUp === "P" || poloUp === "POLOP" || /passiv/i.test(polo) || PASSIVO_RE.test(polo)) passivo.push(nome);
     else if (poloUp === "A" || poloUp === "POLOA" || /ativ/i.test(polo) || ATIVO_RE.test(polo)) ativo.push(nome);
