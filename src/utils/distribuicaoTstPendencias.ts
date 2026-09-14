@@ -438,7 +438,7 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     }
     return rejeicoesCarga;
   }
-  if (recorrenteSomenteTerceiro(row)) return rejeicoesCarga;
+  
   if (recorrenteSomenteTerceiro(row)) {
     // Terceiro sozinho: só o Tipo de Recurso (Terceiro) é exigido.
     const so: Pendencia[] = [...rejeicoesCarga];
