@@ -439,7 +439,20 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
     return rejeicoesCarga;
   }
   if (recorrenteSomenteTerceiro(row)) return rejeicoesCarga;
+  if (recorrenteSomenteTerceiro(row)) {
+    // Terceiro sozinho: só o Tipo de Recurso (Terceiro) é exigido.
+    const so: Pendencia[] = [...rejeicoesCarga];
+    if (isEmpty(row?.tipo_recurso_terceiro)) {
+      so.unshift({
+        key: "tipo_recurso_terceiro",
+        label: "Tipo de Recurso (Terceiro) (C)",
+        quadrinho: "V. Recurso Terceiro",
+      });
+    }
+    return so;
+  }
   const out: Pendencia[] = [];
+
   for (const c of CAMPOS_OBRIGATORIOS) {
     if (c.requiredWhen && !c.requiredWhen(row)) continue;
     const v = getValor(row, c);
