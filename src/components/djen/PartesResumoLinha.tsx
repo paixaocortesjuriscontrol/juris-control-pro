@@ -35,7 +35,13 @@ function limparPolo(bruto: string | null | undefined): string {
   if (limpo.length > 220 || /\b(?:art\.|processo\s+caso|nos\s+termos|decidiu|condena[çc][ãa]o)\b/i.test(limpo)) {
     return "";
   }
-  return limpo.replace(/[|;,\-–—:\s]+$/, "").trim();
+  // Cada nome é limpo individualmente (corta representantes/advogados/OAB) e
+  // só permanece se realmente parecer nome de parte.
+  const nomes = limpo
+    .split(/\s*(?:;|\se\soutros?\b)\s*/i)
+    .map((n) => limparNomeJson(n))
+    .filter((n) => ehNomeDeParteValido(n));
+  return Array.from(new Set(nomes)).join("; ");
 }
 
 
