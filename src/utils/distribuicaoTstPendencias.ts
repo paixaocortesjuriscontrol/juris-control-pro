@@ -144,8 +144,11 @@ export const CAMPOS_OBRIGATORIOS: CampoObrigatorio[] = [
   { key: "materias_recurso_banco", label: "Matérias Recurso do Banco", quadrinho: "IV. Recurso do Banco", requiredWhen: recorrenteEnvolveBanco },
 
   // Quadrinho V – Recurso Terceiro (só quando Parte Recorrente = Terceiro)
+  // Regra: com Terceiro selecionado, o ÚNICO campo obrigatório do quadro é o
+  // Tipo de Recurso. Os demais (matérias, aparelhamento, chance de êxito) não
+  // geram pendência — na Carga Benner só o tipo de recurso é exportado.
   { key: "tipo_recurso_terceiro", label: "Tipo de Recurso (Terceiro) (C)", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
-  { key: "tem_chance_exito_terceiro", label: "Tem chance de êxito (Terceiro)?", quadrinho: "V. Recurso Terceiro", requiredWhen: recorrenteEhTerceiro },
+
 
   // Quadrinho VI – Análise
   { key: "honra", label: "Matéria de Honra (O)", quadrinho: "VI. Análise" },
