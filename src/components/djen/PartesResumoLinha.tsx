@@ -14,6 +14,23 @@ interface PartesResumoLinhaProps {
 
 const ATIVO_RE = /(reclamante|autor|requerente|exequente|impetrante|agravante|recorrente|embargante)/i;
 const PASSIVO_RE = /(reclamad|réu|reu|requerid|executad|impetrad|agravad|recorrid|embargad)/i;
+const INICIO_TEXTO_RE = /\b(?:SENTENÇA|DECISÃO|DESPACHO|ACÓRDÃO|EMENTA|RELATÓRIO|INTIMAÇÃO|CERTIDÃO|EDITAL|CLASSE\s+PROCESSUAL|INTEIRO\s+TEOR)\b/i;
+
+/** Impede que o inteiro teor, ocasionalmente gravado junto ao polo, apareça na linha de partes. */
+function limparPolo(bruto: string | null | undefined): string {
+  const valor = String(bruto || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  if (!valor) return "";
+
+  const inicioTexto = valor.search(INICIO_TEXTO_RE);
+  const limpo = inicioTexto > 0 ? valor.slice(0, inicioTexto).trim() : valor;
+
+  // Um nome de parte não deve ocupar um parágrafo. Nesses casos, partes_json
+  // é uma fonte mais segura; sem ela, é preferível ocultar a linha contaminada.
+  if (limpo.length > 220 || /\b(?:art\.|processo\s+caso|nos\s+termos|decidiu|condena[çc][ãa]o)\b/i.test(limpo)) {
+    return "";
+  }
+  return limpo.replace(/[|;,\-–—:\s]+$/, "").trim();
+}
 
 /**
  * Alguns motores gravam as partes como texto, no formato
@@ -55,6 +72,7 @@ function nomesDoJson(partesJson: any): { ativo: string; passivo: string } {
       nome = String(p.nome ?? p.name ?? p.parte ?? "").trim();
       polo = String(p.polo ?? p.tipo ?? p.tipo_parte ?? p.papel ?? "").trim();
     }
+    nome = limparPolo(nome);
     if (!nome) continue;
     const poloUp = polo.toUpperCase();
     if (poloUp === "P" || poloUp === "POLOP" || PASSIVO_RE.test(polo)) passivo.push(nome);
@@ -73,8 +91,8 @@ export function PartesResumoLinha({
   className = "",
 }: PartesResumoLinhaProps) {
   const doJson = nomesDoJson(partesJson);
-  const ativo = (poloAtivo || "").trim() || doJson.ativo;
-  const passivo = (poloPassivo || "").trim() || doJson.passivo;
+  const ativo = limparPolo(poloAtivo) || doJson.ativo;
+  const passivo = limparPolo(poloPassivo) || doJson.passivo;
 
   if (!ativo && !passivo) return null;
 
