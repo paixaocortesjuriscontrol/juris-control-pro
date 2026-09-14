@@ -478,9 +478,9 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   if (recorrenteEnvolveBanco(row)) {
     out.push(...pendenciasMateriasAnalise(row, "materias_analise_banco", "materias_recurso_banco", "Análise Banco", "IV. Recurso do Banco"));
   }
-  if (recorrenteEhTerceiro(row)) {
-    out.push(...pendenciasMateriasAnalise(row, "materias_analise_terceiro", "materias_recurso_terceiro", "Análise Terceiro", "V. Recurso Terceiro"));
-  }
+  // Quadro de Terceiro: nenhuma pendência de análise por matéria — com
+  // Terceiro selecionado, só o Tipo de Recurso é obrigatório.
+
 
   // Rejeições da Carga Benner (tipo de recurso fora da lista, matérias fora
   // da lista oficial, dossiê inválido) — mesmos motivos avaliados na geração.
