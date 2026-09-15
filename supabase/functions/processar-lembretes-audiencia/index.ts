@@ -123,6 +123,23 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+    // Limpeza emergencial única da fila externa acumulada durante a desconexão.
+    const queueCleanupResponse = await fetch(
+      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/queue`,
+      {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          "Client-Token": ZAPI_CLIENT_TOKEN,
+        },
+      },
+    );
+    if (!queueCleanupResponse.ok) {
+      const cleanupError = await queueCleanupResponse.text();
+      throw new Error(`Falha na limpeza emergencial da fila Z-API [${queueCleanupResponse.status}]: ${cleanupError}`);
+    }
+    console.log("[processar-lembretes-audiencia] Limpeza emergencial da fila externa concluída");
+
     const now = new Date();
     console.log(`[processar-lembretes-audiencia] Início ${now.toISOString()}`);
 
