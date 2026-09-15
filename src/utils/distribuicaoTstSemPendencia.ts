@@ -45,40 +45,47 @@ export function calcularRevisarListaMaterias(row: any): boolean {
   return precisaRevisarListaMaterias(row);
 }
 
-async function updateEmLotes(ids: string[], valor: boolean, agora: string) {
-  const CHUNK = 200;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const slice = ids.slice(i, i + CHUNK);
+/** Executa tarefas com paralelismo limitado (reduz o tempo total de gravação). */
+async function comConcorrencia<T>(itens: T[], limite: number, fn: (item: T) => Promise<void>) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limite, itens.length) }, async () => {
+    while (i < itens.length) {
+      const idx = i++;
+      await fn(itens[idx]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+function emLotes<T>(lista: T[], tamanho: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < lista.length; i += tamanho) out.push(lista.slice(i, i + tamanho));
+  return out;
+}
+
+/** Grava um mesmo patch para uma lista de ids, em lotes paralelos. */
+async function updatePatch(ids: string[], patch: Record<string, any>) {
+  if (!ids.length) return;
+  await comConcorrencia(emLotes(ids, 200), 4, async (slice) => {
     const { error } = await supabase
       .from("dados_benner" as any)
-      .update({ sem_pendencia: valor, pendencias_verificado_em: agora } as any)
+      .update(patch as any)
       .in("id", slice);
     if (error) throw error;
-  }
+  });
+}
+
+async function updateEmLotes(ids: string[], valor: boolean, agora: string) {
+  await updatePatch(ids, { sem_pendencia: valor, pendencias_verificado_em: agora });
 }
 
 /** Grava o marcador `revisar_lista_materias` em lotes. */
 async function updateRevisarEmLotes(ids: string[], valor: boolean) {
-  const CHUNK = 200;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const slice = ids.slice(i, i + CHUNK);
-    const { error } = await supabase
-      .from("dados_benner" as any)
-      .update({ revisar_lista_materias: valor } as any)
-      .in("id", slice);
-    if (error) throw error;
-  }
+  await updatePatch(ids, { revisar_lista_materias: valor });
 }
 
 async function updateSemNenhumaEmLotes(ids: string[], valor: boolean) {
-  const CHUNK = 200;
-  for (let i = 0; i < ids.length; i += CHUNK) {
-    const { error } = await supabase
-      .from("dados_benner" as any)
-      .update({ sem_nenhuma_materia_dossie: valor } as any)
-      .in("id", ids.slice(i, i + CHUNK));
-    if (error) throw error;
-  }
+  await updatePatch(ids, { sem_nenhuma_materia_dossie: valor });
 }
 
 /**
@@ -105,26 +112,19 @@ export async function recalcularSemPendencia(
 
   let rows: any[];
   if (temFiltros) {
-    // Os próprios marcadores são retirados do recorte para que o recálculo não
-    // se limite ao resultado anterior.
-    const base: DistribuicaoTstFilters = {
-      ...filtros!,
-      semPendencia: undefined,
-      revisarListaMaterias: undefined,
-      semNenhumaMateriaDossie: undefined,
-    } as DistribuicaoTstFilters;
-    const ids = await fetchAllDistribuicaoTstIds(base);
+    // Respeita EXATAMENTE o recorte da tela: só os registros filtrados são
+    // lidos e regravados.
+    const ids = await fetchAllDistribuicaoTstIds(filtros!);
     rows = [];
-    const CHUNK = 300;
-    for (let i = 0; i < ids.length; i += CHUNK) {
+    await comConcorrencia(emLotes(ids, 300), 4, async (slice) => {
       const { data, error } = await supabase
         .from("dados_benner" as any)
         .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
-        .in("id", ids.slice(i, i + CHUNK))
+        .in("id", slice)
         .in("status", STATUS_CONCLUIDOS);
       if (error) throw error;
       rows.push(...(((data as any[]) || [])));
-    }
+    });
   } else {
     rows = await fetchProntosRowsCached();
   }
@@ -139,25 +139,33 @@ export async function recalcularSemPendencia(
   let semPendencia = 0;
 
   for (const r of rows) {
+    const id = (r as any).id;
     const ok = calcularSemPendencia(r);
     if (ok) semPendencia++;
     const atual = (r as any).sem_pendencia;
-    if (ok && atual !== true) paraTrue.push((r as any).id);
-    else if (!ok && atual !== false) paraFalse.push((r as any).id);
+    if (ok && atual !== true) paraTrue.push(id);
+    else if (!ok && atual !== false) paraFalse.push(id);
+
     const revisar = calcularRevisarListaMaterias(r);
     const atualRevisar = (r as any).revisar_lista_materias;
-    if (revisar && atualRevisar !== true) revisarTrue.push((r as any).id);
-    else if (!revisar && atualRevisar !== false) revisarFalse.push((r as any).id);
+    if (revisar && atualRevisar !== true) revisarTrue.push(id);
+    else if (!revisar && atualRevisar !== false) revisarFalse.push(id);
+
+    // Só grava quando o valor muda (antes regravava TODAS as linhas).
     const semNenhuma = semNenhumaMateriaDoDossie(r);
-    (semNenhuma ? semNenhumaTrue : semNenhumaFalse).push((r as any).id);
+    const atualSemNenhuma = (r as any).sem_nenhuma_materia_dossie;
+    if (semNenhuma && atualSemNenhuma !== true) semNenhumaTrue.push(id);
+    else if (!semNenhuma && atualSemNenhuma !== false) semNenhumaFalse.push(id);
   }
 
-  await updateEmLotes(paraTrue, true, agora);
-  await updateEmLotes(paraFalse, false, agora);
-  await updateRevisarEmLotes(revisarTrue, true);
-  await updateRevisarEmLotes(revisarFalse, false);
-  await updateSemNenhumaEmLotes(semNenhumaTrue, true);
-  await updateSemNenhumaEmLotes(semNenhumaFalse, false);
+  await Promise.all([
+    updateEmLotes(paraTrue, true, agora),
+    updateEmLotes(paraFalse, false, agora),
+    updateRevisarEmLotes(revisarTrue, true),
+    updateRevisarEmLotes(revisarFalse, false),
+    updateSemNenhumaEmLotes(semNenhumaTrue, true),
+    updateSemNenhumaEmLotes(semNenhumaFalse, false),
+  ]);
 
   if (!temFiltros) {
     // Registros que deixaram de ser "prontos" mas continuavam marcados.
