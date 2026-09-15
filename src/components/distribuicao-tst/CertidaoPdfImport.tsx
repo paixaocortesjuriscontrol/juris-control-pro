@@ -275,7 +275,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
         status: "concluida",
         totalLinhas: digitsList.length + rejeitados.length,
         criados: inseridos,
-        atualizados,
+        atualizados: 0,
         resumo: msg,
         itens: [
           ...novos.map((d) => ({
@@ -283,10 +283,10 @@ export function CertidaoPdfImport({ onImported }: Props) {
             acao: "criado",
             detalhe: `Data de distribuição: ${map.get(d) || "—"}`,
           })),
-          ...paraAtualizar.map((d) => ({
+          ...jaExistentes.map((d) => ({
             processo: formatado.get(d)!,
-            acao: "atualizado",
-            detalhe: `Data de distribuição: ${map.get(d) || "—"}`,
+            acao: "ignorado",
+            detalhe: "Já existe na base — nenhum dado foi alterado",
           })),
           ...rejeitados.map((r) => ({
             processo: r.processo,
