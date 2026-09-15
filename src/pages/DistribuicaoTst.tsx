@@ -2557,9 +2557,9 @@ export default function DistribuicaoTst() {
                         <span className="truncate">
                           {filtroTagIds.length === 0
                             ? "Todas"
-                            : filtroTagIds.length === 1
+                            : `${filtroTagInverso ? "SEM: " : ""}${filtroTagIds.length === 1
                               ? (tagsCatalogo.find((t) => t.id === filtroTagIds[0])?.nome ?? "1 TAG")
-                              : `${filtroTagIds.length} TAGs`}
+                              : `${filtroTagIds.length} TAGs`}`}
                         </span>
                         <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                       </Button>
@@ -2571,12 +2571,23 @@ export default function DistribuicaoTst() {
                           <button
                             type="button"
                             className="text-[11px] text-primary hover:underline"
-                            onClick={() => setFiltroTagIds([])}
+                            onClick={() => { setFiltroTagIds([]); setFiltroTagInverso(false); }}
                           >
                             Limpar
                           </button>
                         )}
                       </div>
+                      <label className="mb-2 flex cursor-pointer items-center gap-2 rounded border border-dashed border-muted-foreground/30 px-2 py-1.5 text-[11px] hover:bg-muted">
+                        <Checkbox
+                          checked={filtroTagInverso}
+                          onCheckedChange={(v) => setFiltroTagInverso(v === true)}
+                          disabled={filtroTagIds.length === 0}
+                        />
+                        <span>
+                          <span className="font-semibold">Filtro inverso</span>
+                          <span className="text-muted-foreground"> — mostrar só processos SEM as TAGs marcadas</span>
+                        </span>
+                      </label>
                       <div className="max-h-64 space-y-1 overflow-y-auto">
                         {tagsCatalogo.map((t) => {
                           const checked = filtroTagIds.includes(t.id);
