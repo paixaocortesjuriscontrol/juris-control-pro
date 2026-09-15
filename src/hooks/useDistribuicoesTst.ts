@@ -293,6 +293,12 @@ export interface DistribuicaoTstFilters {
    * "todas" = sem filtro. "__sem__" ainda não é suportado nativamente.
    */
   tagId?: string | string[] | null;
+  /**
+   * Filtro INVERSO por TAG: retorna somente processos que NÃO possuem
+   * nenhuma das TAGs listadas. Usa a coluna denormalizada `tag_ids`
+   * (mantida por trigger em dados_benner_processo_tags).
+   */
+  excluirTagId?: string | string[] | null;
 }
 
 /** Normaliza o filtro de TAGs para uma lista de ids válidos. */
@@ -313,6 +319,13 @@ export function applyTagFilter(query: any, tagId?: string | string[] | null) {
   if (ids.length === 0) return query;
   if (ids.length === 1) return query.eq("dados_benner_processo_tags.tag_id", ids[0]);
   return query.in("dados_benner_processo_tags.tag_id", ids);
+}
+
+/** Aplica o filtro INVERSO por TAG: exclui processos que possuem qualquer uma das TAGs. */
+export function applyExcluirTagFilter(query: any, excluirTagId?: string | string[] | null) {
+  const ids = normalizeTagIds(excluirTagId);
+  if (ids.length === 0) return query;
+  return query.not("tag_ids", "ov", `{${ids.join(",")}}`);
 }
 
 
