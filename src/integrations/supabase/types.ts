@@ -2699,6 +2699,7 @@ export type Database = {
           subcategoria: string | null
           subida_em_massa: boolean
           sustentacao_oral: string | null
+          tag_ids: string[]
           tem_chance_exito_banco: string | null
           tem_chance_exito_reclamante: string | null
           tem_chance_exito_terceiro: string | null
@@ -2828,6 +2829,7 @@ export type Database = {
           subcategoria?: string | null
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
+          tag_ids?: string[]
           tem_chance_exito_banco?: string | null
           tem_chance_exito_reclamante?: string | null
           tem_chance_exito_terceiro?: string | null
@@ -2957,6 +2959,7 @@ export type Database = {
           subcategoria?: string | null
           subida_em_massa?: boolean
           sustentacao_oral?: string | null
+          tag_ids?: string[]
           tem_chance_exito_banco?: string | null
           tem_chance_exito_reclamante?: string | null
           tem_chance_exito_terceiro?: string | null
