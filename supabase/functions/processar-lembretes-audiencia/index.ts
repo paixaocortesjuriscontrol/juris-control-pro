@@ -123,22 +123,23 @@ serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // Limpeza emergencial única da fila externa acumulada durante a desconexão.
+    // Configuração emergencial única: não acumular mensagens se o celular desconectar novamente.
     const queueCleanupResponse = await fetch(
-      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/queue`,
+      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/update-queue-settings`,
       {
-        method: "DELETE",
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           "Client-Token": ZAPI_CLIENT_TOKEN,
         },
+        body: JSON.stringify({ disableEnqueueWhenDisconnected: true }),
       },
     );
     if (!queueCleanupResponse.ok) {
       const cleanupError = await queueCleanupResponse.text();
-      throw new Error(`Falha na limpeza emergencial da fila Z-API [${queueCleanupResponse.status}]: ${cleanupError}`);
+      throw new Error(`Falha ao bloquear acúmulo na fila Z-API [${queueCleanupResponse.status}]: ${cleanupError}`);
     }
-    console.log("[processar-lembretes-audiencia] Limpeza emergencial da fila externa concluída");
+    console.log("[processar-lembretes-audiencia] Acúmulo com celular desconectado bloqueado na Z-API");
 
     const now = new Date();
     console.log(`[processar-lembretes-audiencia] Início ${now.toISOString()}`);
