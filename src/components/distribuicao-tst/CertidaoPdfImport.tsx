@@ -264,7 +264,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
         baixarRelatorio(file.name, rejeitados, duplicados);
       }
 
-      const partes = [`${inseridos} cadastrado(s)`, `${atualizados} atualizado(s)`];
+      const partes = [`${inseridos} cadastrado(s)`];
       if (duplicados.length) partes.push(`${duplicados.length} duplicado(s)`);
       if (rejeitados.length) partes.push(`${rejeitados.length} rejeitado(s)`);
       const msg = partes.join(" · ");
