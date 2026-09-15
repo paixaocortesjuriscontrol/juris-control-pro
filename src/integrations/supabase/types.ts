@@ -10239,6 +10239,33 @@ export type Database = {
           },
         ]
       }
+      zapi_conexao_estado: {
+        Row: {
+          conectado: boolean
+          instancia: string
+          motivo: string | null
+          mudou_em: string
+          ultimo_alerta_em: string | null
+          verificado_em: string
+        }
+        Insert: {
+          conectado?: boolean
+          instancia: string
+          motivo?: string | null
+          mudou_em?: string
+          ultimo_alerta_em?: string | null
+          verificado_em?: string
+        }
+        Update: {
+          conectado?: boolean
+          instancia?: string
+          motivo?: string | null
+          mudou_em?: string
+          ultimo_alerta_em?: string | null
+          verificado_em?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       profiles_basic: {
