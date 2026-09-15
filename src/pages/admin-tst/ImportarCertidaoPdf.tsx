@@ -10,7 +10,8 @@ export default function ImportarCertidaoPdf() {
       comoUsar={[
         "Clique no botão ao lado e selecione o PDF da Certidão.",
         "O sistema lê cada linha do PDF (número CNJ + data) e cadastra os processos faltantes.",
-        "Processos existentes na base de dados terão a data de distribuição atualizada de acordo com a informada na certidão.",
+        "Processos existentes na base de dados terão a data de distribuição atualizada de acordo com a informada na certidão, sem duplicar — pode importar o mesmo arquivo novamente com segurança.",
+        "Se houver rejeitados ou duplicados, um relatório em Excel é baixado automaticamente no fim da importação (abas Resumo, Rejeitados e Duplicados).",
       ]}
       layoutNota="Entrada em PDF (não é planilha). Cada linha do PDF deve conter o número CNJ no formato 0000000-00.0000.0.00.0000 seguido da data DD/MM/AAAA. Tolerante a quebras de espaço (ex.: '0000092 - 91 . 2024 . 5 . 09 . 0088')."
       acao={<CertidaoPdfImport onImported={() => {}} />}
