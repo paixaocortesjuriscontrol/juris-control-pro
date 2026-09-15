@@ -293,6 +293,12 @@ export interface DistribuicaoTstFilters {
    * "todas" = sem filtro. "__sem__" ainda não é suportado nativamente.
    */
   tagId?: string | string[] | null;
+  /**
+   * Filtro INVERSO por TAG: retorna somente processos que NÃO possuem
+   * nenhuma das TAGs listadas. Usa a coluna denormalizada `tag_ids`
+   * (mantida por trigger em dados_benner_processo_tags).
+   */
+  excluirTagId?: string | string[] | null;
 }
 
 /** Normaliza o filtro de TAGs para uma lista de ids válidos. */
@@ -313,6 +319,13 @@ export function applyTagFilter(query: any, tagId?: string | string[] | null) {
   if (ids.length === 0) return query;
   if (ids.length === 1) return query.eq("dados_benner_processo_tags.tag_id", ids[0]);
   return query.in("dados_benner_processo_tags.tag_id", ids);
+}
+
+/** Aplica o filtro INVERSO por TAG: exclui processos que possuem qualquer uma das TAGs. */
+export function applyExcluirTagFilter(query: any, excluirTagId?: string | string[] | null) {
+  const ids = normalizeTagIds(excluirTagId);
+  if (ids.length === 0) return query;
+  return query.not("tag_ids", "ov", `{${ids.join(",")}}`);
 }
 
 
@@ -540,6 +553,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
       .select(selectWithTag)
       .not("aba_origem", "is", null);
     query = applyTagFilter(query, filters.tagId);
+    query = applyExcluirTagFilter(query, filters.excluirTagId);
 
     if (opts?.matchListOrder) {
       // Mesma ordenação usada pela listagem, para que "os N primeiros"
@@ -804,6 +818,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.revisarListaMaterias === "sim") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
   if (normalizeTagIds(filters.tagId).length > 0) return true;
+  if (normalizeTagIds(filters.excluirTagId).length > 0) return true;
   return false;
 }
 
@@ -868,6 +883,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
         .select(selectWithTag, withCount ? { count: "exact" } : undefined)
         .not("aba_origem", "is", null);
       query = applyTagFilter(query, filters.tagId);
+      query = applyExcluirTagFilter(query, filters.excluirTagId);
 
       if (filters.duplicado === "sim") {
         query = query.order("processo", { ascending: true, nullsFirst: false });
@@ -1299,6 +1315,7 @@ export async function fetchMesesDataRealFiltered(
       .not("aba_origem", "is", null)
       .order("id", { ascending: true });
     query = applyTagFilter(query, f.tagId);
+    query = applyExcluirTagFilter(query, f.excluirTagId);
 
     if (hasResponsavelFilter) query = query.in("dados_benner_responsaveis.usuario_id", realRespIds);
     if (wantsUnassigned) query = query.eq("tem_responsavel", false);

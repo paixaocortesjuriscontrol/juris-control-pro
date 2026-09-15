@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.sync_dados_benner_tag_ids() FROM PUBLIC, anon, authenticated;

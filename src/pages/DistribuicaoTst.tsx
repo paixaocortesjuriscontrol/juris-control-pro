@@ -355,6 +355,7 @@ export default function DistribuicaoTst() {
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
   // ===== TAGs (admin/coord) =====
   const [filtroTagIds, setFiltroTagIds] = useState<string[]>([]);
+  const [filtroTagInverso, setFiltroTagInverso] = useState(false);
   const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
   // O filtro por TAG é resolvido diretamente no banco (índice por tag_id),
   // sem trafegar milhares de ids do navegador.
@@ -443,11 +444,12 @@ export default function DistribuicaoTst() {
         provasDigitais: filtroProvasDigitais !== "todos" ? (filtroProvasDigitais as any) : undefined,
         situacaoEnvioCargaId: filtroSituacaoCarga !== "todas" ? filtroSituacaoCarga : undefined,
         equipe: filtroEquipe !== "todos" ? (filtroEquipe as any) : undefined,
-        tagId: filtroTagIds.length > 0 ? filtroTagIds : undefined,
+        tagId: filtroTagIds.length > 0 && !filtroTagInverso ? filtroTagIds : undefined,
+        excluirTagId: filtroTagIds.length > 0 && filtroTagInverso ? filtroTagIds : undefined,
       });
     }, 400);
     return () => clearTimeout(timer);
-}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds)]);
+}, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds), filtroTagInverso]);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -750,6 +752,7 @@ export default function DistribuicaoTst() {
     setFiltroProvasDigitais("todos");
     setFiltroSituacaoCarga("todas");
     setFiltroTagIds([]);
+    setFiltroTagInverso(false);
     setFiltroSubidaMassa("todos");
     setFiltroAcordo("todos");
     setFiltroSemPendencia(false);
@@ -2554,9 +2557,9 @@ export default function DistribuicaoTst() {
                         <span className="truncate">
                           {filtroTagIds.length === 0
                             ? "Todas"
-                            : filtroTagIds.length === 1
+                            : `${filtroTagInverso ? "SEM: " : ""}${filtroTagIds.length === 1
                               ? (tagsCatalogo.find((t) => t.id === filtroTagIds[0])?.nome ?? "1 TAG")
-                              : `${filtroTagIds.length} TAGs`}
+                              : `${filtroTagIds.length} TAGs`}`}
                         </span>
                         <ChevronDown className="h-3.5 w-3.5 opacity-50 shrink-0" />
                       </Button>
@@ -2568,12 +2571,23 @@ export default function DistribuicaoTst() {
                           <button
                             type="button"
                             className="text-[11px] text-primary hover:underline"
-                            onClick={() => setFiltroTagIds([])}
+                            onClick={() => { setFiltroTagIds([]); setFiltroTagInverso(false); }}
                           >
                             Limpar
                           </button>
                         )}
                       </div>
+                      <label className="mb-2 flex cursor-pointer items-center gap-2 rounded border border-dashed border-muted-foreground/30 px-2 py-1.5 text-[11px] hover:bg-muted">
+                        <Checkbox
+                          checked={filtroTagInverso}
+                          onCheckedChange={(v) => setFiltroTagInverso(v === true)}
+                          disabled={filtroTagIds.length === 0}
+                        />
+                        <span>
+                          <span className="font-semibold">Filtro inverso</span>
+                          <span className="text-muted-foreground"> — mostrar só processos SEM as TAGs marcadas</span>
+                        </span>
+                      </label>
                       <div className="max-h-64 space-y-1 overflow-y-auto">
                         {tagsCatalogo.map((t) => {
                           const checked = filtroTagIds.includes(t.id);
