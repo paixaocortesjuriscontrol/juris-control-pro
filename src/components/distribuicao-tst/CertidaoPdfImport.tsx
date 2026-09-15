@@ -191,37 +191,17 @@ export function CertidaoPdfImport({ onImported }: Props) {
       }
 
       const novos = digitsList.filter(d => !existentesPorDigits.has(d));
-      const paraAtualizar = digitsList.filter(d => existentesPorDigits.has(d));
-      paraAtualizar.forEach(d => {
+      const jaExistentes = digitsList.filter(d => existentesPorDigits.has(d));
+      jaExistentes.forEach(d => {
         duplicados.push({
           processo: formatado.get(d) || d,
           data: map.get(d),
-          motivo: "Já existe na base — apenas a data de distribuição foi atualizada",
+          motivo: "Já existe na base — nenhum dado foi alterado",
         });
       });
 
-      setStatusText(`${novos.length} novos · ${paraAtualizar.length} já existentes`);
-      setProgress(40);
-
-      // Atualiza a data de distribuição dos já existentes
-      let atualizados = 0;
-      for (let i = 0; i < paraAtualizar.length; i++) {
-        const d = paraAtualizar[i];
-        const row = existentesPorDigits.get(d)!;
-        const iso = map.get(d)!;
-        const { error } = await (supabase.from("dados_benner") as any)
-          .update({ data_distribuicao_planilha: iso, data_distribuicao_real: iso })
-          .eq("id", row.id);
-        if (error) {
-          rejeitados.push({ processo: row.processo, data: iso, motivo: `Falha ao atualizar: ${error.message}` });
-        } else {
-          atualizados++;
-        }
-        if (i % 20 === 0) {
-          setProgress(40 + Math.round(((i + 1) / Math.max(paraAtualizar.length, 1)) * 15));
-          setStatusText(`Atualizando existentes ${atualizados}/${paraAtualizar.length}...`);
-        }
-      }
+      setStatusText(`${novos.length} novos · ${jaExistentes.length} já existentes (não alterados)`);
+      setProgress(55);
 
       let inseridos = 0;
 
@@ -284,7 +264,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
         baixarRelatorio(file.name, rejeitados, duplicados);
       }
 
-      const partes = [`${inseridos} cadastrado(s)`, `${atualizados} atualizado(s)`];
+      const partes = [`${inseridos} cadastrado(s)`];
       if (duplicados.length) partes.push(`${duplicados.length} duplicado(s)`);
       if (rejeitados.length) partes.push(`${rejeitados.length} rejeitado(s)`);
       const msg = partes.join(" · ");
@@ -295,7 +275,7 @@ export function CertidaoPdfImport({ onImported }: Props) {
         status: "concluida",
         totalLinhas: digitsList.length + rejeitados.length,
         criados: inseridos,
-        atualizados,
+        atualizados: 0,
         resumo: msg,
         itens: [
           ...novos.map((d) => ({
@@ -303,10 +283,10 @@ export function CertidaoPdfImport({ onImported }: Props) {
             acao: "criado",
             detalhe: `Data de distribuição: ${map.get(d) || "—"}`,
           })),
-          ...paraAtualizar.map((d) => ({
+          ...jaExistentes.map((d) => ({
             processo: formatado.get(d)!,
-            acao: "atualizado",
-            detalhe: `Data de distribuição: ${map.get(d) || "—"}`,
+            acao: "ignorado",
+            detalhe: "Já existe na base — nenhum dado foi alterado",
           })),
           ...rejeitados.map((r) => ({
             processo: r.processo,
