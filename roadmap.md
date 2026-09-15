@@ -53,7 +53,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Exibir pendências vermelhas e avisos amarelos na aba Distribuição TST da janela lateral direita
 
 ## WhatsApp — fila Z-API (15/09)
-- [ ] Identificar e interromper o envio de mensagens antigas acumuladas, preservando os 711 lembretes futuros
+- [x] Identificar e interromper o envio de mensagens antigas acumuladas, preservando os 711 lembretes futuros
 
 ## Workflow pela Análise DJEN (10/09)
 - [x] Iniciar um workflow reutilizável pelo menu Adicionar da publicação, herdando processo e coordenação
