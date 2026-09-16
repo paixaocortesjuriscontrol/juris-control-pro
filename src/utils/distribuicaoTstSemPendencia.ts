@@ -312,7 +312,7 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
  * dessa data carregam marcação calculada com regra antiga e são revalidados
  * automaticamente ao abrir a tela (em lotes pequenos, em segundo plano).
  */
-export const REGRA_PENDENCIAS_ATUALIZADA_EM = "2026-09-16T00:00:00.000Z";
+export const REGRA_PENDENCIAS_ATUALIZADA_EM = "2026-09-16T21:00:00.000Z";
 
 /** Quantos registros antigos são revalidados por visita à tela. */
 const REVALIDACAO_MAX_POR_VISITA = 600;
@@ -377,6 +377,8 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
     const revisarFalse: string[] = [];
     const semNenhumaTrue: string[] = [];
     const semNenhumaFalse: string[] = [];
+    const somenteOutraTrue: string[] = [];
+    const somenteOutraFalse: string[] = [];
     for (const row of ((data as any[]) || [])) {
       const concluido = STATUS_CONCLUIDOS.includes(String((row as any).status || ""));
       const ok = concluido ? calcularSemPendencia(row) : false;
@@ -386,6 +388,8 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
       const semNenhuma =
         concluido && !isNaoPrecisaFazer(row) ? semNenhumaMateriaDoDossie(row) : false;
       (semNenhuma ? semNenhumaTrue : semNenhumaFalse).push((row as any).id);
+      const somenteOutra = concluido ? calcularSomenteOutraMateria(row) : false;
+      (somenteOutra ? somenteOutraTrue : somenteOutraFalse).push((row as any).id);
     }
     await updateEmLotes(paraTrue, true, agora);
     await updateEmLotes(paraFalse, false, agora);
@@ -393,6 +397,9 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
     await updateRevisarEmLotes(revisarFalse, false);
     await updateSemNenhumaEmLotes(semNenhumaTrue, true);
     await updateSemNenhumaEmLotes(semNenhumaFalse, false);
+    await updateSomenteOutraEmLotes(somenteOutraTrue, true);
+    await updateSomenteOutraEmLotes(somenteOutraFalse, false);
+
   }
   invalidateDistribuicaoTstCache();
 }
