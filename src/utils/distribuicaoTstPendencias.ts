@@ -716,6 +716,7 @@ export type MateriasForaDoDossie = {
 export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const res: MateriasForaDoDossie = {
     temLista: false,
+    temParteAtiva: false,
     total: 0,
     validas: 0,
     validasPorParte: {},
@@ -734,6 +735,8 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const parteAtiva: Record<string, boolean> = info.valida
     ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
     : { reclamante: true, banco: true, terceiro: false };
+  res.temParteAtiva = Object.values(parteAtiva).some(Boolean);
+
 
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
