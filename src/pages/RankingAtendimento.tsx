@@ -19,6 +19,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cart
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
 import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 
 
 const NAVY = "hsl(222 47% 18%)";
@@ -57,6 +58,23 @@ type LinhaTst = {
   prontos: number;
 };
 
+/**
+ * Métrica do ranking TST associada a cada card da Distribuição TST.
+ * Cards sem coluna própria no ranking caem no padrão (total de processos).
+ */
+const TST_METRICA_POR_CARD: Partial<Record<StatsCardKey, { label: string; valor: (l: LinhaTst) => number }>> = {
+  total: { label: "Total Geral", valor: (l) => Number(l.total) },
+  processosUnicos: { label: "Processos Únicos", valor: (l) => Number(l.total) },
+  processosValidos: { label: "Processos nº CNJ válidos", valor: (l) => Number(l.total) },
+  dossiesValidos: { label: "Dossiês Válidos", valor: (l) => Number(l.total) },
+  processosAtivos: { label: "Processos Ativos", valor: (l) => Number(l.total) },
+  prontoEnvio: { label: "Concluídos (prontos/planilhados)", valor: (l) => Number(l.prontos || 0) },
+  prontoSemPendencia: { label: "Pronto sem pendência", valor: (l) => Number(l.sem_pendencia) },
+  prontoComPendencia: { label: "Pronto com pendência", valor: (l) => Number(l.com_pendencia) },
+  juditPreenchido: { label: "Judit Preenchido", valor: (l) => Number(l.judit_preenchidos) },
+  juditNaoPreenchido: { label: "Judit Não Preenchido", valor: (l) => Number(l.total) - Number(l.judit_preenchidos) },
+};
+
 function pct(parte: number, total: number) {
   if (!total) return 0;
   return Math.round((parte / total) * 100);
@@ -88,6 +106,8 @@ export default function RankingAtendimento() {
   const [preset, setPreset] = useState<Preset>("ano");
   /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
   const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
+  /** Card da Distribuição TST clicado — reordena o ranking e o gráfico da aba TST. */
+  const [tstCardAtivo, setTstCardAtivo] = useState<StatsCardKey | null>(null);
 
 
   const aplicarPreset = (p: Preset) => {
@@ -212,18 +232,34 @@ export default function RankingAtendimento() {
     [geral]
   );
 
+  /** Ranking TST ordenado pela métrica do card clicado (padrão: Prontos). */
+  const tstOrdenado = useMemo(() => {
+    const metrica = tstCardAtivo ? TST_METRICA_POR_CARD[tstCardAtivo] : undefined;
+    if (!metrica) {
+      return [...tst].sort(
+        (a, b) =>
+          Number(b.prontos || 0) - Number(a.prontos || 0) ||
+          pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)) ||
+          Number(b.total) - Number(a.total)
+      );
+    }
+    return [...tst].sort(
+      (a, b) =>
+        metrica.valor(b) - metrica.valor(a) ||
+        Number(b.prontos || 0) - Number(a.prontos || 0) ||
+        Number(b.total) - Number(a.total)
+    );
+  }, [tst, tstCardAtivo]);
+
   const graficoTst = useMemo(
     () =>
-      [...tst]
-        .sort((a, b) => Number(b.prontos || 0) - Number(a.prontos || 0) || Number(b.sem_pendencia) - Number(a.sem_pendencia))
-        .slice(0, 12)
-        .map((l) => ({
-          nome: l.nome.split(" ").slice(0, 2).join(" "),
-          Prontos: Number(l.prontos || 0),
-          "Sem pendência": Number(l.sem_pendencia),
-          "Com pendência": Number(l.com_pendencia),
-        })),
-    [tst]
+      tstOrdenado.slice(0, 12).map((l) => ({
+        nome: l.nome.split(" ").slice(0, 2).join(" "),
+        Prontos: Number(l.prontos || 0),
+        "Sem pendência": Number(l.sem_pendencia),
+        "Com pendência": Number(l.com_pendencia),
+      })),
+    [tstOrdenado]
   );
 
   const nomeCoordenacao =
@@ -540,16 +576,6 @@ export default function RankingAtendimento() {
     [pontualidade]
   );
 
-  const tstOrdenado = useMemo(
-    () =>
-      [...tst].sort(
-        (a, b) =>
-          Number(b.prontos || 0) - Number(a.prontos || 0) ||
-          pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)) ||
-          Number(b.total) - Number(a.total)
-      ),
-    [tst]
-  );
 
   return (
     <MainLayout
@@ -1100,7 +1126,8 @@ export default function RankingAtendimento() {
                 </CardTitle>
                 <CardDescription>
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
-                  no ranking abaixo para ver apenas os processos dele.
+                  no ranking abaixo para ver apenas os processos dele. Clique no número de um card para
+                  reordenar o ranking e o gráfico por essa métrica.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
@@ -1111,10 +1138,24 @@ export default function RankingAtendimento() {
                       Ver todos
                     </Button>
                   )}
+                  {tstCardAtivo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-2 h-6"
+                      onClick={() => setTstCardAtivo(null)}
+                    >
+                      Limpar ordenação do card
+                    </Button>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <RankingTstCards responsavelId={respTstSelecionado?.id ?? null} />
+                <RankingTstCards
+                  responsavelId={respTstSelecionado?.id ?? null}
+                  activeKey={tstCardAtivo}
+                  onCardClick={(key) => setTstCardAtivo((atual) => (atual === key ? null : key))}
+                />
               </CardContent>
             </Card>
 
@@ -1186,7 +1227,11 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking detalhado — TST</CardTitle>
-                <CardDescription>Ordenado pela quantidade de processos marcados como Pronto no período</CardDescription>
+                <CardDescription>
+                  {tstCardAtivo && TST_METRICA_POR_CARD[tstCardAtivo]
+                    ? `Ordenado pelo card "${TST_METRICA_POR_CARD[tstCardAtivo]!.label}" — clique no card novamente para voltar ao padrão`
+                    : "Ordenado pela quantidade de processos marcados como Pronto no período"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table>
