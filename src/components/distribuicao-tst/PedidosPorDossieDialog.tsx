@@ -231,9 +231,10 @@ export function PedidosPorDossieDialog() {
             <DialogTitle>Pedidos por dossiê</DialogTitle>
             <DialogDescription>
               Selecione a planilha com o Dossiê na coluna A e os pedidos na
-              coluna B, separados por “|”. Os pedidos do dossiê substituem os
-              já cadastrados e os pedidos inexistentes na lista oficial são
-              incluídos automaticamente.
+              coluna B, separados por “|”. A importação apenas acrescenta:
+              nenhum pedido já cadastrado é apagado ou substituído, e os
+              pedidos inexistentes na lista oficial são incluídos
+              automaticamente.
             </DialogDescription>
           </DialogHeader>
 
