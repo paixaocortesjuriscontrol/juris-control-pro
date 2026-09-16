@@ -86,6 +86,9 @@ export default function RankingAtendimento() {
   const [usuarioId, setUsuarioId] = useState("todos");
   const [aba, setAba] = useState("geral");
   const [preset, setPreset] = useState<Preset>("ano");
+  /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
+  const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
+
 
   const aplicarPreset = (p: Preset) => {
     setPreset(p);
