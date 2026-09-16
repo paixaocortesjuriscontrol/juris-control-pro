@@ -20,6 +20,7 @@ const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
 import { useSomenteOutraMateriaCount } from "@/hooks/useSomenteOutraMateriaCount";
+import { useSomenteOutraMateriaPorResponsavel } from "@/hooks/useSomenteOutraMateriaPorResponsavel";
 import { recalcularSemPendencia, backfillSemPendenciaSeNecessario, atualizarSemPendenciaLote, revalidarMarcacoesAntigas } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
@@ -634,6 +635,11 @@ export default function DistribuicaoTst() {
     ids: revisarListaMateriasIds,
     refetch: refetchMateriasPorResponsavel,
   } = useSemMateriaDossiePorResponsavel(countsFilters);
+  const {
+    map: somenteOutraPorResp,
+    idsPorUsuario: somenteOutraIdsPorResp,
+    refetch: refetchSomenteOutraPorResp,
+  } = useSomenteOutraMateriaPorResponsavel(countsFilters);
   const responsavelCountsCompleto = useMemo(() => {
     const byId = new Map(responsavelCounts.map((c) => [c.id, c]));
     const extras = membrosCoordenacaoTst
@@ -658,10 +664,11 @@ export default function DistribuicaoTst() {
           faltam: Math.max(0, c.count - (c.pronto || 0)),
           semPendencia,
           semMateriaDossie: semMateriaDossiePorResp[c.id] || 0,
+          somenteOutraMateria: somenteOutraPorResp[c.id] || 0,
         };
       })
       .sort((a, b) => a.faltam - b.faltam || b.count - a.count || a.nome.localeCompare(b.nome));
-  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp, filtroComPendencia, filtroSemPendencia]);
+  }, [responsavelCounts, membrosCoordenacaoTst, semPendenciaPorResp, semMateriaDossiePorResp, somenteOutraPorResp, filtroComPendencia, filtroSemPendencia]);
 
 
   // Auto-seleciona o usuário logado como responsável ao abrir a tela
@@ -969,6 +976,7 @@ export default function DistribuicaoTst() {
       Promise.resolve(refetchSemPendenciaPorResp()),
       Promise.resolve(refetchMateriasPorResponsavel()),
       Promise.resolve(refetchSomenteOutraMateria()),
+      Promise.resolve(refetchSomenteOutraPorResp()),
     ]);
   };
 
@@ -2112,12 +2120,12 @@ export default function DistribuicaoTst() {
                 // correspondente; os cards gerais recalculam automaticamente
                 // porque usam os mesmos `listFilters`.
                 const aplicar = (
-                  modo: "total" | "pronto" | "semPend" | "comPend" | "semMatDossie" | "faltam",
+                  modo: "total" | "pronto" | "semPend" | "comPend" | "semMatDossie" | "somenteOutra" | "faltam",
                 ) => {
                   setSelectedIds(new Set());
                   setFiltroResponsavelIds([filterValue]);
                   setFiltroStatus(
-                    modo === "pronto" || modo === "comPend" || modo === "semMatDossie" || modo === "semPend"
+                    modo === "pronto" || modo === "comPend" || modo === "semMatDossie" || modo === "somenteOutra" || modo === "semPend"
                       ? "concluidos"
                       : modo === "faltam"
                         ? "pendentes"
@@ -2126,7 +2134,7 @@ export default function DistribuicaoTst() {
                   setFiltroSemPendencia(modo === "semPend");
                   setFiltroComPendencia(modo === "comPend");
                   setFiltroRevisarListaMaterias(false);
-                  setFiltroSomenteOutraMateria(false);
+                  setFiltroSomenteOutraMateria(modo === "somenteOutra");
 
                   setSemMateriaDossieIds(
                     modo === "semMatDossie" ? (semMateriaDossieIdsPorResp[c.id] || []) : null,
@@ -2144,7 +2152,7 @@ export default function DistribuicaoTst() {
                           ? "border-amber-400 bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300"
                           : "border-border bg-card text-foreground"
                     }`}
-                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Prontos sem matéria do dossiê: ${c.semMateriaDossie} • Faltam: ${faltam}`}
+                    title={`${c.nome} — Total: ${c.count} • Pronto: ${c.pronto} • Pronto sem pendência: ${c.semPendencia} • Prontos com pendências: ${comPendencia} • Prontos sem matéria do dossiê: ${c.semMateriaDossie} • Aviso somente Outra Matéria: ${c.somenteOutraMateria} • Faltam: ${faltam}`}
                   >
                     <button
                       type="button"
@@ -2197,6 +2205,18 @@ export default function DistribuicaoTst() {
                         onClick={() => aplicar("semMatDossie")}
                       >
                         {c.semMateriaDossie}
+                      </button>
+                      <button
+                        type="button"
+                        className={`${badge} ${
+                          c.somenteOutraMateria > 0
+                            ? "bg-yellow-400/25 text-yellow-800 dark:text-yellow-300"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                        title="AVISO: prontos com somente 'Outra Matéria' selecionada — clique para filtrar"
+                        onClick={() => aplicar("somenteOutra")}
+                      >
+                        {c.somenteOutraMateria}
                       </button>
                       <button
                         type="button"
