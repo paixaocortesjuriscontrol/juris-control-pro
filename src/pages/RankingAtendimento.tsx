@@ -19,6 +19,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cart
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
 import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 
 
 const NAVY = "hsl(222 47% 18%)";
@@ -88,6 +89,8 @@ export default function RankingAtendimento() {
   const [preset, setPreset] = useState<Preset>("ano");
   /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
   const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
+  /** Card da Distribuição TST clicado — reordena o ranking e o gráfico da aba TST. */
+  const [tstCardAtivo, setTstCardAtivo] = useState<StatsCardKey | null>(null);
 
 
   const aplicarPreset = (p: Preset) => {
