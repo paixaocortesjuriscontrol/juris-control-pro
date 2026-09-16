@@ -218,7 +218,7 @@ export async function recalcularSemPendencia(
     // Registros que deixaram de ser "prontos" mas continuavam marcados.
     const { error } = await supabase
       .from("dados_benner" as any)
-      .update({ sem_pendencia: false, revisar_lista_materias: false, sem_nenhuma_materia_dossie: false, pendencias_verificado_em: agora } as any)
+      .update({ sem_pendencia: false, revisar_lista_materias: false, sem_nenhuma_materia_dossie: false, somente_outra_materia: false, pendencias_verificado_em: agora } as any)
       .is("sem_pendencia", true)
       .not("status", "in", `(${STATUS_CONCLUIDOS.join(",")})`);
     if (error) throw error;
