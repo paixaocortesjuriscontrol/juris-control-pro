@@ -29,12 +29,16 @@ const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
 
 /** Um registro está "sem pendência" quando é pronto e não falta nada. */
 export function calcularSemPendencia(row: any): boolean {
-  // Espelha a lógica do botão "Verificar Pendências": processos em outro
-  // escritório, sob segredo de justiça ou CEJUSC não entram na conta, salvo
-  // quando estão marcados como pronto (aí a situação impeditiva é pendência).
-  if (!isMarcadoPronto(row) && isNaoPrecisaFazer(row)) return false;
+  // Processos em outro escritório, sob segredo de justiça, CEJUSC ou com
+  // Acordo aparecem na lista como "Não precisa fazer" — logo NÃO podem contar
+  // como "pronto com pendência" nos cards. A única exceção é uma rejeição de
+  // Carga Benner real (ex.: dossiê fora do padrão), que continua pendência.
+  if (isNaoPrecisaFazer(row)) {
+    return getPendencias(row).filter((p) => p.key !== "situacao_impeditiva").length === 0;
+  }
   return getPendencias(row).length === 0;
 }
+
 
 /**
  * Um registro precisa "Revisar Lista de matérias" quando é pronto e nenhuma
