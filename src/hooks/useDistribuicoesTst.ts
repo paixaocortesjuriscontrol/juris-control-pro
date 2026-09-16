@@ -284,8 +284,11 @@ export interface DistribuicaoTstFilters {
    * precisa de revisão.
    */
   revisarListaMaterias?: "todos" | "sim";
+  /** Prontos cujo quadro de matérias só tem "Outra Matéria" (aviso, não pendência). */
+  somenteOutraMateria?: "todos" | "sim";
   /** Prontos sem nenhuma matéria selecionada presente na lista do dossiê. */
   semNenhumaMateriaDossie?: "todos" | "sim";
+
   /** Lista de ids permitidos (intersecção). Quando vazia, retorna 0 linhas. */
   idsAllowed?: string[] | null;
   /**
