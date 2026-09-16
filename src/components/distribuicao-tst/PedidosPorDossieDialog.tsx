@@ -32,6 +32,21 @@ interface Resultado {
 
 const CHUNK = 500;
 
+/**
+ * Uma carga enviada por engano gravou NÚMEROS DE PROCESSO na coluna de
+ * pedidos, criando pendências falsas em fichas prontas. Qualquer valor que
+ * seja um número de processo é descartado e, se a planilha for majoritariamente
+ * composta por eles, a importação é recusada.
+ */
+function ehNumeroDeProcesso(valor: string): boolean {
+  const digitos = valor.replace(/\D/g, "");
+  if (digitos.length >= 19 && digitos.length <= 21 && /^\d+$/.test(digitos)) {
+    const letras = valor.replace(/[^A-Za-zÀ-ÿ]/g, "");
+    if (letras.length === 0) return true;
+  }
+  return /^'?\s*\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\s*$/.test(valor);
+}
+
 async function chunked<T>(items: T[], fn: (part: T[]) => Promise<void>) {
   for (let i = 0; i < items.length; i += CHUNK) {
     await fn(items.slice(i, i + CHUNK));
