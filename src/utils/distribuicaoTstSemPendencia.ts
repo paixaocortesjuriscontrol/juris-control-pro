@@ -62,6 +62,8 @@ export function calcularSemPendencia(row: any): boolean {
  */
 export function calcularRevisarListaMaterias(row: any): boolean {
   if (!isMarcadoPronto(row)) return false;
+  // "Não precisa fazer" não gera nenhuma pendência.
+  if (isNaoPrecisaFazer(row)) return false;
   return precisaRevisarListaMaterias(row);
 }
 
