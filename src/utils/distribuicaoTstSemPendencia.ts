@@ -281,6 +281,52 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
 }
 
 /**
+ * Data da última mudança nas regras de pendência. Registros verificados ANTES
+ * dessa data carregam marcação calculada com regra antiga e são revalidados
+ * automaticamente ao abrir a tela (em lotes pequenos, em segundo plano).
+ */
+export const REGRA_PENDENCIAS_ATUALIZADA_EM = "2026-09-16T00:00:00.000Z";
+
+/** Quantos registros antigos são revalidados por visita à tela. */
+const REVALIDACAO_MAX_POR_VISITA = 600;
+const REVALIDACAO_LOTE = 150;
+
+let revalidacaoEmAndamento: Promise<number> | null = null;
+
+/**
+ * Revalida em segundo plano as fichas prontas cuja última verificação é
+ * anterior à regra atual. Evita que marcações calculadas com regra antiga
+ * fiquem divergindo da coluna Pendências até alguém clicar em "Verificar
+ * Pendências".
+ */
+export function revalidarMarcacoesAntigas(): Promise<number> {
+  if (revalidacaoEmAndamento) return revalidacaoEmAndamento;
+  revalidacaoEmAndamento = (async () => {
+    const { data, error } = await supabase
+      .from("dados_benner" as any)
+      .select("id")
+      .in("status", STATUS_CONCLUIDOS)
+      .lt("pendencias_verificado_em", REGRA_PENDENCIAS_ATUALIZADA_EM)
+      .order("pendencias_verificado_em", { ascending: true })
+      .limit(REVALIDACAO_MAX_POR_VISITA);
+    if (error) return 0;
+    const ids = ((data as any[]) || []).map((r) => r.id).filter(Boolean);
+    if (!ids.length) return 0;
+    for (let i = 0; i < ids.length; i += REVALIDACAO_LOTE) {
+      await atualizarSemPendenciaLote(ids.slice(i, i + REVALIDACAO_LOTE));
+      // Devolve o controle ao navegador entre lotes (tela não trava).
+      await new Promise((r) => setTimeout(r, 60));
+    }
+    return ids.length;
+  })()
+    .catch(() => 0)
+    .finally(() => {
+      revalidacaoEmAndamento = null;
+    });
+  return revalidacaoEmAndamento;
+}
+
+/**
  * Recalcula o marcador de vários registros (ex.: botão "Marcar Pronto" em
  * lote). Lê apenas as linhas informadas e grava o resultado.
  */
