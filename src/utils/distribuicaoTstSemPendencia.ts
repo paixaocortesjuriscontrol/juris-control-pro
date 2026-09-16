@@ -23,7 +23,9 @@ import {
   isMarcadoPronto,
   precisaRevisarListaMaterias,
   semNenhumaMateriaDoDossie,
+  somenteOutraMateriaSelecionada,
 } from "@/utils/distribuicaoTstPendencias";
+
 
 const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
 
@@ -109,6 +111,19 @@ async function updateRevisarEmLotes(ids: string[], valor: boolean) {
 async function updateSemNenhumaEmLotes(ids: string[], valor: boolean) {
   await updatePatch(ids, { sem_nenhuma_materia_dossie: valor });
 }
+
+/** Grava o marcador de AVISO `somente_outra_materia` em lotes. */
+async function updateSomenteOutraEmLotes(ids: string[], valor: boolean) {
+  await updatePatch(ids, { somente_outra_materia: valor });
+}
+
+/** Aviso (não pendência): a parte recorrente só tem "Outra Matéria". */
+export function calcularSomenteOutraMateria(row: any): boolean {
+  if (!isMarcadoPronto(row)) return false;
+  if (isNaoPrecisaFazer(row)) return false;
+  return somenteOutraMateriaSelecionada(row);
+}
+
 
 /**
  * Recalcula e grava o marcador para os processos com status concluído.
