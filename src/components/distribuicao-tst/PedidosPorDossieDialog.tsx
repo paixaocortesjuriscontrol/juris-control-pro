@@ -138,18 +138,24 @@ export function PedidosPorDossieDialog() {
         });
       }
 
-      // 2) Substituir pedidos dos dossiês presentes na planilha
-      setEtapa("Gravando pedidos por dossiê...");
+      // 2) Somar aos pedidos já cadastrados — NUNCA apagar o que existe.
+      setEtapa("Conferindo pedidos já cadastrados...");
       const dossies = [...porDossie.keys()];
+
+      // Pares (dossiê + pedido normalizado) que já estão na base.
+      const existentes = new Set<string>();
       await chunked(dossies, async (part) => {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("pedidos_por_dossie" as any)
-          .delete()
+          .select("dossie, pedido_normalizado")
           .in("dossie", part);
         if (error) throw error;
+        for (const r of ((data as any[]) || [])) {
+          existentes.add(`${r?.dossie}||${r?.pedido_normalizado}`);
+        }
       });
 
-      const registros = dossies.flatMap((dossie) =>
+      const todosDaPlanilha = dossies.flatMap((dossie) =>
         [...porDossie.get(dossie)!.entries()].map(([norm, nome]) => ({
           dossie,
           pedido: nome,
@@ -157,40 +163,45 @@ export function PedidosPorDossieDialog() {
           origem: file.name,
         })),
       );
+      const registros = todosDaPlanilha.filter(
+        (r) => !existentes.has(`${r.dossie}||${r.pedido_normalizado}`),
+      );
+      const jaExistentes = todosDaPlanilha.length - registros.length;
 
+      setEtapa("Gravando pedidos novos...");
       await chunked(registros, async (part) => {
         const { error } = await supabase
           .from("pedidos_por_dossie" as any)
-          .insert(part as any);
+          .upsert(part as any, {
+            onConflict: "dossie,pedido_normalizado",
+            ignoreDuplicates: true,
+          });
         if (error) throw error;
       });
 
-      await queryClient.invalidateQueries({ queryKey: ["pedidos-por-dossie"] });
-      await queryClient.invalidateQueries({ queryKey: ["materias-pedidos-oficiais"] });
-      await queryClient.invalidateQueries({ queryKey: ["materias-benner"] });
-
-      // Recarrega o cache em memória da lista oficial para que os pedidos
-      // recém-cadastrados não apareçam mais como "fora lista do Benner".
-      resetMateriasOficiais();
-      await ensureMateriasOficiais().catch(() => {});
-
-      const novosUnicos = new Set([
-        ...novosOficiais.map((n) => normalizeMateriaNome(n)),
-        ...novosCatalogo.map((n) => normalizeMateriaNome(n)),
-      ]);
-      const novosNomes = [...todosPedidos.entries()]
-        .filter(([norm]) => novosUnicos.has(norm))
-        .map(([, nome]) => nome)
-        .sort((a, b) => a.localeCompare(b, "pt-BR"));
-
+      // Histórico da carga (best-effort: não impede a importação)
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        await supabase.from("pedidos_por_dossie_cargas" as any).insert({
+          arquivo: file.name,
+          dossies: dossies.length,
+          pedidos_novos: registros.length,
+          pedidos_existentes: jaExistentes,
+          importado_por: userData?.user?.id ?? null,
+        } as any);
+      } catch {
+        /* ignora falha no registro do histórico */
+      }
+...
       setResultado({
         dossies: dossies.length,
         vinculos: registros.length,
+        jaExistentes,
         novosPedidos: novosNomes,
         ignoradas,
       });
       toast.success(
-        `${dossies.length} dossiê(s) atualizado(s) — ${registros.length} pedido(s) vinculado(s).`,
+        `${dossies.length} dossiê(s) — ${registros.length} pedido(s) acrescentado(s), ${jaExistentes} já cadastrado(s). Nada foi apagado.`,
       );
     } catch (e: any) {
       console.error("[PedidosPorDossie] erro", e);
