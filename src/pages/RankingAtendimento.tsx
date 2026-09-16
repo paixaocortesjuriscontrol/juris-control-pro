@@ -1126,7 +1126,8 @@ export default function RankingAtendimento() {
                 </CardTitle>
                 <CardDescription>
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
-                  no ranking abaixo para ver apenas os processos dele.
+                  no ranking abaixo para ver apenas os processos dele. Clique no número de um card para
+                  reordenar o ranking e o gráfico por essa métrica.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
@@ -1137,10 +1138,24 @@ export default function RankingAtendimento() {
                       Ver todos
                     </Button>
                   )}
+                  {tstCardAtivo && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-2 h-6"
+                      onClick={() => setTstCardAtivo(null)}
+                    >
+                      Limpar ordenação do card
+                    </Button>
+                  )}
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <RankingTstCards responsavelId={respTstSelecionado?.id ?? null} />
+                <RankingTstCards
+                  responsavelId={respTstSelecionado?.id ?? null}
+                  activeKey={tstCardAtivo}
+                  onCardClick={(key) => setTstCardAtivo((atual) => (atual === key ? null : key))}
+                />
               </CardContent>
             </Card>
 
