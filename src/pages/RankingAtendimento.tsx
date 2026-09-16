@@ -232,18 +232,34 @@ export default function RankingAtendimento() {
     [geral]
   );
 
+  /** Ranking TST ordenado pela métrica do card clicado (padrão: Prontos). */
+  const tstOrdenado = useMemo(() => {
+    const metrica = tstCardAtivo ? TST_METRICA_POR_CARD[tstCardAtivo] : undefined;
+    if (!metrica) {
+      return [...tst].sort(
+        (a, b) =>
+          Number(b.prontos || 0) - Number(a.prontos || 0) ||
+          pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)) ||
+          Number(b.total) - Number(a.total)
+      );
+    }
+    return [...tst].sort(
+      (a, b) =>
+        metrica.valor(b) - metrica.valor(a) ||
+        Number(b.prontos || 0) - Number(a.prontos || 0) ||
+        Number(b.total) - Number(a.total)
+    );
+  }, [tst, tstCardAtivo]);
+
   const graficoTst = useMemo(
     () =>
-      [...tst]
-        .sort((a, b) => Number(b.prontos || 0) - Number(a.prontos || 0) || Number(b.sem_pendencia) - Number(a.sem_pendencia))
-        .slice(0, 12)
-        .map((l) => ({
-          nome: l.nome.split(" ").slice(0, 2).join(" "),
-          Prontos: Number(l.prontos || 0),
-          "Sem pendência": Number(l.sem_pendencia),
-          "Com pendência": Number(l.com_pendencia),
-        })),
-    [tst]
+      tstOrdenado.slice(0, 12).map((l) => ({
+        nome: l.nome.split(" ").slice(0, 2).join(" "),
+        Prontos: Number(l.prontos || 0),
+        "Sem pendência": Number(l.sem_pendencia),
+        "Com pendência": Number(l.com_pendencia),
+      })),
+    [tstOrdenado]
   );
 
   const nomeCoordenacao =
