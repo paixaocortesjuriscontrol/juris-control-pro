@@ -2213,7 +2213,7 @@ export default function DistribuicaoTst() {
                             ? "bg-yellow-400/25 text-yellow-800 dark:text-yellow-300"
                             : "bg-muted text-muted-foreground"
                         }`}
-                        title="AVISO: prontos com somente \"Outra Matéria\" selecionada — clique para filtrar"
+                        title="AVISO: prontos com somente 'Outra Matéria' selecionada — clique para filtrar"
                         onClick={() => aplicar("somenteOutra")}
                       >
                         {c.somenteOutraMateria}
