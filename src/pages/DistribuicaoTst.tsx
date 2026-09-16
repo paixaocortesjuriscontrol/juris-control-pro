@@ -3267,7 +3267,9 @@ export default function DistribuicaoTst() {
                     const pend = getPendencias(d);
                     const naoPrecisaFazer =
                       (d as any).processo_outro_escritorio === true ||
-                      (d as any).segredo_justica === true;
+                      (d as any).segredo_justica === true ||
+                      (d as any).cejusc === true ||
+                      (d as any).acordo === true;
                     return (
                       <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
                         {naoPrecisaFazer ? (
