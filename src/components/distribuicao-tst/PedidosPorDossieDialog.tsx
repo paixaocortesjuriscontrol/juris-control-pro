@@ -79,6 +79,8 @@ export function PedidosPorDossieDialog() {
       // Mapa dossiê -> pedidos (nome original), sem duplicar por normalizado
       const porDossie = new Map<string, Map<string, string>>();
       let ignoradas = 0;
+      let totalValores = 0;
+      let valoresCnj = 0;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i] || [];
@@ -93,11 +95,25 @@ export function PedidosPorDossieDialog() {
         for (const parte of pedidosRaw.split("|")) {
           const nome = parte.trim();
           if (!nome || nome === "0") continue;
+          totalValores++;
+          // Número de processo nunca é matéria — descarta a linha.
+          if (ehNumeroDeProcesso(nome)) {
+            valoresCnj++;
+            ignoradas++;
+            continue;
+          }
           const norm = normalizeMateriaNome(nome);
           if (!norm) continue;
           if (!alvo.has(norm)) alvo.set(norm, nome);
         }
         if (alvo.size > 0) porDossie.set(dossie, alvo);
+      }
+
+      if (totalValores > 0 && valoresCnj / totalValores > 0.3) {
+        toast.error(
+          "A planilha parece conter números de processo na coluna de pedidos, e não matérias. Nada foi importado — confira a coluna B.",
+        );
+        return;
       }
 
       if (porDossie.size === 0) {
