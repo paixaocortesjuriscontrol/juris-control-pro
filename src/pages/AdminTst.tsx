@@ -41,6 +41,7 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
       { label: "Atualizar Situação de Envio", path: "/admin-tst/atualizar-situacao-envio", icon: Truck, description: "Atualiza Carga I a VII; cadastra processos novos como BENNER=SIM.", adminOnly: true },
       { label: "Resposta Santander", path: "/admin-tst/resposta-santander", icon: Building, description: "Atualiza dados retornados pelo Santander (distribuição, partes, dossiê).", adminOnly: true },
       { label: "Benner SIM (conferência)", path: "/admin-tst/benner-sim", icon: CheckSquare, description: "Marca processos como Benner=SIM em massa a partir de planilha de conferência." },
+      { label: "Pedidos por Dossiê", path: "/admin-tst/pedidos-por-dossie", icon: ClipboardList, description: "Importa a planilha de pedidos (matérias) por dossiê, usada para destacar em verde as matérias previstas na ficha do processo." },
     ],
   },
   {
