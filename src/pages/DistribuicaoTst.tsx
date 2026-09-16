@@ -1279,7 +1279,9 @@ export default function DistribuicaoTst() {
       for (const r of linhas) {
         const naoPrecisaFazer =
           (r as any).processo_outro_escritorio === true ||
-          (r as any).segredo_justica === true;
+          (r as any).segredo_justica === true ||
+          (r as any).cejusc === true ||
+          (r as any).acordo === true;
         if (naoPrecisaFazer) continue;
         const pend = getPendencias(r);
         if (pend.length === 0) continue;
