@@ -9,7 +9,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
-import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+import { ensurePedidosPorDossie, pedidosPorDossieCarregados } from "@/utils/pedidosPorDossieCache";
 import {
   fetchProntosRowsCached,
   invalidateDistribuicaoTstCache,
@@ -26,6 +26,25 @@ import {
 } from "@/utils/distribuicaoTstPendencias";
 
 const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
+
+/**
+ * Carrega as listas oficiais ANTES de qualquer cálculo e falha alto quando a
+ * lista de pedidos por dossiê não vem. Sem essa proteção, uma falha de rede
+ * fazia o cálculo tratar TODOS os dossiês como "sem lista de pedidos" e gravar
+ * pendência falsa ("Revisar lista de matérias") em tudo que fosse verificado.
+ */
+async function garantirListasOficiais(): Promise<void> {
+  await Promise.all([
+    ensureMateriasOficiais().catch(() => {}),
+    ensurePedidosPorDossie().catch(() => {}),
+  ]);
+  if (!pedidosPorDossieCarregados()) {
+    throw new Error(
+      "Não foi possível carregar a lista de Pedidos por dossiê — nada foi gravado. Tente novamente.",
+    );
+  }
+}
+
 
 /** Um registro está "sem pendência" quando é pronto e não falta nada. */
 export function calcularSemPendencia(row: any): boolean {
@@ -106,8 +125,8 @@ export async function recalcularSemPendencia(
   semPendencia: number;
   atualizados: number;
 }> {
-  await ensureMateriasOficiais().catch(() => {});
-  await ensurePedidosPorDossie().catch(() => {});
+  await garantirListasOficiais();
+
   invalidateDistribuicaoTstCache();
 
   const temFiltros = !!filtros && Object.values(filtros).some((v) =>
@@ -198,8 +217,8 @@ export async function recalcularSemPendencia(
 export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean | null> {
   if (!id) return null;
   try {
-    await ensureMateriasOficiais().catch(() => {});
-    await ensurePedidosPorDossie().catch(() => {});
+    await garantirListasOficiais();
+
     const { data, error } = await supabase
       .from("dados_benner" as any)
       .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
@@ -268,8 +287,8 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
 export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
   const lista = ids.filter(Boolean);
   if (!lista.length) return;
-  await ensureMateriasOficiais().catch(() => {});
-  await ensurePedidosPorDossie().catch(() => {});
+  await garantirListasOficiais();
+
   const agora = new Date().toISOString();
   const CHUNK = 200;
   for (let i = 0; i < lista.length; i += CHUNK) {

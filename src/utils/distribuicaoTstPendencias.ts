@@ -549,7 +549,12 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
   // Matérias que não constam na LISTA DE PEDIDOS DO DOSSIÊ ("verdes") não vão
   // para a planilha. Se nenhuma matéria estiver na lista, a linha é rejeitada.
   const dossieInfo = getMateriasForaDoDossie(row);
-  if (!dossieInfo.temLista) {
+  // Sem parte com matérias a conferir (ex.: Terceiro é a única parte
+  // recorrente) não existe pendência de lista de matérias.
+  if (!dossieInfo.temParteAtiva) {
+    // nada a validar neste bloco
+  } else if (!dossieInfo.temLista) {
+
     out.push({
       key: "revisar_lista_materias",
       label:
@@ -687,6 +692,12 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
 export type MateriasForaDoDossie = {
   /** O dossiê possui lista de pedidos cadastrada? */
   temLista: boolean;
+  /**
+   * Existe alguma parte cujas matérias precisam ser conferidas?
+   * Quando "Terceiro" é a única parte recorrente não há quadro a validar —
+   * nesse caso NÃO pode existir pendência de "revisar lista de matérias".
+   */
+  temParteAtiva: boolean;
   /** Matérias selecionadas que NÃO estão na lista do dossiê. */
   total: number;
   /** Matérias selecionadas que estão na lista do dossiê ("verdes"). */
@@ -697,6 +708,7 @@ export type MateriasForaDoDossie = {
   partesSemMateriaValida: string[];
   resumo: string;
 };
+
 
 /**
  * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
@@ -709,6 +721,7 @@ export type MateriasForaDoDossie = {
 export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const res: MateriasForaDoDossie = {
     temLista: false,
+    temParteAtiva: false,
     total: 0,
     validas: 0,
     validasPorParte: {},
@@ -727,6 +740,8 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const parteAtiva: Record<string, boolean> = info.valida
     ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
     : { reclamante: true, banco: true, terceiro: false };
+  res.temParteAtiva = Object.values(parteAtiva).some(Boolean);
+
 
   const partes: string[] = [];
   for (const [chave, campoJsonb, rotulo] of blocos) {
@@ -761,9 +776,12 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
  */
 export function precisaRevisarListaMaterias(row: any): boolean {
   const info = getMateriasForaDoDossie(row);
+  // Terceiro sozinho: nenhum quadro de matérias é conferido.
+  if (!info.temParteAtiva) return false;
   if (!info.temLista) return true;
   return info.partesSemMateriaValida.length > 0;
 }
+
 
 /** `true` quando nenhuma matéria selecionada das partes recorrentes está na lista do dossiê. */
 export function semNenhumaMateriaDoDossie(row: any): boolean {
