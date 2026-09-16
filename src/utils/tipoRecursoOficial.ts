@@ -42,7 +42,10 @@ const CAMPOS_RECURSO: { key: string; label: string; parte: "reclamante" | "banco
  * todos os quadros (não há como saber a parte).
  */
 function partesRecorrentesDe(d: any): Set<"reclamante" | "banco" | "terceiro"> | null {
-  const s = norm(d?.parte_recorrente);
+  // A lista trabalha com `parte_recorrente`, mas a rotina em lote lê a coluna
+  // original `recorrente`. Aceitar os dois nomes mantém a mesma validação nos
+  // cards, no botão de pendências e na linha exibida.
+  const s = norm(d?.parte_recorrente ?? d?.recorrente);
   if (!s || /^[-–—\s.]+$/.test(s)) return null;
   if (/ativo\s*:|passivo\s*:/.test(s) || s.length > 60) return null;
   const set = new Set<"reclamante" | "banco" | "terceiro">();

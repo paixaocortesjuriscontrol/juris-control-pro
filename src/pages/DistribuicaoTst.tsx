@@ -397,7 +397,15 @@ export default function DistribuicaoTst() {
     setRecalcPendenciasRunning(true);
     try {
       const r = await recalcularSemPendencia(listFilters);
-      refetchProntoSemPendencia();
+      // A verificação pode mudar quais registros pertencem ao filtro vermelho.
+      // Aguarda os marcadores e recarrega tanto a lista quanto os cards para
+      // não manter na tela processos que acabaram de ficar sem pendência.
+      await Promise.all([
+        refetchProntoSemPendencia(),
+        refetchSemPendenciaPorResp(),
+        fetchDados(),
+      ]);
+      refetchResponsavelCounts();
       toast.success(
         `${r.semPendencia} pronto(s) sem pendência de ${r.analisados} analisado(s) — ${r.atualizados} atualizado(s).`,
       );
