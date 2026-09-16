@@ -385,7 +385,7 @@ export default function DistribuicaoTst() {
     let ativo = true;
     backfillSemPendenciaSeNecessario()
       .then(() => {
-        if (ativo) refetchProntoSemPendencia();
+        if (ativo) { refetchProntoSemPendencia(); refetchSomenteOutraMateria(); }
         // Revalida marcações calculadas com regra antiga, em segundo plano.
         return revalidarMarcacoesAntigas();
       })
@@ -964,6 +964,7 @@ export default function DistribuicaoTst() {
       Promise.resolve(refetchProntoSemPendencia()),
       Promise.resolve(refetchSemPendenciaPorResp()),
       Promise.resolve(refetchMateriasPorResponsavel()),
+      Promise.resolve(refetchSomenteOutraMateria()),
     ]);
   };
 
