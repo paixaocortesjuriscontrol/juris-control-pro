@@ -197,6 +197,26 @@ export function PedidosPorDossieDialog() {
         /* ignora falha no registro do histórico */
       }
 ...
+      await queryClient.invalidateQueries({ queryKey: ["pedidos-por-dossie"] });
+      await queryClient.invalidateQueries({ queryKey: ["materias-pedidos-oficiais"] });
+      await queryClient.invalidateQueries({ queryKey: ["materias-benner"] });
+
+      // Recarrega os caches em memória para que os pedidos recém-cadastrados
+      // não apareçam como fora da lista oficial/do dossiê.
+      resetMateriasOficiais();
+      await ensureMateriasOficiais().catch(() => {});
+      resetPedidosPorDossie();
+      await ensurePedidosPorDossie().catch(() => {});
+
+      const novosUnicos = new Set([
+        ...novosOficiais.map((n) => normalizeMateriaNome(n)),
+        ...novosCatalogo.map((n) => normalizeMateriaNome(n)),
+      ]);
+      const novosNomes = [...todosPedidos.entries()]
+        .filter(([norm]) => novosUnicos.has(norm))
+        .map(([, nome]) => nome)
+        .sort((a, b) => a.localeCompare(b, "pt-BR"));
+
       setResultado({
         dossies: dossies.length,
         vinculos: registros.length,
