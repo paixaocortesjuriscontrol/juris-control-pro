@@ -722,10 +722,11 @@ export type MateriasForaDoDossie = {
 /**
  * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
  * (`pedidos_por_dossie`). Mesmo critério da geração da Carga Benner: só as
- * "verdes" podem ser exportadas. "Outra Matéria" continua neutra.
+ * "verdes" podem ser exportadas.
  *
- * Quando o dossiê não tem lista cadastrada, `temLista` fica `false` — nesse
- * caso nenhuma matéria pode ser validada e o processo é considerado pendente.
+ * "Outra Matéria" é SEMPRE aceita (vai para a planilha com o nome em branco),
+ * mesmo quando o dossiê não tem lista cadastrada — nesse caso ela não gera
+ * pendência, apenas o aviso "somente Outra Matéria".
  */
 export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
   const res: MateriasForaDoDossie = {
@@ -735,6 +736,7 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
     validas: 0,
     validasPorParte: {},
     partesSemMateriaValida: [],
+    partesSomenteOutraMateria: [],
     resumo: "",
   };
   const dossie = String(row?.dossie ?? "").trim();
@@ -759,9 +761,13 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
 
     const foraBloco: string[] = [];
     let validasBloco = 0;
+    let outraBloco = 0;
     for (const i of itens) {
       const nome = String(i.materia).trim();
-      if (res.temLista && (isOutraMateria(nome) || isMateriaDoDossieSync(dossie, nome))) {
+      if (isOutraMateria(nome)) {
+        validasBloco++;
+        outraBloco++;
+      } else if (res.temLista && isMateriaDoDossieSync(dossie, nome)) {
         validasBloco++;
       } else {
         foraBloco.push(nome);
@@ -770,8 +776,10 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
     res.validasPorParte[chave] = validasBloco;
     res.validas += validasBloco;
     res.total += foraBloco.length;
-    // Cada parte marcada precisa de pelo menos UMA matéria da lista do dossiê.
+    // Cada parte marcada precisa de pelo menos UMA matéria da lista do dossiê
+    // (ou "Outra Matéria", sempre aceita na Carga Benner).
     if (validasBloco === 0) res.partesSemMateriaValida.push(rotulo);
+    else if (validasBloco === outraBloco) res.partesSomenteOutraMateria.push(rotulo);
     if (foraBloco.length > 0) partes.push(`${rotulo}: ${foraBloco.join(", ")}`);
   }
   res.resumo = partes.join(" | ");
@@ -779,23 +787,30 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
 }
 
 /**
- * `true` quando o dossiê não tem lista de pedidos cadastrada OU quando alguma
- * parte marcada em "Parte Recorrente" não tem nenhuma matéria da lista do
- * dossiê → precisa "Revisar lista de matérias".
+ * `true` quando alguma parte marcada em "Parte Recorrente" não tem nenhuma
+ * matéria válida (da lista do dossiê ou "Outra Matéria") → precisa
+ * "Revisar lista de matérias".
  */
 export function precisaRevisarListaMaterias(row: any): boolean {
   const info = getMateriasForaDoDossie(row);
   // Terceiro sozinho: nenhum quadro de matérias é conferido.
   if (!info.temParteAtiva) return false;
-  if (!info.temLista) return true;
   return info.partesSemMateriaValida.length > 0;
 }
 
+/** `true` quando só há "Outra Matéria" em alguma parte recorrente (aviso, não pendência). */
+export function somenteOutraMateriaSelecionada(row: any): boolean {
+  const info = getMateriasForaDoDossie(row);
+  if (!info.temParteAtiva) return false;
+  if (info.partesSemMateriaValida.length > 0) return false;
+  return info.partesSomenteOutraMateria.length > 0;
+}
 
-/** `true` quando nenhuma matéria selecionada das partes recorrentes está na lista do dossiê. */
+
+/** `true` quando nenhuma matéria selecionada das partes recorrentes é válida para o dossiê. */
 export function semNenhumaMateriaDoDossie(row: any): boolean {
   const dossie = String(row?.dossie ?? "").trim();
-  if (!pedidosDoDossieSync(dossie)) return true;
+  const temLista = !!pedidosDoDossieSync(dossie);
   const info = parseParteRecorrente(row);
   const parteAtiva: Record<string, boolean> = info.valida
     ? { reclamante: info.reclamante, banco: info.banco, terceiro: false }
@@ -808,10 +823,12 @@ export function semNenhumaMateriaDoDossie(row: any): boolean {
   ];
   return !blocos.some(([parte, campo]) =>
     parteAtiva[parte] && itensAnaliseSelecionados(row, campo).some((item) =>
-      !isOutraMateria(item.materia) && isMateriaDoDossieSync(dossie, item.materia),
+      isOutraMateria(item.materia) ||
+      (temLista && isMateriaDoDossieSync(dossie, item.materia)),
     ),
   );
 }
+
 
 
 /** Retorna a lista de campos obrigatórios em aberto (sem os avisos). */
