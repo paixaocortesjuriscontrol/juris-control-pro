@@ -826,6 +826,7 @@ function hasActiveFilters(filters: DistribuicaoTstFilters): boolean {
   if (filters.pedidosDossie && filters.pedidosDossie !== "todos") return true;
   if (filters.semPendencia && filters.semPendencia !== "todos") return true;
   if (filters.revisarListaMaterias === "sim") return true;
+  if (filters.somenteOutraMateria === "sim") return true;
   if (filters.idsAllowed && filters.idsAllowed.length > 0) return true;
   if (normalizeTagIds(filters.tagId).length > 0) return true;
   if (normalizeTagIds(filters.excluirTagId).length > 0) return true;
