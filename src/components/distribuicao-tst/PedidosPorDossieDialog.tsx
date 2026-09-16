@@ -196,7 +196,6 @@ export function PedidosPorDossieDialog() {
       } catch {
         /* ignora falha no registro do histórico */
       }
-...
       await queryClient.invalidateQueries({ queryKey: ["pedidos-por-dossie"] });
       await queryClient.invalidateQueries({ queryKey: ["materias-pedidos-oficiais"] });
       await queryClient.invalidateQueries({ queryKey: ["materias-benner"] });
