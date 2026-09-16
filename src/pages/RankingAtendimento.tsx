@@ -1156,8 +1156,9 @@ export default function RankingAtendimento() {
                 </CardTitle>
                 <CardDescription>
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
-                  no ranking abaixo para ver apenas os processos dele. Clique no número de um card para
-                  reordenar o ranking e o gráfico por essa métrica.
+                  no ranking abaixo para ver apenas os processos dele. O clique nos números funciona
+                  igual à tela Distribuição TST: aplica o filtro do card (vários podem ficar ativos ao
+                  mesmo tempo), e os demais números passam a refletir esse recorte. "Total Geral" limpa.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
@@ -1168,14 +1169,14 @@ export default function RankingAtendimento() {
                       Ver todos
                     </Button>
                   )}
-                  {tstCardAtivo && (
+                  {tstCardKeys.length > 0 && (
                     <Button
                       size="sm"
                       variant="outline"
                       className="ml-2 h-6"
-                      onClick={() => setTstCardAtivo(null)}
+                      onClick={() => setTstCardKeys([])}
                     >
-                      Limpar ordenação do card
+                      Limpar filtros dos cards
                     </Button>
                   )}
                 </CardDescription>
@@ -1183,8 +1184,8 @@ export default function RankingAtendimento() {
               <CardContent>
                 <RankingTstCards
                   responsavelId={respTstSelecionado?.id ?? null}
-                  activeKey={tstCardAtivo}
-                  onCardClick={(key) => setTstCardAtivo((atual) => (atual === key ? null : key))}
+                  cardKeys={tstCardKeys}
+                  onCardClick={handleTstCardClick}
                 />
               </CardContent>
             </Card>
