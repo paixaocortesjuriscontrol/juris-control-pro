@@ -16,11 +16,16 @@ import {
   ensureMateriasOficiais,
   resetMateriasOficiais,
 } from "@/utils/materiasOficiaisCache";
+import {
+  ensurePedidosPorDossie,
+  resetPedidosPorDossie,
+} from "@/utils/pedidosPorDossieCache";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Resultado {
   dossies: number;
   vinculos: number;
+  jaExistentes: number;
   novosPedidos: string[];
   ignoradas: number;
 }
@@ -137,18 +142,24 @@ export function PedidosPorDossieDialog() {
         });
       }
 
-      // 2) Substituir pedidos dos dossiês presentes na planilha
-      setEtapa("Gravando pedidos por dossiê...");
+      // 2) Somar aos pedidos já cadastrados — NUNCA apagar o que existe.
+      setEtapa("Conferindo pedidos já cadastrados...");
       const dossies = [...porDossie.keys()];
+
+      // Pares (dossiê + pedido normalizado) que já estão na base.
+      const existentes = new Set<string>();
       await chunked(dossies, async (part) => {
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from("pedidos_por_dossie" as any)
-          .delete()
+          .select("dossie, pedido_normalizado")
           .in("dossie", part);
         if (error) throw error;
+        for (const r of ((data as any[]) || [])) {
+          existentes.add(`${r?.dossie}||${r?.pedido_normalizado}`);
+        }
       });
 
-      const registros = dossies.flatMap((dossie) =>
+      const todosDaPlanilha = dossies.flatMap((dossie) =>
         [...porDossie.get(dossie)!.entries()].map(([norm, nome]) => ({
           dossie,
           pedido: nome,
@@ -156,22 +167,45 @@ export function PedidosPorDossieDialog() {
           origem: file.name,
         })),
       );
+      const registros = todosDaPlanilha.filter(
+        (r) => !existentes.has(`${r.dossie}||${r.pedido_normalizado}`),
+      );
+      const jaExistentes = todosDaPlanilha.length - registros.length;
 
+      setEtapa("Gravando pedidos novos...");
       await chunked(registros, async (part) => {
         const { error } = await supabase
           .from("pedidos_por_dossie" as any)
-          .insert(part as any);
+          .upsert(part as any, {
+            onConflict: "dossie,pedido_normalizado",
+            ignoreDuplicates: true,
+          });
         if (error) throw error;
       });
 
+      // Histórico da carga (best-effort: não impede a importação)
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        await supabase.from("pedidos_por_dossie_cargas" as any).insert({
+          arquivo: file.name,
+          dossies: dossies.length,
+          pedidos_novos: registros.length,
+          pedidos_existentes: jaExistentes,
+          importado_por: userData?.user?.id ?? null,
+        } as any);
+      } catch {
+        /* ignora falha no registro do histórico */
+      }
       await queryClient.invalidateQueries({ queryKey: ["pedidos-por-dossie"] });
       await queryClient.invalidateQueries({ queryKey: ["materias-pedidos-oficiais"] });
       await queryClient.invalidateQueries({ queryKey: ["materias-benner"] });
 
-      // Recarrega o cache em memória da lista oficial para que os pedidos
-      // recém-cadastrados não apareçam mais como "fora lista do Benner".
+      // Recarrega os caches em memória para que os pedidos recém-cadastrados
+      // não apareçam como fora da lista oficial/do dossiê.
       resetMateriasOficiais();
       await ensureMateriasOficiais().catch(() => {});
+      resetPedidosPorDossie();
+      await ensurePedidosPorDossie().catch(() => {});
 
       const novosUnicos = new Set([
         ...novosOficiais.map((n) => normalizeMateriaNome(n)),
@@ -185,11 +219,12 @@ export function PedidosPorDossieDialog() {
       setResultado({
         dossies: dossies.length,
         vinculos: registros.length,
+        jaExistentes,
         novosPedidos: novosNomes,
         ignoradas,
       });
       toast.success(
-        `${dossies.length} dossiê(s) atualizado(s) — ${registros.length} pedido(s) vinculado(s).`,
+        `${dossies.length} dossiê(s) — ${registros.length} pedido(s) acrescentado(s), ${jaExistentes} já cadastrado(s). Nada foi apagado.`,
       );
     } catch (e: any) {
       console.error("[PedidosPorDossie] erro", e);
@@ -219,9 +254,10 @@ export function PedidosPorDossieDialog() {
             <DialogTitle>Pedidos por dossiê</DialogTitle>
             <DialogDescription>
               Selecione a planilha com o Dossiê na coluna A e os pedidos na
-              coluna B, separados por “|”. Os pedidos do dossiê substituem os
-              já cadastrados e os pedidos inexistentes na lista oficial são
-              incluídos automaticamente.
+              coluna B, separados por “|”. A importação apenas acrescenta:
+              nenhum pedido já cadastrado é apagado ou substituído, e os
+              pedidos inexistentes na lista oficial são incluídos
+              automaticamente.
             </DialogDescription>
           </DialogHeader>
 
@@ -253,10 +289,14 @@ export function PedidosPorDossieDialog() {
             <div className="text-sm space-y-2 rounded-md border border-border bg-muted/30 p-3">
               <div>
                 <strong>{resultado.dossies}</strong> dossiê(s) processado(s) ·{" "}
-                <strong>{resultado.vinculos}</strong> pedido(s) vinculado(s)
+                <strong>{resultado.vinculos}</strong> pedido(s) acrescentado(s) ·{" "}
+                <strong>{resultado.jaExistentes}</strong> já cadastrado(s)
                 {resultado.ignoradas > 0 && (
                   <> · {resultado.ignoradas} linha(s) sem pedidos ignorada(s)</>
                 )}
+              </div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                Nenhum pedido foi apagado nesta importação.
               </div>
               <div>
                 <strong>{resultado.novosPedidos.length}</strong> pedido(s) novo(s)

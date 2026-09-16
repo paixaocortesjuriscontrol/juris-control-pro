@@ -6758,6 +6758,39 @@ export type Database = {
         }
         Relationships: []
       }
+      pedidos_por_dossie_cargas: {
+        Row: {
+          arquivo: string
+          created_at: string
+          dossies: number
+          id: string
+          importado_por: string | null
+          pedidos_existentes: number
+          pedidos_novos: number
+          updated_at: string
+        }
+        Insert: {
+          arquivo: string
+          created_at?: string
+          dossies?: number
+          id?: string
+          importado_por?: string | null
+          pedidos_existentes?: number
+          pedidos_novos?: number
+          updated_at?: string
+        }
+        Update: {
+          arquivo?: string
+          created_at?: string
+          dossies?: number
+          id?: string
+          importado_por?: string | null
+          pedidos_existentes?: number
+          pedidos_novos?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       pedidos_processo: {
         Row: {
           acordao: boolean | null
