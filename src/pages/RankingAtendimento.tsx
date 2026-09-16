@@ -1194,7 +1194,7 @@ export default function RankingAtendimento() {
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
                   no ranking abaixo para ver apenas os processos dele. O clique nos números funciona
                   igual à tela Distribuição TST: aplica o filtro do card (vários podem ficar ativos ao
-                  mesmo tempo), e os demais números passam a refletir esse recorte. "Total Geral" limpa.
+                  mesmo tempo), e os demais números — inclusive o ranking e o gráfico abaixo — passam a refletir esse recorte. "Total Geral" limpa.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
