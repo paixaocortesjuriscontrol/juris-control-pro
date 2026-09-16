@@ -734,9 +734,9 @@ const SITUACAO_PROCESSO_COND: Record<string, string> = {
   recurso_terceiro: "recurso_terceiro.eq.true",
   acordo: "acordo.eq.true",
   a_fazer:
-    "and(or(transito_julgado.is.null,transito_julgado.eq.false),or(processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false),or(segredo_justica.is.null,segredo_justica.eq.false),or(cejusc.is.null,cejusc.eq.false),or(status.is.null,status.not.in.(pronto_envio,planilhado,enviado)))",
+    "and(or(transito_julgado.is.null,transito_julgado.eq.false),or(processo_outro_escritorio.is.null,processo_outro_escritorio.eq.false),or(segredo_justica.is.null,segredo_justica.eq.false),or(cejusc.is.null,cejusc.eq.false),or(acordo.is.null,acordo.eq.false),or(status.is.null,status.not.in.(pronto_envio,planilhado,enviado)))",
   nao_precisa_fazer:
-    "or(transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true)",
+    "or(transito_julgado.eq.true,processo_outro_escritorio.eq.true,segredo_justica.eq.true,cejusc.eq.true,acordo.eq.true)",
 };
 
 /** Normaliza o filtro de situação (aceita valor único ou lista) em opções válidas. */
