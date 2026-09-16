@@ -9,7 +9,7 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
-import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+import { ensurePedidosPorDossie, pedidosPorDossieCarregados } from "@/utils/pedidosPorDossieCache";
 import {
   fetchProntosRowsCached,
   invalidateDistribuicaoTstCache,
