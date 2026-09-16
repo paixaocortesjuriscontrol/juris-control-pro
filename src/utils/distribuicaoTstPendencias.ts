@@ -776,9 +776,12 @@ export function getMateriasForaDoDossie(row: any): MateriasForaDoDossie {
  */
 export function precisaRevisarListaMaterias(row: any): boolean {
   const info = getMateriasForaDoDossie(row);
+  // Terceiro sozinho: nenhum quadro de matérias é conferido.
+  if (!info.temParteAtiva) return false;
   if (!info.temLista) return true;
   return info.partesSemMateriaValida.length > 0;
 }
+
 
 /** `true` quando nenhuma matéria selecionada das partes recorrentes está na lista do dossiê. */
 export function semNenhumaMateriaDoDossie(row: any): boolean {
