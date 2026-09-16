@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.0.5";
+export const APP_VERSION = "7.0.6";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -67,4 +67,5 @@ export const VERSION_HISTORY = [
   { version: "7.0.3", date: "2026-09-10", notes: "Distribuição TST: remover matéria apaga a linha da análise na hora e limpa resíduos na base" },
   { version: "7.0.4", date: "2026-09-11", notes: "Atualização de versão" },
   { version: "7.0.5", date: "2026-09-14", notes: "Recurso de terceiro: só Tipo de Recurso é obrigatório e é o único dado exportado na Carga Benner" },
+  { version: "7.0.6", date: "2026-09-16", notes: "Importação 'Pedidos por Dossiê' movida para o Admin. TST e removida da tela Distribuição TST" },
 ];
