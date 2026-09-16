@@ -49,6 +49,10 @@ export function filtersFromCards(keys: StatsCardKey[]): DistribuicaoTstFilters {
         f.status = "concluidos";
         f.semPendencia = "com";
         break;
+      case "somenteOutraMateria":
+        f.status = "concluidos";
+        f.somenteOutraMateria = "sim";
+        break;
       case "revisarListaMaterias":
         f.status = "concluidos";
         f.revisarListaMaterias = "sim";
