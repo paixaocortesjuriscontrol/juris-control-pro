@@ -238,6 +238,7 @@ function App() {
               <Route path="/admin-tst/atualizar-situacao-envio" element={<AdminRoute><AtualizarSituacaoEnvio /></AdminRoute>} />
               <Route path="/admin-tst/resposta-santander" element={<AdminRoute><RespostaSantander /></AdminRoute>} />
               <Route path="/admin-tst/benner-sim" element={<ProtectedRoute><BennerSim /></ProtectedRoute>} />
+              <Route path="/admin-tst/pedidos-por-dossie" element={<ProtectedRoute><PedidosPorDossie /></ProtectedRoute>} />
               <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
               <Route path="/admin-tst/busca-publicacao" element={<AdminRoute><BuscaPublicacao /></AdminRoute>} />
               <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminRoute><AdminTstBasePcaDistribuicoes /></AdminRoute>} />
