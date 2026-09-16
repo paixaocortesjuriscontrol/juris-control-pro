@@ -1,36 +1,24 @@
-# Corrigir as pendências dos dossiês já enviados
+# Recalcular as 81 fichas com a tag e explicar o recálculo automático
 
-## Diagnóstico confirmado
+## Por que não recalcula sozinho hoje
 
-- A tag **“PEDIDOS CADASTRADOS DOSSIÊ JÁ ENVIADOS”** é apenas informativa e não possui regra especial no cálculo. Conforme definido, os registros com essa tag devem ser recalculados normalmente.
-- Há **388 processos prontos/planilhados/enviados** com essa tag. Destes, **81 ainda estão marcados com pendência de revisão de matérias**; **57 possuem pedidos cadastrados no dossiê** e precisam ser reavaliados com a lista atual.
-- Na Dra. Rayanna, a tag abrange **109 processos prontos**: 76 estão sem pendência e 33 ainda estão marcados para revisão.
-- As 81 marcações remanescentes foram gravadas em **05/09/2026 às 09:06 BRT**, antes da correção atual. Entre elas há **3 casos com somente Terceiro**, que pela regra vigente não devem ter pendência de matérias. Portanto, o marcador persistido está desatualizado em pelo menos esses casos.
-- O cálculo atual já reconhece corretamente “Terceiro” sozinho, mas os registros antigos não são corrigidos até passarem por uma nova verificação.
+O marcador de pendência é gravado no banco e só muda quando alguém aciona "Verificar Pendências" na tela, ou quando a própria ficha é salva. Não existe rotina automática que reprocesse a base inteira. Isso foi feito para não sobrescrever milhares de registros a cada mudança de regra, mas tem o efeito colateral que você viu: fichas marcadas com uma regra antiga continuam vermelhas até serem verificadas de novo.
 
-## Implementação
+## O que será feito
 
-1. **Tornar a carga das listas obrigatória**
-   - Confirmar o carregamento tanto da lista oficial de matérias quanto de “Pedidos por dossiê”.
-   - Se qualquer uma falhar, interromper antes de alterar registros e mostrar uma mensagem clara.
+1. **Recalcular as 81 fichas com a tag "PEDIDOS CADASTRADOS DOSSIÊ JÁ ENVIADOS"** que hoje estão marcadas como pendentes desde 05/09/2026, aplicando a regra atual:
+   - Terceiro como única parte recorrente: sem pendência de matérias.
+   - Dossiê sem nenhum pedido cadastrado: continua pendente.
+   - Dossiê com pedidos cadastrados: pendente apenas se a parte recorrente não tiver nenhuma matéria que conste na lista do dossiê.
+2. **Atualizar o marcador e a data da verificação** de cada ficha conforme o resultado, e registrar a alteração na auditoria.
+3. **Manter as pendências reais** de campos obrigatórios e tipos de recurso fora da lista oficial, sem mexer nelas.
 
-2. **Recalcular os registros afetados com a regra atual**
-   - Reprocessar todos os processos prontos, planilhados ou enviados que possuem a tag “PEDIDOS CADASTRADOS DOSSIÊ JÁ ENVIADOS”.
-   - Manter a tag apenas como filtro do grupo; ela não concede isenção e não força “sem pendência”.
-   - Gravar `sem_pendencia`, `revisar_lista_materias` e `sem_nenhuma_materia_dossie` de acordo com os pedidos e matérias atuais de cada ficha.
+## Recálculo automático, para não repetir o problema
 
-3. **Conferir os casos da Dra. Rayanna e os demais responsáveis**
-   - Validar individualmente os 3 casos de “Terceiro” sozinho.
-   - Comparar os 57 dossiês que têm pedidos cadastrados e separar os que realmente continuam com matérias incompatíveis.
-   - Conferir também Ana Carolina, Tatiana, Paula, Daniela, Camilla, Kellen e Lienne, pois existem registros da mesma marcação antiga vinculados a elas.
-
-4. **Evitar nova divergência**
-   - Após o recálculo, atualizar juntos os números dos cards, ranking e lista.
-   - Garantir que uma nova verificação com o mesmo filtro produza exatamente os mesmos resultados, sem voltar a marcar casos corrigidos.
+Ao entrar na tela de Distribuição TST, o sistema passa a reverificar em segundo plano as fichas prontas cuja última verificação é anterior à data da regra atual, em pequenos lotes, sem travar a tela. Assim, fichas com marcação antiga se corrigem sozinhas conforme são exibidas, e a coluna Pendências deixa de divergir dos cards.
 
 ## Validação
 
-- A soma de “Pronto sem pendência” e “Pronto com pendência” deve fechar com o total de prontos de cada responsável.
-- Os 3 casos com somente Terceiro devem ficar sem pendência de revisão de matérias.
-- Os demais casos só permanecem vermelhos quando houver uma pendência real na ficha ou quando as matérias das partes recorrentes não coincidirem com os pedidos cadastrados do dossiê.
-- Rodar novamente a verificação do mesmo grupo e confirmar que nenhum número muda na segunda execução.
+- Nenhuma das 81 fichas deve continuar vermelha sem motivo visível na coluna Pendências.
+- Rodar "Verificar Pendências" no mesmo grupo depois e confirmar que nenhum número muda.
+- Conferir que a soma de "Pronto sem pendência" e "Pronto com pendência" fecha com "Prontos" por responsável.
