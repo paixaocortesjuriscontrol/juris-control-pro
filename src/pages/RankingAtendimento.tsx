@@ -58,6 +58,23 @@ type LinhaTst = {
   prontos: number;
 };
 
+/**
+ * Métrica do ranking TST associada a cada card da Distribuição TST.
+ * Cards sem coluna própria no ranking caem no padrão (total de processos).
+ */
+const TST_METRICA_POR_CARD: Partial<Record<StatsCardKey, { label: string; valor: (l: LinhaTst) => number }>> = {
+  total: { label: "Total Geral", valor: (l) => Number(l.total) },
+  processosUnicos: { label: "Processos Únicos", valor: (l) => Number(l.total) },
+  processosValidos: { label: "Processos nº CNJ válidos", valor: (l) => Number(l.total) },
+  dossiesValidos: { label: "Dossiês Válidos", valor: (l) => Number(l.total) },
+  processosAtivos: { label: "Processos Ativos", valor: (l) => Number(l.total) },
+  prontoEnvio: { label: "Concluídos (prontos/planilhados)", valor: (l) => Number(l.prontos || 0) },
+  prontoSemPendencia: { label: "Pronto sem pendência", valor: (l) => Number(l.sem_pendencia) },
+  prontoComPendencia: { label: "Pronto com pendência", valor: (l) => Number(l.com_pendencia) },
+  juditPreenchido: { label: "Judit Preenchido", valor: (l) => Number(l.judit_preenchidos) },
+  juditNaoPreenchido: { label: "Judit Não Preenchido", valor: (l) => Number(l.total) - Number(l.judit_preenchidos) },
+};
+
 function pct(parte: number, total: number) {
   if (!total) return 0;
   return Math.round((parte / total) * 100);
