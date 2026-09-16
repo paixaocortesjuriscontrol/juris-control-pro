@@ -1087,7 +1087,34 @@ export default function RankingAtendimento() {
           </TabsContent>
 
           <TabsContent value="tst" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Cards da Distribuição TST
+                  {respTstSelecionado ? ` — ${respTstSelecionado.nome}` : " — todos os responsáveis"}
+                </CardTitle>
+                <CardDescription>
+                  Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
+                  no ranking abaixo para ver apenas os processos dele.
+                  {respTstSelecionado && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-2 h-6"
+                      onClick={() => setRespTstSelecionado(null)}
+                    >
+                      Ver todos
+                    </Button>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RankingTstCards responsavelId={respTstSelecionado?.id ?? null} />
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+
               {(
                 [
                   ["Processos", totaisTst.total, NAVY],
