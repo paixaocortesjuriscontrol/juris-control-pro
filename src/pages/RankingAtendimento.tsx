@@ -1232,7 +1232,17 @@ export default function RankingAtendimento() {
                       </TableRow>
                     ) : (
                       tstOrdenado.map((l, idx) => (
-                        <TableRow key={l.usuario_id}>
+                        <TableRow
+                          key={l.usuario_id}
+                          onClick={() =>
+                            setRespTstSelecionado((atual) =>
+                              atual?.id === l.usuario_id ? null : { id: l.usuario_id, nome: l.nome }
+                            )
+                          }
+                          className={`cursor-pointer ${respTstSelecionado?.id === l.usuario_id ? "bg-muted" : ""}`}
+                          title="Clique para ver os cards da Distribuição TST deste profissional"
+                        >
+
                           <TableCell>
                             <span className="flex items-center gap-1 font-semibold">
                               {idx < 3 && <Medal className={`w-4 h-4 ${medalha(idx)}`} />}
