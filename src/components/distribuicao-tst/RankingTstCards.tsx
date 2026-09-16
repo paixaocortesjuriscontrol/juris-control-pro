@@ -51,7 +51,7 @@ function filtersFromCards(keys: StatsCardKey[]): DistribuicaoTstFilters {
         break;
       case "revisarListaMaterias":
         f.status = "concluidos";
-        f.revisarListaMaterias = "sim" as any;
+        f.revisarListaMaterias = "sim";
         break;
       case "comEquipe": f.equipe = "sim"; break;
       case "semEquipe": f.equipe = "nao"; break;
