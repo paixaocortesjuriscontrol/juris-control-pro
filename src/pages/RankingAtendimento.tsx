@@ -18,6 +18,8 @@ import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
+import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+
 
 const NAVY = "hsl(222 47% 18%)";
 const GOLD = "hsl(43 74% 49%)";
