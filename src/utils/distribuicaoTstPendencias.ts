@@ -553,21 +553,26 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
   // recorrente) não existe pendência de lista de matérias.
   if (!dossieInfo.temParteAtiva) {
     // nada a validar neste bloco
-  } else if (!dossieInfo.temLista) {
-
-    out.push({
-      key: "revisar_lista_materias",
-      label:
-        "Sem matérias cadastradas para o dossiê — revisar lista de matérias; NÃO irá para a planilha de Carga Benner",
-      quadrinho: "III. Recurso do Reclamante",
-    });
   } else if (dossieInfo.partesSemMateriaValida.length > 0) {
     out.push({
       key: "revisar_lista_materias",
+      label: !dossieInfo.temLista
+        ? "Sem matérias cadastradas para o dossiê — revisar lista de matérias; NÃO irá para a planilha de Carga Benner"
+        : "Revisar lista de matérias — sem matéria da lista de pedidos do dossiê em: " +
+          dossieInfo.partesSemMateriaValida.join(", ") +
+          "; NÃO irá para a planilha de Carga Benner",
+      quadrinho: "III. Recurso do Reclamante",
+    });
+  } else if (dossieInfo.partesSomenteOutraMateria.length > 0) {
+    // "Outra Matéria" é sempre aceita na Carga Benner (vai em branco), então
+    // não é pendência — apenas um aviso para conferência.
+    out.push({
+      key: "somente_outra_materia",
+      aviso: true,
       label:
-        "Revisar lista de matérias — sem matéria da lista de pedidos do dossiê em: " +
-        dossieInfo.partesSemMateriaValida.join(", ") +
-        "; NÃO irá para a planilha de Carga Benner",
+        "Somente \"Outra Matéria\" selecionada em: " +
+        dossieInfo.partesSomenteOutraMateria.join(", ") +
+        " — conferir a lista de matérias do dossiê (a linha vai normalmente para a Carga Benner)",
       quadrinho: "III. Recurso do Reclamante",
     });
   } else if (dossieInfo.total > 0) {
@@ -580,6 +585,7 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
       quadrinho: "III. Recurso do Reclamante",
     });
   }
+
 
 
 
