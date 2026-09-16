@@ -21,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 interface Resultado {
   dossies: number;
   vinculos: number;
+  jaExistentes: number;
   novosPedidos: string[];
   ignoradas: number;
 }
