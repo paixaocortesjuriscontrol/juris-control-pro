@@ -1227,7 +1227,11 @@ export default function RankingAtendimento() {
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking detalhado — TST</CardTitle>
-                <CardDescription>Ordenado pela quantidade de processos marcados como Pronto no período</CardDescription>
+                <CardDescription>
+                  {tstCardAtivo && TST_METRICA_POR_CARD[tstCardAtivo]
+                    ? `Ordenado pelo card "${TST_METRICA_POR_CARD[tstCardAtivo]!.label}" — clique no card novamente para voltar ao padrão`
+                    : "Ordenado pela quantidade de processos marcados como Pronto no período"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table>
