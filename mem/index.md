@@ -7,3 +7,4 @@
 - [Distribuição TST perf](mem://performance/distribuicao-tst-shared-cache) — Cards devem reutilizar distribuicaoTstCache (dedupe + TTL) em vez de varrer dados_benner
 - [403 upstream vs 403 do proxy](mem://logic/djen/upstream-403-vs-proxy-403) — 403 com HTML nginx é bloqueio temporário do WAF do DJEN, não erro de token da VPS
 - [Análise por matéria sem órfãs](mem://logic/distribuicao-tst/analise-materias-orfas) — Matérias removidas não podem gerar aviso/pendência nem exportar
+- [Índice DEJT informativo](mem://logic/dejt/indice-html-nao-e-porteiro) — dejt.html só loga; validar edição pela data interna do PDF Judiciário

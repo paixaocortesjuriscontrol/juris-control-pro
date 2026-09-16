@@ -484,19 +484,20 @@ async function fetchPdf(
   }
   const requestedIso = ddmmyyyyToIso(dataDDMMYYYY) || dataDDMMYYYY;
 
-  // O repositório publica apenas a edição vigente; o índice diz de que dia ela
-  // é e quais órgãos disponibilizaram matérias. Quando o caderno do tribunal
-  // não consta no índice, nem vale baixar o PDF (traria edição antiga).
+  // O índice `dejt.html` é APENAS informativo: em 09/2026 ele passou a listar
+  // somente os cadernos Administrativos e congelou a data ("Cadernos do dia
+  // 04/09/2026"), enquanto os PDFs do Judiciário (`Diario_J_*.pdf`) seguem
+  // sendo atualizados todos os dias. Usar o índice como porteiro fazia todos
+  // os tribunais devolverem "sem-materias-na-edicao" e zerava as pautas.
+  // A validação real da edição é a data de disponibilização impressa dentro do
+  // próprio PDF (extractDataDisponibilizacaoYmd) + Last-Modified.
   const indice = await getIndice();
   const nomeArquivo = dejtNomeArquivo(tribunal, caderno);
   if (indice && nomeArquivo && indice.arquivos.size > 0 && !indice.arquivos.has(nomeArquivo)) {
-    return {
-      ok: false,
-      reason: "sem-materias-na-edicao",
-      lastModified: null,
-      dataDisponibilizacao: indice.dataIso,
-      dataPublicacaoLegal: indice.dataIso ? calcularDataPublicacaoYmd(indice.dataIso) : null,
-    };
+    console.log(
+      `[DJET-Pautas] ${nomeArquivo} não consta no índice (edição ${indice.dataIso || "?"}); ` +
+      `baixando o PDF vigente e validando pela data interna`,
+    );
   }
 
 
