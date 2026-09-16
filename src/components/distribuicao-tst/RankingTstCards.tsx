@@ -94,8 +94,7 @@ export function RankingTstCards({ responsavelId, cardKeys, onCardClick }: Props)
     <DistribuicaoTstStatsCards
       stats={stats}
       loading={loading}
-      activeKeys={keys.length > 0 ? keys : null}
-      activeKey={keys[0] ?? (keys.length === 0 ? "total" : null)}
+      activeKeys={keys.length > 0 ? keys : ["total"]}
       onCardClick={onCardClick}
       prontoSemPendencia={{ count: prontoSemPendenciaCount, loading: prontoSemPendenciaLoading }}
       prontoComPendencia={{ count: comPendencia, loading: prontoSemPendenciaLoading || loading }}
