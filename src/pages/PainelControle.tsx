@@ -1314,7 +1314,7 @@ export default function PainelControle() {
       }
     }
     return base;
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados]);
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados, buscaGlobalAtiva, buscaGlobalQuery.data]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
