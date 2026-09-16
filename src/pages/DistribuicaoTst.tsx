@@ -1,4 +1,4 @@
-import { PedidosPorDossieDialog } from "@/components/distribuicao-tst/PedidosPorDossieDialog";
+
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -2414,7 +2414,7 @@ export default function DistribuicaoTst() {
                   onOpenChange={setDossiesOpen}
                   hideTrigger
                 />
-                <PedidosPorDossieDialog />
+                
                 <Button
                   variant="destructive"
                   size="sm"
