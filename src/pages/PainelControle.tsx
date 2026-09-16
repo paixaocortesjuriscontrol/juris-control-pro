@@ -1250,6 +1250,43 @@ export default function PainelControle() {
     [itensAgenda, passaFiltrosPainel],
   );
 
+  // ===== Busca global (modo Lista, sem filtro de data) =====
+  // A lista normal carrega só a janela do calendário. Quando o usuário pesquisa
+  // no modo Lista SEM preencher o filtro de data (Período), buscamos no banco
+  // TODO o histórico (2015 → 2100), para a busca valer para qualquer item.
+  const buscaAtiva = buscaProcessoDigits.length >= 4 || !!buscaTexto;
+  const buscaGlobalAtiva =
+    viewMode === "lista" &&
+    buscaAtiva &&
+    !painelFiltros.periodoInicio &&
+    !painelFiltros.periodoFim;
+  const buscaGlobalQuery = useQuery({
+    queryKey: ["painel-busca-global", JSON.stringify(filters), buscaProcesso],
+    enabled: buscaGlobalAtiva,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const f: any = {
+        ...filters,
+        dataInicio: new Date(2015, 0, 1),
+        dataFim: new Date(2100, 11, 31, 23, 59, 59),
+      };
+      delete f.enabled;
+      const coletados: any[] = [];
+      for (let page = 0; page < 20; page++) {
+        const pageItens = await fetchAgendaPage(f, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length < 1000) break;
+      }
+      const vistos = new Set<string>();
+      return coletados.filter((it) => {
+        const k = `${it.origem}:${it.id}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+    },
+  });
+
   // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
   // mesclados às visões Lista e Equipe.
   const itensListaEquipe = useMemo(() => {
@@ -1263,6 +1300,10 @@ export default function PainelControle() {
       ];
       return base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
     }
+    // Busca global: sem filtro de data, a pesquisa vale para todo o histórico
+    if (buscaGlobalAtiva && buscaGlobalQuery.data) {
+      return (buscaGlobalQuery.data as any[]).filter((item) => passaFiltrosPainel(item));
+    }
     if (vencidosAtivo) {
       const anteriores = (vencidosQuery.data ?? []).filter(
         (item) => (drill || modoProtocoladosBaixados ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
@@ -1273,7 +1314,7 @@ export default function PainelControle() {
       }
     }
     return base;
-  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados]);
+  }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados, buscaGlobalAtiva, buscaGlobalQuery.data]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
