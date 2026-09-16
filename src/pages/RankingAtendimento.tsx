@@ -18,6 +18,8 @@ import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
+import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+
 
 const NAVY = "hsl(222 47% 18%)";
 const GOLD = "hsl(43 74% 49%)";
@@ -84,6 +86,9 @@ export default function RankingAtendimento() {
   const [usuarioId, setUsuarioId] = useState("todos");
   const [aba, setAba] = useState("geral");
   const [preset, setPreset] = useState<Preset>("ano");
+  /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
+  const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
+
 
   const aplicarPreset = (p: Preset) => {
     setPreset(p);
@@ -1087,7 +1092,34 @@ export default function RankingAtendimento() {
           </TabsContent>
 
           <TabsContent value="tst" className="space-y-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base">
+                  Cards da Distribuição TST
+                  {respTstSelecionado ? ` — ${respTstSelecionado.nome}` : " — todos os responsáveis"}
+                </CardTitle>
+                <CardDescription>
+                  Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
+                  no ranking abaixo para ver apenas os processos dele.
+                  {respTstSelecionado && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="ml-2 h-6"
+                      onClick={() => setRespTstSelecionado(null)}
+                    >
+                      Ver todos
+                    </Button>
+                  )}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RankingTstCards responsavelId={respTstSelecionado?.id ?? null} />
+              </CardContent>
+            </Card>
+
             <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
+
               {(
                 [
                   ["Processos", totaisTst.total, NAVY],
@@ -1200,7 +1232,17 @@ export default function RankingAtendimento() {
                       </TableRow>
                     ) : (
                       tstOrdenado.map((l, idx) => (
-                        <TableRow key={l.usuario_id}>
+                        <TableRow
+                          key={l.usuario_id}
+                          onClick={() =>
+                            setRespTstSelecionado((atual) =>
+                              atual?.id === l.usuario_id ? null : { id: l.usuario_id, nome: l.nome }
+                            )
+                          }
+                          className={`cursor-pointer ${respTstSelecionado?.id === l.usuario_id ? "bg-muted" : ""}`}
+                          title="Clique para ver os cards da Distribuição TST deste profissional"
+                        >
+
                           <TableCell>
                             <span className="flex items-center gap-1 font-semibold">
                               {idx < 3 && <Medal className={`w-4 h-4 ${medalha(idx)}`} />}
