@@ -598,6 +598,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     query = applySemPendenciaFilter(query, filters);
     query = applyRevisarListaMateriasFilter(query, filters);
     query = applySemNenhumaMateriaDossieFilter(query, filters);
+    query = applySomenteOutraMateriaFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -929,6 +930,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     query = applySemPendenciaFilter(query, filters);
     query = applyRevisarListaMateriasFilter(query, filters);
     query = applySemNenhumaMateriaDossieFilter(query, filters);
+    query = applySomenteOutraMateriaFilter(query, filters);
     if (filters.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (filters.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (filters.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
@@ -1340,6 +1342,7 @@ export async function fetchMesesDataRealFiltered(
     query = applySemPendenciaFilter(query, f);
     query = applyRevisarListaMateriasFilter(query, f);
     query = applySemNenhumaMateriaDossieFilter(query, f);
+    query = applySomenteOutraMateriaFilter(query, f);
     if (f.dossieStatus === "preenchido") query = query.not("dossie", "is", null).neq("dossie", "");
     else if (f.dossieStatus === "nao_preenchido") query = query.or("dossie.is.null,dossie.eq.");
     else if (f.dossieStatus === "valido") query = query.like("dossie", "__.__.___.______%/__");
