@@ -29,6 +29,8 @@ export type StatsCardKey =
   | "prontoComPendencia"
   | "semResponsavel"
   | "revisarListaMaterias"
+  | "somenteOutraMateria"
+
   | "comEquipe"
   | "semEquipe"
   | "multiResp";
