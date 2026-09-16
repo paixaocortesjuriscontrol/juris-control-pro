@@ -32,6 +32,21 @@ interface Resultado {
 
 const CHUNK = 500;
 
+/**
+ * Uma carga enviada por engano gravou NÚMEROS DE PROCESSO na coluna de
+ * pedidos, criando pendências falsas em fichas prontas. Qualquer valor que
+ * seja um número de processo é descartado e, se a planilha for majoritariamente
+ * composta por eles, a importação é recusada.
+ */
+function ehNumeroDeProcesso(valor: string): boolean {
+  const digitos = valor.replace(/\D/g, "");
+  if (digitos.length >= 19 && digitos.length <= 21 && /^\d+$/.test(digitos)) {
+    const letras = valor.replace(/[^A-Za-zÀ-ÿ]/g, "");
+    if (letras.length === 0) return true;
+  }
+  return /^'?\s*\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\s*$/.test(valor);
+}
+
 async function chunked<T>(items: T[], fn: (part: T[]) => Promise<void>) {
   for (let i = 0; i < items.length; i += CHUNK) {
     await fn(items.slice(i, i + CHUNK));
@@ -64,6 +79,8 @@ export function PedidosPorDossieDialog() {
       // Mapa dossiê -> pedidos (nome original), sem duplicar por normalizado
       const porDossie = new Map<string, Map<string, string>>();
       let ignoradas = 0;
+      let totalValores = 0;
+      let valoresCnj = 0;
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i] || [];
@@ -78,11 +95,25 @@ export function PedidosPorDossieDialog() {
         for (const parte of pedidosRaw.split("|")) {
           const nome = parte.trim();
           if (!nome || nome === "0") continue;
+          totalValores++;
+          // Número de processo nunca é matéria — descarta a linha.
+          if (ehNumeroDeProcesso(nome)) {
+            valoresCnj++;
+            ignoradas++;
+            continue;
+          }
           const norm = normalizeMateriaNome(nome);
           if (!norm) continue;
           if (!alvo.has(norm)) alvo.set(norm, nome);
         }
         if (alvo.size > 0) porDossie.set(dossie, alvo);
+      }
+
+      if (totalValores > 0 && valoresCnj / totalValores > 0.3) {
+        toast.error(
+          "A planilha parece conter números de processo na coluna de pedidos, e não matérias. Nada foi importado — confira a coluna B.",
+        );
+        return;
       }
 
       if (porDossie.size === 0) {
