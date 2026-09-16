@@ -49,12 +49,9 @@ async function garantirListasOficiais(): Promise<void> {
 /** Um registro está "sem pendência" quando é pronto e não falta nada. */
 export function calcularSemPendencia(row: any): boolean {
   // Processos em outro escritório, sob segredo de justiça, CEJUSC ou com
-  // Acordo aparecem na lista como "Não precisa fazer" — logo NÃO podem contar
-  // como "pronto com pendência" nos cards. A única exceção é uma rejeição de
-  // Carga Benner real (ex.: dossiê fora do padrão), que continua pendência.
-  if (isNaoPrecisaFazer(row)) {
-    return getPendencias(row).filter((p) => p.key !== "situacao_impeditiva").length === 0;
-  }
+  // Acordo aparecem na lista como "Não precisa fazer" — nunca contam como
+  // "pronto com pendência" nos cards.
+  if (isNaoPrecisaFazer(row)) return true;
   return getPendencias(row).length === 0;
 }
 
