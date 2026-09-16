@@ -576,16 +576,6 @@ export default function RankingAtendimento() {
     [pontualidade]
   );
 
-  const tstOrdenado = useMemo(
-    () =>
-      [...tst].sort(
-        (a, b) =>
-          Number(b.prontos || 0) - Number(a.prontos || 0) ||
-          pct(Number(b.sem_pendencia), Number(b.total)) - pct(Number(a.sem_pendencia), Number(a.total)) ||
-          Number(b.total) - Number(a.total)
-      ),
-    [tst]
-  );
 
   return (
     <MainLayout
