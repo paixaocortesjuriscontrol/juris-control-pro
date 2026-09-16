@@ -282,7 +282,10 @@ export function isNaoPrecisaFazer(row: any): boolean {
   return (
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
-    row?.cejusc === true
+    row?.cejusc === true ||
+    // Processos com acordo não precisam ser trabalhados (rejeitam na Carga
+    // Benner), então não geram pendência.
+    row?.acordo === true
   );
 }
 

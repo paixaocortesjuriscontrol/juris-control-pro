@@ -1279,7 +1279,9 @@ export default function DistribuicaoTst() {
       for (const r of linhas) {
         const naoPrecisaFazer =
           (r as any).processo_outro_escritorio === true ||
-          (r as any).segredo_justica === true;
+          (r as any).segredo_justica === true ||
+          (r as any).cejusc === true ||
+          (r as any).acordo === true;
         if (naoPrecisaFazer) continue;
         const pend = getPendencias(r);
         if (pend.length === 0) continue;
@@ -3153,7 +3155,9 @@ export default function DistribuicaoTst() {
                         const naoPrecisaFazer =
                           (d as any).transito_julgado === true ||
                           (d as any).processo_outro_escritorio === true ||
-                          (d as any).segredo_justica === true;
+                          (d as any).segredo_justica === true ||
+                          (d as any).cejusc === true ||
+                          (d as any).acordo === true;
                         let color = "";
                         let label = "";
                         if (status === "pronto_envio" || status === "planilhado" || status === "enviado") {
@@ -3263,7 +3267,9 @@ export default function DistribuicaoTst() {
                     const pend = getPendencias(d);
                     const naoPrecisaFazer =
                       (d as any).processo_outro_escritorio === true ||
-                      (d as any).segredo_justica === true;
+                      (d as any).segredo_justica === true ||
+                      (d as any).cejusc === true ||
+                      (d as any).acordo === true;
                     return (
                       <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
                         {naoPrecisaFazer ? (
