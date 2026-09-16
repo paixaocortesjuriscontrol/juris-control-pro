@@ -19,6 +19,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
+import { useSomenteOutraMateriaCount } from "@/hooks/useSomenteOutraMateriaCount";
 import { recalcularSemPendencia, backfillSemPendenciaSeNecessario, atualizarSemPendenciaLote, revalidarMarcacoesAntigas } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
@@ -78,6 +79,8 @@ import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
   getPendencias,
+  getAvisos,
+
   pendenciasResumo,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
 } from "@/utils/distribuicaoTstPendencias";
@@ -350,6 +353,7 @@ export default function DistribuicaoTst() {
   // Card "Revisar Lista de matérias" — resolvido no banco pela coluna
   // `revisar_lista_materias`, gravada junto com as pendências.
   const [filtroRevisarListaMaterias, setFiltroRevisarListaMaterias] = useState<boolean>(false);
+  const [filtroSomenteOutraMateria, setFiltroSomenteOutraMateria] = useState<boolean>(false);
   // Inverso do "pronto sem pendência": tudo que ainda tem alguma pendência.
   const [filtroComPendencia, setFiltroComPendencia] = useState<boolean>(false);
   const { data: situacoesCarga = [] } = useSituacoesEnvioCarga();
@@ -383,13 +387,14 @@ export default function DistribuicaoTst() {
     let ativo = true;
     backfillSemPendenciaSeNecessario()
       .then(() => {
-        if (ativo) refetchProntoSemPendencia();
+        if (ativo) { refetchProntoSemPendencia(); refetchSomenteOutraMateria(); }
         // Revalida marcações calculadas com regra antiga, em segundo plano.
         return revalidarMarcacoesAntigas();
       })
       .then((qtd) => {
         if (ativo && qtd) {
           refetchProntoSemPendencia();
+          refetchSomenteOutraMateria();
           fetchDados();
         }
       })
@@ -412,6 +417,7 @@ export default function DistribuicaoTst() {
       // não manter na tela processos que acabaram de ficar sem pendência.
       await Promise.all([
         refetchProntoSemPendencia(),
+        refetchSomenteOutraMateria(),
         refetchSemPendenciaPorResp(),
         fetchDados(),
       ]);
@@ -493,6 +499,11 @@ export default function DistribuicaoTst() {
     refetch: refetchProntoSemPendencia,
   } =
     useProntoSemPendenciaCount(debouncedFilters);
+  const {
+    count: somenteOutraMateriaCount,
+    loading: somenteOutraMateriaLoading,
+    refetch: refetchSomenteOutraMateria,
+  } = useSomenteOutraMateriaCount(debouncedFilters);
 
 
 
@@ -514,6 +525,9 @@ export default function DistribuicaoTst() {
     if (filtroRevisarListaMaterias) {
       f = { ...f, revisarListaMaterias: "sim" };
     }
+    if (filtroSomenteOutraMateria) {
+      f = { ...f, somenteOutraMateria: "sim" };
+    }
     if (semMateriaDossieIds) {
       const base = f.idsAllowed && f.idsAllowed.length > 0
         ? semMateriaDossieIds.filter((id) => f.idsAllowed!.includes(id))
@@ -531,7 +545,7 @@ export default function DistribuicaoTst() {
     }
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+  }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, filtroSomenteOutraMateria, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters);
 
@@ -749,7 +763,7 @@ export default function DistribuicaoTst() {
     filtroJudit !== "todos" || filtroErroJudit !== "todos" || filtroSituacaoProcesso !== "todos" || filtroSubidaMassa !== "todos" || filtroStatus !== "todos" ||
     filtroEmAnalise !== "todos" || filtroProblemaJudit !== "todos" || filtroAcordo !== "todos" || filtroDuplicado !== "todos" || filtroFonteImportacao !== "todas" ||
     filtroProvasDigitais !== "todos" || filtroSituacaoCarga !== "todas" || filtroEquipe !== "todos" || filtroTagIds.length > 0 ||
-    filtroPedidosDossie !== "todos" || filtroExcluirSituacoes.length > 0 || filtroSemPendencia || filtroComPendencia || filtroRevisarListaMaterias || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
+    filtroPedidosDossie !== "todos" || filtroExcluirSituacoes.length > 0 || filtroSemPendencia || filtroComPendencia || filtroRevisarListaMaterias || filtroSomenteOutraMateria || filtroSemTurma || filtroMultiResp || filtroResponsavelIds.length > 0
   );
 
   const clearFilters = () => {
@@ -792,6 +806,7 @@ export default function DistribuicaoTst() {
     setFiltroMultiResp(false);
     setSemMateriaDossieIds(null);
     setFiltroRevisarListaMaterias(false);
+    setFiltroSomenteOutraMateria(false);
     setSelectedIds(new Set());
   };
 
@@ -821,6 +836,7 @@ export default function DistribuicaoTst() {
     if (filtroMultiResp) keys.push("multiResp");
     if (filtroResponsavelIds.includes("__sem_responsavel__")) keys.push("semResponsavel");
     if (filtroRevisarListaMaterias || semMateriaDossieIds) keys.push("revisarListaMaterias");
+    if (filtroSomenteOutraMateria) keys.push("somenteOutraMateria");
     if (filtroComPendencia) keys.push("prontoComPendencia");
     if (filtroSemPendencia) keys.push("prontoSemPendencia");
     if (
@@ -858,6 +874,8 @@ export default function DistribuicaoTst() {
       setFiltroComPendencia(false);
       setSemMateriaDossieIds(null);
       setFiltroRevisarListaMaterias(false);
+      setFiltroSomenteOutraMateria(false);
+
       setFiltroResponsavelIds([]);
       setFiltroDataInicio("");
       setFiltroDataFim("");
@@ -910,6 +928,10 @@ export default function DistribuicaoTst() {
         setFiltroRevisarListaMaterias(!off);
         setFiltroStatus(off ? "todos" : "concluidos");
         break;
+      case "somenteOutraMateria":
+        setFiltroSomenteOutraMateria(!off);
+        setFiltroStatus(off ? "todos" : "concluidos");
+        break;
       case "semResponsavel":
         setFiltroResponsavelIds(off ? [] : ["__sem_responsavel__"]);
         break;
@@ -946,6 +968,7 @@ export default function DistribuicaoTst() {
       Promise.resolve(refetchProntoSemPendencia()),
       Promise.resolve(refetchSemPendenciaPorResp()),
       Promise.resolve(refetchMateriasPorResponsavel()),
+      Promise.resolve(refetchSomenteOutraMateria()),
     ]);
   };
 
@@ -2028,6 +2051,10 @@ export default function DistribuicaoTst() {
               count: revisarListaMateriasIds.length,
               loading: false,
             }}
+            somenteOutraMateria={{
+              count: somenteOutraMateriaCount,
+              loading: somenteOutraMateriaLoading,
+            }}
             multiRespCard={null}
 
             responsavelCard={(() => {
@@ -2099,6 +2126,8 @@ export default function DistribuicaoTst() {
                   setFiltroSemPendencia(modo === "semPend");
                   setFiltroComPendencia(modo === "comPend");
                   setFiltroRevisarListaMaterias(false);
+                  setFiltroSomenteOutraMateria(false);
+
                   setSemMateriaDossieIds(
                     modo === "semMatDossie" ? (semMateriaDossieIdsPorResp[c.id] || []) : null,
                   );
@@ -3283,45 +3312,66 @@ export default function DistribuicaoTst() {
                   </TableCell>
                   {mostrarPendencias && (() => {
                     const pend = getPendencias(d);
+                    const avisos = getAvisos(d);
                     const naoPrecisaFazer =
                       (d as any).processo_outro_escritorio === true ||
                       (d as any).segredo_justica === true ||
                       (d as any).cejusc === true ||
                       (d as any).acordo === true;
+                    const avisosBadges = avisos.length > 0 && !naoPrecisaFazer ? (
+                      <div
+                        className="flex flex-wrap gap-1 max-w-[420px]"
+                        title={avisos.map((a) => a.label).join("; ")}
+                      >
+                        {avisos.slice(0, 4).map((a) => (
+                          <Badge
+                            key={a.key}
+                            variant="outline"
+                            className="text-[10px] px-1.5 py-0 border-yellow-400 text-yellow-800 bg-yellow-50 dark:bg-yellow-950/40 dark:text-yellow-300"
+                          >
+                            {a.label}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null;
                     return (
                       <TableCell className="align-middle min-w-[260px]" onClick={e => e.stopPropagation()}>
-                        {naoPrecisaFazer ? (
-                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
-                            Não precisa fazer
-                          </Badge>
-                        ) : pend.length === 0 ? (
-                          <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
-                            Sem pendências
-                          </Badge>
-                        ) : (
-                          <div className="flex flex-wrap gap-1 max-w-[420px]" title={pendenciasResumo(d)}>
-                            <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
-                              {pend.length} pendência{pend.length > 1 ? "s" : ""}
+                        <div className="flex flex-col gap-1">
+                          {naoPrecisaFazer ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px]">
+                              Não precisa fazer
                             </Badge>
-                            {pend.slice(0, 6).map((p) => (
-                              <Badge
-                                key={p.key}
-                                variant="outline"
-                                className="text-[10px] px-1.5 py-0 border-red-300 text-red-700"
-                              >
-                                {p.label}
+                          ) : pend.length === 0 ? (
+                            <Badge className="bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 text-[10px] w-fit">
+                              Sem pendências
+                            </Badge>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 max-w-[420px]" title={pendenciasResumo(d)}>
+                              <Badge variant="destructive" className="text-[10px] px-1.5 py-0">
+                                {pend.length} pendência{pend.length > 1 ? "s" : ""}
                               </Badge>
-                            ))}
-                            {pend.length > 6 && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-700">
-                                +{pend.length - 6}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
+                              {pend.slice(0, 6).map((p) => (
+                                <Badge
+                                  key={p.key}
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 border-red-300 text-red-700"
+                                >
+                                  {p.label}
+                                </Badge>
+                              ))}
+                              {pend.length > 6 && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-300 text-red-700">
+                                  +{pend.length - 6}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                          {avisosBadges}
+                        </div>
                       </TableCell>
                     );
                   })()}
+
                   {isAdminOrCoordinator && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1">

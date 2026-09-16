@@ -29,6 +29,8 @@ export type StatsCardKey =
   | "prontoComPendencia"
   | "semResponsavel"
   | "revisarListaMaterias"
+  | "somenteOutraMateria"
+
   | "comEquipe"
   | "semEquipe"
   | "multiResp";
@@ -55,7 +57,10 @@ interface Props {
   prontoComPendencia?: { count: number; loading: boolean } | null;
   /** Prontos sem NENHUMA matéria na lista de pedidos do dossiê. */
   revisarListaMaterias?: { count: number; loading: boolean } | null;
+  /** AVISO: prontos cujo quadro de matérias só tem "Outra Matéria". */
+  somenteOutraMateria?: { count: number; loading: boolean } | null;
 }
+
 
 interface CardDef {
   key: StatsCardKey;
@@ -67,7 +72,7 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria }: Props) {
   const isKeyActive = (k: StatsCardKey) =>
     activeKeys ? activeKeys.includes(k) : activeKey === k;
 
@@ -123,6 +128,17 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
           textClass: "text-red-600 dark:text-red-400",
         }]
       : []),
+    ...(somenteOutraMateria
+      ? [{
+          key: "somenteOutraMateria" as StatsCardKey,
+          label: "Aviso: somente Outra Matéria",
+          value: somenteOutraMateria.count,
+          hint: "Prontos cuja parte recorrente só tem \"Outra Matéria\" — apenas conferir; a linha vai normalmente para a Carga Benner",
+          className: "from-yellow-50 to-yellow-100 dark:from-yellow-950/50 dark:to-yellow-900/30 border-yellow-300 dark:border-yellow-700",
+          textClass: "text-yellow-700 dark:text-yellow-400",
+        }]
+      : []),
+
     { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
   ];
   if (multiRespCard) {

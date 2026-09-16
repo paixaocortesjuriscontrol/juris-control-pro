@@ -133,7 +133,7 @@ export default function RankingAtendimento() {
         ["comMateria", "semMateria"],
         ["comEquipe", "semEquipe"],
         ["ate2025", "de2026"],
-        ["prontoEnvio", "prontoSemPendencia", "prontoComPendencia", "revisarListaMaterias"],
+        ["prontoEnvio", "prontoSemPendencia", "prontoComPendencia", "revisarListaMaterias", "somenteOutraMateria"],
       ];
       const grupo = GRUPOS.find((g) => g.includes(key));
       const base = grupo ? atual.filter((k) => !grupo.includes(k)) : atual;

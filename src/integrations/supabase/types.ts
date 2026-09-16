@@ -2694,6 +2694,7 @@ export type Database = {
           sem_pendencia: boolean | null
           situacao_envio_carga_id: string | null
           situacao_processo: string | null
+          somente_outra_materia: boolean
           status: string
           status_distribuicao: string | null
           subcategoria: string | null
@@ -2824,6 +2825,7 @@ export type Database = {
           sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
+          somente_outra_materia?: boolean
           status?: string
           status_distribuicao?: string | null
           subcategoria?: string | null
@@ -2954,6 +2956,7 @@ export type Database = {
           sem_pendencia?: boolean | null
           situacao_envio_carga_id?: string | null
           situacao_processo?: string | null
+          somente_outra_materia?: boolean
           status?: string
           status_distribuicao?: string | null
           subcategoria?: string | null

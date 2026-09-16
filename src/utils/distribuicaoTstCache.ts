@@ -67,6 +67,8 @@ export const COLUNAS_PRONTOS_COMPARTILHADAS = Array.from(
     "sem_pendencia",
     "revisar_lista_materias",
     "sem_nenhuma_materia_dossie",
+    "somente_outra_materia",
+
   ]),
 );
 
