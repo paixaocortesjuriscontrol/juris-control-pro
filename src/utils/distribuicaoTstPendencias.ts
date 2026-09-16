@@ -549,7 +549,12 @@ export function getPendenciasRejeicaoCarga(row: any): Pendencia[] {
   // Matérias que não constam na LISTA DE PEDIDOS DO DOSSIÊ ("verdes") não vão
   // para a planilha. Se nenhuma matéria estiver na lista, a linha é rejeitada.
   const dossieInfo = getMateriasForaDoDossie(row);
-  if (!dossieInfo.temLista) {
+  // Sem parte com matérias a conferir (ex.: Terceiro é a única parte
+  // recorrente) não existe pendência de lista de matérias.
+  if (!dossieInfo.temParteAtiva) {
+    // nada a validar neste bloco
+  } else if (!dossieInfo.temLista) {
+
     out.push({
       key: "revisar_lista_materias",
       label:
