@@ -152,6 +152,7 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
       row.processo_outro_escritorio !== true &&
       row.segredo_justica !== true &&
       row.cejusc !== true &&
+      row.acordo !== true &&
       !concluido
     ) {
       stats.aFazer += 1;
@@ -160,7 +161,8 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
       row.transito_julgado === true ||
       row.processo_outro_escritorio === true ||
       row.segredo_justica === true ||
-      row.cejusc === true
+      row.cejusc === true ||
+      row.acordo === true
     ) {
       stats.naoPrecisaFazer += 1;
     }
