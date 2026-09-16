@@ -687,6 +687,12 @@ export function getMateriasForaDaLista(row: any): MateriasForaDaLista {
 export type MateriasForaDoDossie = {
   /** O dossiê possui lista de pedidos cadastrada? */
   temLista: boolean;
+  /**
+   * Existe alguma parte cujas matérias precisam ser conferidas?
+   * Quando "Terceiro" é a única parte recorrente não há quadro a validar —
+   * nesse caso NÃO pode existir pendência de "revisar lista de matérias".
+   */
+  temParteAtiva: boolean;
   /** Matérias selecionadas que NÃO estão na lista do dossiê. */
   total: number;
   /** Matérias selecionadas que estão na lista do dossiê ("verdes"). */
@@ -697,6 +703,7 @@ export type MateriasForaDoDossie = {
   partesSemMateriaValida: string[];
   resumo: string;
 };
+
 
 /**
  * Matérias selecionadas que não constam na lista de pedidos do DOSSIÊ
