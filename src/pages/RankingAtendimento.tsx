@@ -18,7 +18,9 @@ import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
-import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+import { RankingTstCards, filtersFromCards } from "@/components/distribuicao-tst/RankingTstCards";
+import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
+import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 
 
