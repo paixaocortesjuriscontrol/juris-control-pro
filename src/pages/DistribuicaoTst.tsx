@@ -392,6 +392,7 @@ export default function DistribuicaoTst() {
       .then((qtd) => {
         if (ativo && qtd) {
           refetchProntoSemPendencia();
+          refetchSomenteOutraMateria();
           fetchDados();
         }
       })
@@ -414,6 +415,7 @@ export default function DistribuicaoTst() {
       // não manter na tela processos que acabaram de ficar sem pendência.
       await Promise.all([
         refetchProntoSemPendencia(),
+        refetchSomenteOutraMateria(),
         refetchSemPendenciaPorResp(),
         fetchDados(),
       ]);
