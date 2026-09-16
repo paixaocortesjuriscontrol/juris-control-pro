@@ -2122,8 +2122,7 @@ export default function DistribuicaoTst() {
                   setFiltroComPendencia(modo === "comPend");
                   setFiltroRevisarListaMaterias(false);
                   setFiltroSomenteOutraMateria(false);
-      setFiltroSomenteOutraMateria(false);
-    setFiltroSomenteOutraMateria(false);
+
                   setSemMateriaDossieIds(
                     modo === "semMatDossie" ? (semMateriaDossieIdsPorResp[c.id] || []) : null,
                   );
