@@ -1300,6 +1300,10 @@ export default function PainelControle() {
       ];
       return base.filter((item) => passaMetricaRanking(item, drill.metrica, drill.de, drill.ate, hoje_str));
     }
+    // Busca global: sem filtro de data, a pesquisa vale para todo o histórico
+    if (buscaGlobalAtiva && buscaGlobalQuery.data) {
+      return (buscaGlobalQuery.data as any[]).filter((item) => passaFiltrosPainel(item));
+    }
     if (vencidosAtivo) {
       const anteriores = (vencidosQuery.data ?? []).filter(
         (item) => (drill || modoProtocoladosBaixados ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
