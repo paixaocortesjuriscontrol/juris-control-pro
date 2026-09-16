@@ -871,7 +871,7 @@ export default function DistribuicaoTst() {
       setSemMateriaDossieIds(null);
       setFiltroRevisarListaMaterias(false);
       setFiltroSomenteOutraMateria(false);
-    setFiltroSomenteOutraMateria(false);
+
       setFiltroResponsavelIds([]);
       setFiltroDataInicio("");
       setFiltroDataFim("");
