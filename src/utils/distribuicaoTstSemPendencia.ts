@@ -27,6 +27,25 @@ import {
 
 const STATUS_CONCLUIDOS = ["pronto_envio", "planilhado", "enviado"];
 
+/**
+ * Carrega as listas oficiais ANTES de qualquer cálculo e falha alto quando a
+ * lista de pedidos por dossiê não vem. Sem essa proteção, uma falha de rede
+ * fazia o cálculo tratar TODOS os dossiês como "sem lista de pedidos" e gravar
+ * pendência falsa ("Revisar lista de matérias") em tudo que fosse verificado.
+ */
+async function garantirListasOficiais(): Promise<void> {
+  await Promise.all([
+    ensureMateriasOficiais().catch(() => {}),
+    ensurePedidosPorDossie().catch(() => {}),
+  ]);
+  if (!pedidosPorDossieCarregados()) {
+    throw new Error(
+      "Não foi possível carregar a lista de Pedidos por dossiê — nada foi gravado. Tente novamente.",
+    );
+  }
+}
+
+
 /** Um registro está "sem pendência" quando é pronto e não falta nada. */
 export function calcularSemPendencia(row: any): boolean {
   // Processos em outro escritório, sob segredo de justiça, CEJUSC ou com
