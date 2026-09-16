@@ -19,7 +19,7 @@ export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
 import { useProntoSemPendenciaCount } from "@/hooks/useProntoSemPendenciaCount";
-import { recalcularSemPendencia, backfillSemPendenciaSeNecessario, atualizarSemPendenciaLote } from "@/utils/distribuicaoTstSemPendencia";
+import { recalcularSemPendencia, backfillSemPendenciaSeNecessario, atualizarSemPendenciaLote, revalidarMarcacoesAntigas } from "@/utils/distribuicaoTstSemPendencia";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
