@@ -16,6 +16,10 @@ import {
   ensureMateriasOficiais,
   resetMateriasOficiais,
 } from "@/utils/materiasOficiaisCache";
+import {
+  ensurePedidosPorDossie,
+  resetPedidosPorDossie,
+} from "@/utils/pedidosPorDossieCache";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface Resultado {
