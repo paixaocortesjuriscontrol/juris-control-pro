@@ -18,7 +18,7 @@ interface Props {
  * Distribuição TST (`handleCardClick`), para que os números respondam ao
  * clique exatamente como lá: filtros combináveis e clique novamente desliga.
  */
-function filtersFromCards(keys: StatsCardKey[]): DistribuicaoTstFilters {
+export function filtersFromCards(keys: StatsCardKey[]): DistribuicaoTstFilters {
   const f: DistribuicaoTstFilters = {};
   for (const key of keys) {
     switch (key) {

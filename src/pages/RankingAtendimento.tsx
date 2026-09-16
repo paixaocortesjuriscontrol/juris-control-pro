@@ -18,7 +18,9 @@ import { format, startOfYear, startOfMonth, subMonths } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, LabelList } from "recharts";
 import { Trophy, FileDown, Medal, Target, AlertTriangle, CheckCircle2, Gauge, TrendingUp, Info } from "lucide-react";
 import { gerarRankingPdfCompleto } from "@/lib/rankingAtendimentoPdf";
-import { RankingTstCards } from "@/components/distribuicao-tst/RankingTstCards";
+import { RankingTstCards, filtersFromCards } from "@/components/distribuicao-tst/RankingTstCards";
+import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
+import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 
 
@@ -218,7 +220,41 @@ export default function RankingAtendimento() {
   });
 
   const geral = geralQuery.data || [];
-  const tst = tstQuery.data || [];
+  const tstBruto = tstQuery.data || [];
+
+  // ---- Ranking TST respeitando os filtros dos cards clicados -------------
+  // Quando há card ativo, os números do ranking passam a vir das mesmas
+  // contagens por responsável usadas na tela Distribuição TST, com os filtros
+  // daquele card. Sem card ativo, o ranking usa a RPC do período.
+  const tstCardKeysKey = tstCardKeys.join(",");
+  const tstCardFilters = useMemo(
+    () => (tstCardKeys.length > 0 ? filtersFromCards(tstCardKeys) : { idsAllowed: [] as string[] }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tstCardKeysKey]
+  );
+  const { counts: tstCountsPorResp } = useResponsaveisCounts(tstCardFilters);
+  const { map: tstSemPendPorResp } = useProntoSemPendenciaPorResponsavel(tstCardFilters);
+
+  const tst = useMemo(() => {
+    if (tstCardKeys.length === 0) return tstBruto;
+    const byId = new Map(tstCountsPorResp.map((c) => [c.id, c]));
+    return tstBruto
+      .map((l) => {
+        const c = byId.get(l.usuario_id);
+        const total = Number(c?.count || 0);
+        const prontos = Number(c?.pronto || 0);
+        const sem = Math.min(prontos, Number(tstSemPendPorResp[l.usuario_id] || 0));
+        return {
+          ...l,
+          total,
+          prontos,
+          sem_pendencia: sem,
+          com_pendencia: Math.max(0, prontos - sem),
+        };
+      })
+      .filter((l) => Number(l.total) > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tstBruto, tstCardKeysKey, tstCountsPorResp, tstSemPendPorResp]);
 
   const totaisGeral = useMemo(() => {
     return geral.reduce(
@@ -1158,7 +1194,7 @@ export default function RankingAtendimento() {
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
                   no ranking abaixo para ver apenas os processos dele. O clique nos números funciona
                   igual à tela Distribuição TST: aplica o filtro do card (vários podem ficar ativos ao
-                  mesmo tempo), e os demais números passam a refletir esse recorte. "Total Geral" limpa.
+                  mesmo tempo), e os demais números — inclusive o ranking e o gráfico abaixo — passam a refletir esse recorte. "Total Geral" limpa.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
