@@ -79,6 +79,8 @@ import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
   getPendencias,
+  getAvisos,
+
   pendenciasResumo,
   COLUNAS_SELECT_PRONTO_SEM_PENDENCIA,
 } from "@/utils/distribuicaoTstPendencias";
