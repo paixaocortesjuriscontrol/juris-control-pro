@@ -715,6 +715,12 @@ function applyRevisarListaMateriasFilter<T>(query: T, filters: DistribuicaoTstFi
   return (query as any).eq("revisar_lista_materias", true) as T;
 }
 
+/** Filtro do card de AVISO "Somente Outra Matéria". */
+function applySomenteOutraMateriaFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
+  if (filters.somenteOutraMateria !== "sim") return query;
+  return (query as any).eq("somente_outra_materia", true) as T;
+}
+
 function applySemNenhumaMateriaDossieFilter<T>(query: T, filters: DistribuicaoTstFilters): T {
   if (filters.semNenhumaMateriaDossie !== "sim") return query;
   return (query as any).eq("sem_nenhuma_materia_dossie", true) as T;
