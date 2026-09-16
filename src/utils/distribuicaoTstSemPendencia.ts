@@ -174,7 +174,7 @@ export async function recalcularSemPendencia(
     else if (!revisar && atualRevisar !== false) revisarFalse.push(id);
 
     // Só grava quando o valor muda (antes regravava TODAS as linhas).
-    const semNenhuma = semNenhumaMateriaDoDossie(r);
+    const semNenhuma = !isNaoPrecisaFazer(r) && semNenhumaMateriaDoDossie(r);
     const atualSemNenhuma = (r as any).sem_nenhuma_materia_dossie;
     if (semNenhuma && atualSemNenhuma !== true) semNenhumaTrue.push(id);
     else if (!semNenhuma && atualSemNenhuma !== false) semNenhumaFalse.push(id);
@@ -232,7 +232,8 @@ export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean
       .update({
         sem_pendencia: ok,
         revisar_lista_materias: concluido ? calcularRevisarListaMaterias(row) : false,
-        sem_nenhuma_materia_dossie: concluido ? semNenhumaMateriaDoDossie(row) : false,
+        sem_nenhuma_materia_dossie:
+          concluido && !isNaoPrecisaFazer(row) ? semNenhumaMateriaDoDossie(row) : false,
         pendencias_verificado_em: new Date().toISOString(),
       } as any)
       .eq("id", id);
@@ -355,7 +356,8 @@ export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
       (ok ? paraTrue : paraFalse).push((row as any).id);
       const revisar = concluido ? calcularRevisarListaMaterias(row) : false;
       (revisar ? revisarTrue : revisarFalse).push((row as any).id);
-      const semNenhuma = concluido ? semNenhumaMateriaDoDossie(row) : false;
+      const semNenhuma =
+        concluido && !isNaoPrecisaFazer(row) ? semNenhumaMateriaDoDossie(row) : false;
       (semNenhuma ? semNenhumaTrue : semNenhumaFalse).push((row as any).id);
     }
     await updateEmLotes(paraTrue, true, agora);
