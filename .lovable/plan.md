@@ -1,4 +1,4 @@
-# "Outra Matéria" não pode gerar pendência de lista de matérias
+# "Outra Matéria": vira aviso, não pendência
 
 ## O que está acontecendo
 
@@ -10,17 +10,22 @@ O efeito ficou mais visível depois da limpeza de hoje (16/09/2026), porque 7.05
 
 ## Como vai ficar
 
-1. **Outra Matéria conta como matéria válida sempre**, inclusive quando o dossiê não tem nenhum pedido cadastrado.
-2. Uma parte recorrente (Reclamante e/ou Reclamada) cuja seleção tenha Outra Matéria **não gera** a pendência "Revisar lista de matérias".
-3. A pendência continua existindo quando a parte tem matérias reais e **nenhuma** delas está na lista de pedidos do dossiê — mesmo comportamento da planilha.
-4. O totalizador "Pronto sem nenhuma matéria na lista do dossiê" passa a seguir o mesmo critério, para não contar fichas que na verdade vão para a planilha.
-5. As fichas já marcadas por engano são corrigidas no banco, sem ninguém precisar clicar em "Verificar Pendências".
+1. **Outra Matéria nunca gera pendência.** A ficha deixa de ficar vermelha e volta a contar como pronta sem pendência.
+2. No lugar da pendência, aparece um **aviso amarelo** ("Verificar"): "Somente 'Outra Matéria' selecionada — conferir lista de matérias do dossiê". O aviso não bloqueia nada e a linha continua indo para a planilha de Carga Benner.
+3. Na coluna Pendências da lista, essas fichas passam a mostrar o aviso em amarelo em vez do selo vermelho.
+4. Novo **card de aviso** na faixa de totalizadores: "Somente Outra Matéria (aviso)", em amarelo, clicável como os demais cards, mostrando quantas fichas prontas estão nessa situação.
+5. As fichas já marcadas por engano são corrigidas automaticamente, sem ninguém precisar clicar em "Verificar Pendências".
 
 ## Detalhes técnicos
 
 - `src/utils/distribuicaoTstPendencias.ts`
-  - `getMateriasForaDoDossie`: tratar `isOutraMateria(nome)` como válida independentemente de `res.temLista` (hoje só conta quando `temLista` é `true`); marcar em cada bloco se há Outra Matéria.
-  - `precisaRevisarListaMaterias`: quando `!temLista`, só retornar `true` se existir ao menos uma parte ativa **sem** Outra Matéria selecionada; manter a regra atual de `partesSemMateriaValida` quando há lista.
-  - `semNenhumaMateriaDoDossie`: aceitar Outra Matéria como matéria válida do dossiê (alinhando com a exportação).
-- Verificação no banco: recalcular `sem_pendencia`, `revisar_lista_materias` e `sem_nenhuma_materia_dossie` das fichas prontas (`pronto_envio`, `planilhado`, `enviado`) marcando `pendencias_verificado_em` com data antiga, para a revalidação automática da tela reprocessá-las em segundo plano.
+  - `getMateriasForaDoDossie`: tratar `isOutraMateria(nome)` como válida independentemente de `res.temLista`; registrar por bloco se a parte tem Outra Matéria.
+  - `precisaRevisarListaMaterias`: partes cuja seleção inclui Outra Matéria não entram em `partesSemMateriaValida`, inclusive quando o dossiê não tem lista.
+  - Novo item com `aviso: true` e `key: "somente_outra_materia"` em `getPendenciasRejeicaoCarga` quando a parte ativa só tem Outra Matéria.
+  - `semNenhumaMateriaDoDossie`: aceitar Outra Matéria como válida (alinhado com a exportação).
+- Banco: nova coluna booleana `dados_benner.somente_outra_materia` (default `false`, índice parcial) gravada junto de `sem_pendencia`/`revisar_lista_materias` em `src/utils/distribuicaoTstSemPendencia.ts` (`recalcularSemPendencia`, `atualizarSemPendenciaRegistro`, `atualizarSemPendenciaLote`).
+- `src/hooks/useDistribuicoesTst.ts`: filtro `somenteOutraMateria` (`"sim"`), aplicado nas três consultas, como já é feito com `revisarListaMaterias`.
+- `src/components/distribuicao-tst/DistribuicaoTstStatsCards.tsx`: nova chave `somenteOutraMateria` em `StatsCardKey` e card amarelo opcional, no mesmo padrão de `revisarListaMaterias`.
+- `src/pages/DistribuicaoTst.tsx`: contagem do novo card (hook de contagem por filtro), clique aplicando o filtro, e coluna Pendências exibindo avisos em amarelo quando não houver pendência.
+- Correção dos dados existentes: marcar `pendencias_verificado_em` com data antiga nas fichas prontas para a revalidação automática regravar os marcadores.
 - Nada muda em `CargaBennerFromDb.tsx` — a geração da planilha já está correta.
