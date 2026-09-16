@@ -125,8 +125,8 @@ export async function recalcularSemPendencia(
   semPendencia: number;
   atualizados: number;
 }> {
-  await ensureMateriasOficiais().catch(() => {});
-  await ensurePedidosPorDossie().catch(() => {});
+  await garantirListasOficiais();
+
   invalidateDistribuicaoTstCache();
 
   const temFiltros = !!filtros && Object.values(filtros).some((v) =>
@@ -217,8 +217,8 @@ export async function recalcularSemPendencia(
 export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean | null> {
   if (!id) return null;
   try {
-    await ensureMateriasOficiais().catch(() => {});
-    await ensurePedidosPorDossie().catch(() => {});
+    await garantirListasOficiais();
+
     const { data, error } = await supabase
       .from("dados_benner" as any)
       .select(COLUNAS_PRONTOS_COMPARTILHADAS.join(", "))
@@ -287,8 +287,8 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
 export async function atualizarSemPendenciaLote(ids: string[]): Promise<void> {
   const lista = ids.filter(Boolean);
   if (!lista.length) return;
-  await ensureMateriasOficiais().catch(() => {});
-  await ensurePedidosPorDossie().catch(() => {});
+  await garantirListasOficiais();
+
   const agora = new Date().toISOString();
   const CHUNK = 200;
   for (let i = 0; i < lista.length; i += CHUNK) {
