@@ -265,10 +265,14 @@ export function PedidosPorDossieDialog() {
             <div className="text-sm space-y-2 rounded-md border border-border bg-muted/30 p-3">
               <div>
                 <strong>{resultado.dossies}</strong> dossiê(s) processado(s) ·{" "}
-                <strong>{resultado.vinculos}</strong> pedido(s) vinculado(s)
+                <strong>{resultado.vinculos}</strong> pedido(s) acrescentado(s) ·{" "}
+                <strong>{resultado.jaExistentes}</strong> já cadastrado(s)
                 {resultado.ignoradas > 0 && (
                   <> · {resultado.ignoradas} linha(s) sem pedidos ignorada(s)</>
                 )}
+              </div>
+              <div className="text-xs text-emerald-700 dark:text-emerald-400">
+                Nenhum pedido foi apagado nesta importação.
               </div>
               <div>
                 <strong>{resultado.novosPedidos.length}</strong> pedido(s) novo(s)
