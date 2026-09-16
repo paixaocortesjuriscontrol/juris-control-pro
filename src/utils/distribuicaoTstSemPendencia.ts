@@ -173,6 +173,8 @@ export async function recalcularSemPendencia(
   const revisarFalse: string[] = [];
   const semNenhumaTrue: string[] = [];
   const semNenhumaFalse: string[] = [];
+  const somenteOutraTrue: string[] = [];
+  const somenteOutraFalse: string[] = [];
   let semPendencia = 0;
 
   for (const r of rows) {
@@ -193,6 +195,11 @@ export async function recalcularSemPendencia(
     const atualSemNenhuma = (r as any).sem_nenhuma_materia_dossie;
     if (semNenhuma && atualSemNenhuma !== true) semNenhumaTrue.push(id);
     else if (!semNenhuma && atualSemNenhuma !== false) semNenhumaFalse.push(id);
+
+    const somenteOutra = calcularSomenteOutraMateria(r);
+    const atualSomenteOutra = (r as any).somente_outra_materia;
+    if (somenteOutra && atualSomenteOutra !== true) somenteOutraTrue.push(id);
+    else if (!somenteOutra && atualSomenteOutra !== false) somenteOutraFalse.push(id);
   }
 
   await Promise.all([
@@ -202,7 +209,10 @@ export async function recalcularSemPendencia(
     updateRevisarEmLotes(revisarFalse, false),
     updateSemNenhumaEmLotes(semNenhumaTrue, true),
     updateSemNenhumaEmLotes(semNenhumaFalse, false),
+    updateSomenteOutraEmLotes(somenteOutraTrue, true),
+    updateSomenteOutraEmLotes(somenteOutraFalse, false),
   ]);
+
 
   if (!temFiltros) {
     // Registros que deixaram de ser "prontos" mas continuavam marcados.
