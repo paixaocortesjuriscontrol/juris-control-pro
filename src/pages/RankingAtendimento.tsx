@@ -106,8 +106,38 @@ export default function RankingAtendimento() {
   const [preset, setPreset] = useState<Preset>("ano");
   /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
   const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
-  /** Card da Distribuição TST clicado — reordena o ranking e o gráfico da aba TST. */
-  const [tstCardAtivo, setTstCardAtivo] = useState<StatsCardKey | null>(null);
+  /**
+   * Cards da Distribuição TST clicados. Funciona igual à tela Distribuição TST:
+   * cada clique liga/desliga o filtro daquele card (combináveis) e "Total Geral"
+   * limpa tudo. O último card clicado também ordena o ranking/gráfico.
+   */
+  const [tstCardKeys, setTstCardKeys] = useState<StatsCardKey[]>([]);
+  const tstCardAtivo = tstCardKeys[tstCardKeys.length - 1] ?? null;
+
+  const handleTstCardClick = (key: StatsCardKey) => {
+    if (key === "total") {
+      setTstCardKeys([]);
+      return;
+    }
+    setTstCardKeys((atual) => {
+      if (atual.includes(key)) return atual.filter((k) => k !== key);
+      // Cards mutuamente exclusivos (mesmo grupo) substituem o anterior.
+      const GRUPOS: StatsCardKey[][] = [
+        ["processosValidos", "processosInvalidos"],
+        ["dossiesValidos", "dossiesInvalidos"],
+        ["juditPreenchido", "juditNaoPreenchido"],
+        ["bennerSim", "bennerNao"],
+        ["processosAtivos", "transitoJulgado", "aFazer", "naoPrecisaFazer"],
+        ["comMateria", "semMateria"],
+        ["comEquipe", "semEquipe"],
+        ["ate2025", "de2026"],
+        ["prontoEnvio", "prontoSemPendencia", "prontoComPendencia", "revisarListaMaterias"],
+      ];
+      const grupo = GRUPOS.find((g) => g.includes(key));
+      const base = grupo ? atual.filter((k) => !grupo.includes(k)) : atual;
+      return [...base, key];
+    });
+  };
 
 
   const aplicarPreset = (p: Preset) => {
