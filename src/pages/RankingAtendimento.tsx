@@ -106,8 +106,38 @@ export default function RankingAtendimento() {
   const [preset, setPreset] = useState<Preset>("ano");
   /** Profissional selecionado no ranking TST — filtra os cards da Distribuição TST. */
   const [respTstSelecionado, setRespTstSelecionado] = useState<{ id: string; nome: string } | null>(null);
-  /** Card da Distribuição TST clicado — reordena o ranking e o gráfico da aba TST. */
-  const [tstCardAtivo, setTstCardAtivo] = useState<StatsCardKey | null>(null);
+  /**
+   * Cards da Distribuição TST clicados. Funciona igual à tela Distribuição TST:
+   * cada clique liga/desliga o filtro daquele card (combináveis) e "Total Geral"
+   * limpa tudo. O último card clicado também ordena o ranking/gráfico.
+   */
+  const [tstCardKeys, setTstCardKeys] = useState<StatsCardKey[]>([]);
+  const tstCardAtivo = tstCardKeys[tstCardKeys.length - 1] ?? null;
+
+  const handleTstCardClick = (key: StatsCardKey) => {
+    if (key === "total") {
+      setTstCardKeys([]);
+      return;
+    }
+    setTstCardKeys((atual) => {
+      if (atual.includes(key)) return atual.filter((k) => k !== key);
+      // Cards mutuamente exclusivos (mesmo grupo) substituem o anterior.
+      const GRUPOS: StatsCardKey[][] = [
+        ["processosValidos", "processosInvalidos"],
+        ["dossiesValidos", "dossiesInvalidos"],
+        ["juditPreenchido", "juditNaoPreenchido"],
+        ["bennerSim", "bennerNao"],
+        ["processosAtivos", "transitoJulgado", "aFazer", "naoPrecisaFazer"],
+        ["comMateria", "semMateria"],
+        ["comEquipe", "semEquipe"],
+        ["ate2025", "de2026"],
+        ["prontoEnvio", "prontoSemPendencia", "prontoComPendencia", "revisarListaMaterias"],
+      ];
+      const grupo = GRUPOS.find((g) => g.includes(key));
+      const base = grupo ? atual.filter((k) => !grupo.includes(k)) : atual;
+      return [...base, key];
+    });
+  };
 
 
   const aplicarPreset = (p: Preset) => {
@@ -1126,8 +1156,9 @@ export default function RankingAtendimento() {
                 </CardTitle>
                 <CardDescription>
                   Mesmos totalizadores da tela Distribuição TST (base completa). Clique em um profissional
-                  no ranking abaixo para ver apenas os processos dele. Clique no número de um card para
-                  reordenar o ranking e o gráfico por essa métrica.
+                  no ranking abaixo para ver apenas os processos dele. O clique nos números funciona
+                  igual à tela Distribuição TST: aplica o filtro do card (vários podem ficar ativos ao
+                  mesmo tempo), e os demais números passam a refletir esse recorte. "Total Geral" limpa.
                   {respTstSelecionado && (
                     <Button
                       size="sm"
@@ -1138,14 +1169,14 @@ export default function RankingAtendimento() {
                       Ver todos
                     </Button>
                   )}
-                  {tstCardAtivo && (
+                  {tstCardKeys.length > 0 && (
                     <Button
                       size="sm"
                       variant="outline"
                       className="ml-2 h-6"
-                      onClick={() => setTstCardAtivo(null)}
+                      onClick={() => setTstCardKeys([])}
                     >
-                      Limpar ordenação do card
+                      Limpar filtros dos cards
                     </Button>
                   )}
                 </CardDescription>
@@ -1153,8 +1184,8 @@ export default function RankingAtendimento() {
               <CardContent>
                 <RankingTstCards
                   responsavelId={respTstSelecionado?.id ?? null}
-                  activeKey={tstCardAtivo}
-                  onCardClick={(key) => setTstCardAtivo((atual) => (atual === key ? null : key))}
+                  cardKeys={tstCardKeys}
+                  onCardClick={handleTstCardClick}
                 />
               </CardContent>
             </Card>
