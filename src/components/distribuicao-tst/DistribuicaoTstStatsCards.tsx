@@ -72,7 +72,7 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria }: Props) {
   const isKeyActive = (k: StatsCardKey) =>
     activeKeys ? activeKeys.includes(k) : activeKey === k;
 
