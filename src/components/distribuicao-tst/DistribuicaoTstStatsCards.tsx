@@ -57,7 +57,10 @@ interface Props {
   prontoComPendencia?: { count: number; loading: boolean } | null;
   /** Prontos sem NENHUMA matéria na lista de pedidos do dossiê. */
   revisarListaMaterias?: { count: number; loading: boolean } | null;
+  /** AVISO: prontos cujo quadro de matérias só tem "Outra Matéria". */
+  somenteOutraMateria?: { count: number; loading: boolean } | null;
 }
+
 
 interface CardDef {
   key: StatsCardKey;
