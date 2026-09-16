@@ -712,8 +712,11 @@ export type MateriasForaDoDossie = {
   validasPorParte: Record<string, number>;
   /** Rótulos das partes marcadas SEM nenhuma matéria da lista do dossiê. */
   partesSemMateriaValida: string[];
+  /** Rótulos das partes cuja única matéria válida é "Outra Matéria". */
+  partesSomenteOutraMateria: string[];
   resumo: string;
 };
+
 
 
 /**
