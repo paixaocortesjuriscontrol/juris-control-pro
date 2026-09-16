@@ -3155,7 +3155,9 @@ export default function DistribuicaoTst() {
                         const naoPrecisaFazer =
                           (d as any).transito_julgado === true ||
                           (d as any).processo_outro_escritorio === true ||
-                          (d as any).segredo_justica === true;
+                          (d as any).segredo_justica === true ||
+                          (d as any).cejusc === true ||
+                          (d as any).acordo === true;
                         let color = "";
                         let label = "";
                         if (status === "pronto_envio" || status === "planilhado" || status === "enviado") {
