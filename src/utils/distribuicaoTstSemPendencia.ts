@@ -259,7 +259,9 @@ export async function atualizarSemPendenciaRegistro(id: string): Promise<boolean
         revisar_lista_materias: concluido ? calcularRevisarListaMaterias(row) : false,
         sem_nenhuma_materia_dossie:
           concluido && !isNaoPrecisaFazer(row) ? semNenhumaMateriaDoDossie(row) : false,
+        somente_outra_materia: concluido ? calcularSomenteOutraMateria(row) : false,
         pendencias_verificado_em: new Date().toISOString(),
+
       } as any)
       .eq("id", id);
     if (updErr) return null;
