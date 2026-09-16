@@ -381,9 +381,19 @@ export default function DistribuicaoTst() {
    */
   useEffect(() => {
     let ativo = true;
-    backfillSemPendenciaSeNecessario().then(() => {
-      if (ativo) refetchProntoSemPendencia();
-    });
+    backfillSemPendenciaSeNecessario()
+      .then(() => {
+        if (ativo) refetchProntoSemPendencia();
+        // Revalida marcações calculadas com regra antiga, em segundo plano.
+        return revalidarMarcacoesAntigas();
+      })
+      .then((qtd) => {
+        if (ativo && qtd) {
+          refetchProntoSemPendencia();
+          fetchDados();
+        }
+      })
+      .catch(() => {});
     return () => {
       ativo = false;
     };
