@@ -321,11 +321,9 @@ export function DiaAgendaLateral({
             />
           ))}
           {atividades.map((a: any) => {
-            const paiTratado = itens.some(
-              (it) =>
-                getItemRawId(it.id) === getItemRawId(String(a.item_id ?? "")) && isItemTratado(it),
-            );
-            const encerrada = atividadeEncerrada(a.situacao) || paiTratado;
+            // A atividade é independente do item pai: só é riscada quando ela
+            // mesma estiver encerrada (concluída/cancelada/não realizada).
+            const encerrada = atividadeEncerrada(a.situacao);
             const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
             return (
               <button
