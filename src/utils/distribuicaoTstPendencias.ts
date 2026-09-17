@@ -419,31 +419,17 @@ export function getPendenciasEAvisos(row: any): Pendencia[] {
   // processos com o formulário em branco.
   // Nesses casos "Verificar Pendências" e o Relatório de Pendências devem
   // reportar Sem pendências mesmo que existam campos vazios.
-  // Exceção: quando o processo já está marcado como PRONTO PARA ENVIAR, essas
-  // mesmas situações rejeitam a linha na Carga Benner. Nesse caso precisam
-  // aparecer como pendência na tela (regra: tudo que rejeita na planilha tem
-  // que ser visível antes).
-  // Rejeições da geração da planilha de Carga Benner que independem da
-  // situação do processo ou da parte recorrente: a geração rejeita a linha
-  // por esses motivos SEMPRE, então a tela precisa acusar a pendência mesmo
-  // quando os demais campos são isentos (trânsito, acordo, somente terceiro…).
-  const rejeicoesCarga = getPendenciasRejeicaoCarga(row);
-
   const bloqueio = getSituacaoImpeditiva(row);
   if (bloqueio) {
-    if (isMarcadoPronto(row)) {
-      return [
-        {
-          key: "situacao_impeditiva",
-          label: `${bloqueio} — NÃO irá para a planilha de Carga Benner`,
-          alvoLabel: bloqueio,
-          quadrinho: "I. Dados Básicos",
-        },
-        ...rejeicoesCarga,
-      ];
-    }
-    return rejeicoesCarga;
+    // Situações classificadas como "Não precisa fazer" não geram pendência
+    // nem aviso, inclusive quando a ficha já está marcada como pronta. A
+    // Carga Benner continua rejeitando essas linhas na geração da planilha.
+    return [];
   }
+
+  // Rejeições da geração da planilha de Carga Benner que independem da
+  // situação do processo ou da parte recorrente.
+  const rejeicoesCarga = getPendenciasRejeicaoCarga(row);
   
   if (recorrenteSomenteTerceiro(row)) {
     // Terceiro sozinho: só o Tipo de Recurso (Terceiro) é exigido.
