@@ -1275,29 +1275,13 @@ export default function PainelControle() {
         if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
       }
 
-      // Busca textual: qualquer palavra no conteúdo do item (título, descrição,
-      // observações, tipo, partes, local, responsável, cliente...)
+      // Busca textual: qualquer palavra em QUALQUER campo do item
+      // (título, descrição, observações, tipo, situação, prioridade, partes,
+      // local, fórum, sala, modalidade, órgão, responsável, envolvidos,
+      // número/assunto do processo...). Acentos são ignorados.
       if (buscaTexto) {
-        const it: any = item;
-        // Somente o conteúdo do próprio item (e o número do processo).
-        // Assunto/classe do processo NÃO entram, senão uma tarefa qualquer de um
-        // processo de "cobrança" aparecia na busca por "cobra".
-        const alvo = [
-          it.titulo,
-          it.descricao,
-          it.observacoes,
-          it.tipo_tarefa,
-          it.tipo_evento,
-          it.local,
-          it.orgao,
-          it.processo?.numero,
-          it.processo_numero,
-          it.responsavel?.nome,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const palavras = buscaTexto.split(/\s+/).filter(Boolean);
+        const alvo = textoBuscavelItem(item);
+        const palavras = semAcento(buscaTexto).split(/\s+/).filter(Boolean);
         if (!palavras.every((p) => alvo.includes(p))) return false;
       }
 
