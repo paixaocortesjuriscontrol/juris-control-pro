@@ -280,6 +280,9 @@ export function isMarcadoPronto(row: any): boolean {
 
 export function isNaoPrecisaFazer(row: any): boolean {
   return (
+    // Trânsito em julgado é rejeitado na Carga Benner e não precisa ser
+    // trabalhado — por isso nunca gera pendência nem aviso.
+    row?.transito_julgado === true ||
     row?.processo_outro_escritorio === true ||
     row?.segredo_justica === true ||
     row?.cejusc === true ||
