@@ -3334,6 +3334,7 @@ export default function DistribuicaoTst() {
                     const pend = getPendencias(d);
                     const avisos = getAvisos(d);
                     const naoPrecisaFazer =
+                      (d as any).transito_julgado === true ||
                       (d as any).processo_outro_escritorio === true ||
                       (d as any).segredo_justica === true ||
                       (d as any).cejusc === true ||
