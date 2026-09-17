@@ -312,7 +312,7 @@ export function backfillSemPendenciaSeNecessario(): Promise<void> {
  * dessa data carregam marcação calculada com regra antiga e são revalidados
  * automaticamente ao abrir a tela (em lotes pequenos, em segundo plano).
  */
-export const REGRA_PENDENCIAS_ATUALIZADA_EM = "2026-09-16T21:00:00.000Z";
+export const REGRA_PENDENCIAS_ATUALIZADA_EM = "2026-09-17T16:00:00.000Z";
 
 /** Quantos registros antigos são revalidados por visita à tela. */
 const REVALIDACAO_MAX_POR_VISITA = 600;
