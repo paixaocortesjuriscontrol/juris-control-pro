@@ -156,6 +156,70 @@ const isItemEncerrado = (item: ItemAgendaUnificado) =>
 
 const diasDaSemana = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
+// ===== Busca livre: texto pesquisável de um item (todos os campos) =====
+const semAcento = (s: string) =>
+  s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+// Chaves técnicas que não interessam à busca (ids, datas de controle, flags internas)
+const CHAVES_IGNORADAS_BUSCA = new Set([
+  "id",
+  "origem",
+  "created_at",
+  "updated_at",
+  "recorrencia_rrule",
+  "cor",
+  "icone",
+]);
+
+const chaveTecnica = (k: string) =>
+  CHAVES_IGNORADAS_BUSCA.has(k) ||
+  k.endsWith("_id") ||
+  k.endsWith("_ids") ||
+  k === "ids";
+
+const coletarTexto = (valor: any, out: string[], profundidade = 0) => {
+  if (valor === null || valor === undefined) return;
+  if (typeof valor === "string") {
+    // ignora datas/timestamps puros e uuids
+    if (/^\d{4}-\d{2}-\d{2}([T ]|$)/.test(valor)) return;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(valor)) return;
+    out.push(valor);
+    return;
+  }
+  if (typeof valor === "number") {
+    out.push(String(valor));
+    return;
+  }
+  if (typeof valor === "boolean") return;
+  if (profundidade >= 2) return;
+  if (Array.isArray(valor)) {
+    for (const v of valor) coletarTexto(v, out, profundidade + 1);
+    return;
+  }
+  if (typeof valor === "object") {
+    for (const [k, v] of Object.entries(valor)) {
+      if (chaveTecnica(k)) continue;
+      coletarTexto(v, out, profundidade + 1);
+    }
+  }
+};
+
+const cacheTextoBusca = new WeakMap<object, string>();
+
+const textoBuscavelItem = (item: any): string => {
+  if (!item || typeof item !== "object") return "";
+  const cached = cacheTextoBusca.get(item);
+  if (cached !== undefined) return cached;
+  const partes: string[] = [];
+  for (const [k, v] of Object.entries(item)) {
+    if (chaveTecnica(k)) continue;
+    coletarTexto(v, partes, 0);
+  }
+  const texto = semAcento(partes.join(" ").replace(/\s+/g, " "));
+  cacheTextoBusca.set(item, texto);
+  return texto;
+};
+
 export default function PainelControle() {
   const { user } = useAuth();
   const { isAdmin, isAdminOrCoordinator } = useUserRole();
@@ -1211,29 +1275,13 @@ export default function PainelControle() {
         if (!numeros.some((n) => n.includes(buscaProcessoDigits))) return false;
       }
 
-      // Busca textual: qualquer palavra no conteúdo do item (título, descrição,
-      // observações, tipo, partes, local, responsável, cliente...)
+      // Busca textual: qualquer palavra em QUALQUER campo do item
+      // (título, descrição, observações, tipo, situação, prioridade, partes,
+      // local, fórum, sala, modalidade, órgão, responsável, envolvidos,
+      // número/assunto do processo...). Acentos são ignorados.
       if (buscaTexto) {
-        const it: any = item;
-        // Somente o conteúdo do próprio item (e o número do processo).
-        // Assunto/classe do processo NÃO entram, senão uma tarefa qualquer de um
-        // processo de "cobrança" aparecia na busca por "cobra".
-        const alvo = [
-          it.titulo,
-          it.descricao,
-          it.observacoes,
-          it.tipo_tarefa,
-          it.tipo_evento,
-          it.local,
-          it.orgao,
-          it.processo?.numero,
-          it.processo_numero,
-          it.responsavel?.nome,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        const palavras = buscaTexto.split(/\s+/).filter(Boolean);
+        const alvo = textoBuscavelItem(item);
+        const palavras = semAcento(buscaTexto).split(/\s+/).filter(Boolean);
         if (!palavras.every((p) => alvo.includes(p))) return false;
       }
 
