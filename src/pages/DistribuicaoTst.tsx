@@ -3594,6 +3594,21 @@ export default function DistribuicaoTst() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <DuplicadosCompararSheet
+        open={!!compararDup}
+        onOpenChange={(o) => { if (!o) setCompararDup(null); }}
+        processo={compararDup?.processo}
+        ids={compararDup?.ids || []}
+        podeArquivar={isAdminOrCoordinator}
+        onAbrirFicha={(id) => {
+          const reg = dados.find((x) => x.id === id);
+          setCompararDup(null);
+          if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
+          else toast.info("Esta ficha não está na página atual da lista. Use o filtro \"Apenas duplicados\" para abri-la.");
+        }}
+        onArquivarFicha={(id) => { setCompararDup(null); handleDelete(id); }}
+      />
+
       <ProcessoOverlaySheet
         open={!!overlayRegistro}
         onOpenChange={(o) => { if (!o) setOverlayRegistro(null); }}
