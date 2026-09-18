@@ -30,6 +30,7 @@ export type StatsCardKey =
   | "semResponsavel"
   | "revisarListaMaterias"
   | "somenteOutraMateria"
+  | "duplicados"
 
   | "comEquipe"
   | "semEquipe"
@@ -59,6 +60,8 @@ interface Props {
   revisarListaMaterias?: { count: number; loading: boolean } | null;
   /** AVISO: prontos cujo quadro de matérias só tem "Outra Matéria". */
   somenteOutraMateria?: { count: number; loading: boolean } | null;
+  /** Fichas duplicadas (mesmo número de processo) dentro dos filtros atuais. */
+  duplicados?: { count: number; loading: boolean } | null;
 }
 
 
