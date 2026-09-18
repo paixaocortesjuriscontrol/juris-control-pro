@@ -3152,6 +3152,9 @@ export default function DistribuicaoTst() {
                 const isRecursoTerceiro = (d as any).recurso_terceiro === true;
                 const isCejusc = (d as any).cejusc === true;
                 const isTransito = (d as any).transito_julgado === true;
+                // Duplicados reais: 2+ fichas ativas com o mesmo nº de processo.
+                const qtdDup = qtdDuplicados(d.processo_numero);
+                const isDup = qtdDup > 1;
                 const processBadges = (
                   <>
                     {(d as any).em_analise && (
@@ -3159,9 +3162,18 @@ export default function DistribuicaoTst() {
                         Em análise
                       </Badge>
                     )}
-                    {(d as any).ic_duplicado && (
-                      <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                        Dup.
+                    {(isDup || (d as any).ic_duplicado) && (
+                      <Badge
+                        variant="destructive"
+                        className="text-[10px] px-1 py-0 h-4 cursor-pointer"
+                        title="Processo duplicado — clique para comparar as fichas"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const ids = idsDoGrupo(d.processo_numero);
+                          setCompararDup({ processo: d.processo_numero, ids: ids.length > 1 ? ids : [d.id] });
+                        }}
+                      >
+                        {isDup ? `Dup. ${qtdDup}` : "Dup."}
                       </Badge>
                     )}
                     {(d as any).ic_arquivado && (
