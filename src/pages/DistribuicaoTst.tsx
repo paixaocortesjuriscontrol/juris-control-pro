@@ -557,6 +557,16 @@ export default function DistribuicaoTst() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, filtroSomenteOutraMateria, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
 
+  // Total de fichas duplicadas dentro de TODOS os filtros ativos (incluindo os
+  // definidos pelos cliques nos outros cards). Ignora apenas o próprio filtro
+  // de duplicados, para o card não se anular quando ligado.
+  const duplicadosFiltros = useMemo(
+    () => ({ ...listFilters, duplicado: undefined }),
+    [JSON.stringify(listFilters)],
+  );
+  const { count: duplicadosCount, loading: duplicadosLoading } = useDuplicadosNoFiltro(duplicadosFiltros as any);
+
+
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters);
 
   // "Outra Matéria" é neutra: não gera alerta, pendência nem rejeição.
