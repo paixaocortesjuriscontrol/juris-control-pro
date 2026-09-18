@@ -320,6 +320,8 @@ export function EquipeItensAgenda({
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensPagina);
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensPagina);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itensPagina);
+  const { data: mapaCobrancas } = useCobrancasItens(itensPagina, getEscopoCobrancaPreferido());
+
 
   // Volta para a primeira página apenas quando o membro/busca realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
