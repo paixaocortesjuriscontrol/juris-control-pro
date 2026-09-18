@@ -29,6 +29,7 @@ import { useDjetPautasParalela } from "@/hooks/useDjetPautasParalela";
 import { useDjetPautasParalelaScheduler } from "@/hooks/useDjetPautasParalelaScheduler";
 import { formatMonitoramentoLabel } from '@/utils/monitoramentoLabel';
 import { HorariosDoDiaPicker } from "@/components/djen/HorariosDoDiaPicker";
+import { FonteDejtStatusPanel } from "@/components/configuracoes/FonteDejtStatusPanel";
 
 const TRACK_COLORS: Record<string, string> = {
   pendente: "bg-muted text-muted-foreground",
@@ -192,6 +193,8 @@ export function MonitoramentoDjetPautasCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <SchedulerPanel />
+
+        <FonteDejtStatusPanel />
 
         {/* Filtros: Coordenação e Termo */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

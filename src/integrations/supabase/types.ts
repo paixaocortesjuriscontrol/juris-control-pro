@@ -259,6 +259,33 @@ export type Database = {
           },
         ]
       }
+      alertas_dejt_fonte_estado: {
+        Row: {
+          atraso_dias_uteis: number | null
+          edicao: string | null
+          estado: string
+          notificado_em: string | null
+          tribunal: string
+          updated_at: string
+        }
+        Insert: {
+          atraso_dias_uteis?: number | null
+          edicao?: string | null
+          estado: string
+          notificado_em?: string | null
+          tribunal: string
+          updated_at?: string
+        }
+        Update: {
+          atraso_dias_uteis?: number | null
+          edicao?: string | null
+          estado?: string
+          notificado_em?: string | null
+          tribunal?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       alertas_diferenca_execucoes_djen: {
         Row: {
           coordenacao_id: string | null

@@ -71,6 +71,18 @@ export function isDejtUrlVigente(url: string): boolean {
   return /\/cadernos\/Diario_[JA]_[A-Z0-9]{2,3}\.pdf$/.test(url);
 }
 
+/**
+ * Tribunais cujo caderno Judiciário NÃO é publicado no repositório oficial de
+ * PDFs (o arquivo devolve 403/AccessDenied em qualquer caminho conhecido).
+ * Verificado em 18/09/2026: TRT14.
+ */
+export const DEJT_SEM_CADERNO_JUDICIARIO = new Set<string>(["TRT14"]);
+
+export function dejtTemCadernoJudiciario(sigla: string): boolean {
+  return !DEJT_SEM_CADERNO_JUDICIARIO.has((sigla || "").toUpperCase());
+}
+
+
 /** Nome do arquivo do caderno no repositório oficial. Ex.: Diario_J_TST.pdf */
 export function dejtNomeArquivo(sigla: string, caderno: DejtCaderno = "judiciario"): string | null {
   const id = dejtFileId((sigla || "").toUpperCase());
@@ -131,7 +143,9 @@ export function buildDejtPdfUrls(
 ): string[] {
   const nome = dejtNomeArquivo(sigla, caderno);
   if (!nome) return [];
+  if (caderno === "judiciario" && !dejtTemCadernoJudiciario(sigla)) return [];
   return [`https://diario.jt.jus.br/cadernos/${nome}`];
+
 }
 
 
