@@ -477,6 +477,8 @@ export default function ListaAtividadesView({
   });
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(rows.map(tarefaToAgendaItem));
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(rows.map(tarefaToAgendaItem));
+  const { data: mapaCobrancas } = useCobrancasItens(rows.map(tarefaToAgendaItem), getEscopoCobrancaPreferido());
+
   const total = usingExternalItems
     ? (etiquetaIdsSet
         ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
