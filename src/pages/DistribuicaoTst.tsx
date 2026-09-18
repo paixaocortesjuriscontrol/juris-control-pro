@@ -857,6 +857,7 @@ export default function DistribuicaoTst() {
     if (filtroResponsavelIds.includes("__sem_responsavel__")) keys.push("semResponsavel");
     if (filtroRevisarListaMaterias || semMateriaDossieIds) keys.push("revisarListaMaterias");
     if (filtroSomenteOutraMateria) keys.push("somenteOutraMateria");
+    if (filtroDuplicado === "sim") keys.push("duplicados");
     if (filtroComPendencia) keys.push("prontoComPendencia");
     if (filtroSemPendencia) keys.push("prontoSemPendencia");
     if (
@@ -951,6 +952,9 @@ export default function DistribuicaoTst() {
       case "somenteOutraMateria":
         setFiltroSomenteOutraMateria(!off);
         setFiltroStatus(off ? "todos" : "concluidos");
+        break;
+      case "duplicados":
+        setFiltroDuplicado(off ? "todos" : "sim");
         break;
       case "semResponsavel":
         setFiltroResponsavelIds(off ? [] : ["__sem_responsavel__"]);
