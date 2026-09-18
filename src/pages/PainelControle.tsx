@@ -1914,7 +1914,9 @@ export default function PainelControle() {
         if (!pai || !itemPassaFiltroComentario(pai)) return;
       }
       if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(a);
+      // A situação exibida no formulário pertence ao item pai. Quando ele
+      // estiver concluído, a atividade também deve aparecer riscada no calendário.
+      map.get(key)!.push({ ...a, _paiConcluido: pai ? isItemTratado(pai) : false });
     });
     return map;
   }, [
@@ -3037,9 +3039,7 @@ export default function PainelControle() {
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
-                                    // Independente do item pai: risca só se a
-                                    // própria atividade estiver encerrada.
-                                    atividadeEncerrada(a.situacao) && "line-through opacity-70",
+                                    (atividadeEncerrada(a.situacao) || a._paiConcluido) && "line-through opacity-70",
 
 
                                   )}
