@@ -3027,7 +3027,11 @@ export default function PainelControle() {
 
                                 </div>
                               )})}
-                              {atividadesDia.map((a: any) => (
+                              {atividadesDia.map((a: any) => {
+                                const infoCobrancaAtiv =
+                                  infoCobrancaItem(mapaCobrancasAtividades, { id: String(a.item_id ?? "") }) ||
+                                  infoCobrancaItem(mapaCobrancas, { id: String(a.item_id ?? "") });
+                                return (
                                 <div
                                   key={`ativ-${a.id}`}
                                   className={cn(
