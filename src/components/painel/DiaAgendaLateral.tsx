@@ -20,9 +20,11 @@ import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
 import {
   useCobrancasItens,
   infoCobrancaItem,
+  tituloCobranca,
   tipoItemCobranca,
   getEscopoCobrancaPreferido,
   type InfoCobranca,
