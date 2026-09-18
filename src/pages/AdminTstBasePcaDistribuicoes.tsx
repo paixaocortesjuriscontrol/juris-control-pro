@@ -730,10 +730,53 @@ export default function AdminTstBasePcaDistribuicoes() {
 
       const novosIds: string[] = [];
       const itensAudit: any[] = [];
-      const total = Math.ceil(alvo.length / APPLY_CHUNK);
 
-      for (let i = 0; i < alvo.length; i += APPLY_CHUNK) {
-        const slice = alvo.slice(i, i + APPLY_CHUNK);
+      // Nunca cadastrar processo que já existe na base (mesmo com máscara ou
+      // dossiê diferentes) nem repetir a mesma linha da planilha.
+      setProgressLabel("Conferindo duplicidades na base...");
+      const existentes = await carregarProcessosExistentes(alvo);
+      const vistosNaPlanilha = new Set<string>();
+      const aCadastrar: LinhaPlanilha[] = [];
+      const duplicados: LinhaPlanilha[] = [];
+      for (const it of alvo) {
+        const dig = it.processoDigitos || it.processo.trim().toLowerCase();
+        const chaveLinha = `${dig}||${it.dossie.trim().toLowerCase()}`;
+        if (existentes.has(dig) || vistosNaPlanilha.has(chaveLinha)) {
+          duplicados.push(it);
+          continue;
+        }
+        vistosNaPlanilha.add(chaveLinha);
+        aCadastrar.push(it);
+      }
+      for (const it of duplicados) {
+        itensAudit.push({
+          processo: it.processo || null,
+          dossie: it.dossie || null,
+          acao: "ignorado",
+          detalhe: "Já existe na base — nenhum processo duplicado foi criado",
+        });
+      }
+      if (aCadastrar.length === 0) {
+        setProgress(100);
+        setProgressLabel(`Nada a cadastrar: ${duplicados.length} processo(s) já existem na base`);
+        toast.info(`Nenhum cadastro feito — ${duplicados.length} processo(s) já existem na base.`);
+        setNotFound((prev) => prev.filter((n) => !n.processo.trim()));
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          totalLinhas: linhas.length,
+          criados: 0,
+          ignorados: duplicados.length,
+          resumo: `Nenhum processo cadastrado: ${duplicados.length} já existiam na base`,
+          itens: itensAudit,
+        });
+        setCadastrando(false);
+        return;
+      }
+
+      const total = Math.ceil(aCadastrar.length / APPLY_CHUNK);
+
+      for (let i = 0; i < aCadastrar.length; i += APPLY_CHUNK) {
+        const slice = aCadastrar.slice(i, i + APPLY_CHUNK);
         const payload = slice.map((it) => {
           const campos = { ...(it.campos || {}) };
           // Remove chaves nulas para não sobrescrever defaults do banco
