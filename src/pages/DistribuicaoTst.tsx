@@ -896,6 +896,7 @@ export default function DistribuicaoTst() {
       setSemMateriaDossieIds(null);
       setFiltroRevisarListaMaterias(false);
       setFiltroSomenteOutraMateria(false);
+      setFiltroDuplicado("todos");
 
       setFiltroResponsavelIds([]);
       setFiltroDataInicio("");
@@ -2075,6 +2076,10 @@ export default function DistribuicaoTst() {
             revisarListaMaterias={{
               count: revisarListaMateriasIds.length,
               loading: false,
+            }}
+            duplicados={{
+              count: duplicadosCount,
+              loading: duplicadosLoading,
             }}
             somenteOutraMateria={{
               count: somenteOutraMateriaCount,
