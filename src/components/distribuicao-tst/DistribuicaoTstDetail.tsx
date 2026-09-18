@@ -26,6 +26,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+import { useDuplicadosTst } from "@/hooks/useDuplicadosTst";
+import { DuplicadosCompararSheet } from "./DuplicadosCompararSheet";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
