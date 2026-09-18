@@ -1930,6 +1930,18 @@ export default function PainelControle() {
 
 
 
+  // Cobranças dos itens-pai das atividades: a atividade mostra o selinho
+  // quando a cobrança foi feita na tarefa/prazo a que ela pertence.
+  const paisDasAtividades = useMemo(() => {
+    const set = new Set<string>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      const pai = String(a?.item_id ?? "");
+      if (pai) set.add(pai);
+    });
+    return Array.from(set).map((id) => ({ id }));
+  }, [atividadesCalendario]);
+  const { data: mapaCobrancasAtividades } = useCobrancasItens(paisDasAtividades, escopoCobranca);
+
   const itensComAtividades = useMemo(() => {
     const set = new Set<string>();
     (atividadesCalendario as any[]).forEach((a) => {
