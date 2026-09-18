@@ -481,13 +481,9 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds), filtroTagInverso]);
 
-  // Total de fichas duplicadas dentro dos filtros atuais (ignora o próprio
-  // filtro de duplicados para o card não se anular ao ser clicado).
-  const duplicadosFiltros = useMemo(
-    () => ({ ...debouncedFilters, duplicado: undefined }),
-    [JSON.stringify(debouncedFilters)],
-  );
-  const { count: duplicadosCount, loading: duplicadosLoading } = useDuplicadosNoFiltro(duplicadosFiltros as any);
+  // (contagem do card "Duplicados" fica abaixo, junto de `listFilters`, para
+  // respeitar também os filtros vindos dos cliques nos outros cards)
+
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
