@@ -1057,7 +1057,16 @@ export default function ListaAtividadesView({
                                 </span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
+                                <span data-stop className="inline-flex">
+                                  <CobrancaBotao
+                                    itemId={getItemRawId(r.id)}
+                                    tipoItem={item.tipo === "prazo" ? "prazo" : "tarefa"}
+                                    info={infoCobrancaItem(mapaCobrancas, { id: r.id })}
+                                    compacto
+                                  />
+                                </span>
                               </div>
+
                               <div data-stop>
                                 <EtiquetaPicker
                                   entidade="tarefa"
