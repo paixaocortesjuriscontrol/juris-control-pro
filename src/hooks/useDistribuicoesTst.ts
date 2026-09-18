@@ -669,7 +669,10 @@ async function fetchAllDistribuicaoTstIdsUncached(
       query = query.in("id", filters.idsAllowed);
     }
 
-    query = query.range(from, from + PAGE - 1);
+    // ORDEM ESTÁVEL é obrigatória: sem `order`, o Postgres pode devolver as
+    // mesmas linhas em páginas diferentes e o `Set` final ficava muito menor
+    // que o total real (era a causa de totalizadores oscilando).
+    query = query.order("id", { ascending: true }).range(from, from + PAGE - 1);
     const { data, error } = await query;
     if (error) throw error;
     const rows = (data as any[]) || [];

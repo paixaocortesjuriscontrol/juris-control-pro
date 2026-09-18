@@ -124,14 +124,14 @@ export function useDuplicadosNoFiltro(filters: DistribuicaoTstFilters) {
     (async () => {
       setLoading(true);
       try {
-        const [mapa, ids] = await Promise.all([
-          fetchMapaDuplicadosCached(),
-          fetchAllDistribuicaoTstIds(filters),
-        ]);
+        // Parte do conjunto (pequeno) de duplicados e pergunta ao banco quantos
+        // deles passam pelos filtros. Assim não depende de varrer a base toda.
+        const mapa = await fetchMapaDuplicadosCached();
+        const dupIds = Array.from(mapa.ids);
+        if (dupIds.length === 0) { if (!cancelado) setCount(0); return; }
+        const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: dupIds } as any);
         if (cancelado) return;
-        let total = 0;
-        for (const id of ids) if (mapa.ids.has(id)) total += 1;
-        setCount(total);
+        setCount(ids.length);
       } catch (e) {
         console.warn("[useDuplicadosNoFiltro] falha:", e);
       } finally {
