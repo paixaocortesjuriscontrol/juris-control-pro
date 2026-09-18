@@ -639,11 +639,19 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
+        // Parte Recorrente (AA) é a fonte autoritativa. Na base o campo pode
+        // vir como `parte_recorrente` (aba Distribuição TST) ou `recorrente`
+        // (dados_benner). Só quando ambos estão vazios usamos os
+        // `tipo_recurso_*` como fallback.
+        const parteRecorrenteRaw =
+          String((d as any).parte_recorrente ?? "").trim() ||
+          String((d as any).recorrente ?? "").trim();
         outRow[LAYOUT_COLS[26]] = normalizeRecorrenteBenner(
-          deriveRecorrenteFromRecursos(
-            (d as any).tipo_recurso_reclamante,
-            (d as any).tipo_recurso_banco
-          ) || (d as any).parte_recorrente || (d as any).recorrente
+          parteRecorrenteRaw ||
+            deriveRecorrenteFromRecursos(
+              (d as any).tipo_recurso_reclamante,
+              (d as any).tipo_recurso_banco
+            )
         );
         outRow["__numProcesso"] = numProcesso;
         outRow["__dadoBennerId"] = d.id || null;
