@@ -3051,8 +3051,16 @@ export default function PainelControle() {
                                 >
                                   <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
                                   <span className="truncate">{a.titulo}</span>
+                                  {infoCobrancaAtiv && (
+                                    <CobrancaBadge
+                                      simbolo={infoCobrancaAtiv.simbolo}
+                                      hoje={infoCobrancaAtiv.hoje}
+                                      title={tituloCobranca(infoCobrancaAtiv)}
+                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5"
+                                    />
+                                  )}
                                 </div>
-                              ))}
+                              );})}
                               {extras > 0 && (
                                 <button
                                   className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
