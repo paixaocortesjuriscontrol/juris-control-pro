@@ -3234,7 +3234,8 @@ export default function DistribuicaoTst() {
                 <TableRow
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle [&>td]:py-1 [&>td]:align-middle",
-                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500",
+                    isDup && "border-l-2 border-l-destructive"
                   )}
                    onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
                    onContextMenu={(e) => { e.preventDefault(); setOverlayRegistro(d); }}
@@ -3298,7 +3299,7 @@ export default function DistribuicaoTst() {
                     </div>
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs align-middle">
+                  <TableCell className={cn("text-xs align-middle", isDup && "text-destructive font-semibold")}>
                     {(() => {
                       const raw = d.processo_numero || "";
                       const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
