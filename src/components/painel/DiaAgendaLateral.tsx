@@ -397,11 +397,26 @@ export function DiaAgendaLateral({
                     </p>
                   )}
                 </div>
-                {sou && (
-                  <span className="flex-shrink-0 self-start text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
-                    Eu
-                  </span>
-                )}
+                <div className="flex-shrink-0 self-start flex items-center gap-1">
+                  {(() => {
+                    const infoAtiv =
+                      infoCobrancaItem(mapaCobrancasAtividades, { id: String(a.item_id ?? "") }) ||
+                      infoCobrancaItem(mapaCobrancas, { id: String(a.item_id ?? "") });
+                    return infoAtiv ? (
+                      <CobrancaBadge
+                        simbolo={infoAtiv.simbolo}
+                        hoje={infoAtiv.hoje}
+                        title={tituloCobranca(infoAtiv)}
+                        className="w-4 h-4 text-[9px]"
+                      />
+                    ) : null;
+                  })()}
+                  {sou && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground">
+                      Eu
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
