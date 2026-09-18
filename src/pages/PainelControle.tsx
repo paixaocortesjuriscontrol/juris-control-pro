@@ -96,6 +96,16 @@ import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPain
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem, ultimoComentarioItem, chaveComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import {
+  useCobrancasItens,
+  infoCobrancaItem,
+  tituloCobranca,
+  getEscopoCobrancaPreferido,
+  setEscopoCobrancaPreferido,
+  type EscopoCobranca,
+} from "@/hooks/useCobrancasItens";
+
 import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
@@ -344,6 +354,9 @@ export default function PainelControle() {
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  // Escopo da marca "já cobrei": minhas cobranças ou as da equipe.
+  const [escopoCobranca, setEscopoCobranca] = useState<EscopoCobranca>(getEscopoCobrancaPreferido());
+
   // Busca por número de processo: mantém no calendário só os itens do processo
   const [buscaProcesso, setBuscaProcesso] = useState("");
   const buscaProcessoDigits = useMemo(
@@ -1139,14 +1152,23 @@ export default function PainelControle() {
   }, [itensAgenda, vencidosQuery.data, drillQuery.data]);
   const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensParaComentarios);
 
+  // Marca "já cobrei" dos itens exibidos (pessoal ou da equipe, conforme escolha).
+  const { data: mapaCobrancas } = useCobrancasItens(itensParaComentarios, escopoCobranca);
+
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
+      if (painelFiltros.cobrancas !== "todas") {
+        const info = infoCobrancaItem(mapaCobrancas, item);
+        const cobradoHoje = !!info?.hoje;
+        if (painelFiltros.cobrancas === "hoje" ? !cobradoHoje : cobradoHoje) return false;
+      }
       if (painelFiltros.comentarios === "todas") return true;
       const temComentario = temComentarioItem(itensComComentarios, item);
       return painelFiltros.comentarios === "com" ? temComentario : !temComentario;
     },
-    [painelFiltros.comentarios, itensComComentarios],
+    [painelFiltros.comentarios, painelFiltros.cobrancas, itensComComentarios, mapaCobrancas],
   );
+
 
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
@@ -2641,7 +2663,22 @@ export default function PainelControle() {
                   </button>
                 )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                title="Alternar entre as cobranças que você fez e as cobranças de toda a equipe"
+                onClick={() => {
+                  const proximo: EscopoCobranca = escopoCobranca === "minhas" ? "equipe" : "minhas";
+                  setEscopoCobranca(proximo);
+                  setEscopoCobrancaPreferido(proximo);
+                }}
+              >
+                <CobrancaBadge hoje />
+                {escopoCobranca === "minhas" ? "Minhas cobranças" : "Cobranças da equipe"}
+              </Button>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+
           </div>
         </div>
 
@@ -2930,6 +2967,8 @@ export default function PainelControle() {
                                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
                                 const temComentario = temComentarioItem(itensComComentarios, item);
+                                const infoCobranca = infoCobrancaItem(mapaCobrancas, item);
+
                                 return (
                                 <div
                                   key={item.id}
@@ -2965,6 +3004,15 @@ export default function PainelControle() {
                                   {temComentario && (
                                     <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(itensComComentarios, item)} />
                                   )}
+                                  {infoCobranca && (
+                                    <CobrancaBadge
+                                      simbolo={infoCobranca.simbolo}
+                                      hoje={infoCobranca.hoje}
+                                      title={tituloCobranca(infoCobranca)}
+                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5"
+                                    />
+                                  )}
+
                                 </div>
                               )})}
                               {atividadesDia.map((a: any) => (

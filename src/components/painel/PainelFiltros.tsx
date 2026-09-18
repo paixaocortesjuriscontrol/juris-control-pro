@@ -22,6 +22,9 @@ export interface PainelFiltrosState {
   estouEnvolvido: boolean;
   // Comentários vinculados ao item
   comentarios: "todas" | "com" | "sem";
+  // Marca "já cobrei" (cobranças do dia)
+  cobrancas: "todas" | "hoje" | "nao_hoje";
+
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
   // Período (data prevista / fatal conforme escolha em "Prazo")
@@ -39,6 +42,8 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   souResponsavel: false,
   estouEnvolvido: false,
   comentarios: "todas",
+  cobrancas: "todas",
+
   statusGroup: "todas",
   periodoInicio: "",
   periodoFim: "",
@@ -58,6 +63,13 @@ const COMENTARIOS_OPTIONS: { value: PainelFiltrosState["comentarios"]; label: st
   { value: "com", label: "Com comentário" },
   { value: "sem", label: "Sem comentário" },
 ];
+
+const COBRANCAS_OPTIONS: { value: PainelFiltrosState["cobrancas"]; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "hoje", label: "Já cobrados hoje" },
+  { value: "nao_hoje", label: "Ainda não cobrados hoje" },
+];
+
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
   { value: "a_concluir", label: "A concluir" },
@@ -88,6 +100,8 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.situacoes.length > 0,
     filtros.classificacoes.length > 0,
     filtros.comentarios !== "todas",
+    filtros.cobrancas !== "todas",
+
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
     filtros.responsavelIds.length > 0,
@@ -214,7 +228,29 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                   {opcao.label}
                 </label>
               ))}
+          </div>
+
+          {/* Cobranças ("já cobrei") */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Cobranças
+            </p>
+            <div className="space-y-1.5">
+              {COBRANCAS_OPTIONS.map((opcao) => (
+                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painel-cobrancas"
+                    checked={draft.cobrancas === opcao.value}
+                    onChange={() => setDraft({ ...draft, cobrancas: opcao.value })}
+                    className="accent-primary"
+                  />
+                  {opcao.label}
+                </label>
+              ))}
             </div>
+          </div>
+
           </div>
 
           {/* Prazo */}

@@ -5281,6 +5281,36 @@ export type Database = {
           },
         ]
       }
+      item_cobrancas: {
+        Row: {
+          comentario_id: string | null
+          created_at: string
+          id: string
+          item_id: string
+          simbolo: string
+          tipo_item: string
+          usuario_id: string
+        }
+        Insert: {
+          comentario_id?: string | null
+          created_at?: string
+          id?: string
+          item_id: string
+          simbolo?: string
+          tipo_item: string
+          usuario_id: string
+        }
+        Update: {
+          comentario_id?: string | null
+          created_at?: string
+          id?: string
+          item_id?: string
+          simbolo?: string
+          tipo_item?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       judit_anexos: {
         Row: {
           attachment_date: string | null
