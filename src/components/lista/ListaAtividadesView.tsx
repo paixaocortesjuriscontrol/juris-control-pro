@@ -51,6 +51,9 @@ import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from "@/hooks/useCobrancasItens";
+
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";

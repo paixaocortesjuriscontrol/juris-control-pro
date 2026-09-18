@@ -18,6 +18,14 @@ import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import {
+  useCobrancasItens,
+  infoCobrancaItem,
+  tituloCobranca,
+  getEscopoCobrancaPreferido,
+} from "@/hooks/useCobrancasItens";
+
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
