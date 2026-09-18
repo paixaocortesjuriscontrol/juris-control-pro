@@ -481,13 +481,9 @@ export default function DistribuicaoTst() {
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds), filtroTagInverso]);
 
-  // Total de fichas duplicadas dentro dos filtros atuais (ignora o próprio
-  // filtro de duplicados para o card não se anular ao ser clicado).
-  const duplicadosFiltros = useMemo(
-    () => ({ ...debouncedFilters, duplicado: undefined }),
-    [JSON.stringify(debouncedFilters)],
-  );
-  const { count: duplicadosCount, loading: duplicadosLoading } = useDuplicadosNoFiltro(duplicadosFiltros as any);
+  // (contagem do card "Duplicados" fica abaixo, junto de `listFilters`, para
+  // respeitar também os filtros vindos dos cliques nos outros cards)
+
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -560,6 +556,16 @@ export default function DistribuicaoTst() {
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, filtroSomenteOutraMateria, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+
+  // Total de fichas duplicadas dentro de TODOS os filtros ativos (incluindo os
+  // definidos pelos cliques nos outros cards). Ignora apenas o próprio filtro
+  // de duplicados, para o card não se anular quando ligado.
+  const duplicadosFiltros = useMemo(
+    () => ({ ...listFilters, duplicado: undefined }),
+    [JSON.stringify(listFilters)],
+  );
+  const { count: duplicadosCount, loading: duplicadosLoading } = useDuplicadosNoFiltro(duplicadosFiltros as any);
+
 
   const { dados, responsaveisMap, loading, fetchDados, saveDado, deleteDado, page, setPage, totalCount, totalPages } = useDistribuicoesTst(listFilters);
 
