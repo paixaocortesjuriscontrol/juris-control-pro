@@ -1153,7 +1153,21 @@ export default function PainelControle() {
   const { data: itensComComentarios = new Map<string, string>() } = useItensComComentarios(itensParaComentarios);
 
   // Marca "já cobrei" dos itens exibidos (pessoal ou da equipe, conforme escolha).
-  const { data: mapaCobrancas } = useCobrancasItens(itensParaComentarios, escopoCobranca);
+  // Inclui também os itens-pai das atividades do calendário, para que a
+  // atividade mostre o selinho quando a cobrança foi feita na tarefa/prazo dela.
+  const itensParaCobrancas = useMemo(() => {
+    const lista: { id: string }[] = [...itensParaComentarios];
+    const vistos = new Set(lista.map((i) => String(i.id)));
+    (atividadesCalendarioRef.current || []).forEach((a: any) => {
+      const pai = String(a?.item_id ?? "");
+      if (pai && !vistos.has(pai)) {
+        vistos.add(pai);
+        lista.push({ id: pai });
+      }
+    });
+    return lista;
+  }, [itensParaComentarios, atividadesCalendarioVersao]);
+  const { data: mapaCobrancas } = useCobrancasItens(itensParaCobrancas as any, escopoCobranca);
 
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
