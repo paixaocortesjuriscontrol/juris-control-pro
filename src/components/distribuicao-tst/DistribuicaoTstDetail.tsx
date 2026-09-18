@@ -69,6 +69,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "analisar-ia" | "centralizadores" | "partes">(initialTab);
 
+  // Aviso de processo duplicado (mesma numeração em outra ficha ativa).
+  const { qtdDuplicados, idsDoGrupo } = useDuplicadosTst();
+  const qtdDup = processoNumero ? qtdDuplicados(processoNumero) : 0;
+  const [compararDupOpen, setCompararDupOpen] = useState(false);
+
   // Blindagem: algumas abas não existem para todos os usuários (Centralizadores,
   // Log Judit, Auditoria são por papel/e-mail) e "benner" não tem mais conteúdo
   // próprio. Se o `tab` atual não tem TabsContent renderizado, o formulário
