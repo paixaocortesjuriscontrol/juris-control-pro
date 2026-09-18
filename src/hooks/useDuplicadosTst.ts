@@ -127,7 +127,14 @@ export function useDuplicadosNoFiltro(filters: DistribuicaoTstFilters) {
         // Parte do conjunto (pequeno) de duplicados e pergunta ao banco quantos
         // deles passam pelos filtros. Assim não depende de varrer a base toda.
         const mapa = await fetchMapaDuplicadosCached();
-        const dupIds = Array.from(mapa.ids);
+        let dupIds = Array.from(mapa.ids);
+        // Se o filtro já restringe ids (ex.: card "Revisar lista de matérias"),
+        // faz a interseção em vez de sobrescrever.
+        const jaRestrito = (filters as any).idsAllowed as string[] | undefined;
+        if (jaRestrito && jaRestrito.length > 0) {
+          const permitidos = new Set(jaRestrito);
+          dupIds = dupIds.filter((id) => permitidos.has(id));
+        }
         if (dupIds.length === 0) { if (!cancelado) setCount(0); return; }
         const ids = await fetchAllDistribuicaoTstIds({ ...filters, idsAllowed: dupIds } as any);
         if (cancelado) return;
