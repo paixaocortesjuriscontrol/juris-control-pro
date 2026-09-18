@@ -84,12 +84,27 @@ export function resolverPrazoModelo(
   return toISO(addDiasUteis(base, dias));
 }
 
-/** Resolve uma expressão relativa de data para yyyy-MM-dd (fuso local do usuário). */
-export function resolverData(expr?: string | null): string {
+/** Converte a data base recebida (Date | yyyy-MM-dd | nulo) em Date ao meio-dia. */
+function normalizarBase(dataBase?: Date | string | null): Date {
+  let base: Date;
+  if (dataBase instanceof Date) base = new Date(dataBase);
+  else if (typeof dataBase === "string" && dataBase.trim()) {
+    const [y, m, d] = dataBase.slice(0, 10).split("-").map(Number);
+    base = y && m && d ? new Date(y, m - 1, d) : new Date();
+  } else base = new Date();
+  base.setHours(12, 0, 0, 0);
+  return base;
+}
+
+/**
+ * Resolve uma expressão relativa de data para yyyy-MM-dd (fuso local do usuário).
+ * `dataBase` permite contar a partir de outra data (ex.: data da publicação do DJEN);
+ * sem ela, conta de hoje.
+ */
+export function resolverData(expr?: string | null, dataBase?: Date | string | null): string {
   const { modo, n } = parseExprData(expr);
   if (!modo) return "";
-  const hoje = new Date();
-  hoje.setHours(12, 0, 0, 0);
+  const hoje = normalizarBase(dataBase);
   switch (modo) {
     case "hoje":
       return toISO(hoje);
@@ -118,20 +133,25 @@ export function resolverData(expr?: string | null): string {
 
 /**
  * Devolve os padrões do modelo já resolvidos (datas convertidas em yyyy-MM-dd).
- * Campos vazios são omitidos.
+ * Campos vazios são omitidos. `dataBase` é usada para resolver as datas relativas
+ * (ex.: prazo fatal contado da data da publicação, e não de hoje).
  */
-export function resolverPadroes(modelo: ModeloTitulo): Record<string, string> {
+export function resolverPadroes(
+  modelo: ModeloTitulo,
+  dataBase?: Date | string | null,
+): Record<string, string> {
   const padroes = (modelo.padroes ?? {}) as Record<string, any>;
   const campos = CAMPOS_MODELO[modelo.tipo as TipoModelo] ?? [];
   const out: Record<string, string> = {};
   for (const campo of campos) {
     const raw = padroes[campo.key];
     if (raw === undefined || raw === null || String(raw).trim() === "") continue;
-    const valor = campo.kind === "date" ? resolverData(String(raw)) : String(raw);
+    const valor = campo.kind === "date" ? resolverData(String(raw), dataBase) : String(raw);
     if (valor) out[campo.key] = valor;
   }
   return out;
 }
+
 
 function vazio(v: any) {
   if (v === undefined || v === null) return true;

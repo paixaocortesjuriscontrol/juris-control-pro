@@ -933,7 +933,7 @@ export function PrazoDialog({
               coordenacaoId={coordenacaoId}
               onSelect={(m) => {
                 const anterior = modeloPadroesRef.current;
-                const p = resolverPadroes(m);
+                const p = resolverPadroes(m, dataBase);
                 setTitulo(m.titulo);
                 const obsNova = p.observacoes || m.descricao || "";
                 const obsAnterior = anterior?.observacoes || "";
