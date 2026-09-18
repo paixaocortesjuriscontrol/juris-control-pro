@@ -13,6 +13,10 @@ import { Label } from "@/components/ui/label";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { getSimboloCobrancaPreferido } from "@/components/comum/CobrancaBadge";
+import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import { COBRANCAS_QUERY_KEY, useCobrancasItens, infoCobrancaItem } from "@/hooks/useCobrancasItens";
+
 
 type Tipo = "tarefa" | "evento" | "audiencia";
 
@@ -54,6 +58,11 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
 
   const queryKey = ["item-comentarios", tipo, itemId];
 
+  const itensCobranca = itemId ? [{ id: itemId }] : [];
+  const { data: mapaCobrancas } = useCobrancasItens(itensCobranca, "equipe");
+  const infoCobranca = itemId ? infoCobrancaItem(mapaCobrancas, { id: itemId }) : null;
+
+
   const { data: comentarios, isLoading } = useQuery({
     queryKey,
     enabled: !!itemId,
@@ -81,14 +90,25 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
     mutationFn: async (conteudo: string) => {
       if (!user || !itemId) throw new Error("Salve o item antes de comentar");
       const payload: any = { autor_id: user.id, conteudo, mencionados, is_cobranca: isCobranca, [fk]: itemId };
-      const { error } = await (supabase as any).from(table).insert(payload);
+      const { data, error } = await (supabase as any).from(table).insert(payload).select("id").single();
       if (error) throw error;
+      // Comentário marcado como cobrança também registra a marca "já cobrei".
+      if (isCobranca) {
+        await (supabase as any).from("item_cobrancas").insert({
+          tipo_item: tipo,
+          item_id: itemId,
+          usuario_id: user.id,
+          simbolo: getSimboloCobrancaPreferido(),
+          comentario_id: data?.id ?? null,
+        });
+      }
     },
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey }),
         queryClient.invalidateQueries({ queryKey: ["contagem-comentarios"] }),
         queryClient.invalidateQueries({ queryKey: ["itens-com-comentarios"], refetchType: "all" }),
+        queryClient.invalidateQueries({ queryKey: [COBRANCAS_QUERY_KEY], refetchType: "all" }),
       ]);
       setNovo("");
       setMencionados([]);
@@ -97,6 +117,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
     onError: (e: any) =>
       toast({ title: "Erro ao enviar comentário", description: e.message, variant: "destructive" }),
   });
+
 
   const delMut = useMutation({
     mutationFn: async (id: string) => {
@@ -137,6 +158,10 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
       <div className="flex items-center gap-2 mb-2">
         <MessageSquare className="h-4 w-4 text-muted-foreground" />
         <h4 className="text-sm font-semibold">Comentários</h4>
+        <div className="ml-auto">
+          <CobrancaBotao itemId={itemId} tipoItem={tipo} info={infoCobranca} />
+        </div>
+
       </div>
 
       <div className="pr-3 mb-3 max-h-56 overflow-y-auto overscroll-contain">

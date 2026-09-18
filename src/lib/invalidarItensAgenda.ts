@@ -30,6 +30,8 @@ export const CHAVES_ITENS_AGENDA: string[] = [
   "subatividades-item",
   "painel-subatividades-calendario",
   "item-historico",
+  "itens-com-cobrancas",
+
 ];
 
 /**

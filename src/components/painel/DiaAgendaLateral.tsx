@@ -19,7 +19,16 @@ import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import {
+  useCobrancasItens,
+  infoCobrancaItem,
+  tipoItemCobranca,
+  getEscopoCobrancaPreferido,
+  type InfoCobranca,
+} from "@/hooks/useCobrancasItens";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+
 
 export const TIPO_TEXTO: Record<string, string> = {
   evento: "text-green-600",
@@ -129,6 +138,7 @@ export function AgendaItemRow({
   veioDeWorkflow,
   temComentario,
   autoriaComentario,
+  infoCobranca,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -139,8 +149,10 @@ export function AgendaItemRow({
   veioDeWorkflow?: boolean;
   temComentario?: boolean;
   autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
+  infoCobranca?: InfoCobranca | null;
 
 }) {
+
   const concluido = isItemTratado(item);
   const riscado = isItemRiscado(item);
   const cancelado = isCancelado(item);
@@ -212,6 +224,14 @@ export function AgendaItemRow({
         </span>
       )}
     </button>
+    <div className="absolute right-2 top-2">
+      <CobrancaBotao
+        itemId={getItemRawId(item.id)}
+        tipoItem={tipoItemCobranca(item)}
+        info={infoCobranca}
+        compacto
+      />
+    </div>
     {onBaixar && !concluido && (
       <button
         type="button"
@@ -226,6 +246,7 @@ export function AgendaItemRow({
         Baixar
       </button>
     )}
+
     </div>
   );
 }
@@ -267,6 +288,8 @@ export function DiaAgendaLateral({
 
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
+  const { data: mapaCobrancas } = useCobrancasItens(itens, getEscopoCobrancaPreferido());
+
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -318,6 +341,8 @@ export function DiaAgendaLateral({
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
               temComentario={temComentarioItem(itensComComentarios, item)}
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
+              infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
+
             />
           ))}
           {atividades.map((a: any) => {

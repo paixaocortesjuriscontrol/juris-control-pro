@@ -18,6 +18,14 @@ import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import {
+  useCobrancasItens,
+  infoCobrancaItem,
+  tituloCobranca,
+  getEscopoCobrancaPreferido,
+} from "@/hooks/useCobrancasItens";
+
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -312,6 +320,8 @@ export function EquipeItensAgenda({
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itensPagina);
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensPagina);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itensPagina);
+  const { data: mapaCobrancas } = useCobrancasItens(itensPagina, getEscopoCobrancaPreferido());
+
 
   // Volta para a primeira página apenas quando o membro/busca realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
@@ -501,7 +511,14 @@ export function EquipeItensAgenda({
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
+                        {(() => {
+                          const info = infoCobrancaItem(mapaCobrancas, item);
+                          return info ? (
+                            <CobrancaBadge simbolo={info.simbolo} hoje={info.hoje} title={tituloCobranca(info)} />
+                          ) : null;
+                        })()}
                       </div>
+
                       {item.descricao && (
                         <p className="text-xs text-muted-foreground truncate">{item.descricao}</p>
                       )}

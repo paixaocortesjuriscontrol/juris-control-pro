@@ -51,6 +51,9 @@ import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from "@/hooks/useCobrancasItens";
+
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { cn } from "@/lib/utils";
@@ -477,6 +480,8 @@ export default function ListaAtividadesView({
   });
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(rows.map(tarefaToAgendaItem));
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(rows.map(tarefaToAgendaItem));
+  const { data: mapaCobrancas } = useCobrancasItens(rows.map(tarefaToAgendaItem), getEscopoCobrancaPreferido());
+
   const total = usingExternalItems
     ? (etiquetaIdsSet
         ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id)).length
@@ -1055,7 +1060,16 @@ export default function ListaAtividadesView({
                                 </span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
+                                <span data-stop className="inline-flex">
+                                  <CobrancaBotao
+                                    itemId={getItemRawId(r.id)}
+                                    tipoItem={item.tipo === "prazo" ? "prazo" : "tarefa"}
+                                    info={infoCobrancaItem(mapaCobrancas, { id: r.id })}
+                                    compacto
+                                  />
+                                </span>
                               </div>
+
                               <div data-stop>
                                 <EtiquetaPicker
                                   entidade="tarefa"
