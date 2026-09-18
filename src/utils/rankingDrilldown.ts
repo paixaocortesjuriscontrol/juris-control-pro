@@ -112,8 +112,12 @@ export function passaMetricaRanking(
     return dentro(criado) || (!criado && dentro(prazo));
   }
   if (metrica === "concluidos") return concluido && dentro(concl || prazo);
-  if (metrica === "no_prazo") return concluido && dentro(concl) && !!prazo && concl <= prazo;
-  if (metrica === "atraso") return concluido && dentro(concl) && !!prazo && concl > prazo;
+  // Itens importados não entram nas métricas de pontualidade.
+  if (metrica === "no_prazo")
+    return concluido && !itemImportado(item) && dentro(concl) && !!prazo && concl <= prazo;
+  if (metrica === "atraso")
+    return concluido && !itemImportado(item) && dentro(concl) && !!prazo && concl > prazo;
+
   if (metrica === "perdidos") {
     if (!dentro(prazo)) return false;
     if (cancelado) return false;

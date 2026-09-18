@@ -1107,10 +1107,11 @@ export default function RankingAtendimento() {
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Ranking de pontualidade</CardTitle>
                 <CardDescription>
-                  O percentual considera apenas conclusões com prazo próprio (data fatal/prevista). Tarefas vindas de
-                  importações sem prazo próprio — em que a data do compromisso é a própria data de conclusão — ficam de
-                  fora do cálculo. Quem tem menos de 5 conclusões avaliáveis aparece ao final.
+                  O cálculo considera apenas itens criados no sistema, com prazo próprio (data fatal/prevista). Itens
+                  vindos de importações (Astrea, Projuris, planilhas, cargas) ficam de fora de "No prazo", "Atraso" e do
+                  percentual. Quem tem menos de 5 conclusões avaliáveis aparece ao final.
                 </CardDescription>
+
               </CardHeader>
               <CardContent className="p-0 overflow-x-auto">
                 <Table>
