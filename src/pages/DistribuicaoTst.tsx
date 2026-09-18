@@ -981,6 +981,7 @@ export default function DistribuicaoTst() {
     setDeleteTargetId(null);
     await deleteDado(id);
     fetchTabsData();
+    refetchDuplicados();
   };
 
   const handleRefresh = async () => {
