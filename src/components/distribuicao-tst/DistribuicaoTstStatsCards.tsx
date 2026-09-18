@@ -142,6 +142,16 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
         }]
       : []),
 
+    ...(duplicados
+      ? [{
+          key: "duplicados" as StatsCardKey,
+          label: "Duplicados",
+          value: duplicados.count,
+          hint: "Fichas com o mesmo número de processo, dentro dos filtros atuais",
+          className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-300 dark:border-red-700",
+          textClass: "text-red-700 dark:text-red-400",
+        }]
+      : []),
     { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
   ];
   if (multiRespCard) {
