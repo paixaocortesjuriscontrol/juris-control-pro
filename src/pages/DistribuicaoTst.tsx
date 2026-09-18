@@ -7,9 +7,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap, PanelRightOpen } from "lucide-react";
+import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap, PanelRightOpen, Copy } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { ProcessoOverlaySheet } from "@/components/distribuicao-tst/ProcessoOverlaySheet";
+import { DuplicadosCompararSheet } from "@/components/distribuicao-tst/DuplicadosCompararSheet";
+import { useDuplicadosTst, useDuplicadosNoFiltro } from "@/hooks/useDuplicadosTst";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
 
@@ -339,6 +341,9 @@ export default function DistribuicaoTst() {
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
   const [filtroAcordo, setFiltroAcordo] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
+  // Duplicados: mapa global (para pintar a linha) e janela de comparação.
+  const { qtdDuplicados, idsDoGrupo, refetch: refetchDuplicados } = useDuplicadosTst();
+  const [compararDup, setCompararDup] = useState<{ processo: string; ids: string[] } | null>(null);
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
@@ -475,6 +480,14 @@ export default function DistribuicaoTst() {
     }, 400);
     return () => clearTimeout(timer);
 }, [filtroProcesso, filtroDossie, filtroDossieStatus, filtroProcessoStatus, filtroTurma, filtroRelator, filtroParte, filtroParteRecorrente, filtroNomeParte, filtroAba, filtroBenner, filtroJudit, filtroErroJudit, JSON.stringify(filtroSituacoesProcesso), JSON.stringify(filtroExcluirSituacoes), filtroSubidaMassa, filtroMesAno, filtroDataInicio, filtroDataFim, JSON.stringify(filtroResponsavelIds), filtroSemTurma, filtroStatus, filtroEmAnalise, filtroProblemaJudit, filtroAcordo, filtroDuplicado, filtroFonteImportacao, filtroProvasDigitais, filtroSituacaoCarga, filtroEquipe, JSON.stringify(filtroTagIds), filtroTagInverso]);
+
+  // Total de fichas duplicadas dentro dos filtros atuais (ignora o próprio
+  // filtro de duplicados para o card não se anular ao ser clicado).
+  const duplicadosFiltros = useMemo(
+    () => ({ ...debouncedFilters, duplicado: undefined }),
+    [JSON.stringify(debouncedFilters)],
+  );
+  const { count: duplicadosCount, loading: duplicadosLoading } = useDuplicadosNoFiltro(duplicadosFiltros as any);
 
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
@@ -844,6 +857,7 @@ export default function DistribuicaoTst() {
     if (filtroResponsavelIds.includes("__sem_responsavel__")) keys.push("semResponsavel");
     if (filtroRevisarListaMaterias || semMateriaDossieIds) keys.push("revisarListaMaterias");
     if (filtroSomenteOutraMateria) keys.push("somenteOutraMateria");
+    if (filtroDuplicado === "sim") keys.push("duplicados");
     if (filtroComPendencia) keys.push("prontoComPendencia");
     if (filtroSemPendencia) keys.push("prontoSemPendencia");
     if (
@@ -882,6 +896,7 @@ export default function DistribuicaoTst() {
       setSemMateriaDossieIds(null);
       setFiltroRevisarListaMaterias(false);
       setFiltroSomenteOutraMateria(false);
+      setFiltroDuplicado("todos");
 
       setFiltroResponsavelIds([]);
       setFiltroDataInicio("");
@@ -939,6 +954,9 @@ export default function DistribuicaoTst() {
         setFiltroSomenteOutraMateria(!off);
         setFiltroStatus(off ? "todos" : "concluidos");
         break;
+      case "duplicados":
+        setFiltroDuplicado(off ? "todos" : "sim");
+        break;
       case "semResponsavel":
         setFiltroResponsavelIds(off ? [] : ["__sem_responsavel__"]);
         break;
@@ -963,6 +981,7 @@ export default function DistribuicaoTst() {
     setDeleteTargetId(null);
     await deleteDado(id);
     fetchTabsData();
+    refetchDuplicados();
   };
 
   const handleRefresh = async () => {
@@ -2059,6 +2078,10 @@ export default function DistribuicaoTst() {
               count: revisarListaMateriasIds.length,
               loading: false,
             }}
+            duplicados={{
+              count: duplicadosCount,
+              loading: duplicadosLoading,
+            }}
             somenteOutraMateria={{
               count: somenteOutraMateriaCount,
               loading: somenteOutraMateriaLoading,
@@ -3130,6 +3153,9 @@ export default function DistribuicaoTst() {
                 const isRecursoTerceiro = (d as any).recurso_terceiro === true;
                 const isCejusc = (d as any).cejusc === true;
                 const isTransito = (d as any).transito_julgado === true;
+                // Duplicados reais: 2+ fichas ativas com o mesmo nº de processo.
+                const qtdDup = qtdDuplicados(d.processo_numero);
+                const isDup = qtdDup > 1;
                 const processBadges = (
                   <>
                     {(d as any).em_analise && (
@@ -3137,9 +3163,18 @@ export default function DistribuicaoTst() {
                         Em análise
                       </Badge>
                     )}
-                    {(d as any).ic_duplicado && (
-                      <Badge variant="destructive" className="text-[10px] px-1 py-0 h-4" title="Processo duplicado (mais de uma linha com o mesmo número)">
-                        Dup.
+                    {(isDup || (d as any).ic_duplicado) && (
+                      <Badge
+                        variant="destructive"
+                        className="text-[10px] px-1 py-0 h-4 cursor-pointer"
+                        title="Processo duplicado — clique para comparar as fichas"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const ids = idsDoGrupo(d.processo_numero);
+                          setCompararDup({ processo: d.processo_numero, ids: ids.length > 1 ? ids : [d.id] });
+                        }}
+                      >
+                        {isDup ? `Dup. ${qtdDup}` : "Dup."}
                       </Badge>
                     )}
                     {(d as any).ic_arquivado && (
@@ -3200,7 +3235,8 @@ export default function DistribuicaoTst() {
                 <TableRow
                   className={cn(
                     "cursor-pointer hover:bg-muted/50 align-middle [&>td]:py-1 [&>td]:align-middle",
-                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500"
+                    (d as any).em_analise && "bg-amber-50/60 dark:bg-amber-950/20 border-l-2 border-l-amber-500",
+                    isDup && "border-l-2 border-l-destructive"
                   )}
                    onClick={() => { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(d); }}
                    onContextMenu={(e) => { e.preventDefault(); setOverlayRegistro(d); }}
@@ -3264,7 +3300,7 @@ export default function DistribuicaoTst() {
                     </div>
                   </TableCell>
                   <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
-                  <TableCell className="text-xs align-middle">
+                  <TableCell className={cn("text-xs align-middle", isDup && "text-destructive font-semibold")}>
                     {(() => {
                       const raw = d.processo_numero || "";
                       const cnjMatch = raw.match(/^(\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4})(.*)$/);
@@ -3396,6 +3432,17 @@ export default function DistribuicaoTst() {
                   {isAdminOrCoordinator && (
                     <TableCell onClick={e => e.stopPropagation()}>
                       <div className="flex gap-1">
+                        {isDup && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => setCompararDup({ processo: d.processo_numero, ids: idsDoGrupo(d.processo_numero) })}
+                            title={`Comparar as ${qtdDup} fichas duplicadas deste processo`}
+                          >
+                            <Copy className="w-4 h-4 text-destructive" />
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
@@ -3547,6 +3594,21 @@ export default function DistribuicaoTst() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <DuplicadosCompararSheet
+        open={!!compararDup}
+        onOpenChange={(o) => { if (!o) setCompararDup(null); }}
+        processo={compararDup?.processo}
+        ids={compararDup?.ids || []}
+        podeArquivar={isAdminOrCoordinator}
+        onAbrirFicha={(id) => {
+          const reg = dados.find((x) => x.id === id);
+          setCompararDup(null);
+          if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
+          else toast.info("Esta ficha não está na página atual da lista. Use o filtro \"Apenas duplicados\" para abri-la.");
+        }}
+        onArquivarFicha={(id) => { setCompararDup(null); handleDelete(id); }}
+      />
 
       <ProcessoOverlaySheet
         open={!!overlayRegistro}

@@ -26,6 +26,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { dedupeJuditAttachments } from "@/lib/juditAnexosDedup";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
+import { useDuplicadosTst } from "@/hooks/useDuplicadosTst";
+import { DuplicadosCompararSheet } from "./DuplicadosCompararSheet";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -66,6 +68,11 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const { isAdminOrCoordinator, isAdmin } = useUserRole();
 
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "analisar-ia" | "centralizadores" | "partes">(initialTab);
+
+  // Aviso de processo duplicado (mesma numeração em outra ficha ativa).
+  const { qtdDuplicados, idsDoGrupo } = useDuplicadosTst();
+  const qtdDup = processoNumero ? qtdDuplicados(processoNumero) : 0;
+  const [compararDupOpen, setCompararDupOpen] = useState(false);
 
   // Blindagem: algumas abas não existem para todos os usuários (Centralizadores,
   // Log Judit, Auditoria são por papel/e-mail) e "benner" não tem mais conteúdo
@@ -526,6 +533,30 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {savingTop ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
             Salvar
           </Button>
+          {qtdDup > 1 && (
+            <div className="rounded-md border border-destructive/40 bg-red-50 dark:bg-red-950/20 p-2 space-y-1.5">
+              <div className="flex items-start gap-1.5 text-xs text-destructive font-medium">
+                <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>Atenção: este processo está duplicado ({qtdDup} fichas com o mesmo número).</span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full border-destructive/40 text-destructive"
+                onClick={() => setCompararDupOpen(true)}
+              >
+                Comparar duplicados
+              </Button>
+            </div>
+          )}
+          <DuplicadosCompararSheet
+            open={compararDupOpen}
+            onOpenChange={setCompararDupOpen}
+            processo={processoNumero}
+            ids={idsDoGrupo(processoNumero)}
+            podeArquivar={false}
+          />
           <Button
             type="button"
             variant="outline"

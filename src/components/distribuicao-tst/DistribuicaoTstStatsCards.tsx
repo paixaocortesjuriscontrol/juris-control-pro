@@ -30,6 +30,7 @@ export type StatsCardKey =
   | "semResponsavel"
   | "revisarListaMaterias"
   | "somenteOutraMateria"
+  | "duplicados"
 
   | "comEquipe"
   | "semEquipe"
@@ -59,6 +60,8 @@ interface Props {
   revisarListaMaterias?: { count: number; loading: boolean } | null;
   /** AVISO: prontos cujo quadro de matérias só tem "Outra Matéria". */
   somenteOutraMateria?: { count: number; loading: boolean } | null;
+  /** Fichas duplicadas (mesmo número de processo) dentro dos filtros atuais. */
+  duplicados?: { count: number; loading: boolean } | null;
 }
 
 
@@ -72,7 +75,7 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria, duplicados }: Props) {
   const isKeyActive = (k: StatsCardKey) =>
     activeKeys ? activeKeys.includes(k) : activeKey === k;
 
@@ -139,6 +142,16 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
         }]
       : []),
 
+    ...(duplicados
+      ? [{
+          key: "duplicados" as StatsCardKey,
+          label: "Duplicados",
+          value: duplicados.count,
+          hint: "Fichas com o mesmo número de processo, dentro dos filtros atuais",
+          className: "from-red-50 to-red-100 dark:from-red-950/50 dark:to-red-900/30 border-red-300 dark:border-red-700",
+          textClass: "text-red-700 dark:text-red-400",
+        }]
+      : []),
     { key: "comEquipe", label: "Com / Sem Equipe", value: stats.comEquipe, className: "from-lime-50 to-lime-100 dark:from-lime-950/50 dark:to-lime-900/30 border-lime-200 dark:border-lime-800", textClass: "text-lime-700 dark:text-lime-400" },
   ];
   if (multiRespCard) {
