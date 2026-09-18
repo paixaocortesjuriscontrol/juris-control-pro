@@ -27,42 +27,26 @@ export interface MapaDuplicados {
   ids: Set<string>;
 }
 
-/** Carrega (com cache curto) o mapa de grupos duplicados da base ativa. */
+/**
+ * Carrega (com cache curto) o mapa de grupos duplicados da base ativa.
+ *
+ * Performance: em vez de varrer ~16 mil linhas paginadas no navegador,
+ * o agrupamento é feito no banco (RPC `get_duplicados_tst`, apoiada por
+ * índice nos dígitos do processo) e só os grupos repetidos voltam.
+ */
 export function fetchMapaDuplicadosCached(): Promise<MapaDuplicados> {
   return cachedAsync("duplicados-mapa", async () => {
-    const PAGE = 1000;
-    const porProcesso = new Map<string, string[]>();
-    let from = 0;
-    while (true) {
-      const { data, error } = await supabase
-        .from("dados_benner" as any)
-        .select("id, processo")
-        .not("aba_origem", "is", null)
-        .not("processo", "is", null)
-        .order("processo", { ascending: true, nullsFirst: false })
-        .order("id", { ascending: true })
-        .range(from, from + PAGE - 1);
-      if (error) throw error;
-      const rows = (data as any[]) || [];
-      for (const r of rows) {
-        const key = chaveProcessoDuplicado(r.processo);
-        if (!key) continue;
-        const arr = porProcesso.get(key);
-        if (arr) arr.push(r.id);
-        else porProcesso.set(key, [r.id]);
-      }
-      if (rows.length < PAGE) break;
-      from += PAGE;
-    }
-
+    const { data, error } = await supabase.rpc("get_duplicados_tst" as any);
+    if (error) throw error;
     const grupos = new Map<string, string[]>();
     const ids = new Set<string>();
-    porProcesso.forEach((arr, key) => {
-      if (arr.length > 1) {
-        grupos.set(key, arr);
-        arr.forEach((id) => ids.add(id));
-      }
-    });
+    for (const row of ((data as any[]) || [])) {
+      const key = String(row?.chave || "");
+      const arr = (row?.ids as string[]) || [];
+      if (!key || arr.length < 2) continue;
+      grupos.set(key, arr);
+      arr.forEach((id) => ids.add(id));
+    }
     return { grupos, ids };
   });
 }
