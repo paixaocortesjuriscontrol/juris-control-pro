@@ -2019,22 +2019,8 @@ export default function DistribuicaoTst() {
       }
     >
       <div className="space-y-3">
-        {isAdminOrCoordinator && (filtroDuplicado === "sim" || selectedIds.size > 0) && (
+        {isAdminOrCoordinator && selectedIds.size > 0 && (
         <div className="flex gap-2 flex-wrap justify-end items-center">
-
-
-            {isAdminOrCoordinator && filtroDuplicado === "sim" && (
-              <Button
-                variant="outline"
-                onClick={() => setArquivarDupOpen(true)}
-                disabled={arquivarDupRunning}
-                title="Arquiva os duplicados respeitando os filtros atuais. Mantém o registro com mais tags (empate: mais campos preenchidos). Se outro do grupo tiver alteração mais recente, esse é mantido. Nada é apagado."
-                className="border-amber-400 text-amber-700 hover:bg-amber-50"
-              >
-                {arquivarDupRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Archive className="w-4 h-4 mr-2" />}
-                {arquivarDupRunning ? "Arquivando..." : "Arquivar duplicados"}
-              </Button>
-            )}
             {isAdminOrCoordinator && selectedIds.size > 0 && (
               <Button
                 variant="outline"
