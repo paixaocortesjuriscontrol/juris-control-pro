@@ -654,6 +654,36 @@ export default function AdminTstBasePcaDistribuicoes() {
     }
   };
 
+  /**
+   * Blindagem contra duplicidade: antes de cadastrar, confere na base inteira
+   * (inclusive fichas sem aba de origem e com máscara diferente) quais números
+   * de processo já existem. Retorna o mapa dígitos-do-processo -> dossiês.
+   */
+  const carregarProcessosExistentes = async (alvo: LinhaPlanilha[]) => {
+    const variantes = new Set<string>();
+    for (const it of alvo) {
+      const p = it.processo.trim();
+      if (p) variantes.add(p);
+      if (it.processoDigitos) variantes.add(it.processoDigitos);
+    }
+    const lista = Array.from(variantes);
+    const porDigitos = new Map<string, Set<string>>();
+    for (let i = 0; i < lista.length; i += SEARCH_CHUNK) {
+      const { data, error } = await supabase
+        .from("dados_benner")
+        .select("processo, dossie")
+        .in("processo", lista.slice(i, i + SEARCH_CHUNK));
+      if (error) throw error;
+      for (const row of ((data ?? []) as any[])) {
+        const d = soDigitos(row.processo);
+        if (!d) continue;
+        if (!porDigitos.has(d)) porDigitos.set(d, new Set<string>());
+        porDigitos.get(d)!.add(String(row.dossie || "").trim().toLowerCase());
+      }
+    }
+    return porDigitos;
+  };
+
   const cadastrarNaoEncontrados = async () => {
     const alvo = notFound.filter((n) => n.processo.trim().length > 0);
     if (alvo.length === 0) {
@@ -700,10 +730,53 @@ export default function AdminTstBasePcaDistribuicoes() {
 
       const novosIds: string[] = [];
       const itensAudit: any[] = [];
-      const total = Math.ceil(alvo.length / APPLY_CHUNK);
 
-      for (let i = 0; i < alvo.length; i += APPLY_CHUNK) {
-        const slice = alvo.slice(i, i + APPLY_CHUNK);
+      // Nunca cadastrar processo que já existe na base (mesmo com máscara ou
+      // dossiê diferentes) nem repetir a mesma linha da planilha.
+      setProgressLabel("Conferindo duplicidades na base...");
+      const existentes = await carregarProcessosExistentes(alvo);
+      const vistosNaPlanilha = new Set<string>();
+      const aCadastrar: LinhaPlanilha[] = [];
+      const duplicados: LinhaPlanilha[] = [];
+      for (const it of alvo) {
+        const dig = it.processoDigitos || it.processo.trim().toLowerCase();
+        const chaveLinha = `${dig}||${it.dossie.trim().toLowerCase()}`;
+        if (existentes.has(dig) || vistosNaPlanilha.has(chaveLinha)) {
+          duplicados.push(it);
+          continue;
+        }
+        vistosNaPlanilha.add(chaveLinha);
+        aCadastrar.push(it);
+      }
+      for (const it of duplicados) {
+        itensAudit.push({
+          processo: it.processo || null,
+          dossie: it.dossie || null,
+          acao: "ignorado",
+          detalhe: "Já existe na base — nenhum processo duplicado foi criado",
+        });
+      }
+      if (aCadastrar.length === 0) {
+        setProgress(100);
+        setProgressLabel(`Nada a cadastrar: ${duplicados.length} processo(s) já existem na base`);
+        toast.info(`Nenhum cadastro feito — ${duplicados.length} processo(s) já existem na base.`);
+        setNotFound((prev) => prev.filter((n) => !n.processo.trim()));
+        await finalizarAuditoriaLote(auditId, {
+          status: "concluida",
+          totalLinhas: linhas.length,
+          criados: 0,
+          ignorados: duplicados.length,
+          resumo: `Nenhum processo cadastrado: ${duplicados.length} já existiam na base`,
+          itens: itensAudit,
+        });
+        setCadastrando(false);
+        return;
+      }
+
+      const total = Math.ceil(aCadastrar.length / APPLY_CHUNK);
+
+      for (let i = 0; i < aCadastrar.length; i += APPLY_CHUNK) {
+        const slice = aCadastrar.slice(i, i + APPLY_CHUNK);
         const payload = slice.map((it) => {
           const campos = { ...(it.campos || {}) };
           // Remove chaves nulas para não sobrescrever defaults do banco
@@ -760,14 +833,16 @@ export default function AdminTstBasePcaDistribuicoes() {
       setNotFound((prev) => prev.filter((n) => !n.processo.trim()));
       setUltimoCadastro(novosIds.length);
       setProgress(100);
-      setProgressLabel(`${novosIds.length} processo(s) cadastrado(s) com a TAG "${tagNome}"`);
-      toast.success(`${novosIds.length} processo(s) cadastrado(s) e marcado(s) com "${tagNome}"`);
+      const sufixoDup = duplicados.length > 0 ? ` — ${duplicados.length} já existiam na base (não duplicados)` : "";
+      setProgressLabel(`${novosIds.length} processo(s) cadastrado(s) com a TAG "${tagNome}"${sufixoDup}`);
+      toast.success(`${novosIds.length} processo(s) cadastrado(s) e marcado(s) com "${tagNome}"${sufixoDup}`);
 
       await finalizarAuditoriaLote(auditId, {
         status: "concluida",
         totalLinhas: linhas.length,
         criados: novosIds.length,
-        resumo: `${novosIds.length} processo(s) cadastrado(s) pela Base PCA com TAG "${tagNome}"`,
+        ignorados: duplicados.length,
+        resumo: `${novosIds.length} processo(s) cadastrado(s) pela Base PCA com TAG "${tagNome}"${sufixoDup}`,
         itens: itensAudit,
       });
     } catch (err: any) {
