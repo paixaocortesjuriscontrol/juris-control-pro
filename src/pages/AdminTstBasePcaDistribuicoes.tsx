@@ -654,6 +654,36 @@ export default function AdminTstBasePcaDistribuicoes() {
     }
   };
 
+  /**
+   * Blindagem contra duplicidade: antes de cadastrar, confere na base inteira
+   * (inclusive fichas sem aba de origem e com máscara diferente) quais números
+   * de processo já existem. Retorna o mapa dígitos-do-processo -> dossiês.
+   */
+  const carregarProcessosExistentes = async (alvo: LinhaPlanilha[]) => {
+    const variantes = new Set<string>();
+    for (const it of alvo) {
+      const p = it.processo.trim();
+      if (p) variantes.add(p);
+      if (it.processoDigitos) variantes.add(it.processoDigitos);
+    }
+    const lista = Array.from(variantes);
+    const porDigitos = new Map<string, Set<string>>();
+    for (let i = 0; i < lista.length; i += SEARCH_CHUNK) {
+      const { data, error } = await supabase
+        .from("dados_benner")
+        .select("processo, dossie")
+        .in("processo", lista.slice(i, i + SEARCH_CHUNK));
+      if (error) throw error;
+      for (const row of ((data ?? []) as any[])) {
+        const d = soDigitos(row.processo);
+        if (!d) continue;
+        if (!porDigitos.has(d)) porDigitos.set(d, new Set<string>());
+        porDigitos.get(d)!.add(String(row.dossie || "").trim().toLowerCase());
+      }
+    }
+    return porDigitos;
+  };
+
   const cadastrarNaoEncontrados = async () => {
     const alvo = notFound.filter((n) => n.processo.trim().length > 0);
     if (alvo.length === 0) {
