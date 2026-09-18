@@ -833,14 +833,16 @@ export default function AdminTstBasePcaDistribuicoes() {
       setNotFound((prev) => prev.filter((n) => !n.processo.trim()));
       setUltimoCadastro(novosIds.length);
       setProgress(100);
-      setProgressLabel(`${novosIds.length} processo(s) cadastrado(s) com a TAG "${tagNome}"`);
-      toast.success(`${novosIds.length} processo(s) cadastrado(s) e marcado(s) com "${tagNome}"`);
+      const sufixoDup = duplicados.length > 0 ? ` — ${duplicados.length} já existiam na base (não duplicados)` : "";
+      setProgressLabel(`${novosIds.length} processo(s) cadastrado(s) com a TAG "${tagNome}"${sufixoDup}`);
+      toast.success(`${novosIds.length} processo(s) cadastrado(s) e marcado(s) com "${tagNome}"${sufixoDup}`);
 
       await finalizarAuditoriaLote(auditId, {
         status: "concluida",
         totalLinhas: linhas.length,
         criados: novosIds.length,
-        resumo: `${novosIds.length} processo(s) cadastrado(s) pela Base PCA com TAG "${tagNome}"`,
+        ignorados: duplicados.length,
+        resumo: `${novosIds.length} processo(s) cadastrado(s) pela Base PCA com TAG "${tagNome}"${sufixoDup}`,
         itens: itensAudit,
       });
     } catch (err: any) {
