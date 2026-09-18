@@ -1,5 +1,7 @@
 # Relatório de duplicados da Distribuição TST para decisão
 
+Nesta etapa nada é alterado na base: apenas a geração do relatório, começando pelo resumo executivo. Nenhum arquivamento será feito sem aprovação posterior.
+
 ## O que foi confirmado na base
 - 26.745 fichas no total; 22.202 combinações únicas de processo + dossiê.
 - 4.506 grupos duplicados, com 9.049 fichas envolvidas e 4.543 fichas excedentes.
