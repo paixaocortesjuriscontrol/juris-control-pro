@@ -708,7 +708,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
         // Escopo por parte recorrente: matérias gravadas no quadro de uma parte
         // que NÃO é recorrente são ignoradas (não exportam nem rejeitam).
-        const pr = normalizeText((d as any).parte_recorrente);
+        const pr = normalizeText(parteRecorrenteRaw);
         const scopeAtivo = (p: "reclamante" | "banco" | "terceiro") => {
           if (!pr || pr.length > 60 || /ativo\s*:|passivo\s*:/.test(pr)) return true;
           if (/ambos/.test(pr)) return p !== "terceiro";
@@ -779,7 +779,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         // o que a advogada informou (mesmo que existam `tipo_recurso_*` de
         // outras partes preenchidos por engano/legado). Só usamos os campos
         // `tipo_recurso_*` como fallback quando `parte_recorrente` está vazio.
-        const parteRecorrenteNorm = normalizeText((d as any).parte_recorrente);
+        const parteRecorrenteNorm = normalizeText(parteRecorrenteRaw);
         const partesSet = new Set<"reclamante" | "banco" | "terceiro">();
         if (parteRecorrenteNorm) {
           if (/reclamante/.test(parteRecorrenteNorm)) partesSet.add("reclamante");
