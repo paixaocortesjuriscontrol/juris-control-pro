@@ -11040,6 +11040,13 @@ export type Database = {
           total_unicas: number
         }[]
       }
+      get_duplicados_tst: {
+        Args: never
+        Returns: {
+          chave: string
+          ids: string[]
+        }[]
+      }
       get_equipe_tarefas_stats: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {
