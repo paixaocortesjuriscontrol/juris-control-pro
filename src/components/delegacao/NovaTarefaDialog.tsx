@@ -1030,7 +1030,15 @@ export function NovaTarefaDialog({
                         coordenacaoId={coordenacaoId}
                         onSelect={(m) => {
                           const anterior = modeloPadroesRef.current || {};
-                          const p = resolverPadroes(m);
+                          // Datas relativas do modelo (inclusive a data fatal) contam
+                          // da mesma base da data prevista: data base do formulário ou
+                          // data da publicação vinculada.
+                          const baseModelo =
+                            form.getValues("data_base") ||
+                            publicacao?.data_publicacao ||
+                            publicacao?.data_disponibilizacao ||
+                            null;
+                          const p = resolverPadroes(m, baseModelo ? String(baseModelo).slice(0, 10) : null);
                           form.setValue("titulo", m.titulo, { shouldDirty: true });
                           // Limpa o que o modelo anterior preencheu e o novo não define
                           for (const [k, v] of Object.entries(anterior)) {
