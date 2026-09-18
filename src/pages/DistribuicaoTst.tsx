@@ -342,7 +342,7 @@ export default function DistribuicaoTst() {
   const [filtroAcordo, setFiltroAcordo] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
   // Duplicados: mapa global (para pintar a linha) e janela de comparação.
-  const { qtdDuplicados, refetch: refetchDuplicados } = useDuplicadosTst();
+  const { qtdDuplicados, idsDoGrupo, refetch: refetchDuplicados } = useDuplicadosTst();
   const [compararDup, setCompararDup] = useState<{ processo: string; ids: string[] } | null>(null);
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
