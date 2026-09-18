@@ -639,11 +639,19 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         outRow[LAYOUT_COLS[23]] = d.ganhamos ? "X" : "";
         outRow[LAYOUT_COLS[24]] = d.perdemos ? "X" : "";
         outRow[LAYOUT_COLS[25]] = d.processo_baixado ? toSN(String(d.processo_baixado)) : "";
+        // Parte Recorrente (AA) é a fonte autoritativa. Na base o campo pode
+        // vir como `parte_recorrente` (aba Distribuição TST) ou `recorrente`
+        // (dados_benner). Só quando ambos estão vazios usamos os
+        // `tipo_recurso_*` como fallback.
+        const parteRecorrenteRaw =
+          String((d as any).parte_recorrente ?? "").trim() ||
+          String((d as any).recorrente ?? "").trim();
         outRow[LAYOUT_COLS[26]] = normalizeRecorrenteBenner(
-          deriveRecorrenteFromRecursos(
-            (d as any).tipo_recurso_reclamante,
-            (d as any).tipo_recurso_banco
-          ) || (d as any).parte_recorrente || (d as any).recorrente
+          parteRecorrenteRaw ||
+            deriveRecorrenteFromRecursos(
+              (d as any).tipo_recurso_reclamante,
+              (d as any).tipo_recurso_banco
+            )
         );
         outRow["__numProcesso"] = numProcesso;
         outRow["__dadoBennerId"] = d.id || null;
@@ -700,7 +708,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
 
         // Escopo por parte recorrente: matérias gravadas no quadro de uma parte
         // que NÃO é recorrente são ignoradas (não exportam nem rejeitam).
-        const pr = normalizeText((d as any).parte_recorrente);
+        const pr = normalizeText(parteRecorrenteRaw);
         const scopeAtivo = (p: "reclamante" | "banco" | "terceiro") => {
           if (!pr || pr.length > 60 || /ativo\s*:|passivo\s*:/.test(pr)) return true;
           if (/ambos/.test(pr)) return p !== "terceiro";
@@ -771,7 +779,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         // o que a advogada informou (mesmo que existam `tipo_recurso_*` de
         // outras partes preenchidos por engano/legado). Só usamos os campos
         // `tipo_recurso_*` como fallback quando `parte_recorrente` está vazio.
-        const parteRecorrenteNorm = normalizeText((d as any).parte_recorrente);
+        const parteRecorrenteNorm = normalizeText(parteRecorrenteRaw);
         const partesSet = new Set<"reclamante" | "banco" | "terceiro">();
         if (parteRecorrenteNorm) {
           if (/reclamante/.test(parteRecorrenteNorm)) partesSet.add("reclamante");
