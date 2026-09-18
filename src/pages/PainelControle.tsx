@@ -1930,6 +1930,18 @@ export default function PainelControle() {
 
 
 
+  // Cobranças dos itens-pai das atividades: a atividade mostra o selinho
+  // quando a cobrança foi feita na tarefa/prazo a que ela pertence.
+  const paisDasAtividades = useMemo(() => {
+    const set = new Set<string>();
+    (atividadesCalendario as any[]).forEach((a) => {
+      const pai = String(a?.item_id ?? "");
+      if (pai) set.add(pai);
+    });
+    return Array.from(set).map((id) => ({ id }));
+  }, [atividadesCalendario]);
+  const { data: mapaCobrancasAtividades } = useCobrancasItens(paisDasAtividades, escopoCobranca);
+
   const itensComAtividades = useMemo(() => {
     const set = new Set<string>();
     (atividadesCalendario as any[]).forEach((a) => {
@@ -3015,7 +3027,11 @@ export default function PainelControle() {
 
                                 </div>
                               )})}
-                              {atividadesDia.map((a: any) => (
+                              {atividadesDia.map((a: any) => {
+                                const infoCobrancaAtiv =
+                                  infoCobrancaItem(mapaCobrancasAtividades, { id: String(a.item_id ?? "") }) ||
+                                  infoCobrancaItem(mapaCobrancas, { id: String(a.item_id ?? "") });
+                                return (
                                 <div
                                   key={`ativ-${a.id}`}
                                   className={cn(
@@ -3035,8 +3051,16 @@ export default function PainelControle() {
                                 >
                                   <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
                                   <span className="truncate">{a.titulo}</span>
+                                  {infoCobrancaAtiv && (
+                                    <CobrancaBadge
+                                      simbolo={infoCobrancaAtiv.simbolo}
+                                      hoje={infoCobrancaAtiv.hoje}
+                                      title={tituloCobranca(infoCobrancaAtiv)}
+                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5"
+                                    />
+                                  )}
                                 </div>
-                              ))}
+                              );})}
                               {extras > 0 && (
                                 <button
                                   className="text-[9px] md:text-[10px] text-primary font-semibold px-0.5 md:px-1 hover:underline cursor-pointer w-full text-left"
