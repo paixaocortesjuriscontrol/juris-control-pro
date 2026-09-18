@@ -67,3 +67,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Nova etapa e edição em painel lateral direito sobreposto
 - [x] Campos próprios de prazo, tarefa, evento, audiência e parcelamento
 - [x] Datas, recorrências, alertas e parcelas mensais alinhados aos cadastros normais
+
+- [x] Corrigir risco no calendário para atividade com situação “Concluído com sucesso”.
