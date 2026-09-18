@@ -10,6 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Plus, Loader2, Trash2, ExternalLink, Search, X, CheckCircle2, ChevronLeft, ChevronRight, FileSpreadsheet, Download, Database, ArrowLeft, FileText, CheckCircle, Send, Filter, UserPlus, LayoutGrid, Shuffle, Eye, EyeOff, SlidersHorizontal, Layers, Archive, ArrowUp, ArrowDown, ArrowUpDown, Mail, BarChart3, ChevronDown, Zap, PanelRightOpen } from "lucide-react";
 import { DistribuicaoTstStatsCards } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { ProcessoOverlaySheet } from "@/components/distribuicao-tst/ProcessoOverlaySheet";
+import { DuplicadosCompararSheet } from "@/components/distribuicao-tst/DuplicadosCompararSheet";
+import { useDuplicadosTst, useDuplicadosNoFiltro } from "@/hooks/useDuplicadosTst";
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
 
@@ -339,6 +341,9 @@ export default function DistribuicaoTst() {
   const [filtroProblemaJudit, setFiltroProblemaJudit] = useState<string>("todos");
   const [filtroAcordo, setFiltroAcordo] = useState<string>("todos");
   const [filtroDuplicado, setFiltroDuplicado] = useState<string>("todos");
+  // Duplicados: mapa global (para pintar a linha) e janela de comparação.
+  const { qtdDuplicados, refetch: refetchDuplicados } = useDuplicadosTst();
+  const [compararDup, setCompararDup] = useState<{ processo: string; ids: string[] } | null>(null);
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
