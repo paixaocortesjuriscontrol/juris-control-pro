@@ -19,48 +19,27 @@ async function fetchDuplicateGroups(): Promise<{
   activeIds: string[];
   archivedRows: any[];
 }> {
-  const PAGE = 1000;
-  const byProcesso = new Map<string, { activeIds: string[]; archivedRows: any[] }>();
-  let from = 0;
-  while (true) {
-    const { data, error } = await supabase
-      .from("dados_benner" as any)
-      .select("id, processo")
-      .not("aba_origem", "is", null)
-      .not("processo", "is", null)
-      .order("processo", { ascending: true, nullsFirst: false })
-      .order("id", { ascending: true })
-      .range(from, from + PAGE - 1);
+  // Agrupamento feito no banco (RPC `get_duplicados_tst`, apoiada por índice
+  // nos dígitos do processo). Antes isso lia ~16 mil linhas paginadas no
+  // navegador a cada uso do filtro "Apenas duplicados".
+  const activeIds = await cachedAsync("duplicados-ids", async () => {
+    const { data, error } = await supabase.rpc("get_duplicados_tst" as any);
     if (error) throw error;
-    const rows = (data as any[]) || [];
-    for (const r of rows) {
-      const raw = String(r.processo || "").trim();
-      if (!raw) continue;
-      const digits = raw.replace(/\D/g, "");
-      const key = digits.length >= 20 ? digits : raw.toLowerCase();
-      const grp = byProcesso.get(key) || { activeIds: [], archivedRows: [] };
-      grp.activeIds.push(r.id);
-      byProcesso.set(key, grp);
+    const ids: string[] = [];
+    for (const row of ((data as any[]) || [])) {
+      const arr = (row?.ids as string[]) || [];
+      if (arr.length > 1) ids.push(...arr);
     }
-    if (rows.length < PAGE) break;
-    from += PAGE;
-  }
-
-  const activeIds: string[] = [];
-  const archivedRows: any[] = [];
-  byProcesso.forEach((grp) => {
-    // Só conta como duplicado quando há 2+ registros ATIVOS com o mesmo processo.
-    if (grp.activeIds.length > 1) {
-      activeIds.push(...grp.activeIds);
-    }
+    return ids;
   });
-  return { activeIds, archivedRows };
+  return { activeIds, archivedRows: [] };
 }
 
 async function fetchDuplicateDistribuicaoTstIds(): Promise<string[]> {
   const { activeIds } = await fetchDuplicateGroups();
   return activeIds;
 }
+
 
 /**
  * NOTA DE ARQUITETURA: A tela "Distribuição TST" lê e grava em `dados_benner`
