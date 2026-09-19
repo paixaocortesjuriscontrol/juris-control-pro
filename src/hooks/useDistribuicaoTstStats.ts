@@ -208,16 +208,18 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
   const fetchStats = useCallback(async () => {
     setLoading(true);
     try {
-      if ((filters.idsAllowed?.length || 0) > LARGE_IDS_THRESHOLD) {
-        setStats(await computeStatsForLargeIdFilter(filters));
+      const efetivos = await resolverFiltrosDuplicados(filters);
+      if ((efetivos.idsAllowed?.length || 0) > LARGE_IDS_THRESHOLD) {
+        setStats(await computeStatsForLargeIdFilter(efetivos));
         setLoadedOnce(true);
         return;
       }
 
       const { data, error } = await supabase.rpc(
         "get_distribuicao_tst_stats" as any,
-        { filters: filters as any }
+        { filters: efetivos as any }
       );
+
       if (error) {
         // Erro de RPC: não sobrescreve com zeros. Mantém último valor válido.
         console.warn("[useDistribuicaoTstStats] RPC falhou, mantendo valores anteriores:", error);
