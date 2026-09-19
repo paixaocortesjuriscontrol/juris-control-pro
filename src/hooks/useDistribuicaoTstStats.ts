@@ -1,6 +1,27 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "./useDistribuicoesTst";
+import { fetchMapaDuplicadosCached } from "./useDuplicadosTst";
+
+/**
+ * O totalizador do banco só conhece o marcador antigo `ic_duplicado`, que pode
+ * estar desatualizado. Quando o card "Duplicados" está ligado, trocamos o
+ * filtro pela lista real de fichas repetidas (mesma fonte do card).
+ */
+async function resolverFiltrosDuplicados(
+  filters: DistribuicaoTstFilters,
+): Promise<DistribuicaoTstFilters> {
+  if ((filters as any).duplicado !== "sim") return filters;
+  const mapa = await fetchMapaDuplicadosCached();
+  let dupIds = Array.from(mapa.ids);
+  const jaRestrito = (filters as any).idsAllowed as string[] | undefined;
+  if (jaRestrito && jaRestrito.length > 0) {
+    const permitidos = new Set(jaRestrito);
+    dupIds = dupIds.filter((id) => permitidos.has(id));
+  }
+  return { ...(filters as any), duplicado: undefined, idsAllowed: dupIds } as DistribuicaoTstFilters;
+}
+
 
 export interface DistribuicaoTstStats {
   total: number;
