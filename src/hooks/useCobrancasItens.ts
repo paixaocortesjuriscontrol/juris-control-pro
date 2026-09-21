@@ -85,6 +85,7 @@ export function useCobrancasItens(
     staleTime: 20 * 1000,
     queryFn: async () => {
       const result = new Map<string, InfoCobranca>();
+      if (escopo === "minhas" && !userId) return result;
       const chunks: string[][] = [];
       for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200));
 
