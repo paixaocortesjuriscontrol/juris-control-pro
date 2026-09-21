@@ -1067,8 +1067,20 @@ serve(async (req) => {
       }, 200);
     }
 
+    // ---------- Índice de nomes (todas as instâncias da mesma consulta) ------
+    const rdsParaNomes: any[] = [rdSelecionada];
+    for (const it of (Array.isArray(rawCollector.crawler?.page_data) ? rawCollector.crawler.page_data : [])) {
+      const rd = it?.response_data;
+      if (rd && rd !== rdSelecionada) rdsParaNomes.push(rd);
+    }
+    if (rawCollector.cache_lookup && rawCollector.cache_lookup !== rdSelecionada) {
+      rdsParaNomes.push(rawCollector.cache_lookup);
+    }
+    const indiceNomes = construirIndiceNomes(rdsParaNomes);
+
     // ---------- Extração simples ----------
-    const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
+    const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada, indiceNomes);
+
     const classeRaw = extrairClasse(rdSelecionada);
     const classe = expandirSiglaRecurso(classeRaw, foiTst);
     // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST)
