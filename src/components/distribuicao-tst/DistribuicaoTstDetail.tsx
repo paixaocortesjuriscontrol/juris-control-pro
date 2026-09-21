@@ -584,7 +584,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onOpenChange={setCompararDupOpen}
             processo={processoNumero}
             ids={idsDoGrupo(processoNumero)}
-            podeArquivar={isAdminOrCoordinator}
+            podeArquivar
             onArquivarFicha={(id) => setArquivarDupId(id)}
           />
           <AlertDialog open={!!arquivarDupId} onOpenChange={(o) => { if (!o) setArquivarDupId(null); }}>
