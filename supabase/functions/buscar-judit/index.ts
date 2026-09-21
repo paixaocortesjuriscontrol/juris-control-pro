@@ -1266,24 +1266,29 @@ serve(async (req) => {
     // quando a versão usada está abreviada ("R. L. S.") ou ocultada ("PARTE
     // OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
     const mapNomeDoc = new Map<string, string>();
+    const mapNomeSide = new Map<string, string>();
     for (const rd of rdsParaNomes) {
       const arr: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
       for (const p of arr) {
         if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
         const nome = String(p?.name || "").trim();
+        if (!nome) continue;
+        const chave = nome.toUpperCase();
         const doc = String(p?.main_document || "").replace(/\D/g, "");
-        if (nome && doc && !mapNomeDoc.has(nome.toUpperCase())) {
-          mapNomeDoc.set(nome.toUpperCase(), doc);
+        if (doc && !mapNomeDoc.has(chave)) mapNomeDoc.set(chave, doc);
+        const side = String(p?.side || "").toUpperCase();
+        if ((side === "ACTIVE" || side === "PASSIVE") && !mapNomeSide.has(chave)) {
+          mapNomeSide.set(chave, side);
         }
       }
     }
     const completarNome = (nome: string) => {
       const n = String(nome || "").trim();
       if (!nomeRuim(n)) return n;
-      const doc = mapNomeDoc.get(n.toUpperCase()) || "";
-      const melhor = doc ? indiceNomes.get(doc) : null;
-      return melhor || n;
+      const chave = n.toUpperCase();
+      return melhorNome(n, mapNomeDoc.get(chave) || "", indiceNomes, mapNomeSide.get(chave) || "");
     };
+
     const completarLista = (arr: string[]) => arr.map(completarNome);
     const passivosSemSantander = removerSantander(passivosOrigem);
     const ativosLimposFull = completarLista(ativosLimpos);
