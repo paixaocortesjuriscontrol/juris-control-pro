@@ -1157,6 +1157,12 @@ export default function PainelControle() {
 
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
+      // Botão "Minhas cobranças" / "Cobranças da equipe": mostra apenas os itens cobrados.
+      if (somenteCobrados) {
+        const info = infoCobrancaItem(mapaCobrancas, item);
+        if (!info) return false;
+        if (escopoCobranca === "minhas" && !info.minhaHoje && info.total === 0) return false;
+      }
       if (painelFiltros.cobrancas !== "todas") {
         const info = infoCobrancaItem(mapaCobrancas, item);
         const cobradoHoje = !!info?.hoje;
