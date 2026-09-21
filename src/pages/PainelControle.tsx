@@ -1922,9 +1922,13 @@ export default function PainelControle() {
         if (!pai) return;
         if (!passaFiltrosPainel(pai)) return;
       }
-      // O filtro de comentários também vale para as atividades exibidas no dia,
-      // usando sempre o item pai como referência.
-      if (painelFiltros.comentarios !== "todas") {
+      // Os filtros de comentários e de cobranças também valem para as atividades
+      // exibidas no dia, usando sempre o item pai como referência.
+      if (
+        painelFiltros.comentarios !== "todas" ||
+        painelFiltros.cobrancas !== "todas" ||
+        somenteCobrados
+      ) {
         if (!pai || !itemPassaFiltroComentario(pai)) return;
       }
       if (!map.has(key)) map.set(key, []);
@@ -1937,6 +1941,8 @@ export default function PainelControle() {
     atividadesCalendario,
     painelFiltros.classificacoes,
     painelFiltros.comentarios,
+    painelFiltros.cobrancas,
+    somenteCobrados,
     itemPorRawId,
     buscaProcessoDigits,
     buscaTexto,
