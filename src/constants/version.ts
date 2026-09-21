@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.1.0";
+export const APP_VERSION = "7.1.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -69,4 +69,5 @@ export const VERSION_HISTORY = [
   { version: "7.0.5", date: "2026-09-14", notes: "Recurso de terceiro: só Tipo de Recurso é obrigatório e é o único dado exportado na Carga Benner" },
   { version: "7.0.6", date: "2026-09-16", notes: "Importação 'Pedidos por Dossiê' movida para o Admin. TST e removida da tela Distribuição TST" },
   { version: "7.1.0", date: "2026-09-18", notes: "Distribuição TST: destaque de duplicados (lista em vermelho, card clicável, comparação lateral e aviso no formulário); Carga Benner obedece à Parte Recorrente; Base PCA sem duplicar" },
+  { version: "7.1.1", date: "2026-09-21", notes: "Judit traz o nome completo das partes quando existe em qualquer instância da consulta; prazo fatal do DJEN contado a partir da data da publicação" },
 ];
