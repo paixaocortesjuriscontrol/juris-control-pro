@@ -356,6 +356,8 @@ export default function PainelControle() {
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
   // Escopo da marca "já cobrei": minhas cobranças ou as da equipe.
   const [escopoCobranca, setEscopoCobranca] = useState<EscopoCobranca>(getEscopoCobrancaPreferido());
+  /** Botão de cobranças ligado: lista somente os itens cobrados (meus ou da equipe). */
+  const [somenteCobrados, setSomenteCobrados] = useState(false);
 
   // Busca por número de processo: mantém no calendário só os itens do processo
   const [buscaProcesso, setBuscaProcesso] = useState("");
