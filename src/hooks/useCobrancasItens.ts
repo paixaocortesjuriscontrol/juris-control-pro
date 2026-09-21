@@ -79,7 +79,9 @@ export function useCobrancasItens(
 
   return useQuery({
     queryKey: [COBRANCAS_QUERY_KEY, ids, escopo, userId],
-    enabled: ids.length > 0,
+    // No escopo "minhas" só consultamos depois de saber quem é o usuário,
+    // senão viriam as cobranças de todos.
+    enabled: ids.length > 0 && (escopo === "equipe" || !!userId),
     staleTime: 20 * 1000,
     queryFn: async () => {
       const result = new Map<string, InfoCobranca>();
