@@ -573,8 +573,32 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             onOpenChange={setCompararDupOpen}
             processo={processoNumero}
             ids={idsDoGrupo(processoNumero)}
-            podeArquivar={false}
+            podeArquivar={isAdminOrCoordinator}
+            onArquivarFicha={(id) => setArquivarDupId(id)}
           />
+          <AlertDialog open={!!arquivarDupId} onOpenChange={(o) => { if (!o) setArquivarDupId(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Arquivar esta ficha duplicada?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  A ficha sai da lista, mas nada é excluído: fica guardada no histórico de arquivadas e
+                  apenas administradores podem restaurá-la.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={async () => {
+                    const id = arquivarDupId;
+                    setArquivarDupId(null);
+                    if (id) await arquivarFichaDuplicada(id);
+                  }}
+                >
+                  Arquivar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button
             type="button"
             variant="outline"
