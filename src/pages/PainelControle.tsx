@@ -1172,7 +1172,14 @@ export default function PainelControle() {
       const temComentario = temComentarioItem(itensComComentarios, item);
       return painelFiltros.comentarios === "com" ? temComentario : !temComentario;
     },
-    [painelFiltros.comentarios, painelFiltros.cobrancas, itensComComentarios, mapaCobrancas],
+    [
+      painelFiltros.comentarios,
+      painelFiltros.cobrancas,
+      itensComComentarios,
+      mapaCobrancas,
+      somenteCobrados,
+      escopoCobranca,
+    ],
   );
 
 
