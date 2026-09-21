@@ -950,7 +950,8 @@ const AnaliseDjen = () => {
   // cliente: agora a RPC `get_djen_descartadas_dedup` aplica filtros,
   // deduplica via window function e devolve apenas a página solicitada,
   // junto com o total deduplicado (via COUNT() OVER()).
-  const descartadasDedupEnabled = !!user?.id && tipoOrigem === 'descartada';
+  // Em "Todas" também trazemos as descartadas, mescladas à lista principal.
+  const descartadasDedupEnabled = !!user?.id && (tipoOrigem === 'descartada' || tipoOrigem === 'todos');
   const { data: descartadasDedupData, isLoading: isLoadingDescartadasDedup, isFetching: isFetchingDescartadasDedup } = useQuery({
     queryKey: [
       'descartadas-dedup',
@@ -1109,6 +1110,14 @@ const AnaliseDjen = () => {
     let result: PublicacaoUnificada[];
     if (tipoOrigem === 'datajud') result = datajudAsPublicacoes;
     else if (tipoOrigem === 'descartada') result = descartadasDedupData?.rows ?? [];
+    else if (tipoOrigem === 'todos') {
+      const descartadasRows = descartadasDedupData?.rows ?? [];
+      const idsExistentes = new Set(publicacoes.map(p => p.id));
+      result = [
+        ...publicacoes,
+        ...descartadasRows.filter(d => !idsExistentes.has(d.id)),
+      ];
+    }
     else result = publicacoes;
     result = filtrarPorCoordenacaoUsuario(result);
     if (focusFromErrata) {
