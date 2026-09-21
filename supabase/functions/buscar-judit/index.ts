@@ -1223,7 +1223,7 @@ serve(async (req) => {
         // Nome do banco também pode vir abreviado ("B. S. (. B. ). S. A."):
         // usa a melhor versão disponível na consulta, mas guarda os apelidos
         // para as comparações internas continuarem batendo.
-        const nome = melhorNome(nomeBruto, p?.main_document, indiceNomes);
+        const nome = melhorNome(nomeBruto, p?.main_document, indiceNomes, p?.side);
         santanderAliases.add(nomeBruto.toUpperCase());
         santanderAliases.add(nome.toUpperCase());
         if (!santanderNomes.some((s) => s.toUpperCase() === nome.toUpperCase())) {
@@ -1331,7 +1331,7 @@ serve(async (req) => {
     const recorrentes = [...new Set(
       partiesArr
         .filter((p) => /RECORRENTE|AGRAVANTE|EMBARGANTE/i.test(String(p?.person_type || "")))
-        .map((p) => melhorNome(p?.name, p?.main_document, indiceNomes))
+        .map((p) => melhorNome(p?.name, p?.main_document, indiceNomes, p?.side))
         .filter(Boolean)
     )];
     // Recorrente: SÓ usa partes com person_type RECORRENTE/AGRAVANTE/EMBARGANTE.
