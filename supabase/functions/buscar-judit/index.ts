@@ -387,7 +387,81 @@ function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
 
 // ---------- Extração simples direto do response_data Judit -----------------
 
-function extrairPartes(rd: any): {
+// Nome "ruim": vazio, ocultado pelo tribunal ("PARTE OCULTADA NOS TERMOS DA
+// RES. 121 DO CNJ") ou reduzido a iniciais ("R. L. S.", "B. S. (. B. ). S. A.").
+export function nomeRuim(n: any): boolean {
+  const nome = String(n || "").trim();
+  if (!nome) return true;
+  if (/PARTE\s+OCULTADA/i.test(nome)) return true;
+  const tokens = nome.replace(/[().]/g, " ").trim().split(/\s+/).filter(Boolean);
+  const todosCurtos = tokens.length > 0 && tokens.every((t) => t.length <= 2);
+  return todosCurtos;
+}
+
+// Índice de nomes encontrados em QUALQUER instância devolvida na mesma consulta
+// (instância selecionada, demais páginas do crawler e datalake). A Judit
+// frequentemente devolve o nome completo em uma instância e abreviado ou
+// ocultado em outra; sem este índice o sistema gravava a pior versão.
+// - porDoc: CPF/CNPJ -> melhor nome
+// - porPolo: ACTIVE/PASSIVE -> nomes bons daquele polo (usado quando a parte
+//   ocultada vem sem documento para casar)
+type IndiceNomes = {
+  porDoc: Map<string, string>;
+  porPolo: Map<string, string[]>;
+};
+
+function construirIndiceNomes(rds: any[]): IndiceNomes {
+  const porDoc = new Map<string, string>();
+  const porPolo = new Map<string, string[]>();
+  for (const rd of rds) {
+    const parties: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
+    for (const p of parties) {
+      if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
+      const doc = String(p?.main_document || "").replace(/\D/g, "");
+      const nome = String(p?.name || "").trim();
+      if (nomeRuim(nome)) continue;
+      if (doc) {
+        const atual = porDoc.get(doc);
+        if (!atual || nome.length > atual.length) porDoc.set(doc, nome);
+      }
+      const side = String(p?.side || "").toUpperCase();
+      if (side === "ACTIVE" || side === "PASSIVE") {
+        const lista = porPolo.get(side) || [];
+        if (!lista.some((n) => n.toUpperCase() === nome.toUpperCase())) {
+          lista.push(nome);
+          porPolo.set(side, lista);
+        }
+      }
+    }
+  }
+  return { porDoc, porPolo };
+}
+
+function melhorNome(
+  nome: any,
+  doc: any,
+  idx?: IndiceNomes | null,
+  side?: any,
+): string {
+  const n = String(nome || "").trim();
+  if (!idx || !nomeRuim(n)) return n;
+  const d = String(doc || "").replace(/\D/g, "");
+  if (d) {
+    const melhor = idx.porDoc.get(d);
+    if (melhor) return melhor;
+  }
+  // Sem documento para casar (caso típico de "PARTE OCULTADA"): se o mesmo polo
+  // tem exatamente um nome divulgado em outra instância, é essa a parte.
+  const s = String(side || "").toUpperCase();
+  if (s === "ACTIVE" || s === "PASSIVE") {
+    const cands = idx.porPolo.get(s) || [];
+    if (cands.length === 1) return cands[0];
+  }
+  return n;
+}
+
+
+function extrairPartes(rd: any, idxNomes?: IndiceNomes | null): {
   poloAtivo: string;
   poloPassivo: string;
   partiesDetail: any[];
@@ -403,12 +477,15 @@ function extrairPartes(rd: any): {
   for (const p of parties) {
     const tipo = String(p?.person_type || "").toUpperCase();
     const isAdv = tipo === "ADVOGADO";
-    const nome = String(p?.name || "").trim();
+    const nome = isAdv
+      ? String(p?.name || "").trim()
+      : melhorNome(p?.name, p?.main_document, idxNomes, p?.side);
     if (!nome) continue;
     const doc = String(p?.main_document || "").replace(/\D/g, "");
     const key = `${doc || nome.toUpperCase()}|${isAdv ? "A" : "P"}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
 
     const side = String(p?.side || "").toUpperCase();
     detail.push({
@@ -1022,8 +1099,20 @@ serve(async (req) => {
       }, 200);
     }
 
+    // ---------- Índice de nomes (todas as instâncias da mesma consulta) ------
+    const rdsParaNomes: any[] = [rdSelecionada];
+    for (const it of (Array.isArray(rawCollector.crawler?.page_data) ? rawCollector.crawler.page_data : [])) {
+      const rd = it?.response_data;
+      if (rd && rd !== rdSelecionada) rdsParaNomes.push(rd);
+    }
+    if (rawCollector.cache_lookup && rawCollector.cache_lookup !== rdSelecionada) {
+      rdsParaNomes.push(rawCollector.cache_lookup);
+    }
+    const indiceNomes = construirIndiceNomes(rdsParaNomes);
+
     // ---------- Extração simples ----------
-    const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada);
+    const { poloAtivo, poloPassivo, partiesDetail } = extrairPartes(rdSelecionada, indiceNomes);
+
     const classeRaw = extrairClasse(rdSelecionada);
     const classe = expandirSiglaRecurso(classeRaw, foiTst);
     // Tipo de recurso só existe quando a instância selecionada é RECURSAL (TST)
@@ -1124,20 +1213,29 @@ serve(async (req) => {
     // está disponível para desambiguar.
     const todasPartes: any[] = Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : [];
     const santanderNomes: string[] = [];
+    const santanderAliases = new Set<string>();
     for (const p of todasPartes) {
       const tipo = String(p?.person_type || "").toUpperCase();
       if (tipo === "ADVOGADO") continue;
-      const nome = String(p?.name || "").trim();
-      if (!nome) continue;
-      if (isSantanderCnpj(p?.main_document) || isSantanderNome(nome)) {
-        if (!santanderNomes.includes(nome)) santanderNomes.push(nome);
+      const nomeBruto = String(p?.name || "").trim();
+      if (!nomeBruto) continue;
+      if (isSantanderCnpj(p?.main_document) || isSantanderNome(nomeBruto)) {
+        // Nome do banco também pode vir abreviado ("B. S. (. B. ). S. A."):
+        // usa a melhor versão disponível na consulta, mas guarda os apelidos
+        // para as comparações internas continuarem batendo.
+        const nome = melhorNome(nomeBruto, p?.main_document, indiceNomes, p?.side);
+        santanderAliases.add(nomeBruto.toUpperCase());
+        santanderAliases.add(nome.toUpperCase());
+        if (!santanderNomes.some((s) => s.toUpperCase() === nome.toUpperCase())) {
+          santanderNomes.push(nome);
+        }
       }
     }
     const removerSantander = (lista: string[]) =>
-      lista.filter((n) => !santanderNomes.some((s) => s.toUpperCase() === n.toUpperCase()));
+      lista.filter((n) => !santanderAliases.has(String(n || "").trim().toUpperCase()));
     const ativosLimpos = removerSantander(ativosOrigem);
     const passivosComSantander = (() => {
-      const base = passivosOrigem.slice();
+      const base = removerSantander(passivosOrigem);
       for (const s of santanderNomes) {
         if (!base.some((n) => n.toUpperCase() === s.toUpperCase())) base.push(s);
       }
@@ -1145,12 +1243,13 @@ serve(async (req) => {
     })();
     const poloAtivoLimpo = removerSantander(poloAtivo ? poloAtivo.split(/,\s*/) : []).join(", ");
     const poloPassivoComSantander = (() => {
-      const arr = poloPassivo ? poloPassivo.split(/,\s*/).filter(Boolean) : [];
+      const arr = removerSantander(poloPassivo ? poloPassivo.split(/,\s*/).filter(Boolean) : []);
       for (const s of santanderNomes) {
         if (!arr.some((n) => n.toUpperCase() === s.toUpperCase())) arr.push(s);
       }
       return arr.join(", ");
     })();
+
 
     // Detecta cenário ambíguo: múltiplas partes ACTIVE no TST sem origem para
     // desambiguar, OU origem ausente em geral. Marca para revisão humana.
@@ -1163,39 +1262,40 @@ serve(async (req) => {
     const litisconsorcio = tstActiveCount > 1;
     const requerRevisaoPolo = origemAusente && (litisconsorcio || (foiTst && santanderNomes.length === 0));
 
-    // Helper: preferir nome COMPLETO da instância selecionada quando origem trouxe
-    // nome abreviado/iniciais ("R. L. S." em vez de "RICARDO DE LIMA SILVA") ou
-    // ocultado ("PARTE OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
-    const nomeAbreviadoOuOculto = (n: string) => {
-      if (!n) return true;
-      if (/PARTE\s+OCULTADA/i.test(n)) return true;
-      // "R. L. S." (iniciais com ponto): comprimento curto E só tokens de 1 letra
-      const tokens = n.replace(/\./g, "").trim().split(/\s+/).filter(Boolean);
-      const todosCurtos = tokens.length > 0 && tokens.every((t) => t.length <= 2);
-      if (todosCurtos) return true;
-      return false;
-    };
-    const mapDocNomeCompleto = new Map<string, string>();
-    for (const p of todasPartes) {
-      const tipo = String(p?.person_type || "").toUpperCase();
-      if (tipo === "ADVOGADO") continue;
-      const doc = String(p?.main_document || "").replace(/\D/g, "");
-      const nome = String(p?.name || "").trim();
-      if (doc && nome && !nomeAbreviadoOuOculto(nome)) mapDocNomeCompleto.set(doc, nome);
+    // Helper: preferir nome COMPLETO vindo de QUALQUER instância da mesma consulta
+    // quando a versão usada está abreviada ("R. L. S.") ou ocultada ("PARTE
+    // OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
+    const mapNomeDoc = new Map<string, string>();
+    const mapNomeSide = new Map<string, string>();
+    for (const rd of rdsParaNomes) {
+      const arr: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
+      for (const p of arr) {
+        if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
+        const nome = String(p?.name || "").trim();
+        if (!nome) continue;
+        const chave = nome.toUpperCase();
+        const doc = String(p?.main_document || "").replace(/\D/g, "");
+        if (doc && !mapNomeDoc.has(chave)) mapNomeDoc.set(chave, doc);
+        const side = String(p?.side || "").toUpperCase();
+        if ((side === "ACTIVE" || side === "PASSIVE") && !mapNomeSide.has(chave)) {
+          mapNomeSide.set(chave, side);
+        }
+      }
     }
     const completarNome = (nome: string) => {
-      if (!nomeAbreviadoOuOculto(nome)) return nome;
-      // procura nas origemPartiesArr o doc desse nome abreviado
-      const matchOrigem = origemPartiesArr.find((p) => String(p?.name || "").trim() === nome);
-      const doc = matchOrigem ? String(matchOrigem?.main_document || "").replace(/\D/g, "") : "";
-      if (doc && mapDocNomeCompleto.has(doc)) return mapDocNomeCompleto.get(doc)!;
-      return nome;
+      const n = String(nome || "").trim();
+      if (!nomeRuim(n)) return n;
+      const chave = n.toUpperCase();
+      return melhorNome(n, mapNomeDoc.get(chave) || "", indiceNomes, mapNomeSide.get(chave) || "");
     };
+
     const completarLista = (arr: string[]) => arr.map(completarNome);
     const passivosSemSantander = removerSantander(passivosOrigem);
     const ativosLimposFull = completarLista(ativosLimpos);
     const passivosSemSantanderFull = completarLista(passivosSemSantander);
     const passivosComSantanderFull = completarLista(passivosComSantander);
+    const santanderNomesFull = completarLista(santanderNomes);
+
 
     // Cenário "Banco recorre" (clássico TST): o BANCO entra como AGRAVANTE (ativo) e
     // o RECLAMANTE original (autor da ação trabalhista) fica como AGRAVADO (passivo).
@@ -1206,7 +1306,7 @@ serve(async (req) => {
     if (ativosLimposFull.length === 0 && santanderNomes.length > 0 && passivosSemSantanderFull.length > 0) {
       // Banco recorrendo: passivo (não-Santander) sobe para reclamante; Santander vai pro passivo.
       reclamanteFinal = passivosSemSantanderFull.join(" / ");
-      reclamadaFinal = santanderNomes.join(" / ");
+      reclamadaFinal = santanderNomesFull.join(" / ");
     } else {
       reclamanteFinal = ativosLimposFull.length
         ? ativosLimposFull.join(" / ")
@@ -1231,7 +1331,7 @@ serve(async (req) => {
     const recorrentes = [...new Set(
       partiesArr
         .filter((p) => /RECORRENTE|AGRAVANTE|EMBARGANTE/i.test(String(p?.person_type || "")))
-        .map((p) => String(p?.name || "").trim())
+        .map((p) => melhorNome(p?.name, p?.main_document, indiceNomes, p?.side))
         .filter(Boolean)
     )];
     // Recorrente: SÓ usa partes com person_type RECORRENTE/AGRAVANTE/EMBARGANTE.
