@@ -950,7 +950,8 @@ const AnaliseDjen = () => {
   // cliente: agora a RPC `get_djen_descartadas_dedup` aplica filtros,
   // deduplica via window function e devolve apenas a página solicitada,
   // junto com o total deduplicado (via COUNT() OVER()).
-  const descartadasDedupEnabled = !!user?.id && tipoOrigem === 'descartada';
+  // Em "Todas" também trazemos as descartadas, mescladas à lista principal.
+  const descartadasDedupEnabled = !!user?.id && (tipoOrigem === 'descartada' || tipoOrigem === 'todos');
   const { data: descartadasDedupData, isLoading: isLoadingDescartadasDedup, isFetching: isFetchingDescartadasDedup } = useQuery({
     queryKey: [
       'descartadas-dedup',
