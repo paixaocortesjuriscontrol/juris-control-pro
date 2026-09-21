@@ -1941,6 +1941,8 @@ export default function PainelControle() {
     atividadesCalendario,
     painelFiltros.classificacoes,
     painelFiltros.comentarios,
+    painelFiltros.cobrancas,
+    somenteCobrados,
     itemPorRawId,
     buscaProcessoDigits,
     buscaTexto,
