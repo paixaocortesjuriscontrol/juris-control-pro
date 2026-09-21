@@ -1269,7 +1269,7 @@ serve(async (req) => {
     if (ativosLimposFull.length === 0 && santanderNomes.length > 0 && passivosSemSantanderFull.length > 0) {
       // Banco recorrendo: passivo (não-Santander) sobe para reclamante; Santander vai pro passivo.
       reclamanteFinal = passivosSemSantanderFull.join(" / ");
-      reclamadaFinal = santanderNomes.join(" / ");
+      reclamadaFinal = santanderNomesFull.join(" / ");
     } else {
       reclamanteFinal = ativosLimposFull.length
         ? ativosLimposFull.join(" / ")
@@ -1294,7 +1294,7 @@ serve(async (req) => {
     const recorrentes = [...new Set(
       partiesArr
         .filter((p) => /RECORRENTE|AGRAVANTE|EMBARGANTE/i.test(String(p?.person_type || "")))
-        .map((p) => String(p?.name || "").trim())
+        .map((p) => melhorNome(p?.name, p?.main_document, indiceNomes))
         .filter(Boolean)
     )];
     // Recorrente: SÓ usa partes com person_type RECORRENTE/AGRAVANTE/EMBARGANTE.
