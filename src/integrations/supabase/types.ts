@@ -10402,7 +10402,7 @@ export type Database = {
       apply_data_planilha_fix: { Args: { items: Json }; Returns: number }
       arquivar_dados_benner: {
         Args: { _id: string; _motivo?: string }
-        Returns: string
+        Returns: boolean
       }
       arquivar_duplicados_dados_benner_ids: {
         Args: { _ids: string[]; _motivo?: string }
