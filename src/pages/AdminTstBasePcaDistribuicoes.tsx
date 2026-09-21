@@ -656,26 +656,22 @@ export default function AdminTstBasePcaDistribuicoes() {
 
   /**
    * Blindagem contra duplicidade: antes de cadastrar, confere na base inteira
-   * (inclusive fichas sem aba de origem e com máscara diferente) quais números
-   * de processo já existem. Retorna o mapa dígitos-do-processo -> dossiês.
+   * (inclusive fichas sem aba de origem e com qualquer formatação do número)
+   * quais números de processo já existem. A comparação é feita SEMPRE por
+   * dígitos, via RPC, para não depender da máscara gravada no banco.
    */
   const carregarProcessosExistentes = async (alvo: LinhaPlanilha[]) => {
-    const variantes = new Set<string>();
-    for (const it of alvo) {
-      const p = it.processo.trim();
-      if (p) variantes.add(p);
-      if (it.processoDigitos) variantes.add(it.processoDigitos);
-    }
-    const lista = Array.from(variantes);
+    const digitos = Array.from(
+      new Set(alvo.map((it) => it.processoDigitos).filter((d) => d && d.length >= 20)),
+    );
     const porDigitos = new Map<string, Set<string>>();
-    for (let i = 0; i < lista.length; i += SEARCH_CHUNK) {
-      const { data, error } = await supabase
-        .from("dados_benner")
-        .select("processo, dossie")
-        .in("processo", lista.slice(i, i + SEARCH_CHUNK));
+    for (let i = 0; i < digitos.length; i += SEARCH_CHUNK) {
+      const { data, error } = await supabase.rpc("dados_benner_processos_existentes" as any, {
+        _digitos: digitos.slice(i, i + SEARCH_CHUNK),
+      });
       if (error) throw error;
       for (const row of ((data ?? []) as any[])) {
-        const d = soDigitos(row.processo);
+        const d = String(row.digitos || "");
         if (!d) continue;
         if (!porDigitos.has(d)) porDigitos.set(d, new Set<string>());
         porDigitos.get(d)!.add(String(row.dossie || "").trim().toLowerCase());
