@@ -356,6 +356,8 @@ export default function PainelControle() {
   const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
   // Escopo da marca "já cobrei": minhas cobranças ou as da equipe.
   const [escopoCobranca, setEscopoCobranca] = useState<EscopoCobranca>(getEscopoCobrancaPreferido());
+  /** Botão de cobranças ligado: lista somente os itens cobrados (meus ou da equipe). */
+  const [somenteCobrados, setSomenteCobrados] = useState(false);
 
   // Busca por número de processo: mantém no calendário só os itens do processo
   const [buscaProcesso, setBuscaProcesso] = useState("");
@@ -1157,6 +1159,11 @@ export default function PainelControle() {
 
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
+      // Botão "Minhas cobranças" / "Cobranças da equipe": mostra apenas os itens cobrados.
+      if (somenteCobrados) {
+        const info = infoCobrancaItem(mapaCobrancas, item);
+        if (!info) return false;
+      }
       if (painelFiltros.cobrancas !== "todas") {
         const info = infoCobrancaItem(mapaCobrancas, item);
         const cobradoHoje = !!info?.hoje;
@@ -1166,7 +1173,14 @@ export default function PainelControle() {
       const temComentario = temComentarioItem(itensComComentarios, item);
       return painelFiltros.comentarios === "com" ? temComentario : !temComentario;
     },
-    [painelFiltros.comentarios, painelFiltros.cobrancas, itensComComentarios, mapaCobrancas],
+    [
+      painelFiltros.comentarios,
+      painelFiltros.cobrancas,
+      itensComComentarios,
+      mapaCobrancas,
+      somenteCobrados,
+      escopoCobranca,
+    ],
   );
 
 
@@ -2678,18 +2692,30 @@ export default function PainelControle() {
                 )}
               </div>
               <Button
-                variant="outline"
+                variant={somenteCobrados ? "default" : "outline"}
                 size="sm"
                 className="h-8 gap-1.5 text-xs"
-                title="Alternar entre as cobranças que você fez e as cobranças de toda a equipe"
+                title="Clique para ver somente os itens cobrados: primeiro os seus, depois os da equipe, e de novo para ver todos"
                 onClick={() => {
-                  const proximo: EscopoCobranca = escopoCobranca === "minhas" ? "equipe" : "minhas";
-                  setEscopoCobranca(proximo);
-                  setEscopoCobrancaPreferido(proximo);
+                  // Ciclo: todos → somente minhas cobranças → somente cobranças da equipe → todos
+                  if (!somenteCobrados) {
+                    setSomenteCobrados(true);
+                    setEscopoCobranca("minhas");
+                    setEscopoCobrancaPreferido("minhas");
+                  } else if (escopoCobranca === "minhas") {
+                    setEscopoCobranca("equipe");
+                    setEscopoCobrancaPreferido("equipe");
+                  } else {
+                    setSomenteCobrados(false);
+                  }
                 }}
               >
                 <CobrancaBadge hoje />
-                {escopoCobranca === "minhas" ? "Minhas cobranças" : "Cobranças da equipe"}
+                {!somenteCobrados
+                  ? "Cobranças"
+                  : escopoCobranca === "minhas"
+                    ? "Somente minhas cobranças"
+                    : "Somente cobranças da equipe"}
               </Button>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
 
