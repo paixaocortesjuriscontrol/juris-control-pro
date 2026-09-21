@@ -387,7 +387,49 @@ function selecionarTst(pageData: any[]): { rd: any; foiTst: boolean } | null {
 
 // ---------- Extração simples direto do response_data Judit -----------------
 
-function extrairPartes(rd: any): {
+// Nome "ruim": vazio, ocultado pelo tribunal ("PARTE OCULTADA NOS TERMOS DA
+// RES. 121 DO CNJ") ou reduzido a iniciais ("R. L. S.", "B. S. (. B. ). S. A.").
+export function nomeRuim(n: any): boolean {
+  const nome = String(n || "").trim();
+  if (!nome) return true;
+  if (/PARTE\s+OCULTADA/i.test(nome)) return true;
+  const tokens = nome.replace(/[().]/g, " ").trim().split(/\s+/).filter(Boolean);
+  const todosCurtos = tokens.length > 0 && tokens.every((t) => t.length <= 2);
+  return todosCurtos;
+}
+
+// Índice CPF/CNPJ -> melhor nome encontrado em QUALQUER instância devolvida na
+// mesma consulta (instância selecionada, demais páginas do crawler e datalake).
+// A Judit frequentemente devolve o nome completo em uma instância e abreviado
+// ou ocultado em outra; sem este índice o sistema gravava a pior versão.
+function construirIndiceNomes(rds: any[]): Map<string, string> {
+  const idx = new Map<string, string>();
+  for (const rd of rds) {
+    const parties: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
+    for (const p of parties) {
+      if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
+      const doc = String(p?.main_document || "").replace(/\D/g, "");
+      const nome = String(p?.name || "").trim();
+      if (!doc || nomeRuim(nome)) continue;
+      const atual = idx.get(doc);
+      if (!atual || nome.length > atual.length) idx.set(doc, nome);
+    }
+  }
+  return idx;
+}
+
+function melhorNome(nome: any, doc: any, idx?: Map<string, string> | null): string {
+  const n = String(nome || "").trim();
+  if (!idx || !nomeRuim(n)) return n;
+  const d = String(doc || "").replace(/\D/g, "");
+  if (d) {
+    const melhor = idx.get(d);
+    if (melhor) return melhor;
+  }
+  return n;
+}
+
+function extrairPartes(rd: any, idxNomes?: Map<string, string> | null): {
   poloAtivo: string;
   poloPassivo: string;
   partiesDetail: any[];
@@ -403,12 +445,15 @@ function extrairPartes(rd: any): {
   for (const p of parties) {
     const tipo = String(p?.person_type || "").toUpperCase();
     const isAdv = tipo === "ADVOGADO";
-    const nome = String(p?.name || "").trim();
+    const nome = isAdv
+      ? String(p?.name || "").trim()
+      : melhorNome(p?.name, p?.main_document, idxNomes);
     if (!nome) continue;
     const doc = String(p?.main_document || "").replace(/\D/g, "");
     const key = `${doc || nome.toUpperCase()}|${isAdv ? "A" : "P"}`;
     if (seen.has(key)) continue;
     seen.add(key);
+
 
     const side = String(p?.side || "").toUpperCase();
     detail.push({
