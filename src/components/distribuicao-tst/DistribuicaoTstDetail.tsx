@@ -70,9 +70,27 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
   const [tab, setTab] = useState<"distribuicao" | "benner" | "log-judit" | "analise-judit" | "anexos" | "analisar-ia" | "centralizadores" | "partes">(initialTab);
 
   // Aviso de processo duplicado (mesma numeração em outra ficha ativa).
-  const { qtdDuplicados, idsDoGrupo } = useDuplicadosTst();
+  const { qtdDuplicados, idsDoGrupo, refetch: refetchDuplicados } = useDuplicadosTst();
   const qtdDup = processoNumero ? qtdDuplicados(processoNumero) : 0;
   const [compararDupOpen, setCompararDupOpen] = useState(false);
+  const [arquivarDupId, setArquivarDupId] = useState<string | null>(null);
+
+  /** Arquiva (não exclui) a ficha duplicada escolhida na comparação. */
+  const arquivarFichaDuplicada = async (id: string) => {
+    const { error } = await supabase.rpc("arquivar_dados_benner" as any, { _id: id });
+    if (error) {
+      toast.error("Erro ao arquivar: " + error.message);
+      return;
+    }
+    invalidateDistribuicaoTstCache();
+    toast.success("Ficha arquivada! Apenas administradores podem restaurá-la.");
+    await refetchDuplicados();
+    if (id === currentDado?.id) {
+      setCompararDupOpen(false);
+      await onSaved?.();
+      onClose();
+    }
+  };
 
   // Blindagem: algumas abas não existem para todos os usuários (Centralizadores,
   // Log Judit, Auditoria são por papel/e-mail) e "benner" não tem mais conteúdo
