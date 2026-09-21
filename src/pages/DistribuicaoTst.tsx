@@ -344,6 +344,8 @@ export default function DistribuicaoTst() {
   // Duplicados: mapa global (para pintar a linha) e janela de comparação.
   const { qtdDuplicados, idsDoGrupo, refetch: refetchDuplicados } = useDuplicadosTst();
   const [compararDup, setCompararDup] = useState<{ processo: string; ids: string[] } | null>(null);
+  const [arquivarDupId, setArquivarDupId] = useState<string | null>(null);
+  const [arquivarDupItemRunning, setArquivarDupItemRunning] = useState(false);
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
@@ -1052,6 +1054,23 @@ export default function DistribuicaoTst() {
       handleRefresh();
     } finally {
       setArquivarSelRunning(false);
+    }
+  };
+
+  const arquivarFichaDuplicada = async (id: string) => {
+    setArquivarDupItemRunning(true);
+    try {
+      const { error } = await supabase.rpc(
+        "arquivar_dados_benner" as any,
+        { _id: id, _motivo: "Arquivamento de ficha duplicada (comparação)" } as any
+      );
+      if (error) { toast.error("Erro ao arquivar: " + error.message); return; }
+      toast.success("Ficha arquivada. Nada foi excluído — ela ficou no histórico de arquivadas.");
+      setArquivarDupId(null);
+      setCompararDup(null);
+      handleRefresh();
+    } finally {
+      setArquivarDupItemRunning(false);
     }
   };
 
@@ -3612,8 +3631,30 @@ export default function DistribuicaoTst() {
           if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
           else toast.info("Esta ficha não está na página atual da lista. Use o filtro \"Apenas duplicados\" para abri-la.");
         }}
-        onArquivarFicha={(id) => { setCompararDup(null); handleDelete(id); }}
+        onArquivarFicha={(id) => setArquivarDupId(id)}
       />
+
+      <AlertDialog open={!!arquivarDupId} onOpenChange={(o) => { if (!arquivarDupItemRunning && !o) setArquivarDupId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arquivar esta ficha duplicada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ficha sairá da lista ativa e ficará guardada no histórico de arquivadas, com cópia integral (inclusive TAGs). Nada é excluído — um administrador pode restaurar depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={arquivarDupItemRunning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={arquivarDupItemRunning}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+              onClick={(e) => { e.preventDefault(); if (arquivarDupId) arquivarFichaDuplicada(arquivarDupId); }}
+            >
+              {arquivarDupItemRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Arquivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <ProcessoOverlaySheet
         open={!!overlayRegistro}
