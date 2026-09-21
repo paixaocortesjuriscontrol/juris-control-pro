@@ -3634,6 +3634,28 @@ export default function DistribuicaoTst() {
         onArquivarFicha={(id) => setArquivarDupId(id)}
       />
 
+      <AlertDialog open={!!arquivarDupId} onOpenChange={(o) => { if (!arquivarDupItemRunning && !o) setArquivarDupId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Arquivar esta ficha duplicada?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A ficha sairá da lista ativa e ficará guardada no histórico de arquivadas, com cópia integral (inclusive TAGs). Nada é excluído — um administrador pode restaurar depois.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={arquivarDupItemRunning}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={arquivarDupItemRunning}
+              className="bg-amber-600 text-white hover:bg-amber-700"
+              onClick={(e) => { e.preventDefault(); if (arquivarDupId) arquivarFichaDuplicada(arquivarDupId); }}
+            >
+              {arquivarDupItemRunning ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Arquivar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <ProcessoOverlaySheet
         open={!!overlayRegistro}
         onOpenChange={(o) => { if (!o) setOverlayRegistro(null); }}
