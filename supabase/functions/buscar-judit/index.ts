@@ -398,36 +398,68 @@ export function nomeRuim(n: any): boolean {
   return todosCurtos;
 }
 
-// Índice CPF/CNPJ -> melhor nome encontrado em QUALQUER instância devolvida na
-// mesma consulta (instância selecionada, demais páginas do crawler e datalake).
-// A Judit frequentemente devolve o nome completo em uma instância e abreviado
-// ou ocultado em outra; sem este índice o sistema gravava a pior versão.
-function construirIndiceNomes(rds: any[]): Map<string, string> {
-  const idx = new Map<string, string>();
+// Índice de nomes encontrados em QUALQUER instância devolvida na mesma consulta
+// (instância selecionada, demais páginas do crawler e datalake). A Judit
+// frequentemente devolve o nome completo em uma instância e abreviado ou
+// ocultado em outra; sem este índice o sistema gravava a pior versão.
+// - porDoc: CPF/CNPJ -> melhor nome
+// - porPolo: ACTIVE/PASSIVE -> nomes bons daquele polo (usado quando a parte
+//   ocultada vem sem documento para casar)
+type IndiceNomes = {
+  porDoc: Map<string, string>;
+  porPolo: Map<string, string[]>;
+};
+
+function construirIndiceNomes(rds: any[]): IndiceNomes {
+  const porDoc = new Map<string, string>();
+  const porPolo = new Map<string, string[]>();
   for (const rd of rds) {
     const parties: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
     for (const p of parties) {
       if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
       const doc = String(p?.main_document || "").replace(/\D/g, "");
       const nome = String(p?.name || "").trim();
-      if (!doc || nomeRuim(nome)) continue;
-      const atual = idx.get(doc);
-      if (!atual || nome.length > atual.length) idx.set(doc, nome);
+      if (nomeRuim(nome)) continue;
+      if (doc) {
+        const atual = porDoc.get(doc);
+        if (!atual || nome.length > atual.length) porDoc.set(doc, nome);
+      }
+      const side = String(p?.side || "").toUpperCase();
+      if (side === "ACTIVE" || side === "PASSIVE") {
+        const lista = porPolo.get(side) || [];
+        if (!lista.some((n) => n.toUpperCase() === nome.toUpperCase())) {
+          lista.push(nome);
+          porPolo.set(side, lista);
+        }
+      }
     }
   }
-  return idx;
+  return { porDoc, porPolo };
 }
 
-function melhorNome(nome: any, doc: any, idx?: Map<string, string> | null): string {
+function melhorNome(
+  nome: any,
+  doc: any,
+  idx?: IndiceNomes | null,
+  side?: any,
+): string {
   const n = String(nome || "").trim();
   if (!idx || !nomeRuim(n)) return n;
   const d = String(doc || "").replace(/\D/g, "");
   if (d) {
-    const melhor = idx.get(d);
+    const melhor = idx.porDoc.get(d);
     if (melhor) return melhor;
+  }
+  // Sem documento para casar (caso típico de "PARTE OCULTADA"): se o mesmo polo
+  // tem exatamente um nome divulgado em outra instância, é essa a parte.
+  const s = String(side || "").toUpperCase();
+  if (s === "ACTIVE" || s === "PASSIVE") {
+    const cands = idx.porPolo.get(s) || [];
+    if (cands.length === 1) return cands[0];
   }
   return n;
 }
+
 
 function extrairPartes(rd: any, idxNomes?: Map<string, string> | null): {
   poloAtivo: string;
