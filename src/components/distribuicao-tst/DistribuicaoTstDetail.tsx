@@ -20,6 +20,17 @@ import { CentralizadoresTab } from "./CentralizadoresTab";
 import { PartesProcessoTab } from "./PartesProcessoTab";
 import { AuditoriaTab } from "./AuditoriaTab";
 import { DistribuicaoTst, DistribuicaoTstInsert, bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
+import { invalidateDistribuicaoTstCache } from "@/utils/distribuicaoTstCache";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DadoBenner, DadoBennerInsert } from "@/hooks/useDadosBenner";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
