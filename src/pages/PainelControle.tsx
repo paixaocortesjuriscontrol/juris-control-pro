@@ -2693,18 +2693,30 @@ export default function PainelControle() {
                 )}
               </div>
               <Button
-                variant="outline"
+                variant={somenteCobrados ? "default" : "outline"}
                 size="sm"
                 className="h-8 gap-1.5 text-xs"
-                title="Alternar entre as cobranças que você fez e as cobranças de toda a equipe"
+                title="Clique para ver somente os itens cobrados: primeiro os seus, depois os da equipe, e de novo para ver todos"
                 onClick={() => {
-                  const proximo: EscopoCobranca = escopoCobranca === "minhas" ? "equipe" : "minhas";
-                  setEscopoCobranca(proximo);
-                  setEscopoCobrancaPreferido(proximo);
+                  // Ciclo: todos → somente minhas cobranças → somente cobranças da equipe → todos
+                  if (!somenteCobrados) {
+                    setSomenteCobrados(true);
+                    setEscopoCobranca("minhas");
+                    setEscopoCobrancaPreferido("minhas");
+                  } else if (escopoCobranca === "minhas") {
+                    setEscopoCobranca("equipe");
+                    setEscopoCobrancaPreferido("equipe");
+                  } else {
+                    setSomenteCobrados(false);
+                  }
                 }}
               >
                 <CobrancaBadge hoje />
-                {escopoCobranca === "minhas" ? "Minhas cobranças" : "Cobranças da equipe"}
+                {!somenteCobrados
+                  ? "Cobranças"
+                  : escopoCobranca === "minhas"
+                    ? "Somente minhas cobranças"
+                    : "Somente cobranças da equipe"}
               </Button>
               <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
 
