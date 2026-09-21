@@ -1220,39 +1220,35 @@ serve(async (req) => {
     const litisconsorcio = tstActiveCount > 1;
     const requerRevisaoPolo = origemAusente && (litisconsorcio || (foiTst && santanderNomes.length === 0));
 
-    // Helper: preferir nome COMPLETO da instância selecionada quando origem trouxe
-    // nome abreviado/iniciais ("R. L. S." em vez de "RICARDO DE LIMA SILVA") ou
-    // ocultado ("PARTE OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
-    const nomeAbreviadoOuOculto = (n: string) => {
-      if (!n) return true;
-      if (/PARTE\s+OCULTADA/i.test(n)) return true;
-      // "R. L. S." (iniciais com ponto): comprimento curto E só tokens de 1 letra
-      const tokens = n.replace(/\./g, "").trim().split(/\s+/).filter(Boolean);
-      const todosCurtos = tokens.length > 0 && tokens.every((t) => t.length <= 2);
-      if (todosCurtos) return true;
-      return false;
-    };
-    const mapDocNomeCompleto = new Map<string, string>();
-    for (const p of todasPartes) {
-      const tipo = String(p?.person_type || "").toUpperCase();
-      if (tipo === "ADVOGADO") continue;
-      const doc = String(p?.main_document || "").replace(/\D/g, "");
-      const nome = String(p?.name || "").trim();
-      if (doc && nome && !nomeAbreviadoOuOculto(nome)) mapDocNomeCompleto.set(doc, nome);
+    // Helper: preferir nome COMPLETO vindo de QUALQUER instância da mesma consulta
+    // quando a versão usada está abreviada ("R. L. S.") ou ocultada ("PARTE
+    // OCULTADA NOS TERMOS DA RES. 121 DO CNJ"). Casamos pelo CPF/CNPJ.
+    const mapNomeDoc = new Map<string, string>();
+    for (const rd of rdsParaNomes) {
+      const arr: any[] = Array.isArray(rd?.parties) ? rd.parties : [];
+      for (const p of arr) {
+        if (String(p?.person_type || "").toUpperCase() === "ADVOGADO") continue;
+        const nome = String(p?.name || "").trim();
+        const doc = String(p?.main_document || "").replace(/\D/g, "");
+        if (nome && doc && !mapNomeDoc.has(nome.toUpperCase())) {
+          mapNomeDoc.set(nome.toUpperCase(), doc);
+        }
+      }
     }
     const completarNome = (nome: string) => {
-      if (!nomeAbreviadoOuOculto(nome)) return nome;
-      // procura nas origemPartiesArr o doc desse nome abreviado
-      const matchOrigem = origemPartiesArr.find((p) => String(p?.name || "").trim() === nome);
-      const doc = matchOrigem ? String(matchOrigem?.main_document || "").replace(/\D/g, "") : "";
-      if (doc && mapDocNomeCompleto.has(doc)) return mapDocNomeCompleto.get(doc)!;
-      return nome;
+      const n = String(nome || "").trim();
+      if (!nomeRuim(n)) return n;
+      const doc = mapNomeDoc.get(n.toUpperCase()) || "";
+      const melhor = doc ? indiceNomes.get(doc) : null;
+      return melhor || n;
     };
     const completarLista = (arr: string[]) => arr.map(completarNome);
     const passivosSemSantander = removerSantander(passivosOrigem);
     const ativosLimposFull = completarLista(ativosLimpos);
     const passivosSemSantanderFull = completarLista(passivosSemSantander);
     const passivosComSantanderFull = completarLista(passivosComSantander);
+    const santanderNomesFull = completarLista(santanderNomes);
+
 
     // Cenário "Banco recorre" (clássico TST): o BANCO entra como AGRAVANTE (ativo) e
     // o RECLAMANTE original (autor da ação trabalhista) fica como AGRAVADO (passivo).
