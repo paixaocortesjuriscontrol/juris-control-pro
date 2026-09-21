@@ -461,7 +461,7 @@ function melhorNome(
 }
 
 
-function extrairPartes(rd: any, idxNomes?: Map<string, string> | null): {
+function extrairPartes(rd: any, idxNomes?: IndiceNomes | null): {
   poloAtivo: string;
   poloPassivo: string;
   partiesDetail: any[];
@@ -479,7 +479,7 @@ function extrairPartes(rd: any, idxNomes?: Map<string, string> | null): {
     const isAdv = tipo === "ADVOGADO";
     const nome = isAdv
       ? String(p?.name || "").trim()
-      : melhorNome(p?.name, p?.main_document, idxNomes);
+      : melhorNome(p?.name, p?.main_document, idxNomes, p?.side);
     if (!nome) continue;
     const doc = String(p?.main_document || "").replace(/\D/g, "");
     const key = `${doc || nome.toUpperCase()}|${isAdv ? "A" : "P"}`;
