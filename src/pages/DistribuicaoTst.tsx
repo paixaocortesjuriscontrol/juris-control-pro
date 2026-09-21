@@ -344,6 +344,8 @@ export default function DistribuicaoTst() {
   // Duplicados: mapa global (para pintar a linha) e janela de comparação.
   const { qtdDuplicados, idsDoGrupo, refetch: refetchDuplicados } = useDuplicadosTst();
   const [compararDup, setCompararDup] = useState<{ processo: string; ids: string[] } | null>(null);
+  const [arquivarDupId, setArquivarDupId] = useState<string | null>(null);
+  const [arquivarDupItemRunning, setArquivarDupItemRunning] = useState(false);
   const [filtroFonteImportacao, setFiltroFonteImportacao] = useState<string>("todas");
   const [filtroProvasDigitais, setFiltroProvasDigitais] = useState<string>("todos");
   const [filtroSituacaoCarga, setFiltroSituacaoCarga] = useState<string>("todas");
@@ -1052,6 +1054,23 @@ export default function DistribuicaoTst() {
       handleRefresh();
     } finally {
       setArquivarSelRunning(false);
+    }
+  };
+
+  const arquivarFichaDuplicada = async (id: string) => {
+    setArquivarDupItemRunning(true);
+    try {
+      const { error } = await supabase.rpc(
+        "arquivar_dados_benner" as any,
+        { _id: id, _motivo: "Arquivamento de ficha duplicada (comparação)" } as any
+      );
+      if (error) { toast.error("Erro ao arquivar: " + error.message); return; }
+      toast.success("Ficha arquivada. Nada foi excluído — ela ficou no histórico de arquivadas.");
+      setArquivarDupId(null);
+      setCompararDup(null);
+      handleRefresh();
+    } finally {
+      setArquivarDupItemRunning(false);
     }
   };
 
