@@ -3612,7 +3612,7 @@ export default function DistribuicaoTst() {
           if (reg) { scrollPageToTop(); setDetailInitialTab("distribuicao"); setEditando(reg as DistTst); }
           else toast.info("Esta ficha não está na página atual da lista. Use o filtro \"Apenas duplicados\" para abri-la.");
         }}
-        onArquivarFicha={(id) => { setCompararDup(null); handleDelete(id); }}
+        onArquivarFicha={(id) => setArquivarDupId(id)}
       />
 
       <ProcessoOverlaySheet
