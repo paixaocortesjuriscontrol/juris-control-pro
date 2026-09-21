@@ -1163,7 +1163,6 @@ export default function PainelControle() {
       if (somenteCobrados) {
         const info = infoCobrancaItem(mapaCobrancas, item);
         if (!info) return false;
-        if (escopoCobranca === "minhas" && !info.minhaHoje && info.total === 0) return false;
       }
       if (painelFiltros.cobrancas !== "todas") {
         const info = infoCobrancaItem(mapaCobrancas, item);
