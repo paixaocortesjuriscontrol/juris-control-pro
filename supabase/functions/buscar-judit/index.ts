@@ -1181,20 +1181,29 @@ serve(async (req) => {
     // está disponível para desambiguar.
     const todasPartes: any[] = Array.isArray(rdSelecionada?.parties) ? rdSelecionada.parties : [];
     const santanderNomes: string[] = [];
+    const santanderAliases = new Set<string>();
     for (const p of todasPartes) {
       const tipo = String(p?.person_type || "").toUpperCase();
       if (tipo === "ADVOGADO") continue;
-      const nome = String(p?.name || "").trim();
-      if (!nome) continue;
-      if (isSantanderCnpj(p?.main_document) || isSantanderNome(nome)) {
-        if (!santanderNomes.includes(nome)) santanderNomes.push(nome);
+      const nomeBruto = String(p?.name || "").trim();
+      if (!nomeBruto) continue;
+      if (isSantanderCnpj(p?.main_document) || isSantanderNome(nomeBruto)) {
+        // Nome do banco também pode vir abreviado ("B. S. (. B. ). S. A."):
+        // usa a melhor versão disponível na consulta, mas guarda os apelidos
+        // para as comparações internas continuarem batendo.
+        const nome = melhorNome(nomeBruto, p?.main_document, indiceNomes);
+        santanderAliases.add(nomeBruto.toUpperCase());
+        santanderAliases.add(nome.toUpperCase());
+        if (!santanderNomes.some((s) => s.toUpperCase() === nome.toUpperCase())) {
+          santanderNomes.push(nome);
+        }
       }
     }
     const removerSantander = (lista: string[]) =>
-      lista.filter((n) => !santanderNomes.some((s) => s.toUpperCase() === n.toUpperCase()));
+      lista.filter((n) => !santanderAliases.has(String(n || "").trim().toUpperCase()));
     const ativosLimpos = removerSantander(ativosOrigem);
     const passivosComSantander = (() => {
-      const base = passivosOrigem.slice();
+      const base = removerSantander(passivosOrigem);
       for (const s of santanderNomes) {
         if (!base.some((n) => n.toUpperCase() === s.toUpperCase())) base.push(s);
       }
@@ -1202,12 +1211,13 @@ serve(async (req) => {
     })();
     const poloAtivoLimpo = removerSantander(poloAtivo ? poloAtivo.split(/,\s*/) : []).join(", ");
     const poloPassivoComSantander = (() => {
-      const arr = poloPassivo ? poloPassivo.split(/,\s*/).filter(Boolean) : [];
+      const arr = removerSantander(poloPassivo ? poloPassivo.split(/,\s*/).filter(Boolean) : []);
       for (const s of santanderNomes) {
         if (!arr.some((n) => n.toUpperCase() === s.toUpperCase())) arr.push(s);
       }
       return arr.join(", ");
     })();
+
 
     // Detecta cenário ambíguo: múltiplas partes ACTIVE no TST sem origem para
     // desambiguar, OU origem ausente em geral. Marca para revisão humana.
