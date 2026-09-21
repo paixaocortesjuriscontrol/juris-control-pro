@@ -10565,6 +10565,13 @@ export type Database = {
         }
         Returns: string
       }
+      dados_benner_processos_existentes: {
+        Args: { _digitos: string[] }
+        Returns: {
+          digitos: string
+          dossie: string
+        }[]
+      }
       descartar_duplicadas_coordenacao:
         | { Args: { p_coordenacao_id: string }; Returns: Json }
         | {
