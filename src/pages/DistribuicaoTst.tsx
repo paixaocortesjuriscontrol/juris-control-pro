@@ -3605,7 +3605,7 @@ export default function DistribuicaoTst() {
         onOpenChange={(o) => { if (!o) setCompararDup(null); }}
         processo={compararDup?.processo}
         ids={compararDup?.ids || []}
-        podeArquivar={isAdminOrCoordinator}
+        podeArquivar
         onAbrirFicha={(id) => {
           const reg = dados.find((x) => x.id === id);
           setCompararDup(null);
