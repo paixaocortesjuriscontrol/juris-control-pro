@@ -17,6 +17,30 @@ export interface PermissaoSituacaoRow {
 export const SITUACAO_TODAS = "__TODAS__";
 
 /**
+ * Converte o cargo cadastrado na coordenação (texto livre, com acento e espaço)
+ * para a chave de perfil usada nas configurações de situação.
+ */
+function normalizarCargo(cargo?: string | null): string | null {
+  if (!cargo) return null;
+  const base = cargo
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (!base) return null;
+  if (base.includes("assistente") && base.includes("coordenador")) return "assistente_coordenador";
+  if (base.includes("coordenador")) return "coordenador";
+  if (base.includes("advogado") && (base.includes("temporario") || base.includes("temp")))
+    return "advogado_temporario";
+  if (base.includes("advogado")) return "advogado";
+  if (base.includes("estagiari")) return "estagiario";
+  if (base.includes("secretari")) return "secretaria";
+  if (base.includes("assistente")) return "assistente";
+  if (base.includes("admin")) return "admin";
+  return base.replace(/\s+/g, "_");
+}
+
+/**
  * Restrições de situação por coordenação + tipo de tarefa.
  * Se não existir configuração para a situação, ela é liberada para todos.
  */
@@ -59,6 +83,38 @@ export function usePermissoesSituacao(
     },
   });
 
+  /**
+   * Cargo do usuário dentro da(s) coordenação(ões) aplicável(is).
+   * O cargo cadastrado na coordenação prevalece sobre o perfil global: um
+   * usuário que tenha o perfil "advogado" no sistema, mas esteja cadastrado
+   * como "assistente" na coordenação, é tratado como assistente nas regras de
+   * situação configuradas no menu Coordenações.
+   */
+  const { data: cargosCoordenacao = [] } = useQuery({
+    queryKey: ["cargos-coordenacao-usuario", user?.id, idsEfetivos.slice().sort().join(",")],
+    enabled: !!user?.id && idsEfetivos.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("cargo")
+        .eq("usuario_id", user!.id)
+        .in("coordenacao_id", idsEfetivos);
+      if (error) throw error;
+      return ((data || []) as any[])
+        .map((r) => normalizarCargo(r.cargo))
+        .filter((c): c is string => !!c);
+    },
+  });
+
+  /** Perfis considerados na checagem: cargo na coordenação ou, na falta, perfil global */
+  const perfisEfetivos = cargosCoordenacao.length > 0
+    ? cargosCoordenacao
+    : role
+      ? [role as string]
+      : [];
+
+
   /** Comentário obrigatório ao mudar a situação deste tipo de tarefa */
   const comentarioObrigatorio = data.some(
     (r) => r.situacao === SITUACAO_TODAS && r.comentarioObrigatorio,
@@ -84,11 +140,12 @@ export function usePermissoesSituacao(
       if (!regra) return true;
       if (regra.perfis.length === 0 && regra.usuarios.length === 0) return true;
       if (user?.id && regra.usuarios.includes(user.id)) return true;
-      if (role && regra.perfis.includes(role)) return true;
+      if (perfisEfetivos.some((p) => regra.perfis.includes(p))) return true;
       return false;
     },
-    [data, role, user?.id],
+    [data, role, user?.id, perfisEfetivos.join(",")],
   );
+
 
   return {
     regras: data,
