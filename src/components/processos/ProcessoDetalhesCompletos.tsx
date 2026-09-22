@@ -1551,6 +1551,13 @@ export function ProcessoDetalhesCompletos({
                                           {qtdAtividades(tarefa._registro_pai?.id || tarefa.id)} atividade{qtdAtividades(tarefa._registro_pai?.id || tarefa.id) > 1 ? "s" : ""}
                                         </span>
                                       )}
+                                      {tarefa.data_cumprimento && (
+                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                          <Calendar className="h-3 w-3" />
+                                          Concluído: {formatDate(tarefa.data_cumprimento)}
+                                          {tarefa.concluido_por_nome ? ` por ${tarefa.concluido_por_nome}` : ""}
+                                        </span>
+                                      )}
                                     </div>
                                     <SituacaoAlteracaoInfo
                                       historico={historicoDe(tarefa._registro_pai?.id || tarefa.id)}
