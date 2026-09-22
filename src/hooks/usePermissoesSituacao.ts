@@ -140,11 +140,12 @@ export function usePermissoesSituacao(
       if (!regra) return true;
       if (regra.perfis.length === 0 && regra.usuarios.length === 0) return true;
       if (user?.id && regra.usuarios.includes(user.id)) return true;
-      if (role && regra.perfis.includes(role)) return true;
+      if (perfisEfetivos.some((p) => regra.perfis.includes(p))) return true;
       return false;
     },
-    [data, role, user?.id],
+    [data, role, user?.id, perfisEfetivos.join(",")],
   );
+
 
   return {
     regras: data,
