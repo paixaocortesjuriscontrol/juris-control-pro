@@ -2021,6 +2021,7 @@ export function ProcessoDetalhesCompletos({
                               key={oc.id}
                               evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
+                              historico={historicoDe(linha.original.id)}
                               onClick={() => abrirNovoItem("evento", linha.original)}
                             />
                           ),
