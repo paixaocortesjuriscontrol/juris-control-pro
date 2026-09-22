@@ -59,6 +59,38 @@ export function usePermissoesSituacao(
     },
   });
 
+  /**
+   * Cargo do usuário dentro da(s) coordenação(ões) aplicável(is).
+   * O cargo cadastrado na coordenação prevalece sobre o perfil global: um
+   * usuário que tenha o perfil "advogado" no sistema, mas esteja cadastrado
+   * como "assistente" na coordenação, é tratado como assistente nas regras de
+   * situação configuradas no menu Coordenações.
+   */
+  const { data: cargosCoordenacao = [] } = useQuery({
+    queryKey: ["cargos-coordenacao-usuario", user?.id, idsEfetivos.slice().sort().join(",")],
+    enabled: !!user?.id && idsEfetivos.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<string[]> => {
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("cargo")
+        .eq("usuario_id", user!.id)
+        .in("coordenacao_id", idsEfetivos);
+      if (error) throw error;
+      return ((data || []) as any[])
+        .map((r) => normalizarCargo(r.cargo))
+        .filter((c): c is string => !!c);
+    },
+  });
+
+  /** Perfis considerados na checagem: cargo na coordenação ou, na falta, perfil global */
+  const perfisEfetivos = cargosCoordenacao.length > 0
+    ? cargosCoordenacao
+    : role
+      ? [role as string]
+      : [];
+
+
   /** Comentário obrigatório ao mudar a situação deste tipo de tarefa */
   const comentarioObrigatorio = data.some(
     (r) => r.situacao === SITUACAO_TODAS && r.comentarioObrigatorio,
