@@ -42,6 +42,7 @@ import {
   Workflow,
 } from "lucide-react";
 
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
