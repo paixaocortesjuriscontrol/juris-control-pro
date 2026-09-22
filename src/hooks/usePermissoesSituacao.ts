@@ -17,6 +17,30 @@ export interface PermissaoSituacaoRow {
 export const SITUACAO_TODAS = "__TODAS__";
 
 /**
+ * Converte o cargo cadastrado na coordenação (texto livre, com acento e espaço)
+ * para a chave de perfil usada nas configurações de situação.
+ */
+function normalizarCargo(cargo?: string | null): string | null {
+  if (!cargo) return null;
+  const base = cargo
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (!base) return null;
+  if (base.includes("assistente") && base.includes("coordenador")) return "assistente_coordenador";
+  if (base.includes("coordenador")) return "coordenador";
+  if (base.includes("advogado") && (base.includes("temporario") || base.includes("temp")))
+    return "advogado_temporario";
+  if (base.includes("advogado")) return "advogado";
+  if (base.includes("estagiari")) return "estagiario";
+  if (base.includes("secretari")) return "secretaria";
+  if (base.includes("assistente")) return "assistente";
+  if (base.includes("admin")) return "admin";
+  return base.replace(/\s+/g, "_");
+}
+
+/**
  * Restrições de situação por coordenação + tipo de tarefa.
  * Se não existir configuração para a situação, ela é liberada para todos.
  */
