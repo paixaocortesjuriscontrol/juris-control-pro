@@ -5,6 +5,8 @@ import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 import { AudienciaResponsaveisResumo } from "@/components/audiencias/AudienciaResponsaveisResumo";
+import { useHistoricoSituacaoItens } from "@/hooks/useHistoricoSituacaoItens";
+import { SituacaoAlteracaoInfo } from "@/components/processos/SituacaoAlteracaoInfo";
 import { isItemRiscado } from "@/components/shared/TratadoCheck";
 
 const SITUACAO_AUDIENCIA_LABELS: Record<string, string> = {
@@ -498,6 +500,9 @@ export function ProcessoDetalhesCompletos({
     [tarefas, eventosAgenda, audiencias]
   );
   const { data: contagemAtividades = {} } = useContagemAtividades(idsItensProcesso);
+  const { data: historicoSituacoes = {} } = useHistoricoSituacaoItens(idsItensProcesso);
+  const historicoDe = (id?: string | null) =>
+    id ? (historicoSituacoes as any)[String(id)] : undefined;
   const qtdAtividades = (id?: string | null) => (id ? contagemAtividades[String(id)] || 0 : 0);
 
 
@@ -1394,6 +1399,12 @@ export function ProcessoDetalhesCompletos({
                                     </div>
                                   )}
                                 </div>
+                                <SituacaoAlteracaoInfo
+                                  historico={historicoDe(aud.id)}
+                                  situacaoAtual={aud.status}
+                                  justificativa={aud.observacoes}
+                                  className="mt-3"
+                                />
                                 <AudienciaResponsaveisResumo audienciaId={aud.id} className="mt-3 pt-3 border-t" />
                                 <div
                                   onClick={(e) => e.stopPropagation()}
@@ -1541,6 +1552,11 @@ export function ProcessoDetalhesCompletos({
                                         </span>
                                       )}
                                     </div>
+                                    <SituacaoAlteracaoInfo
+                                      historico={historicoDe(tarefa._registro_pai?.id || tarefa.id)}
+                                      situacaoAtual={tarefa.status}
+                                      justificativa={tarefa.observacoes}
+                                    />
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     {tarefa.n === 'astrea' && (
@@ -1754,6 +1770,11 @@ export function ProcessoDetalhesCompletos({
                                         </span>
                                       )}
                                     </div>
+                                    <SituacaoAlteracaoInfo
+                                      historico={historicoDe(tarefa._registro_pai?.id || tarefa.id)}
+                                      situacaoAtual={tarefa.status}
+                                      justificativa={tarefa.observacoes}
+                                    />
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
                                     {tarefa.n === 'astrea' && (
@@ -2000,6 +2021,7 @@ export function ProcessoDetalhesCompletos({
                               key={oc.id}
                               evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
+                              historico={historicoDe(linha.original.id)}
                               onClick={() => abrirNovoItem("evento", linha.original)}
                             />
                           ),
@@ -2072,6 +2094,11 @@ export function ProcessoDetalhesCompletos({
                                     {parcelamento.descricao && (
                                       <p className="text-xs text-muted-foreground line-clamp-2">{parcelamento.descricao}</p>
                                     )}
+                                    <SituacaoAlteracaoInfo
+                                      historico={historicoDe(parcelamento.id)}
+                                      situacaoAtual={parcelamento.status}
+                                      justificativa={parcelamento.observacoes}
+                                    />
                                   </div>
                                   <Badge variant={parcelamento.status === "concluido" ? "default" : "secondary"} className="text-xs shrink-0">
                                     {parcelamento.status || "pendente"}

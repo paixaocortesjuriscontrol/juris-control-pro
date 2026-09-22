@@ -5,6 +5,8 @@ import { Calendar, Clock, MapPin, Repeat, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
+import { SituacaoAlteracaoInfo } from "@/components/processos/SituacaoAlteracaoInfo";
+import type { HistoricoSituacaoItem } from "@/hooks/useHistoricoSituacaoItens";
 
 const SITUACAO_LABELS: Record<string, string> = {
   pendente: "Pendente",
@@ -86,9 +88,11 @@ interface Props {
   evento: any;
   pessoas?: { responsaveis: string[]; participantes: string[] };
   onClick: () => void;
+  /** Última alteração de situação e último comentário do evento */
+  historico?: HistoricoSituacaoItem | null;
 }
 
-export function EventoProcessoCard({ evento, pessoas, onClick }: Props) {
+export function EventoProcessoCard({ evento, pessoas, onClick, historico }: Props) {
   const inicio = parseData(evento.data_inicio);
   const fim = parseData(evento.data_fim);
   const horaInicio = evento.dia_inteiro ? null : horaDe(evento.data_inicio);
@@ -188,6 +192,12 @@ export function EventoProcessoCard({ evento, pessoas, onClick }: Props) {
             {evento.descricao}
           </p>
         )}
+
+        <SituacaoAlteracaoInfo
+          historico={historico}
+          situacaoAtual={evento.status}
+          justificativa={evento.observacoes}
+        />
 
         <p className="text-[10px] text-muted-foreground">
           {evento.origem ? `Origem: ${evento.origem} · ` : ""}
