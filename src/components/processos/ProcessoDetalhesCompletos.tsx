@@ -1746,6 +1746,13 @@ export function ProcessoDetalhesCompletos({
                                           Fatal: {formatDate(tarefa.data_fatal)}
                                         </span>
                                       )}
+                                      {tarefa.data_cumprimento && (
+                                        <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                          <Calendar className="h-3 w-3" />
+                                          Concluído: {formatDate(tarefa.data_cumprimento)}
+                                          {tarefa.concluido_por_nome ? ` por ${tarefa.concluido_por_nome}` : ""}
+                                        </span>
+                                      )}
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1 shrink-0">
