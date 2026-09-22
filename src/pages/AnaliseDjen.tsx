@@ -1043,6 +1043,30 @@ const AnaliseDjen = () => {
           ? r.lido_por.map((x: any) => ({ nome: String(x?.nome ?? 'Desconhecido'), lida_em: String(x?.lida_em ?? '') }))
           : [],
       }));
+
+      // Vincular ao processo já cadastrado (comparação por dígitos), para não
+      // exibir "Importar" em publicação cujo processo existe na base.
+      const numeros = Array.from(new Set(rows.map((r) => r.processo_numero).filter(Boolean) as string[]));
+      if (numeros.length > 0) {
+        const variantes = Array.from(new Set(numeros.flatMap((n) => obterVariantesCnjBusca(n))));
+        const mapaProcessos = new Map<string, string>();
+        for (let i = 0; i < variantes.length; i += 200) {
+          const { data: procs } = await supabase
+            .from('processos')
+            .select('id, numero')
+            .in('numero', variantes.slice(i, i + 200));
+          (procs || []).forEach((p: any) => {
+            const d = String(p.numero || '').replace(/\D/g, '');
+            if (d) mapaProcessos.set(d, p.id);
+          });
+        }
+        rows.forEach((r) => {
+          const d = String(r.processo_numero || '').replace(/\D/g, '');
+          const pid = d ? mapaProcessos.get(d) : undefined;
+          if (pid) r.processo_id = pid;
+        });
+      }
+
       return { rows, total };
     },
     enabled: descartadasDedupEnabled,
