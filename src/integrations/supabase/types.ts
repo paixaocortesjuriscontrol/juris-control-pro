@@ -8581,6 +8581,7 @@ export type Database = {
           id_djen: string | null
           lida: boolean
           meio: string | null
+          monitoramento_id: string | null
           orgao: string | null
           partes_json: Json | null
           processo_id: string
@@ -8607,6 +8608,7 @@ export type Database = {
           id_djen?: string | null
           lida?: boolean
           meio?: string | null
+          monitoramento_id?: string | null
           orgao?: string | null
           partes_json?: Json | null
           processo_id: string
@@ -8633,6 +8635,7 @@ export type Database = {
           id_djen?: string | null
           lida?: boolean
           meio?: string | null
+          monitoramento_id?: string | null
           orgao?: string | null
           partes_json?: Json | null
           processo_id?: string
@@ -8642,6 +8645,13 @@ export type Database = {
           tribunal?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "publicacoes_djen_processos_monitoramento_id_fkey"
+            columns: ["monitoramento_id"]
+            isOneToOne: false
+            referencedRelation: "monitoramentos_djen"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "publicacoes_djen_processos_processo_id_fkey"
             columns: ["processo_id"]

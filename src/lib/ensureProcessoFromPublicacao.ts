@@ -80,7 +80,22 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       status: original?.status ?? "encontrada",
       dedup_key: original?.dedup_key ?? pub.dedup_key ?? null,
       id_djen: original?.id_djen ?? pub.id_djen ?? null,
+      // A cópia não é uma nova captura: preserva a data em que a publicação foi
+      // realmente encontrada, senão ela reaparece na Análise DJEN como se
+      // tivesse sido capturada hoje.
+      created_at: original?.created_at ?? pub.created_at ?? null,
+      data_encontrado: original?.data_encontrado ?? original?.created_at ?? pub.created_at ?? null,
+      // Mantém o monitoramento (advogado/parte/termo) que encontrou a publicação,
+      // para que a lista continue exibindo o termo encontrado.
+      monitoramento_id: original?.monitoramento_id ?? pub.monitoramento_id ?? null,
     };
+
+    // Nunca gravar created_at/data_encontrado nulos (deixaria o default now() de fora).
+    if (!row.created_at) delete row.created_at;
+    if (!row.data_encontrado) delete row.data_encontrado;
+
+
+
 
     const atualizarExistente = async (id: string) => {
       const { error } = await (supabase as any)
