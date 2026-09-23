@@ -987,6 +987,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
           .from('publicacoes_djen_processos')
           .select(`
             id,
+            monitoramento_id,
             processo_id,
             processo_numero,
             conteudo,
@@ -1055,7 +1056,7 @@ export function usePublicacoesDjenServidorUnificadas(filtros: FiltrosUnificados 
             fonte: pub.fonte,
             lida: pub.lida,
             created_at: pub.created_at,
-            monitoramento_id: null,
+            monitoramento_id: pub.monitoramento_id ?? null,
             monitoramento_termo: null,
             monitoramento_descricao: null,
             monitoramento_tipo: null,
