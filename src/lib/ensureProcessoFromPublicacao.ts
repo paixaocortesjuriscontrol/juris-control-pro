@@ -90,6 +90,12 @@ export async function salvarPublicacaoNoProcesso(pub: PublicacaoUnificada, proce
       monitoramento_id: original?.monitoramento_id ?? pub.monitoramento_id ?? null,
     };
 
+    // Nunca gravar created_at/data_encontrado nulos (deixaria o default now() de fora).
+    if (!row.created_at) delete row.created_at;
+    if (!row.data_encontrado) delete row.data_encontrado;
+
+
+
 
     const atualizarExistente = async (id: string) => {
       const { error } = await (supabase as any)
