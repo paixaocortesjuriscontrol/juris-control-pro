@@ -665,13 +665,16 @@ export function PrazoDialog({
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["processo"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
-        queryClient.invalidateQueries({ queryKey: ["processos"] }),
-        queryClient.invalidateQueries({ queryKey: ["processos-paginados"] }),
-        queryClient.invalidateQueries({ queryKey: ["pastas"] }),
       ]);
+      // Listas grandes (publicações, processos, pastas): marcadas como
+      // obsoletas sem esperar o recarregamento — atualizam em segundo plano.
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["processos"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["processos-paginados"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["pastas"], refetchType: "none" });
       await invalidarItensAgenda(queryClient);
+
 
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }

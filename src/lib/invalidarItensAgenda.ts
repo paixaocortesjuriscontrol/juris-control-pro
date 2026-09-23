@@ -35,8 +35,13 @@ export const CHAVES_ITENS_AGENDA: string[] = [
 ];
 
 /**
- * Invalida (e refetcha, inclusive queries inativas) todas as listas de itens.
- * Aguarde o retorno antes de fechar o formulário / exibir sucesso.
+ * Invalida todas as listas de itens.
+ *
+ * Importante para performance: usamos refetchType "active" — as listas que o
+ * usuário está vendo recarregam na hora; as que estão fora da tela ficam
+ * marcadas como obsoletas e recarregam sozinhas quando forem abertas.
+ * Usar "all" aqui disparava dezenas de consultas simultâneas a cada salvamento
+ * (deixava o salvar da Análise DJEN muito lento).
  */
 export async function invalidarItensAgenda(
   queryClient: QueryClient,
@@ -44,10 +49,11 @@ export async function invalidarItensAgenda(
 ): Promise<void> {
   await Promise.all([
     ...CHAVES_ITENS_AGENDA.map((key) =>
-      queryClient.invalidateQueries({ queryKey: [key], refetchType: "all" }),
+      queryClient.invalidateQueries({ queryKey: [key], refetchType: "active" }),
     ),
     ...chavesExtras
       .filter((k) => Array.isArray(k) && k.length > 0)
-      .map((k) => queryClient.invalidateQueries({ queryKey: k, refetchType: "all" })),
+      .map((k) => queryClient.invalidateQueries({ queryKey: k, refetchType: "active" })),
   ]);
 }
+
