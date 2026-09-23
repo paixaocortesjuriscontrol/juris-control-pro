@@ -141,7 +141,7 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
             title="Novidades do Acompanhamento Especial na sua coordenação"
             onClick={() => {
               marcarComoVistas();
-              navigate("/painel-controle");
+              navigate("/monitoramento");
             }}
             className="flex items-center gap-1.5 rounded-full border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-amber-700 dark:text-amber-400 transition-opacity hover:opacity-80"
           >
