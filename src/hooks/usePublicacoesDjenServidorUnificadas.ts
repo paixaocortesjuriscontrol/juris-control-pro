@@ -102,7 +102,7 @@ async function enriquecerPublicacoesComMonitoramento(
 ): Promise<PublicacaoUnificada[]> {
   const monitoramentoIds = [...new Set(
     publicacoes
-      .filter((p) => (p.tipo_origem === 'termo' || p.tipo_origem === 'descartada') && !!p.monitoramento_id)
+      .filter((p) => (p.tipo_origem === 'termo' || p.tipo_origem === 'descartada' || p.tipo_origem === 'processo') && !!p.monitoramento_id)
       .map((p) => p.monitoramento_id as string)
   )];
 
@@ -133,7 +133,7 @@ async function enriquecerPublicacoesComMonitoramento(
   });
 
   return publicacoes.map((pub) => {
-    if (!pub.monitoramento_id || (pub.tipo_origem !== 'termo' && pub.tipo_origem !== 'descartada')) {
+    if (!pub.monitoramento_id || (pub.tipo_origem !== 'termo' && pub.tipo_origem !== 'descartada' && pub.tipo_origem !== 'processo')) {
       return pub;
     }
 
