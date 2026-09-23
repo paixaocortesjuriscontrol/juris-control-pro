@@ -227,19 +227,22 @@ export function NovaTarefaPublicacaoDialog({
     } catch (err) {
       console.error("Erro ao vincular tarefa à publicação:", err);
     } finally {
+      // Somente as listas leves são aguardadas. A lista grande de publicações
+      // e os contadores ficam marcados como obsoletos e atualizam em segundo
+      // plano — aguardar o recarregamento dela deixava o salvar lento.
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-servidor"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-termo"] }),
         queryClient.invalidateQueries({ queryKey: ["tarefas-publicacao-processo"] }),
-        queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"] }),
       ]);
-      queryClient.refetchQueries({ queryKey: ["publicacoes-djen-processo"] });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-servidor"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas-stats-header"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["notificacoes-counts"], refetchType: "none" });
     }
   };
+
 
   const body = (
     <div

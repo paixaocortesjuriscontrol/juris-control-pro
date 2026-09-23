@@ -830,14 +830,17 @@ export function NovaTarefaDialog({
         queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
         queryClient.invalidateQueries({ queryKey: ["tarefas-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["processo"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["atividades-delegacao"] }),
         queryClient.invalidateQueries({ queryKey: ["documentos-tarefa"] }),
         queryClient.invalidateQueries({ queryKey: ["lista-atividades"] }),
         queryClient.invalidateQueries({ queryKey: ["agenda-unificada-infinite-v1"] }),
       ]);
+      // Listas grandes de publicações: marcar como obsoletas sem esperar o
+      // recarregamento (evita lentidão ao salvar pela Análise DJEN).
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"], refetchType: "none" });
       await invalidarItensAgenda(queryClient);
+
       if (novaTarefa?.id && onCreated) {
         await onCreated(novaTarefa.id);
       }

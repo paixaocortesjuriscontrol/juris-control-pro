@@ -513,10 +513,12 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
         queryClient.invalidateQueries({ queryKey: ["eventos-agenda"] }),
         queryClient.invalidateQueries({ queryKey: ["eventos-agenda-processo"] }),
         queryClient.invalidateQueries({ queryKey: ["processo"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"] }),
-        queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"] }),
       ]);
+      // Listas grandes de publicações: obsoletas sem esperar recarregamento.
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-unificadas"], refetchType: "none" });
+      queryClient.invalidateQueries({ queryKey: ["publicacoes-djen-processo"], refetchType: "none" });
       await invalidarItensAgenda(queryClient);
+
       // Análise DJEN: se onAfterCreate foi fornecido e o usuário clicou no
       // Salvar primário (não em "Salvar e fechar"), mantém o formulário aberto
       // e reseta para novo cadastro do mesmo tipo.
