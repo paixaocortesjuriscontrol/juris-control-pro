@@ -4808,12 +4808,29 @@ const AnaliseDjen = () => {
 
             <div className="flex flex-wrap items-end gap-4 mt-3 md:mt-4">
               <div className="space-y-1.5">
-                <Label className="text-xs md:text-sm">Período</Label>
+                <Label
+                  className="text-xs md:text-sm"
+                  title="O período considera a data de CAPTURA no sistema, não a data de disponibilização/publicação. Para filtrar pelo dia do diário, use o campo Data Disponibilização."
+                >
+                  Período (captura)
+                </Label>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" size="sm" variant={filtroDia === 'hoje' ? 'default' : 'outline'} onClick={() => setFiltroDia('hoje')}>
-                    Somente Hoje
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroDia === 'hoje' ? 'default' : 'outline'}
+                    onClick={() => setFiltroDia('hoje')}
+                    title="Publicações capturadas hoje pelo sistema — podem ser de diários de dias/meses anteriores. Para o dia do diário, use Data Disponibilização."
+                  >
+                    Capturadas hoje
                   </Button>
-                  <Button type="button" size="sm" variant={filtroDia === 'todos' ? 'default' : 'outline'} onClick={() => setFiltroDia('todos')}>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={filtroDia === 'todos' ? 'default' : 'outline'}
+                    onClick={() => setFiltroDia('todos')}
+                    title="Sem limite de data de captura."
+                  >
                     Todos os dias
                   </Button>
                 </div>
