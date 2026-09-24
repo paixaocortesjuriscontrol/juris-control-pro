@@ -146,7 +146,6 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                 <p className="text-xs text-muted-foreground text-center py-4">{emptyLabel}</p>
               )}
               {items.map((item) => {
-                const d = getRefDate(item);
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
                 const it: any = item;
