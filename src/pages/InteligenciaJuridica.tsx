@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
-  Trophy, TrendingDown, Handshake, Scale, DollarSign, Filter, X,
+  Trophy, TrendingDown, Handshake, Scale, DollarSign, Filter, X, ChevronRight, TableProperties,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -38,51 +39,85 @@ const fmtMes = (mes: string) => {
   return `${m}/${y}`;
 };
 
-function TabelaDesempenho({ titulo, itens }: { titulo: string; itens: SerieItem[] }) {
-  const top = itens.slice(0, 15);
+function TabelaDesempenho({ titulo, itens, onOpen }: { titulo: string; itens: SerieItem[]; onOpen: () => void }) {
+  const destaque = itens[0];
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm font-semibold">{titulo}</CardTitle>
-      </CardHeader>
-      <CardContent className="p-0">
-        <div className="max-h-80 overflow-auto">
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-muted/80 backdrop-blur">
-              <tr className="text-left text-xs text-muted-foreground">
-                <th className="px-4 py-2 font-medium">Nome</th>
-                <th className="px-2 py-2 font-medium text-right">Total</th>
-                <th className="px-2 py-2 font-medium text-right">Ganhos</th>
-                <th className="px-2 py-2 font-medium text-right">Perdidos</th>
-                <th className="px-2 py-2 font-medium text-right">Acordos</th>
-                <th className="px-4 py-2 font-medium text-right">% Êxito</th>
-              </tr>
-            </thead>
-            <tbody>
-              {top.map((i) => {
-                const decididos = i.ganhos + i.perdidos;
-                const taxa = decididos > 0 ? Math.round((i.ganhos / decididos) * 100) : null;
-                return (
-                  <tr key={i.nome} className="border-t border-border/50 hover:bg-muted/40">
-                    <td className="px-4 py-1.5 truncate max-w-[220px]" title={i.nome}>{i.nome}</td>
-                    <td className="px-2 py-1.5 text-right">{i.total}</td>
-                    <td className="px-2 py-1.5 text-right text-emerald-500">{i.ganhos}</td>
-                    <td className="px-2 py-1.5 text-right text-red-500">{i.perdidos}</td>
-                    <td className="px-2 py-1.5 text-right text-sky-500">{i.acordos}</td>
-                    <td className="px-4 py-1.5 text-right font-medium">
-                      {taxa === null ? "—" : `${taxa}%`}
-                    </td>
-                  </tr>
-                );
-              })}
-              {top.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">Sem dados no período</td></tr>
-              )}
-            </tbody>
-          </table>
+    <Card className="overflow-hidden">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <TableProperties className="h-4 w-4 text-primary" />
+              {titulo}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {itens.length > 0 ? `${itens.length} registros encontrados` : "Sem dados no período"}
+            </p>
+            {destaque && (
+              <p className="mt-1 truncate text-sm" title={destaque.nome}>
+                Maior volume: <span className="font-medium">{destaque.nome}</span> ({destaque.total})
+              </p>
+            )}
+          </div>
+          <Button variant="outline" size="sm" onClick={onOpen} disabled={itens.length === 0}>
+            Ver dados <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function PainelDesempenho({
+  titulo,
+  itens,
+  open,
+  onOpenChange,
+}: {
+  titulo: string;
+  itens: SerieItem[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-[min(92vw,900px)]">
+        <SheetHeader className="pr-8">
+          <SheetTitle>{titulo}</SheetTitle>
+          <SheetDescription>{itens.length} registros conforme os filtros aplicados.</SheetDescription>
+        </SheetHeader>
+        <div className="mt-6 overflow-x-auto rounded-md border">
+          <table className="w-full min-w-[680px] text-sm">
+            <thead className="sticky top-0 bg-muted">
+              <tr className="text-left text-xs text-muted-foreground">
+                <th className="px-4 py-3 font-medium">Nome</th>
+                <th className="px-3 py-3 text-right font-medium">Total</th>
+                <th className="px-3 py-3 text-right font-medium">Ganhos</th>
+                <th className="px-3 py-3 text-right font-medium">Perdidos</th>
+                <th className="px-3 py-3 text-right font-medium">Acordos</th>
+                <th className="px-4 py-3 text-right font-medium">% Êxito</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((item) => {
+                const decididos = item.ganhos + item.perdidos;
+                const taxa = decididos > 0 ? Math.round((item.ganhos / decididos) * 100) : null;
+                return (
+                  <tr key={item.nome} className="border-t hover:bg-muted/40">
+                    <td className="px-4 py-3 font-medium">{item.nome}</td>
+                    <td className="px-3 py-3 text-right">{item.total}</td>
+                    <td className="px-3 py-3 text-right text-emerald-600">{item.ganhos}</td>
+                    <td className="px-3 py-3 text-right text-destructive">{item.perdidos}</td>
+                    <td className="px-3 py-3 text-right text-sky-600">{item.acordos}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{taxa === null ? "—" : `${taxa}%`}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 
@@ -92,6 +127,7 @@ export default function InteligenciaJuridica() {
   const [tribunal, setTribunal] = useState<string>("todos");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
+  const [painelDesempenho, setPainelDesempenho] = useState<"turma" | "relator" | "equipe" | null>(null);
 
   const { data: coordenacoes } = useCoordenacoes();
 
@@ -301,10 +337,17 @@ export default function InteligenciaJuridica() {
 
       {/* Tabelas de desempenho */}
       <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">
-        <TabelaDesempenho titulo="Desempenho por Turma" itens={data?.por_turma || []} />
-        <TabelaDesempenho titulo="Desempenho por Relator" itens={data?.por_relator || []} />
-        <TabelaDesempenho titulo="Desempenho por Equipe" itens={data?.por_equipe || []} />
+        <TabelaDesempenho titulo="Desempenho por Turma" itens={data?.por_turma || []} onOpen={() => setPainelDesempenho("turma")} />
+        <TabelaDesempenho titulo="Desempenho por Relator" itens={data?.por_relator || []} onOpen={() => setPainelDesempenho("relator")} />
+        <TabelaDesempenho titulo="Desempenho por Equipe" itens={data?.por_equipe || []} onOpen={() => setPainelDesempenho("equipe")} />
       </div>
+
+      <PainelDesempenho
+        titulo={painelDesempenho === "turma" ? "Desempenho por Turma" : painelDesempenho === "relator" ? "Desempenho por Relator" : "Desempenho por Equipe"}
+        itens={painelDesempenho === "turma" ? data?.por_turma || [] : painelDesempenho === "relator" ? data?.por_relator || [] : data?.por_equipe || []}
+        open={painelDesempenho !== null}
+        onOpenChange={(open) => !open && setPainelDesempenho(null)}
+      />
 
       {/* Financeiro */}
       <Card>
