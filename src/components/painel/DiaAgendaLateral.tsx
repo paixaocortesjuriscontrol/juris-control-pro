@@ -198,6 +198,7 @@ export function AgendaItemRow({
           {hora ? `: ${hora}` : ""}
           {temAtividade && <AtividadeBadge />}
           {veioDeWorkflow && <WorkflowBadge />}
+          {veioDePublicacao && <PublicacaoBadge />}
           {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
         </p>
         {(item.local || item.descricao) && (
