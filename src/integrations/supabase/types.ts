@@ -11136,6 +11136,15 @@ export type Database = {
         }
         Returns: Json
       }
+      get_inteligencia_oportunidades_acordo: {
+        Args: {
+          p_coordenacao_id?: string
+          p_equipe?: string
+          p_limite?: number
+          p_tribunal?: string
+        }
+        Returns: Json
+      }
       get_inteligencia_processos: {
         Args: {
           p_coordenacao_id?: string

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import OfensoresTendencias from "@/components/inteligencia/OfensoresTendencias";
 import PanoramaProcessos from "@/components/inteligencia/PanoramaProcessos";
+import OportunidadesAcordo from "@/components/inteligencia/OportunidadesAcordo";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -333,6 +334,8 @@ export default function InteligenciaJuridica() {
       <OfensoresTendencias filtros={filtros} />
 
       <PanoramaProcessos filtros={filtros} />
+
+      <OportunidadesAcordo filtros={filtros} />
     </div>
   );
 }
