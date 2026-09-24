@@ -16,19 +16,27 @@ interface Dados {
 
 const pct = (a: number, b: number) => (b > 0 ? `${Math.round((a / b) * 100)}%` : "—");
 
+const linhasValidas = (itens: Linha[] | undefined, rotulo: (linha: Linha) => string) =>
+  (Array.isArray(itens) ? itens : []).filter((linha) => {
+    if (!linha || typeof linha !== "object") return false;
+    const nome = rotulo(linha).trim();
+    return nome !== "" && nome !== "undefined" && Number.isFinite(Number(linha.qtd));
+  });
+
 function Tabela({ titulo, icone, itens, rotulo, acordo }: { titulo: string; icone: React.ReactNode; itens: Linha[]; rotulo: (l: Linha) => string; acordo?: boolean }) {
+  const linhas = linhasValidas(itens, rotulo);
   return (
     <Card>
       <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2">{icone}{titulo}</CardTitle></CardHeader>
       <CardContent className="max-h-80 overflow-auto">
-        {itens.length === 0 ? <div className="text-sm text-muted-foreground py-6 text-center">Sem dados</div> : (
+        {linhas.length === 0 ? <div className="text-sm text-muted-foreground py-6 text-center">Sem dados</div> : (
           <table className="w-full text-xs">
             <thead className="text-muted-foreground sticky top-0 bg-card">
               <tr><th className="text-left py-1">Nome</th><th>Qtd</th><th>Êxito</th>{acordo && <th>Acordo</th>}</tr>
             </thead>
             <tbody>
-              {itens.map((l, i) => (
-                <tr key={i} className="border-t border-border/50">
+              {linhas.map((l, i) => (
+                <tr key={`${rotulo(l)}-${i}`} className="border-t border-border/50">
                   <td className="py-1 pr-2 max-w-[260px] truncate" title={rotulo(l)}>{rotulo(l)}</td>
                   <td className="text-center font-medium">{l.qtd}</td>
                   <td className="text-center">{pct(l.ganhos, l.ganhos + l.perdidos)}</td>
