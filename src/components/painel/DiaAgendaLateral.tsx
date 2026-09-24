@@ -294,6 +294,12 @@ export function DiaAgendaLateral({
   }, [atividades]);
 
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
+  const { data: itensDePublicacaoMap = new Map<string, string>() } = useItensDePublicacao(itens, true);
+  const itensDePublicacao = useMemo(() => {
+    const s = new Set<string>();
+    itensDePublicacaoMap.forEach((_, k) => s.add(k));
+    return s;
+  }, [itensDePublicacaoMap]);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
   const { data: mapaCobrancas } = useCobrancasItens(itens, getEscopoCobrancaPreferido());
   // Cobranças feitas na tarefa/prazo dono da atividade: a atividade também
