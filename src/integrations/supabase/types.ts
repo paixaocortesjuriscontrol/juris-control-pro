@@ -2103,6 +2103,41 @@ export type Database = {
           },
         ]
       }
+      config_alteracao_itens_terceiros: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          id: string
+          perfis: string[]
+          updated_at: string
+          usuarios: string[]
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          id?: string
+          perfis?: string[]
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          id?: string
+          perfis?: string[]
+          updated_at?: string
+          usuarios?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_alteracao_itens_terceiros_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: true
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       config_deteccao_coordenacao: {
         Row: {
           coordenacao_id: string
@@ -11416,6 +11451,11 @@ export type Database = {
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       merge_processos_duplicados: { Args: never; Returns: Json }
+      normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
+      pode_alterar_situacao_item: {
+        Args: { _tarefa: string; _user: string }
+        Returns: boolean
+      }
       pode_gerenciar_etiquetas: {
         Args: { _coordenacao_id: string }
         Returns: boolean
