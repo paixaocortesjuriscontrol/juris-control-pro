@@ -43,6 +43,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
+  { icon: Brain, label: "Inteligência Jurídica", path: "/inteligencia-juridica", adminOrCoordOnly: true },
   { icon: Trophy, label: "Ranking Atendimento", path: "/ranking-atendimento", adminOrCoordOnly: true },
   { icon: Users, label: "Coordenações", path: "/coordenacoes", adminOrCoordOnly: true },
   { icon: ArrowRightLeft, label: "Reatribuir Processos", path: "/reatribuir-processos", adminOrCoordOnly: true },

@@ -52,6 +52,7 @@ import Pastas from "./pages/Pastas";
 import PastaDetalhes from "./pages/PastaDetalhes";
 import Notificacoes from "./pages/Notificacoes";
 import Indicadores from "./pages/Indicadores";
+import InteligenciaJuridica from "./pages/InteligenciaJuridica";
 import RankingAtendimento from "./pages/RankingAtendimento";
 import Monitoramento from "./pages/Monitoramento";
 import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
