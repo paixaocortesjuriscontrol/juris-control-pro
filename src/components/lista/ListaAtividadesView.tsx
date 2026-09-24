@@ -1122,6 +1122,12 @@ export default function ListaAtividadesView({
                               <div className="text-muted-foreground">
                                 Base: {fmtDateTime((r as Prazo).data_base)}
                               </div>
+                              {formatDataPublicacao((r as any).data_publicacao_origem) && (
+                                <div className="flex items-center gap-1 text-foreground">
+                                  <span className="text-muted-foreground shrink-0">Publicação:</span>
+                                  <span>{formatDataPublicacao((r as any).data_publicacao_origem)}</span>
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top text-[11px]">
