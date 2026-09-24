@@ -1352,7 +1352,8 @@ export function useUpdateItemAgenda() {
     },
     onError: (error) => {
       console.error("Erro ao atualizar item:", error);
-      toast.error("Erro ao atualizar item");
+      const msg = String((error as any)?.message || "");
+      toast.error(msg.includes("Somente o responsável") ? "Somente o responsável pode alterar a situação deste item." : "Erro ao atualizar item");
     },
   });
 }

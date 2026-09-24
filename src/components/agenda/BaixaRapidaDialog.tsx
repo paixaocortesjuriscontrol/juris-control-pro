@@ -1,3 +1,4 @@
+import { usePodeAlterarItem, MSG_SOMENTE_RESPONSAVEL } from "@/hooks/usePodeAlterarItem";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -70,6 +71,12 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
     (item?.coordenacao_id as string) || (item?.processo?.coordenacao_id as string) || null,
     tipoTarefaPermissao(tipoSituacao),
   );
+  const ehTarefa = (item as any)?.origem === "tarefa";
+  const { podeAlterar } = usePodeAlterarItem(
+    item ? parseOcorrenciaId(String(item.id)).rawId : null,
+    open && ehTarefa,
+  );
+  const bloqueado = ehTarefa && !podeAlterar;
 
 
   const [situacao, setSituacao] = useState<string>("");
@@ -302,6 +309,11 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
             <p className="text-[11px] text-muted-foreground">
               Este item se repete. "Somente esta" registra a baixa apenas em {dataLabel};
               "Toda a série" altera a situação de todas as ocorrências.
+            </p>
+          )}
+          {bloqueado && (
+            <p className="text-xs text-destructive border border-destructive/40 rounded-md p-2">
+              {MSG_SOMENTE_RESPONSAVEL} Você pode consultar, mas não mudar a situação.
             </p>
           )}
         </div>
