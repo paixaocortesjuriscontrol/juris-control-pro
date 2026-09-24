@@ -2856,7 +2856,7 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
-              externalItems={itensListaEquipe}
+              externalItems={comDataPublicacao(itensListaEquipe)}
               externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
@@ -2876,7 +2876,7 @@ export default function PainelControle() {
         ) : viewMode === "kanban" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <KanbanItensAgenda
-              itens={itensPainelFiltrados}
+              itens={comDataPublicacao(itensPainelFiltrados)}
               onItemClick={handleItemClick}
             />
           </div>
