@@ -11116,6 +11116,16 @@ export type Database = {
           tarefas: number
         }[]
       }
+      get_inteligencia_dashboard: {
+        Args: {
+          p_coordenacao_id?: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_equipe?: string
+          p_tribunal?: string
+        }
+        Returns: Json
+      }
       get_itens_nao_tratados_por_coordenacao: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {
