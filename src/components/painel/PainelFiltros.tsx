@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { Filter, X } from "lucide-react";
+import { Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 
