@@ -13,8 +13,7 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
-import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 
