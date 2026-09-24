@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
