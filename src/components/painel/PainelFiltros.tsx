@@ -234,6 +234,16 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
           {/* Período */}
           <div>
             <SectionTitle>Período</SectionTitle>
+            <div className="flex flex-wrap gap-2 mb-2">
+              <ChipToggle
+                active={draft.periodoPorPublicacao ?? false}
+                onToggle={() =>
+                  setDraft({ ...draft, periodoPorPublicacao: !draft.periodoPorPublicacao })
+                }
+              >
+                Data da publicação
+              </ChipToggle>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="min-w-0">
                 <Label className="text-[10px] text-muted-foreground mb-1 block">Início</Label>
@@ -254,6 +264,11 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                 />
               </div>
             </div>
+            {(draft.periodoPorPublicacao ?? false) && (
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                O período será aplicado à data da publicação (itens sem publicação ficam de fora).
+              </p>
+            )}
           </div>
 
           {/* Responsáveis */}
