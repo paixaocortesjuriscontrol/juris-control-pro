@@ -8,8 +8,6 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  ChevronUp,
-  ChevronDown,
   Clock,
   Pencil,
   Filter,
