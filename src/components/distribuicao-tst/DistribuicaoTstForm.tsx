@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
+import { EquipeTstSelect } from "@/components/distribuicao-tst/EquipeTstSelect";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
 import {
@@ -1423,15 +1424,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Equipe<ReqMark /></Label>
-              <Select value={String(form.equipe || "").trim() || "__none__"} onValueChange={v => set("equipe", v === "__none__" ? null : v)}>
-                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Selecione</SelectItem>
-                  {getEquipeOptions(form.equipe).map((equipe) => (
-                    <SelectItem key={equipe} value={equipe}>{equipe}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <EquipeTstSelect value={form.equipe} onChange={v => set("equipe", v)} baseOptions={getEquipeOptions(form.equipe)} />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
