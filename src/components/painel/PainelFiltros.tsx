@@ -24,6 +24,8 @@ export interface PainelFiltrosState {
   comentarios: "todas" | "com" | "sem";
   // Marca "já cobrei" (cobranças do dia)
   cobrancas: "todas" | "hoje" | "nao_hoje";
+  // Itens criados a partir de publicações
+  origemPublicacao?: "todas" | "com" | "sem";
 
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
@@ -43,6 +45,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   estouEnvolvido: false,
   comentarios: "todas",
   cobrancas: "todas",
+  origemPublicacao: "todas",
 
   statusGroup: "todas",
   periodoInicio: "",
@@ -70,6 +73,12 @@ const COBRANCAS_OPTIONS: { value: PainelFiltrosState["cobrancas"]; label: string
   { value: "nao_hoje", label: "Ainda não cobrados hoje" },
 ];
 
+
+const ORIGEM_PUB_OPTIONS: { value: "todas" | "com" | "sem"; label: string }[] = [
+  { value: "todas", label: "Todas" },
+  { value: "com", label: "Criados a partir de publicações" },
+  { value: "sem", label: "Não criados a partir de publicações" },
+];
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
   { value: "a_concluir", label: "A concluir" },
@@ -101,6 +110,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.classificacoes.length > 0,
     filtros.comentarios !== "todas",
     filtros.cobrancas !== "todas",
+    (filtros.origemPublicacao ?? "todas") !== "todas",
 
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
@@ -243,6 +253,27 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                     name="painel-cobrancas"
                     checked={draft.cobrancas === opcao.value}
                     onChange={() => setDraft({ ...draft, cobrancas: opcao.value })}
+                    className="accent-primary"
+                  />
+                  {opcao.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Origem: publicação */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+              Origem
+            </p>
+            <div className="space-y-1.5">
+              {ORIGEM_PUB_OPTIONS.map((opcao) => (
+                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="painel-origem-publicacao"
+                    checked={(draft.origemPublicacao ?? "todas") === opcao.value}
+                    onChange={() => setDraft({ ...draft, origemPublicacao: opcao.value })}
                     className="accent-primary"
                   />
                   {opcao.label}
