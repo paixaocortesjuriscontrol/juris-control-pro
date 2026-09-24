@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
-import { Filter } from "lucide-react";
+import { Filter, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 
@@ -73,23 +73,85 @@ const COBRANCAS_OPTIONS: { value: PainelFiltrosState["cobrancas"]; label: string
   { value: "nao_hoje", label: "Ainda não cobrados hoje" },
 ];
 
-
 const ORIGEM_PUB_OPTIONS: { value: "todas" | "com" | "sem"; label: string }[] = [
   { value: "todas", label: "Todas" },
-  { value: "com", label: "Criados a partir de publicações" },
-  { value: "sem", label: "Não criados a partir de publicações" },
+  { value: "com", label: "De publicações" },
+  { value: "sem", label: "Não de publicações" },
 ];
 
 const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }[] = [
+  { value: "todas", label: "Todas" },
   { value: "a_concluir", label: "A concluir" },
   { value: "concluidas", label: "Concluídas" },
   { value: "canceladas", label: "Canceladas" },
-  { value: "todas", label: "Todas" },
 ];
 
 interface PainelFiltrosProps {
   filtros: PainelFiltrosState;
   onChange: (filtros: PainelFiltrosState) => void;
+}
+
+/** Botão de opção única estilo pílula (segmented). */
+function PillOption<T extends string>({
+  value,
+  current,
+  onSelect,
+  children,
+}: {
+  value: T;
+  current: T;
+  onSelect: (v: T) => void;
+  children: React.ReactNode;
+}) {
+  const active = current === value;
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(value)}
+      className={cn(
+        "px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors border",
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Chip selecionável (múltipla escolha). */
+function ChipToggle({
+  active,
+  onToggle,
+  children,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors border",
+        active
+          ? "bg-primary text-primary-foreground border-primary"
+          : "bg-background text-muted-foreground border-border hover:bg-muted hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
+
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+      {children}
+    </p>
+  );
 }
 
 export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
@@ -132,39 +194,55 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
   };
 
   return (
-    <Popover open={open} onOpenChange={handleOpenChange}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(
-            "h-7 px-2 text-xs gap-1",
-            activeCount > 0 && "border-primary text-primary"
-          )}
-        >
-          <Filter className="w-3.5 h-3.5" />
-          Filtros
-          {activeCount > 0 && (
-            <span className="ml-0.5 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">
-              {activeCount}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[min(92vw,26rem)] p-0"
-        align="end"
-        collisionPadding={12}
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <Button
+        variant="outline"
+        size="sm"
+        className={cn(
+          "h-7 px-2 text-xs gap-1",
+          activeCount > 0 && "border-primary text-primary",
+        )}
+        onClick={() => handleOpenChange(true)}
       >
-        <div className="p-4 space-y-4 max-h-[65vh] overflow-y-auto">
-          {/* Período (data prevista/fatal conforme selecionado) */}
+        <Filter className="w-3.5 h-3.5" />
+        Filtros
+        {activeCount > 0 && (
+          <span className="ml-0.5 bg-primary text-primary-foreground rounded-full w-4 h-4 flex items-center justify-center text-[10px] font-bold">
+            {activeCount}
+          </span>
+        )}
+      </Button>
+      <SheetContent
+        side="right"
+        className="w-full sm:max-w-md flex flex-col p-0 gap-0"
+      >
+        {/* Cabeçalho */}
+        <SheetHeader className="flex flex-row items-center justify-between gap-2 px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-primary" />
+            <SheetTitle className="text-base">Filtros</SheetTitle>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={() => setOpen(false)}
+          >
+            <X className="w-4 h-4" />
+          </Button>
+          <SheetDescription className="sr-only">
+            Ajuste os filtros da agenda e clique em Filtrar.
+          </SheetDescription>
+        </SheetHeader>
+
+        {/* Corpo: seções distribuídas verticalmente */}
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Período */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Período
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <SectionTitle>Período</SectionTitle>
+            <div className="grid grid-cols-2 gap-2">
               <div className="min-w-0">
-                <Label className="text-[10px] text-muted-foreground">Início</Label>
+                <Label className="text-[10px] text-muted-foreground mb-1 block">Início</Label>
                 <Input
                   type="date"
                   value={draft.periodoInicio}
@@ -173,7 +251,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                 />
               </div>
               <div className="min-w-0">
-                <Label className="text-[10px] text-muted-foreground">Fim</Label>
+                <Label className="text-[10px] text-muted-foreground mb-1 block">Fim</Label>
                 <Input
                   type="date"
                   value={draft.periodoFim}
@@ -186,9 +264,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
 
           {/* Responsáveis */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Responsáveis
-            </p>
+            <SectionTitle>Responsáveis</SectionTitle>
             <PeoplePicker
               selectedIds={draft.responsavelIds}
               onChange={(ids) => setDraft({ ...draft, responsavelIds: ids })}
@@ -199,179 +275,157 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
 
           {/* Envolvimento */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Envolvimento
-            </p>
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={draft.souResponsavel}
-                  onCheckedChange={(v) => setDraft({ ...draft, souResponsavel: !!v })}
-                />
+            <SectionTitle>Envolvimento</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              <ChipToggle
+                active={draft.souResponsavel}
+                onToggle={() => setDraft({ ...draft, souResponsavel: !draft.souResponsavel })}
+              >
                 Sou Responsável
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={draft.estouEnvolvido}
-                  onCheckedChange={(v) => setDraft({ ...draft, estouEnvolvido: !!v })}
-                />
+              </ChipToggle>
+              <ChipToggle
+                active={draft.estouEnvolvido}
+                onToggle={() => setDraft({ ...draft, estouEnvolvido: !draft.estouEnvolvido })}
+              >
                 Estou Envolvido
-              </label>
+              </ChipToggle>
             </div>
           </div>
 
-          {/* Comentários */}
+          {/* Status */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Comentários
-            </p>
-            <div className="space-y-1.5">
-              {COMENTARIOS_OPTIONS.map((opcao) => (
-                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="painel-comentarios"
-                    checked={draft.comentarios === opcao.value}
-                    onChange={() => setDraft({ ...draft, comentarios: opcao.value })}
-                    className="accent-primary"
-                  />
-                  {opcao.label}
-                </label>
-              ))}
-          </div>
-
-          {/* Cobranças ("já cobrei") */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Cobranças
-            </p>
-            <div className="space-y-1.5">
-              {COBRANCAS_OPTIONS.map((opcao) => (
-                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="painel-cobrancas"
-                    checked={draft.cobrancas === opcao.value}
-                    onChange={() => setDraft({ ...draft, cobrancas: opcao.value })}
-                    className="accent-primary"
-                  />
-                  {opcao.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Origem: publicação */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Origem
-            </p>
-            <div className="space-y-1.5">
-              {ORIGEM_PUB_OPTIONS.map((opcao) => (
-                <label key={opcao.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="painel-origem-publicacao"
-                    checked={(draft.origemPublicacao ?? "todas") === opcao.value}
-                    onChange={() => setDraft({ ...draft, origemPublicacao: opcao.value })}
-                    className="accent-primary"
-                  />
-                  {opcao.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          </div>
-
-          {/* Prazo */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Prazo
-            </p>
-            <div className="space-y-1.5">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={draft.dataPrevista}
-                  onCheckedChange={(v) =>
-                    setDraft({ ...draft, dataPrevista: !!v, dataFatal: !v ? true : draft.dataFatal })
-                  }
-                />
-                Data prevista
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <Checkbox
-                  checked={draft.dataFatal}
-                  onCheckedChange={(v) =>
-                    setDraft({ ...draft, dataFatal: !!v, dataPrevista: !v ? true : draft.dataPrevista })
-                  }
-                />
-                Data fatal
-              </label>
-            </div>
-          </div>
-
-          {/* Status (grupo simplificado) */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Status
-            </p>
-            <div className="space-y-1.5">
+            <SectionTitle>Status</SectionTitle>
+            <div className="flex flex-wrap gap-2">
               {STATUS_GROUPS.map((s) => (
-                <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="painel-status-group"
-                    checked={draft.statusGroup === s.value}
-                    onChange={() => setDraft({ ...draft, statusGroup: s.value })}
-                    className="accent-primary"
-                  />
+                <PillOption
+                  key={s.value}
+                  value={s.value}
+                  current={draft.statusGroup}
+                  onSelect={(v) => setDraft({ ...draft, statusGroup: v })}
+                >
                   {s.label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Situação detalhada (avançado) */}
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Situação (avançado)
-            </p>
-            <div className="space-y-1.5">
-              {situacoesOptions.map((s) => (
-                <label key={s.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={draft.situacoes.includes(s.value)}
-                    onCheckedChange={() => toggleSituacao(s.value)}
-                  />
-                  {s.label}
-                </label>
+                </PillOption>
               ))}
             </div>
           </div>
 
           {/* Classificação */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-              Classificação
-            </p>
-            <div className="space-y-1.5">
+            <SectionTitle>Classificação</SectionTitle>
+            <div className="flex flex-wrap gap-2">
               {CLASSIFICACOES.map((c) => (
-                <label key={c.value} className="flex items-center gap-2 text-sm cursor-pointer">
-                  <Checkbox
-                    checked={draft.classificacoes.includes(c.value)}
-                    onCheckedChange={() => toggleClassificacao(c.value)}
-                  />
+                <ChipToggle
+                  key={c.value}
+                  active={draft.classificacoes.includes(c.value)}
+                  onToggle={() => toggleClassificacao(c.value)}
+                >
                   {c.label}
-                </label>
+                </ChipToggle>
               ))}
             </div>
           </div>
 
+          {/* Prazo */}
+          <div>
+            <SectionTitle>Prazo</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              <ChipToggle
+                active={draft.dataPrevista}
+                onToggle={() =>
+                  setDraft({
+                    ...draft,
+                    dataPrevista: !draft.dataPrevista,
+                    dataFatal: !draft.dataPrevista ? draft.dataFatal : true,
+                  })
+                }
+              >
+                Data prevista
+              </ChipToggle>
+              <ChipToggle
+                active={draft.dataFatal}
+                onToggle={() =>
+                  setDraft({
+                    ...draft,
+                    dataFatal: !draft.dataFatal,
+                    dataPrevista: !draft.dataFatal ? draft.dataPrevista : true,
+                  })
+                }
+              >
+                Data fatal
+              </ChipToggle>
+            </div>
+          </div>
+
+          {/* Comentários */}
+          <div>
+            <SectionTitle>Comentários</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {COMENTARIOS_OPTIONS.map((opcao) => (
+                <PillOption
+                  key={opcao.value}
+                  value={opcao.value}
+                  current={draft.comentarios}
+                  onSelect={(v) => setDraft({ ...draft, comentarios: v })}
+                >
+                  {opcao.label}
+                </PillOption>
+              ))}
+            </div>
+          </div>
+
+          {/* Cobranças */}
+          <div>
+            <SectionTitle>Cobranças</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {COBRANCAS_OPTIONS.map((opcao) => (
+                <PillOption
+                  key={opcao.value}
+                  value={opcao.value}
+                  current={draft.cobrancas}
+                  onSelect={(v) => setDraft({ ...draft, cobrancas: v })}
+                >
+                  {opcao.label}
+                </PillOption>
+              ))}
+            </div>
+          </div>
+
+          {/* Origem */}
+          <div>
+            <SectionTitle>Origem</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {ORIGEM_PUB_OPTIONS.map((opcao) => (
+                <PillOption
+                  key={opcao.value}
+                  value={opcao.value}
+                  current={draft.origemPublicacao ?? "todas"}
+                  onSelect={(v) => setDraft({ ...draft, origemPublicacao: v })}
+                >
+                  {opcao.label}
+                </PillOption>
+              ))}
+            </div>
+          </div>
+
+          {/* Situação (avançado) */}
+          <div>
+            <SectionTitle>Situação (avançado)</SectionTitle>
+            <div className="flex flex-wrap gap-2">
+              {situacoesOptions.map((s) => (
+                <ChipToggle
+                  key={s.value}
+                  active={draft.situacoes.includes(s.value)}
+                  onToggle={() => toggleSituacao(s.value)}
+                >
+                  {s.label}
+                </ChipToggle>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Ações */}
-        <div className="flex items-center justify-between gap-2 border-t border-border p-3 bg-muted/30">
+        {/* Rodapé fixo */}
+        <div className="flex items-center justify-between gap-2 border-t border-border p-4 bg-muted/30 flex-shrink-0">
           <Button
             variant="ghost"
             size="sm"
@@ -394,7 +448,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
             Filtrar
           </Button>
         </div>
-      </PopoverContent>
-    </Popover>
+      </SheetContent>
+    </Sheet>
   );
 }
