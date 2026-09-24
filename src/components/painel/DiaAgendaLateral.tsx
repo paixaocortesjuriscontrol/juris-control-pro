@@ -369,6 +369,7 @@ export function DiaAgendaLateral({
               onBaixar={onBaixarItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
+              veioDePublicacao={itensDePublicacao.has(getItemRawId(item.id))}
               temComentario={temComentarioItem(itensComComentarios, item)}
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
