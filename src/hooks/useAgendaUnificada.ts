@@ -1314,6 +1314,13 @@ export function useUpdateItemAgenda() {
       if (origem === "tarefa") {
         const tarefaStatus = (status === "concluido" ? "cumprido" : status) as "atrasado" | "cumprido" | "pendente";
         const tarefaId = String(id).split("::")[0];
+        if (status !== undefined) {
+          const { data: auth } = await supabase.auth.getUser();
+          if (auth?.user) {
+            const { data: pode } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: auth.user.id, _tarefa: tarefaId });
+            if (pode === false) throw new Error("Somente o responsável pode alterar a situação deste item.");
+          }
+        }
         const { error } = await supabase.from("tarefas").update({ status: tarefaStatus, updated_at: new Date().toISOString() }).eq("id", tarefaId);
         if (error) throw error;
         await registrarAuditoriaTarefa({
