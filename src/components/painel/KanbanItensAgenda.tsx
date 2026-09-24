@@ -192,16 +192,11 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         <strong>Publicação:</strong> {formatDataPublicacao((item as any).data_publicacao_origem)}
                       </p>
                     )}
-                    <div className="flex items-center justify-between mt-1.5 gap-2">
-                      <span className="text-[10px] text-muted-foreground">
-                        {d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "Sem data"}
-                      </span>
-                      {item.responsavel?.nome && (
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[50%]">
-                          {item.responsavel.nome}
-                        </span>
-                      )}
-                    </div>
+                    {item.responsavel?.nome && (
+                      <p className="text-[10px] text-muted-foreground mt-1 truncate text-right">
+                        {item.responsavel.nome}
+                      </p>
+                    )}
                   </Card>
                 );
               })}
