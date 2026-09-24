@@ -4411,6 +4411,27 @@ export type Database = {
           },
         ]
       }
+      equipes_tst: {
+        Row: {
+          created_at: string
+          criado_por: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
+      }
       etiquetas: {
         Row: {
           ativo: boolean
