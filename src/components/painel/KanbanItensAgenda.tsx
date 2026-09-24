@@ -9,6 +9,7 @@ import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -148,6 +149,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
                 const it: any = item;
+                const veioDePublicacao = Boolean(it.data_publicacao_origem);
                 const doBanco = partesPorProcesso?.get(it.processo?.id ?? it.processo_id ?? "");
                 const ativo = (it.partes_ativas || it.polo_ativo || doBanco?.ativo || "").trim();
                 const passivo = (it.partes_passivas || it.polo_passivo || doBanco?.passivo || "").trim();
@@ -168,6 +170,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                       </p>
                       {temAtividade && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
+                       {veioDePublicacao && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
                     </div>
                     {item.processo?.numero && (
