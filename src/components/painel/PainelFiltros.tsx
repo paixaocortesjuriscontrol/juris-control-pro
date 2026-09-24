@@ -26,6 +26,8 @@ export interface PainelFiltrosState {
   cobrancas: "todas" | "hoje" | "nao_hoje";
   // Itens criados a partir de publicações
   origemPublicacao?: "todas" | "com" | "sem";
+  // Período filtrado pela data da publicação (em vez de data prevista/fatal)
+  periodoPorPublicacao?: boolean;
 
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
@@ -46,6 +48,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   comentarios: "todas",
   cobrancas: "todas",
   origemPublicacao: "todas",
+  periodoPorPublicacao: false,
 
   statusGroup: "todas",
   periodoInicio: "",
@@ -173,6 +176,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.comentarios !== "todas",
     filtros.cobrancas !== "todas",
     (filtros.origemPublicacao ?? "todas") !== "todas",
+    filtros.periodoPorPublicacao,
 
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
@@ -230,6 +234,16 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
           {/* Período */}
           <div>
             <SectionTitle>Período</SectionTitle>
+            <div className="flex flex-wrap gap-2 mb-2">
+              <ChipToggle
+                active={draft.periodoPorPublicacao ?? false}
+                onToggle={() =>
+                  setDraft({ ...draft, periodoPorPublicacao: !draft.periodoPorPublicacao })
+                }
+              >
+                Data da publicação
+              </ChipToggle>
+            </div>
             <div className="grid grid-cols-2 gap-2">
               <div className="min-w-0">
                 <Label className="text-[10px] text-muted-foreground mb-1 block">Início</Label>
@@ -250,6 +264,11 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                 />
               </div>
             </div>
+            {(draft.periodoPorPublicacao ?? false) && (
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                O período será aplicado à data da publicação (itens sem publicação ficam de fora).
+              </p>
+            )}
           </div>
 
           {/* Responsáveis */}
