@@ -11161,6 +11161,7 @@ export type Database = {
         }
         Returns: Json
       }
+      get_inteligencia_filtros: { Args: never; Returns: Json }
       get_inteligencia_ofensores: {
         Args: {
           p_coordenacao_id?: string
