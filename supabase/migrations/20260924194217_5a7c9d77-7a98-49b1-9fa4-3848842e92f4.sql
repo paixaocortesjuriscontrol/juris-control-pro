@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_inteligencia_dashboard(uuid, text, date, date, text) FROM PUBLIC, anon;
