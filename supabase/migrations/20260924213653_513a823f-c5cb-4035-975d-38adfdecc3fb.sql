@@ -1,0 +1,6 @@
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.config_alteracao_itens_terceiros TO authenticated;
+GRANT ALL ON public.config_alteracao_itens_terceiros TO service_role;
+DROP POLICY IF EXISTS "Admin/coordenador gerenciam config de alteracao" ON public.config_alteracao_itens_terceiros;
+CREATE POLICY "Admin/coordenador gerenciam config de alteracao" ON public.config_alteracao_itens_terceiros FOR ALL TO authenticated
+USING (has_role(auth.uid(),'admin') OR EXISTS (SELECT 1 FROM coordenacoes c WHERE c.id=coordenacao_id AND c.coordenador_id=auth.uid()) OR EXISTS (SELECT 1 FROM membros_coordenacao m WHERE m.coordenacao_id=config_alteracao_itens_terceiros.coordenacao_id AND m.usuario_id=auth.uid() AND lower(m.cargo) LIKE '%coordenador%' AND lower(m.cargo) NOT LIKE '%assistente%'))
+WITH CHECK (has_role(auth.uid(),'admin') OR EXISTS (SELECT 1 FROM coordenacoes c WHERE c.id=coordenacao_id AND c.coordenador_id=auth.uid()) OR EXISTS (SELECT 1 FROM membros_coordenacao m WHERE m.coordenacao_id=config_alteracao_itens_terceiros.coordenacao_id AND m.usuario_id=auth.uid() AND lower(m.cargo) LIKE '%coordenador%' AND lower(m.cargo) NOT LIKE '%assistente%'));
