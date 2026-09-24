@@ -34,6 +34,7 @@ import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/ResponsaveisFixosTipoDialog";
 import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
+import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/AlteracaoItensTerceirosDialog";
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -80,6 +81,7 @@ const Coordenacoes = () => {
   const [respFixosDialog, setRespFixosDialog] = useState(false);
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
+  const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
@@ -452,6 +454,14 @@ const Coordenacoes = () => {
                         <Button
                           size="sm"
                           variant="outline"
+                          onClick={() => setAltTerceirosDialog(true)}
+                        >
+                          <ShieldCheck className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Alterar Itens de Outros</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
                           onClick={() => setConfigAcompDialog(true)}
                         >
                           <ShieldCheck className="w-4 h-4 mr-1" />
@@ -708,6 +718,13 @@ const Coordenacoes = () => {
           <PermissoesSituacaoDialog
             open={permSituacaoDialog}
             onOpenChange={setPermSituacaoDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <AlteracaoItensTerceirosDialog
+            open={altTerceirosDialog}
+            onOpenChange={setAltTerceirosDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
