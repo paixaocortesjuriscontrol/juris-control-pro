@@ -536,6 +536,12 @@ export function EquipeItensAgenda({
                           Reclamada: {getReclamada(item)}
                         </p>
                       )}
+                      {formatDataPublicacao((item as any).data_publicacao_origem) && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="shrink-0">Publicação:</span>{" "}
+                          {formatDataPublicacao((item as any).data_publicacao_origem)}
+                        </p>
+                      )}
                     </div>
                   </TableCell>
                   <TableCell>
