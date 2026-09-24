@@ -140,6 +140,7 @@ export function AgendaItemRow({
   onBaixar,
   temAtividade,
   veioDeWorkflow,
+  veioDePublicacao,
   temComentario,
   autoriaComentario,
   infoCobranca,
