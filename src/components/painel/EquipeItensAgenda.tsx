@@ -1,3 +1,4 @@
+import { useSessionState } from "@/hooks/useSessionState";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -143,8 +144,8 @@ export function EquipeItensAgenda({
   pagina: paginaProp,
   onPaginaChange,
 }: EquipeItensAgendaProps) {
-  const [selectedMembroLocal, setSelectedMembroLocal] = useState<string | null>(null);
-  const [searchLocal, setSearchLocal] = useState("");
+  const [selectedMembroLocal, setSelectedMembroLocal] = useSessionState<string | null>("equipe-membro", null);
+  const [searchLocal, setSearchLocal] = useSessionState("equipe-busca", "");
   const [paginaLocal, setPaginaLocal] = useState(1);
 
   const selectedMembro = selectedMembroProp !== undefined ? selectedMembroProp : selectedMembroLocal;

@@ -1,3 +1,4 @@
+import { useSessionState } from "@/hooks/useSessionState";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -197,13 +198,13 @@ export default function ListaAtividadesView({
 }: ListaAtividadesViewProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [filters, setFilters] = useState<Filters>(defaultFilters);
+  const [filters, setFilters] = useSessionState<Filters>(`lista-atv-filtros:${forcedCoordenacaoId ?? ""}:${forcedResponsavelId ?? ""}`, defaultFilters);
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [detalhesPrazo, setDetalhesPrazo] = useState<ItemAgendaUnificado | null>(null);
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [etiquetasFiltro, setEtiquetasFiltro] = useState<string[]>([]);
+  const [etiquetasFiltro, setEtiquetasFiltro] = useSessionState<string[]>("lista-atv-etiquetas", []);
   const { setCollapsed } = useSidebarCollapsed();
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
