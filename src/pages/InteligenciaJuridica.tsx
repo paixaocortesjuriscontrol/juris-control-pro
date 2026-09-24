@@ -31,6 +31,11 @@ interface InteligenciaData {
   financeiro: { valor_causa: number; valor_condenacao: number; valor_pago: number; provisionado_provavel: number };
 }
 
+interface FiltrosDisponiveis {
+  equipes: string[];
+  tribunais: { valor: string; tst: boolean; processos: boolean }[];
+}
+
 const fmtBRL = (v: number) =>
   v.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 
@@ -131,28 +136,18 @@ export default function InteligenciaJuridica() {
 
   const { data: coordenacoes } = useCoordenacoes();
 
-  const { data: equipes } = useQuery({
-    queryKey: ["equipes-tst-inteligencia"],
+  const { data: filtrosDisponiveis } = useQuery({
+    queryKey: ["inteligencia-filtros"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("equipes_tst").select("nome").order("nome");
+      const { data, error } = await (supabase.rpc as any)("get_inteligencia_filtros");
       if (error) throw error;
-      return (data || []).map((e) => e.nome);
-    },
-  });
-
-  const { data: tribunais } = useQuery({
-    queryKey: ["tribunais-inteligencia"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dados_benner")
-        .select("tribunal")
-        .not("tribunal", "is", null)
-        .limit(5000);
-      if (error) throw error;
-      return [...new Set((data || []).map((d) => d.tribunal).filter(Boolean))].sort() as string[];
+      return data as FiltrosDisponiveis;
     },
     staleTime: 300000,
   });
+
+  const equipes = filtrosDisponiveis?.equipes || [];
+  const tribunais = filtrosDisponiveis?.tribunais || [];
 
   const filtros = useMemo(() => ({
     coordenacaoId: coordenacaoId === "todas" ? null : coordenacaoId,
@@ -230,7 +225,7 @@ export default function InteligenciaJuridica() {
                 <SelectTrigger><SelectValue placeholder="Todas" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas</SelectItem>
-                  {(equipes || []).map((e) => (
+                  {equipes.map((e) => (
                     <SelectItem key={e} value={e}>{e}</SelectItem>
                   ))}
                 </SelectContent>
@@ -242,8 +237,10 @@ export default function InteligenciaJuridica() {
                 <SelectTrigger><SelectValue placeholder="Todos" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todos">Todos</SelectItem>
-                  {(tribunais || []).map((tr) => (
-                    <SelectItem key={tr} value={tr}>{tr}</SelectItem>
+                  {tribunais.map((tr) => (
+                    <SelectItem key={tr.valor} value={tr.valor}>
+                      {tr.valor} · {tr.tst && tr.processos ? "Ambas as bases" : tr.tst ? "Distribuição TST" : "Processos e Casos"}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
