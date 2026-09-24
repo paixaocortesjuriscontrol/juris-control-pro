@@ -1,0 +1,1 @@
+ALTER FUNCTION public.get_inteligencia_filtros() SECURITY INVOKER;

@@ -51,7 +51,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 ## Distribuição TST (10/09)
 - [x] Exibir pendências vermelhas e avisos amarelos na aba Distribuição TST da janela lateral direita
-- [ ] Inteligência Jurídica: filtro de Equipe deve usar as equipes da Distribuição TST; Tribunal deve reunir Distribuição TST e Processos e Casos
+- [x] Inteligência Jurídica: filtro de Equipe usa as equipes da Distribuição TST; Tribunal reúne Distribuição TST e Processos e Casos
 
 ## WhatsApp — fila Z-API (15/09)
 - [x] Identificar e interromper o envio de mensagens antigas acumuladas, preservando os 711 lembretes futuros
