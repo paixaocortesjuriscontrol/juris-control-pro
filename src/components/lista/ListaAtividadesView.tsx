@@ -469,16 +469,30 @@ export default function ListaAtividadesView({
     const base = etiquetaIdsSet
       ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id))
       : externalItems || [];
-    // Ordena por data de publicação (mais nova no topo); sem publicação mantém a ordem original
+    // Ordena pelo campo de data selecionado; sem valor mantém a ordem original
+    const getTs = (r: any): number => {
+      const d = sortData.field === "publicacao"
+        ? r?.data_publicacao_origem
+        : sortData.field === "limite"
+          ? (r?.data_vencimento || r?.data_inicio)
+          : sortData.field === "fatal"
+            ? r?.data_fatal
+            : sortData.field === "base"
+              ? (r as any)?.data_base
+              : r?.data_publicacao_origem;
+      if (!d) return sortData.dir === "desc" ? -Infinity : Infinity;
+      const t = new Date(d).getTime();
+      return Number.isFinite(t) ? t : (sortData.dir === "desc" ? -Infinity : Infinity);
+    };
     const ordenado = [...base].sort((a: any, b: any) => {
-      const pa = a?.data_publicacao_origem ? new Date(a.data_publicacao_origem).getTime() : -Infinity;
-      const pb = b?.data_publicacao_origem ? new Date(b.data_publicacao_origem).getTime() : -Infinity;
-      return pb - pa;
+      const ta = getTs(a);
+      const tb = getTs(b);
+      return sortData.dir === "desc" ? tb - ta : ta - tb;
     });
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
     return ordenado.slice(from, to) as ListaRow[];
-  }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
+  }, [externalItems, page, usingExternalItems, etiquetaIdsSet, sortData]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
   const processoIdsPartes = useMemo(
