@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import {
   Dialog,
   DialogContent,

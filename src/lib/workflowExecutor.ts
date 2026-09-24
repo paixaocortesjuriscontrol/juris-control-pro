@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { format, addDays, addBusinessDays, addWeeks, addMonths, addYears } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
