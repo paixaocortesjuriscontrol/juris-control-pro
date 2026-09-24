@@ -1,3 +1,4 @@
+import { useSessionState } from "@/hooks/useSessionState";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
@@ -352,17 +353,17 @@ export default function PainelControle() {
       setSearchParams({}, { replace: true });
     })();
   }, [searchParams, setSearchParams]);
-  const [situacaoFilter, setSituacaoFilter] = useState<string>("todos");
+  const [situacaoFilter, setSituacaoFilter] = useSessionState<string>("painel-situacao", "todos");
   const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
-  const [painelFiltros, setPainelFiltros] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const [painelFiltros, setPainelFiltros] = useSessionState<PainelFiltrosState>("painel-filtros", PAINEL_FILTROS_DEFAULT);
   // Escopo da marca "já cobrei": minhas cobranças ou as da equipe.
   const [escopoCobranca, setEscopoCobranca] = useState<EscopoCobranca>(getEscopoCobrancaPreferido());
   /** Botão de cobranças ligado: lista somente os itens cobrados (meus ou da equipe). */
   const [somenteCobrados, setSomenteCobrados] = useState(false);
 
   // Busca por número de processo: mantém no calendário só os itens do processo
-  const [buscaProcesso, setBuscaProcesso] = useState("");
+  const [buscaProcesso, setBuscaProcesso] = useSessionState("painel-busca", "");
   const buscaProcessoDigits = useMemo(
     () => buscaProcesso.replace(/\D/g, ""),
     [buscaProcesso],
