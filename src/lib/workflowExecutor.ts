@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { format, addDays, addBusinessDays, addWeeks, addMonths, addYears } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
@@ -688,6 +689,19 @@ export async function avancarExecucaoWorkflow(
       execucaoCast.processo_id,
       execucaoCast.processo_numero
     );
+
+    // Etapas seguintes herdam a mesma publicação de origem do workflow
+    if (item?.id && execucaoCast.publicacao_origem_id) {
+      try {
+        await vincularItemPublicacao(
+          { id: item.id, tipo: String(item.tipo || (proxima.etapa as WorkflowEtapa).tipo_item || "tarefa") },
+          { tipo: execucaoCast.publicacao_origem_tipo, id: execucaoCast.publicacao_origem_id },
+        );
+      } catch (e) {
+        console.error("Falha ao vincular publicação ao item do workflow", e);
+      }
+    }
+
 
     const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
       | "dias_corridos"
