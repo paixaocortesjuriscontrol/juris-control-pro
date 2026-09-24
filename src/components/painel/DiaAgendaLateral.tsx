@@ -17,7 +17,9 @@ import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
+import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
 import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
@@ -138,6 +140,7 @@ export function AgendaItemRow({
   onBaixar,
   temAtividade,
   veioDeWorkflow,
+  veioDePublicacao,
   temComentario,
   autoriaComentario,
   infoCobranca,
@@ -149,6 +152,7 @@ export function AgendaItemRow({
   onBaixar?: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
+  veioDePublicacao?: boolean;
   temComentario?: boolean;
   autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
   infoCobranca?: InfoCobranca | null;
@@ -194,6 +198,7 @@ export function AgendaItemRow({
           {hora ? `: ${hora}` : ""}
           {temAtividade && <AtividadeBadge />}
           {veioDeWorkflow && <WorkflowBadge />}
+          {veioDePublicacao && <PublicacaoBadge />}
           {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
         </p>
         {(item.local || item.descricao) && (
@@ -289,6 +294,12 @@ export function DiaAgendaLateral({
   }, [atividades]);
 
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
+  const { data: itensDePublicacaoMap = new Map<string, string>() } = useItensDePublicacao(itens, true);
+  const itensDePublicacao = useMemo(() => {
+    const s = new Set<string>();
+    itensDePublicacaoMap.forEach((_, k) => s.add(k));
+    return s;
+  }, [itensDePublicacaoMap]);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
   const { data: mapaCobrancas } = useCobrancasItens(itens, getEscopoCobrancaPreferido());
   // Cobranças feitas na tarefa/prazo dono da atividade: a atividade também
@@ -358,6 +369,7 @@ export function DiaAgendaLateral({
               onBaixar={onBaixarItem}
               temAtividade={itensComAtividades.has(getItemRawId(item.id))}
               veioDeWorkflow={itensDeWorkflow.has(getItemRawId(item.id))}
+              veioDePublicacao={itensDePublicacao.has(getItemRawId(item.id))}
               temComentario={temComentarioItem(itensComComentarios, item)}
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
