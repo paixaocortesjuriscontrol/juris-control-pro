@@ -152,6 +152,7 @@ export function AgendaItemRow({
   onBaixar?: (item: ItemAgendaUnificado) => void;
   temAtividade?: boolean;
   veioDeWorkflow?: boolean;
+  veioDePublicacao?: boolean;
   temComentario?: boolean;
   autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
   infoCobranca?: InfoCobranca | null;
