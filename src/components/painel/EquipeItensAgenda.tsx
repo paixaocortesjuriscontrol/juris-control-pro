@@ -20,6 +20,8 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import {
   useCobrancasItens,
   infoCobrancaItem,

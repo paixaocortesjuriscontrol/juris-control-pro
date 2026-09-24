@@ -2885,7 +2885,7 @@ export default function PainelControle() {
         ) : viewMode === "equipe" ? (
             <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
               <EquipeItensAgenda
-                itens={itensListaEquipe}
+                itens={comDataPublicacao(itensListaEquipe)}
                 onItemClick={handleItemClick}
                 selectedMembro={equipeMembro}
                 onSelectedMembroChange={setEquipeMembro}
