@@ -1036,7 +1036,29 @@ export default function ListaAtividadesView({
                     </TableHead>
                     <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
-                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Datas</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">
+                      <button
+                        onClick={() => {
+                          const cycle: Record<string, { field: string; dir: "asc" | "desc" }> = {
+                            "publicacao-desc": { field: "limite", dir: "asc" },
+                            "limite-asc": { field: "limite", dir: "desc" },
+                            "limite-desc": { field: "fatal", dir: "asc" },
+                            "fatal-asc": { field: "fatal", dir: "desc" },
+                            "fatal-desc": { field: "publicacao", dir: "asc" },
+                            "publicacao-asc": { field: "publicacao", dir: "desc" },
+                          };
+                          const key = `${sortData.field}-${sortData.dir}`;
+                          setSortData(cycle[key] ?? { field: "publicacao", dir: "desc" });
+                        }}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        Datas
+                        <span className="text-[10px] font-normal text-muted-foreground">
+                          ({sortData.field === "publicacao" ? "Pub." : sortData.field === "limite" ? "Limite" : "Fatal"}
+                          {sortData.dir === "asc" ? " ↑" : " ↓"})
+                        </span>
+                      </button>
+                    </TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Local / Parte</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Prioridade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Status</TableHead>
