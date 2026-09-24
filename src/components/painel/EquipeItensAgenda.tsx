@@ -311,7 +311,11 @@ export function EquipeItensAgenda({
       const t = new Date(i?.data_inicio).getTime();
       return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
     };
-    return [...filtrada].sort((a, b) => ts(a) - ts(b));
+    const pubTs = (i: any) => {
+      const p = (i as any)?.data_publicacao_origem;
+      return p ? new Date(p).getTime() : -Infinity;
+    };
+    return [...filtrada].sort((a, b) => pubTs(b) - pubTs(a) || ts(a) - ts(b));
   }, [membroAtual, itens, search]);
 
   const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
