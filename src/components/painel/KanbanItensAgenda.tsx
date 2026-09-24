@@ -47,6 +47,14 @@ function getRefDate(item: ItemAgendaUnificado): Date | null {
   return isValid(d) ? d : null;
 }
 
+/** Data de publicação do item (quando vinda de uma publicação DJEN). */
+function getPubDate(item: ItemAgendaUnificado): Date | null {
+  const raw = (item as any).data_publicacao_origem;
+  if (!raw) return null;
+  const d = parseISO(raw);
+  return isValid(d) ? d : null;
+}
+
 function classifyItem(item: ItemAgendaUnificado): ColunaKey {
   if (isItemTratado(item)) return "concluidos";
   const d = getRefDate(item);
