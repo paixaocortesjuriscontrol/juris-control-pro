@@ -217,19 +217,9 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
         className="w-full sm:max-w-md flex flex-col p-0 gap-0"
       >
         {/* Cabeçalho */}
-        <SheetHeader className="flex flex-row items-center justify-between gap-2 px-5 py-4 border-b border-border flex-shrink-0">
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-primary" />
-            <SheetTitle className="text-base">Filtros</SheetTitle>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setOpen(false)}
-          >
-            <X className="w-4 h-4" />
-          </Button>
+        <SheetHeader className="flex flex-row items-center gap-2 px-5 py-4 border-b border-border flex-shrink-0">
+          <Filter className="w-4 h-4 text-primary" />
+          <SheetTitle className="text-base">Filtros</SheetTitle>
           <SheetDescription className="sr-only">
             Ajuste os filtros da agenda e clique em Filtrar.
           </SheetDescription>
