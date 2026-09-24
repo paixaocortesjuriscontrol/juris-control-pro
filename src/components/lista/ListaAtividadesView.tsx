@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Clock,
   Pencil,
   Filter,
@@ -205,7 +207,23 @@ export default function ListaAtividadesView({
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [etiquetasFiltro, setEtiquetasFiltro] = useSessionState<string[]>("lista-atv-etiquetas", []);
+  const [sortData, setSortData] = useSessionState<{ field: string; dir: "asc" | "desc" }>("lista-atv-sort", { field: "publicacao", dir: "desc" });
   const { setCollapsed } = useSidebarCollapsed();
+
+  const toggleSort = (field: string) => {
+    setSortData((prev: { field: string; dir: "asc" | "desc" }) =>
+      prev.field === field
+        ? { field, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { field, dir: field === "publicacao" ? "desc" : "asc" }
+    );
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortData.field !== field) return null;
+    return sortData.dir === "asc"
+      ? <ChevronUp className="w-3 h-3 inline ml-0.5" />
+      : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
+  };
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
   const usingExternalItems = externalItems !== undefined;
@@ -451,16 +469,30 @@ export default function ListaAtividadesView({
     const base = etiquetaIdsSet
       ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id))
       : externalItems || [];
-    // Ordena por data de publicação (mais nova no topo); sem publicação mantém a ordem original
+    // Ordena pelo campo de data selecionado; sem valor mantém a ordem original
+    const getTs = (r: any): number => {
+      const d = sortData.field === "publicacao"
+        ? r?.data_publicacao_origem
+        : sortData.field === "limite"
+          ? (r?.data_vencimento || r?.data_inicio)
+          : sortData.field === "fatal"
+            ? r?.data_fatal
+            : sortData.field === "base"
+              ? (r as any)?.data_base
+              : r?.data_publicacao_origem;
+      if (!d) return sortData.dir === "desc" ? -Infinity : Infinity;
+      const t = new Date(d).getTime();
+      return Number.isFinite(t) ? t : (sortData.dir === "desc" ? -Infinity : Infinity);
+    };
     const ordenado = [...base].sort((a: any, b: any) => {
-      const pa = a?.data_publicacao_origem ? new Date(a.data_publicacao_origem).getTime() : -Infinity;
-      const pb = b?.data_publicacao_origem ? new Date(b.data_publicacao_origem).getTime() : -Infinity;
-      return pb - pa;
+      const ta = getTs(a);
+      const tb = getTs(b);
+      return sortData.dir === "desc" ? tb - ta : ta - tb;
     });
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
     return ordenado.slice(from, to) as ListaRow[];
-  }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
+  }, [externalItems, page, usingExternalItems, etiquetaIdsSet, sortData]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
   const processoIdsPartes = useMemo(
@@ -1118,12 +1150,28 @@ export default function ListaAtividadesView({
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1 font-medium text-foreground">
                                 <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
-                                <span className="text-muted-foreground shrink-0">Limite:</span>
+                                <button
+                                  onClick={() => toggleSort("limite")}
+                                  className={cn(
+                                    "shrink-0 hover:text-foreground transition-colors",
+                                    sortData.field === "limite" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                  )}
+                                >
+                                  Limite:<SortIcon field="limite" />
+                                </button>
                                 <span>{fmtDateTime(item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
                               </div>
                               {item.data_fatal && (
                                 <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Fatal:</span>
+                                  <button
+                                    onClick={() => toggleSort("fatal")}
+                                    className={cn(
+                                      "shrink-0 hover:text-foreground transition-colors",
+                                      sortData.field === "fatal" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                    )}
+                                  >
+                                    Fatal:<SortIcon field="fatal" />
+                                  </button>
                                   <span>{fmtDateTime(item.data_fatal, (r as any).hora_fatal)}</span>
                                 </div>
                               )}
@@ -1132,7 +1180,15 @@ export default function ListaAtividadesView({
                               </div>
                               {formatDataPublicacao((r as any).data_publicacao_origem) && (
                                 <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Publicação:</span>
+                                  <button
+                                    onClick={() => toggleSort("publicacao")}
+                                    className={cn(
+                                      "shrink-0 hover:text-foreground transition-colors",
+                                      sortData.field === "publicacao" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                    )}
+                                  >
+                                    Publicação:<SortIcon field="publicacao" />
+                                  </button>
                                   <span>{formatDataPublicacao((r as any).data_publicacao_origem)}</span>
                                 </div>
                               )}
