@@ -3036,6 +3036,7 @@ export default function PainelControle() {
                                 const isCancelado = isItemCancelado(item);
                                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
+                                const veioDePublicacao = !!itensDePublicacao?.has(getItemRawId(item.id));
                                 const temComentario = temComentarioItem(itensComComentarios, item);
                                 const infoCobranca = infoCobrancaItem(mapaCobrancas, item);
 
