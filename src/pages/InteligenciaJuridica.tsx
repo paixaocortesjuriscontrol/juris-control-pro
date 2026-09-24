@@ -20,7 +20,7 @@ import {
 } from "recharts";
 
 type SerieItem = { nome: string; total: number; ganhos: number; perdidos: number; acordos: number };
-type MesItem = { mes: string; total: number; ganhos: number; perdidos: number; acordos: number };
+type MesItem = { mes: string; total: number; ganhos: number; perdidos: number; acordos: number; sem_resultado: number };
 
 interface InteligenciaData {
   totais: { total: number; ganhos: number; perdidos: number; acordos: number; sem_resultado: number };
@@ -325,6 +325,7 @@ export default function InteligenciaJuridica() {
                   <Bar dataKey="ganhos" name="Ganhos" stackId="a" fill="#10b981" />
                   <Bar dataKey="perdidos" name="Perdidos" stackId="a" fill="#ef4444" />
                   <Bar dataKey="acordos" name="Acordos" stackId="a" fill="#0ea5e9" />
+                   <Bar dataKey="sem_resultado" name="Sem resultado" stackId="a" fill="hsl(var(--muted-foreground))" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
