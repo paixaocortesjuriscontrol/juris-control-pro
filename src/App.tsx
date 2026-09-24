@@ -150,6 +150,7 @@ function App() {
               <Route path="/notificacoes" element={<ProtectedRoute><Notificacoes /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute><Index /></ProtectedRoute>} />
               <Route path="/indicadores" element={<ProtectedRoute><Indicadores /></ProtectedRoute>} />
+              <Route path="/inteligencia-juridica" element={<ProtectedRoute><InteligenciaJuridica /></ProtectedRoute>} />
               <Route path="/ranking-atendimento" element={<ProtectedRoute><RankingAtendimento /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
               <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
