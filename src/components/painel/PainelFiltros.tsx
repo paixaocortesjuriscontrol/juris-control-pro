@@ -176,6 +176,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.comentarios !== "todas",
     filtros.cobrancas !== "todas",
     (filtros.origemPublicacao ?? "todas") !== "todas",
+    filtros.periodoPorPublicacao,
 
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
