@@ -71,4 +71,4 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 - [x] Corrigir risco no calendário para atividade com situação “Concluído com sucesso”.
 ## Inteligência Jurídica — Judit (24/09)
-- [ ] Corrigir Varas, Estados e Juízes recebidos como texto e eliminar linhas vazias
+- [x] Corrigir Varas, Estados e Juízes recebidos como texto e eliminar linhas vazias
