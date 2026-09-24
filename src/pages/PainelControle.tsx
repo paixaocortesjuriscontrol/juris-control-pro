@@ -3072,6 +3072,9 @@ export default function PainelControle() {
                                   {veioDeWorkflow && (
                                     <WorkflowBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
                                   )}
+                                  {veioDePublicacao && (
+                                    <PublicacaoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                  )}
                                   {temComentario && (
                                     <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(itensComComentarios, item)} />
                                   )}
