@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import OfensoresTendencias from "@/components/inteligencia/OfensoresTendencias";
 import PanoramaProcessos from "@/components/inteligencia/PanoramaProcessos";
 import OportunidadesAcordo from "@/components/inteligencia/OportunidadesAcordo";
+import InsightsJudit from "@/components/inteligencia/InsightsJudit";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -379,6 +380,7 @@ export default function InteligenciaJuridica() {
       <PanoramaProcessos filtros={filtros} />
 
       <OportunidadesAcordo filtros={filtros} />
+      <InsightsJudit filtros={filtros} />
     </div>
     </MainLayout>
   );
