@@ -1158,9 +1158,21 @@ export default function PainelControle() {
   // Marca "já cobrei" dos itens exibidos (pessoal ou da equipe, conforme escolha).
   const { data: mapaCobrancas } = useCobrancasItens(itensParaComentarios, escopoCobranca);
 
-  // Itens criados a partir de publicações (filtro "Origem").
+  // Itens criados a partir de publicações (filtro "Origem") + data da publicação.
   const filtroOrigemPub = painelFiltros.origemPublicacao ?? "todas";
-  const { data: itensDePublicacao } = useItensDePublicacao(itensParaComentarios, filtroOrigemPub !== "todas");
+  const { data: itensDePublicacao } = useItensDePublicacao(itensParaComentarios, true);
+
+  // Anexa `data_publicacao_origem` nos itens exibidos (Lista e Kanban).
+  const comDataPublicacao = useCallback(
+    <T extends { id: string }>(lista: T[]): T[] => {
+      if (!itensDePublicacao || itensDePublicacao.size === 0) return lista;
+      return lista.map((it) => {
+        const d = itensDePublicacao.get(getItemRawId(String(it.id)));
+        return d ? ({ ...it, data_publicacao_origem: d } as T) : it;
+      });
+    },
+    [itensDePublicacao],
+  );
 
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
