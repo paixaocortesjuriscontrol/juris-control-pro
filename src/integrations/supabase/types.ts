@@ -6844,6 +6844,72 @@ export type Database = {
           },
         ]
       }
+      pecas_geradas: {
+        Row: {
+          conteudo: string
+          created_at: string
+          criado_por: string | null
+          custo_usd: number | null
+          id: string
+          modelo_ia: string | null
+          observacoes: string | null
+          processo_id: string | null
+          revisado: boolean
+          tese_id: string | null
+          tipo_peca: string
+          tokens_input: number | null
+          tokens_output: number | null
+          updated_at: string
+        }
+        Insert: {
+          conteudo?: string
+          created_at?: string
+          criado_por?: string | null
+          custo_usd?: number | null
+          id?: string
+          modelo_ia?: string | null
+          observacoes?: string | null
+          processo_id?: string | null
+          revisado?: boolean
+          tese_id?: string | null
+          tipo_peca?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+        }
+        Update: {
+          conteudo?: string
+          created_at?: string
+          criado_por?: string | null
+          custo_usd?: number | null
+          id?: string
+          modelo_ia?: string | null
+          observacoes?: string | null
+          processo_id?: string | null
+          revisado?: boolean
+          tese_id?: string | null
+          tipo_peca?: string
+          tokens_input?: number | null
+          tokens_output?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pecas_geradas_processo_id_fkey"
+            columns: ["processo_id"]
+            isOneToOne: false
+            referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pecas_geradas_tese_id_fkey"
+            columns: ["tese_id"]
+            isOneToOne: false
+            referencedRelation: "teses_juridicas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pedidos_por_dossie: {
         Row: {
           created_at: string
@@ -9890,6 +9956,65 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      teses_juridicas: {
+        Row: {
+          area: string
+          assunto_cnj: string | null
+          ativo: boolean
+          coordenacao_id: string | null
+          created_at: string
+          criado_por: string | null
+          fundamentos: string
+          id: string
+          materia: string | null
+          tags: string[] | null
+          tipo_peca: string
+          tipo_recurso: string | null
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          area?: string
+          assunto_cnj?: string | null
+          ativo?: boolean
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          fundamentos?: string
+          id?: string
+          materia?: string | null
+          tags?: string[] | null
+          tipo_peca?: string
+          tipo_recurso?: string | null
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          area?: string
+          assunto_cnj?: string | null
+          ativo?: boolean
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          fundamentos?: string
+          id?: string
+          materia?: string | null
+          tags?: string[] | null
+          tipo_peca?: string
+          tipo_recurso?: string | null
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teses_juridicas_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       tipo_monitoramento: {
         Row: {
