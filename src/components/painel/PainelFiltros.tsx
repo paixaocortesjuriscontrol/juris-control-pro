@@ -26,6 +26,8 @@ export interface PainelFiltrosState {
   cobrancas: "todas" | "hoje" | "nao_hoje";
   // Itens criados a partir de publicações
   origemPublicacao?: "todas" | "com" | "sem";
+  // Período filtrado pela data da publicação (em vez de data prevista/fatal)
+  periodoPorPublicacao?: boolean;
 
   // Status simplificado (radio do anexo)
   statusGroup: "todas" | "a_concluir" | "concluidas" | "canceladas";
