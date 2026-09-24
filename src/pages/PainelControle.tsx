@@ -109,6 +109,7 @@ import {
 import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import { GitBranch } from "lucide-react";
