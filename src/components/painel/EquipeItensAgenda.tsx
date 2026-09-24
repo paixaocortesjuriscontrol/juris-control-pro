@@ -513,6 +513,7 @@ export function EquipeItensAgenda({
                         </p>
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
+                        {(item as any).data_publicacao_origem && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
                         {(() => {
                           const info = infoCobrancaItem(mapaCobrancas, item);
