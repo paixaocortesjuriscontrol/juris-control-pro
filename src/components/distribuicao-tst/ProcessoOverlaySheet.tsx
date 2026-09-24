@@ -26,6 +26,7 @@ import { toast } from "sonner";
 import { bennerToDistribuicao } from "@/hooks/useDistribuicoesTst";
 import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
 import { normalizeMateriaNome } from "@/utils/outraMateria";
+import { ScoreExito } from "@/components/inteligencia/ScoreExito";
 import {
   getPendenciasEAvisos,
   type Pendencia,
@@ -891,6 +892,10 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
                 <Campo rotulo="Tem chance de êxito?" valor={txt(ficha.tem_chance_exito_reclamante)} />
                 <Campo rotulo="Aparelhamento (AF/AG)" valor={txt(ficha.aparelhamento_reclamante)} />
                 <Campo rotulo="Chance de Êxito (AH)" valor={txt(ficha.chance_exito_reclamante)} />
+                <div className="col-span-2">
+                  <div className="text-[11px] text-muted-foreground">Previsão de êxito pelo histórico (sugestão)</div>
+                  <ScoreExito turma={ficha.turma} relator={ficha.relator} tipoRecurso={ficha.tipo_recurso_reclamante} />
+                </div>
                 <Campo rotulo="Matérias Recurso Reclamante" valor={txt(ficha.materias_recurso_reclamante)} className="col-span-2" />
               </div>
               <MateriasAnalise titulo="Análise por matéria (Reclamante)" lista={ficha.materias_analise_reclamante} />

@@ -11136,6 +11136,19 @@ export type Database = {
         }
         Returns: Json
       }
+      get_inteligencia_processos: {
+        Args: {
+          p_coordenacao_id?: string
+          p_data_fim?: string
+          p_data_inicio?: string
+          p_tribunal?: string
+        }
+        Returns: Json
+      }
+      get_inteligencia_score_exito: {
+        Args: { p_relator?: string; p_tipo_recurso?: string; p_turma?: string }
+        Returns: Json
+      }
       get_itens_nao_tratados_por_coordenacao: {
         Args: { p_coordenacao_ids: string[] }
         Returns: {
