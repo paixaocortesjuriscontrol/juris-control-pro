@@ -1,3 +1,5 @@
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,7 +44,9 @@ function Tabela({ titulo, icone, itens, rotulo, acordo }: { titulo: string; icon
 }
 
 export default function InsightsJudit({ filtros }: { filtros: FiltrosInteligencia }) {
-  const { data, isLoading } = useQuery({
+  const [ativo, setAtivo] = useState(false);
+  const { data, isLoading, error } = useQuery({
+    enabled: ativo,
     queryKey: ["inteligencia-judit", filtros.coordenacaoId, filtros.equipe],
     staleTime: 300000,
     queryFn: async () => {
@@ -54,6 +58,14 @@ export default function InsightsJudit({ filtros }: { filtros: FiltrosInteligenci
     },
   });
 
+  if (!ativo) return (
+    <Card><CardContent className="py-6 flex items-center justify-between gap-4">
+      <div><div className="font-semibold">Análise dos dados da Judit</div>
+        <div className="text-xs text-muted-foreground">Advogados adversários, assuntos oficiais, varas, estados, juízes e tempo até o TST.</div></div>
+      <Button onClick={() => setAtivo(true)}>Carregar análise</Button>
+    </CardContent></Card>
+  );
+  if (error) return <Card><CardContent className="py-6 text-sm text-destructive">Não foi possível carregar a análise da Judit. <Button variant="link" onClick={() => location.reload()}>Tentar de novo</Button></CardContent></Card>;
   if (isLoading || !data) return <Skeleton className="h-64 w-full" />;
   const t = data.tempo;
   return (
