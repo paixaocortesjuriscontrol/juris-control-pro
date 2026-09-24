@@ -115,9 +115,12 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
     const m = new Map<ColunaKey, ItemAgendaUnificado[]>();
     COLUNAS.forEach((c) => m.set(c.key, []));
     itens.forEach((it) => m.get(classifyItem(it))!.push(it));
-    // sort by date ascending within column
+    // Ordena por data de publicação (mais nova no topo); sem publicação fica ao final e ordena por prazo
     m.forEach((arr) =>
       arr.sort((a, b) => {
+        const pa = getPubDate(a)?.getTime() ?? -Infinity;
+        const pb = getPubDate(b)?.getTime() ?? -Infinity;
+        if (pa !== pb) return pb - pa;
         const da = getRefDate(a)?.getTime() ?? Infinity;
         const db = getRefDate(b)?.getTime() ?? Infinity;
         return da - db;
