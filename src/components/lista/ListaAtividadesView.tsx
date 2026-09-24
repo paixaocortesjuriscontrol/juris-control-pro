@@ -450,9 +450,15 @@ export default function ListaAtividadesView({
     const base = etiquetaIdsSet
       ? (externalItems || []).filter((i: any) => etiquetaIdsSet.has(i.id))
       : externalItems || [];
+    // Ordena por data de publicação (mais nova no topo); sem publicação mantém a ordem original
+    const ordenado = [...base].sort((a: any, b: any) => {
+      const pa = a?.data_publicacao_origem ? new Date(a.data_publicacao_origem).getTime() : -Infinity;
+      const pb = b?.data_publicacao_origem ? new Date(b.data_publicacao_origem).getTime() : -Infinity;
+      return pb - pa;
+    });
     const from = (page - 1) * PAGE_SIZE;
     const to = from + PAGE_SIZE;
-    return base.slice(from, to) as ListaRow[];
+    return ordenado.slice(from, to) as ListaRow[];
   }, [externalItems, page, usingExternalItems, etiquetaIdsSet]);
 
   const rows: ListaRow[] = usingExternalItems ? externalRows : (result?.rows || []);
