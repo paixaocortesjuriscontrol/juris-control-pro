@@ -1150,12 +1150,28 @@ export default function ListaAtividadesView({
                             <div className="flex flex-col gap-0.5">
                               <div className="flex items-center gap-1 font-medium text-foreground">
                                 <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
-                                <span className="text-muted-foreground shrink-0">Limite:</span>
+                                <button
+                                  onClick={() => toggleSort("limite")}
+                                  className={cn(
+                                    "shrink-0 hover:text-foreground transition-colors",
+                                    sortData.field === "limite" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                  )}
+                                >
+                                  Limite:<SortIcon field="limite" />
+                                </button>
                                 <span>{fmtDateTime(item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
                               </div>
                               {item.data_fatal && (
                                 <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Fatal:</span>
+                                  <button
+                                    onClick={() => toggleSort("fatal")}
+                                    className={cn(
+                                      "shrink-0 hover:text-foreground transition-colors",
+                                      sortData.field === "fatal" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                    )}
+                                  >
+                                    Fatal:<SortIcon field="fatal" />
+                                  </button>
                                   <span>{fmtDateTime(item.data_fatal, (r as any).hora_fatal)}</span>
                                 </div>
                               )}
@@ -1164,7 +1180,15 @@ export default function ListaAtividadesView({
                               </div>
                               {formatDataPublicacao((r as any).data_publicacao_origem) && (
                                 <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Publicação:</span>
+                                  <button
+                                    onClick={() => toggleSort("publicacao")}
+                                    className={cn(
+                                      "shrink-0 hover:text-foreground transition-colors",
+                                      sortData.field === "publicacao" ? "text-foreground font-semibold" : "text-muted-foreground"
+                                    )}
+                                  >
+                                    Publicação:<SortIcon field="publicacao" />
+                                  </button>
                                   <span>{formatDataPublicacao((r as any).data_publicacao_origem)}</span>
                                 </div>
                               )}
