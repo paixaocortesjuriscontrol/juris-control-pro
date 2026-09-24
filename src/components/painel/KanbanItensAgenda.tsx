@@ -13,8 +13,7 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
-import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
 
 
@@ -42,6 +41,14 @@ const COLUNAS: Array<{
 
 function getRefDate(item: ItemAgendaUnificado): Date | null {
   const raw = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+  if (!raw) return null;
+  const d = parseISO(raw);
+  return isValid(d) ? d : null;
+}
+
+/** Data de publicação do item (quando vinda de uma publicação DJEN). */
+function getPubDate(item: ItemAgendaUnificado): Date | null {
+  const raw = (item as any).data_publicacao_origem;
   if (!raw) return null;
   const d = parseISO(raw);
   return isValid(d) ? d : null;
@@ -107,9 +114,12 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
     const m = new Map<ColunaKey, ItemAgendaUnificado[]>();
     COLUNAS.forEach((c) => m.set(c.key, []));
     itens.forEach((it) => m.get(classifyItem(it))!.push(it));
-    // sort by date ascending within column
+    // Ordena por data de publicação (mais nova no topo); sem publicação fica ao final e ordena por prazo
     m.forEach((arr) =>
       arr.sort((a, b) => {
+        const pa = getPubDate(a)?.getTime() ?? -Infinity;
+        const pb = getPubDate(b)?.getTime() ?? -Infinity;
+        if (pa !== pb) return pb - pa;
         const da = getRefDate(a)?.getTime() ?? Infinity;
         const db = getRefDate(b)?.getTime() ?? Infinity;
         return da - db;
@@ -135,7 +145,6 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                 <p className="text-xs text-muted-foreground text-center py-4">{emptyLabel}</p>
               )}
               {items.map((item) => {
-                const d = getRefDate(item);
                 const temAtividade = itensComAtividades.has(getItemRawId(item.id));
                 const veioDeWorkflow = itensDeWorkflow.has(getItemRawId(item.id));
                 const it: any = item;
@@ -181,16 +190,11 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         <strong>Publicação:</strong> {formatDataPublicacao((item as any).data_publicacao_origem)}
                       </p>
                     )}
-                    <div className="flex items-center justify-between mt-1.5 gap-2">
-                      <span className="text-[10px] text-muted-foreground">
-                        {d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "Sem data"}
-                      </span>
-                      {item.responsavel?.nome && (
-                        <span className="text-[10px] text-muted-foreground truncate max-w-[50%]">
-                          {item.responsavel.nome}
-                        </span>
-                      )}
-                    </div>
+                    {item.responsavel?.nome && (
+                      <p className="text-[10px] text-muted-foreground mt-1 truncate text-right">
+                        {item.responsavel.nome}
+                      </p>
+                    )}
                   </Card>
                 );
               })}
