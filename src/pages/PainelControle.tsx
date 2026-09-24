@@ -1281,10 +1281,15 @@ export default function PainelControle() {
         if (!isMatch) return false;
       }
 
-      // Período (data prevista/fatal conforme escolha em "Prazo")
+      // Período (data prevista/fatal conforme escolha em "Prazo", ou data da publicação)
       if (!ignorarPeriodo && (painelFiltros.periodoInicio || painelFiltros.periodoFim)) {
         let dateStr: string | undefined;
-        if (item.origem === "tarefa") {
+        if (painelFiltros.periodoPorPublicacao) {
+          // Filtra pela data da publicação de origem (se houver). Itens sem
+          // publicação vinculada ficam de fora quando um período é definido.
+          dateStr = (item as any).data_publicacao_origem
+            ?? (itensDePublicacao?.get(getItemRawId(String(item.id))) ?? undefined);
+        } else if (item.origem === "tarefa") {
           if (item.recorrencia_pai_id) {
             dateStr = item.data_inicio;
           } else if (painelFiltros.dataFatal && !painelFiltros.dataPrevista) {
