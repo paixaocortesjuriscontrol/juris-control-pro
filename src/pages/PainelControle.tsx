@@ -1157,8 +1157,16 @@ export default function PainelControle() {
   // Marca "já cobrei" dos itens exibidos (pessoal ou da equipe, conforme escolha).
   const { data: mapaCobrancas } = useCobrancasItens(itensParaComentarios, escopoCobranca);
 
+  // Itens criados a partir de publicações (filtro "Origem").
+  const filtroOrigemPub = painelFiltros.origemPublicacao ?? "todas";
+  const { data: itensDePublicacao } = useItensDePublicacao(itensParaComentarios, filtroOrigemPub !== "todas");
+
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
+      if (filtroOrigemPub !== "todas") {
+        const dePub = !!itensDePublicacao?.has(getItemRawId(String(item.id)));
+        if (filtroOrigemPub === "com" ? !dePub : dePub) return false;
+      }
       // Botão "Minhas cobranças" / "Cobranças da equipe": mostra apenas os itens cobrados.
       if (somenteCobrados) {
         const info = infoCobrancaItem(mapaCobrancas, item);
@@ -1180,6 +1188,8 @@ export default function PainelControle() {
       mapaCobrancas,
       somenteCobrados,
       escopoCobranca,
+      filtroOrigemPub,
+      itensDePublicacao,
     ],
   );
 
