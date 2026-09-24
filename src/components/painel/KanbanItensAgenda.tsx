@@ -10,6 +10,7 @@ import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividad
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
+import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
@@ -175,6 +176,11 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                       </p>
                     )}
 
+                    {formatDataPublicacao((item as any).data_publicacao_origem) && (
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        <strong>Publicação:</strong> {formatDataPublicacao((item as any).data_publicacao_origem)}
+                      </p>
+                    )}
                     <div className="flex items-center justify-between mt-1.5 gap-2">
                       <span className="text-[10px] text-muted-foreground">
                         {d ? format(d, "dd/MM/yyyy", { locale: ptBR }) : "Sem data"}

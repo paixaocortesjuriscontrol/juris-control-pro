@@ -42,6 +42,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
+import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
 import { fetchIdsPorEtiquetas, useEtiquetasDeItens } from "@/hooks/useEtiquetas";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
@@ -1122,6 +1123,12 @@ export default function ListaAtividadesView({
                               <div className="text-muted-foreground">
                                 Base: {fmtDateTime((r as Prazo).data_base)}
                               </div>
+                              {formatDataPublicacao((r as any).data_publicacao_origem) && (
+                                <div className="flex items-center gap-1 text-foreground">
+                                  <span className="text-muted-foreground shrink-0">Publicação:</span>
+                                  <span>{formatDataPublicacao((r as any).data_publicacao_origem)}</span>
+                                </div>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="py-3 align-top text-[11px]">

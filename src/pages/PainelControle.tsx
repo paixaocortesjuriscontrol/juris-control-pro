@@ -1158,9 +1158,21 @@ export default function PainelControle() {
   // Marca "já cobrei" dos itens exibidos (pessoal ou da equipe, conforme escolha).
   const { data: mapaCobrancas } = useCobrancasItens(itensParaComentarios, escopoCobranca);
 
-  // Itens criados a partir de publicações (filtro "Origem").
+  // Itens criados a partir de publicações (filtro "Origem") + data da publicação.
   const filtroOrigemPub = painelFiltros.origemPublicacao ?? "todas";
-  const { data: itensDePublicacao } = useItensDePublicacao(itensParaComentarios, filtroOrigemPub !== "todas");
+  const { data: itensDePublicacao } = useItensDePublicacao(itensParaComentarios, true);
+
+  // Anexa `data_publicacao_origem` nos itens exibidos (Lista e Kanban).
+  const comDataPublicacao = useCallback(
+    <T extends { id: string }>(lista: T[]): T[] => {
+      if (!itensDePublicacao || itensDePublicacao.size === 0) return lista;
+      return lista.map((it) => {
+        const d = itensDePublicacao.get(getItemRawId(String(it.id)));
+        return d ? ({ ...it, data_publicacao_origem: d } as T) : it;
+      });
+    },
+    [itensDePublicacao],
+  );
 
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
@@ -2844,7 +2856,7 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
-              externalItems={itensListaEquipe}
+              externalItems={comDataPublicacao(itensListaEquipe)}
               externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
               forcedCoordenacaoId={
                 tabMode === "pessoal"
@@ -2864,7 +2876,7 @@ export default function PainelControle() {
         ) : viewMode === "kanban" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <KanbanItensAgenda
-              itens={itensPainelFiltrados}
+              itens={comDataPublicacao(itensPainelFiltrados)}
               onItemClick={handleItemClick}
             />
           </div>
