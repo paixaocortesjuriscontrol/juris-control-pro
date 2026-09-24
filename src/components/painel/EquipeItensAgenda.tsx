@@ -20,6 +20,8 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import {
   useCobrancasItens,
   infoCobrancaItem,
@@ -309,7 +311,11 @@ export function EquipeItensAgenda({
       const t = new Date(i?.data_inicio).getTime();
       return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
     };
-    return [...filtrada].sort((a, b) => ts(a) - ts(b));
+    const pubTs = (i: any) => {
+      const p = (i as any)?.data_publicacao_origem;
+      return p ? new Date(p).getTime() : -Infinity;
+    };
+    return [...filtrada].sort((a, b) => pubTs(b) - pubTs(a) || ts(a) - ts(b));
   }, [membroAtual, itens, search]);
 
   const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
@@ -511,6 +517,7 @@ export function EquipeItensAgenda({
                         </p>
                         {itensComAtividades.has(getItemRawId(item.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
+                        {(item as any).data_publicacao_origem && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
                         {(() => {
                           const info = infoCobrancaItem(mapaCobrancas, item);
@@ -531,6 +538,12 @@ export function EquipeItensAgenda({
                       {item.processo_id && (
                         <p className="text-xs text-muted-foreground truncate" title={getReclamada(item)}>
                           Reclamada: {getReclamada(item)}
+                        </p>
+                      )}
+                      {formatDataPublicacao((item as any).data_publicacao_origem) && (
+                        <p className="text-xs text-muted-foreground">
+                          <span className="shrink-0">Publicação:</span>{" "}
+                          {formatDataPublicacao((item as any).data_publicacao_origem)}
                         </p>
                       )}
                     </div>
