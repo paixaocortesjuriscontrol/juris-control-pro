@@ -4,7 +4,7 @@
 Fazer os filtros refletirem todas as fontes realmente usadas pelo módulo, sem misturar indicadores da Distribuição TST com os de Processos e Casos.
 
 ## Alterações
-- Alimentar **Equipe** pelos valores existentes nas fichas da Distribuição TST (`dados_benner`), em vez do cadastro `equipes_tst`, que atualmente contém apenas “Núcleo Crítico”.
+- Alimentar **Equipe** exclusivamente pelos valores existentes nas fichas da tela **Distribuição TST** (`dados_benner`), em vez do cadastro `equipes_tst`, que atualmente contém apenas “Núcleo Crítico”.
 - Alimentar **Tribunal** pela união dos tribunais da Distribuição TST e de **Processos e Casos**, eliminando vazios e duplicidades.
 - Manter os indicadores claramente separados:
   - cartões, evolução, turma, relator, equipe, ofensores e oportunidades: Distribuição TST;
