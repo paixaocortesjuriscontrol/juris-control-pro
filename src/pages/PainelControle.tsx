@@ -112,6 +112,7 @@ import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import { GitBranch } from "lucide-react";
+import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
