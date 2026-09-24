@@ -48,6 +48,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   comentarios: "todas",
   cobrancas: "todas",
   origemPublicacao: "todas",
+  periodoPorPublicacao: false,
 
   statusGroup: "todas",
   periodoInicio: "",
