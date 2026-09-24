@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import OfensoresTendencias from "@/components/inteligencia/OfensoresTendencias";
 import PanoramaProcessos from "@/components/inteligencia/PanoramaProcessos";
 import OportunidadesAcordo from "@/components/inteligencia/OportunidadesAcordo";
+import { MainLayout } from "@/components/layout/MainLayout";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoes } from "@/hooks/useDashboardData";
@@ -156,7 +157,8 @@ export default function InteligenciaJuridica() {
   const chartData = (data?.por_mes || []).map((m) => ({ ...m, mes: fmtMes(m.mes) }));
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6">
+    <MainLayout title="Inteligência Jurídica" subtitle="Indicadores estratégicos, tendências e oportunidades">
+    <div className="container mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Scale className="h-6 w-6 text-primary" />
@@ -337,5 +339,6 @@ export default function InteligenciaJuridica() {
 
       <OportunidadesAcordo filtros={filtros} />
     </div>
+    </MainLayout>
   );
 }
