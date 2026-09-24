@@ -8,6 +8,8 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronDown,
   Clock,
   Pencil,
   Filter,
@@ -205,7 +207,23 @@ export default function ListaAtividadesView({
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [etiquetasFiltro, setEtiquetasFiltro] = useSessionState<string[]>("lista-atv-etiquetas", []);
+  const [sortData, setSortData] = useSessionState<{ field: string; dir: "asc" | "desc" }>("lista-atv-sort", { field: "publicacao", dir: "desc" });
   const { setCollapsed } = useSidebarCollapsed();
+
+  const toggleSort = (field: string) => {
+    setSortData((prev: { field: string; dir: "asc" | "desc" }) =>
+      prev.field === field
+        ? { field, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { field, dir: field === "publicacao" ? "desc" : "asc" }
+    );
+  };
+
+  const SortIcon = ({ field }: { field: string }) => {
+    if (sortData.field !== field) return null;
+    return sortData.dir === "asc"
+      ? <ChevronUp className="w-3 h-3 inline ml-0.5" />
+      : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
+  };
 
   const debouncedSearch = useDebouncedValue(filters.search, 300);
   const usingExternalItems = externalItems !== undefined;
