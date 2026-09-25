@@ -49,7 +49,7 @@ serve(async (req) => {
     // 1. Buscar dados do processo
     const { data: processo, error: procError } = await supabase
       .from("processos")
-      .select("numero, classe, assunto, area, tribunal, vara, comarca, data_distribuicao, polo_ativo, polo_passivo, valor, resultado, status")
+      .select("numero, classe, assunto, area, tribunal, vara, comarca, data_distribuicao, polo_ativo, polo_passivo, valor_causa, valor_condenacao, resultado, status")
       .eq("id", processoId)
       .single();
     if (procError || !processo) {
@@ -57,19 +57,21 @@ serve(async (req) => {
     }
 
     // 2. Buscar partes do processo
-    const { data: partes } = await supabase
+    const { data: partesRaw } = await supabase
       .from("processos_partes")
-      .select("polo, nome, documento, advogado_nome, advogado_oab")
+      .select("polo, nome, documento, is_advogado")
       .eq("processo_id", processoId)
       .order("polo");
+    const partes = partesRaw || [];
 
     // 3. Buscar movimentações recentes
-    const { data: movimentacoes } = await supabase
+    const { data: movRaw } = await supabase
       .from("movimentacoes")
-      .select("data, descricao, codigo_cnj")
+      .select("data_movimentacao, descricao")
       .eq("processo_id", processoId)
-      .order("data", { ascending: false })
+      .order("data_movimentacao", { ascending: false })
       .limit(20);
+    const movimentacoes = (movRaw || []).map((m: any) => ({ data: m.data_movimentacao, descricao: m.descricao }));
 
     // 4. Buscar texto indexado (petição inicial e documentos principais)
     const { data: paginasIndexadas } = await supabase
@@ -147,8 +149,8 @@ serve(async (req) => {
     // 6. Montar contexto do processo
     const partesText = (partes || [])
       .map((p: any) => {
-        const advogado = p.advogado_nome ? ` (Adv: ${p.advogado_nome}${p.advogado_oab ? ` — OAB/${p.advogado_oab}` : ""})` : "";
-        return `${p.polo === "ativo" ? " Polo Ativo" : " Polo Passivo"}: ${p.nome}${advogado}`;
+        const polo = String(p.polo || "").toLowerCase().includes("at") ? "Polo Ativo" : "Polo Passivo";
+        return `${polo}${p.is_advogado ? " (Advogado)" : ""}: ${p.nome}`;
       })
       .join("\n");
 
@@ -166,7 +168,8 @@ TRIBUNAL: ${processo.tribunal || "N/A"}
 VARA: ${processo.vara || "N/A"}
 COMARCA: ${processo.comarca || "N/A"}
 DATA DE DISTRIBUIÇÃO: ${processo.data_distribuicao || "N/A"}
-VALOR DA CAUSA: ${processo.valor || "N/A"}
+VALOR DA CAUSA: ${processo.valor_causa || "N/A"}
+VALOR DA CONDENAÇÃO: ${processo.valor_condenacao || "N/A"}
 STATUS: ${processo.status || "N/A"}
 RESULTADO: ${processo.resultado || "N/A"}
 
