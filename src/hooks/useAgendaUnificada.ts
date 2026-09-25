@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { dataInicioAudiencia } from "@/utils/date";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
+import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
