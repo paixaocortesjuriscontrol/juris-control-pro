@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.buscar_processos_global(text, integer) IS 'Busca global de processos por texto ou números normalizados, incluindo número judicial, dossiê e pastas.';
