@@ -102,6 +102,7 @@ import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 
 const TIPO_CORES: Record<string, string> = {
   evento: "bg-blue-500",
@@ -447,11 +448,11 @@ export default function MinhaAgenda() {
     if (!itensAgenda) return null;
 
     const total = itensAgenda.length;
-    const concluidas = itensAgenda.filter(i => i.status === "concluido" || i.status === "cumprido").length;
+    const concluidas = itensAgenda.filter(i => isItemTratado(i)).length;
     const atrasadas = itensAgenda.filter(i => i.is_atrasado).length;
     const pendentes = Math.max(
       0,
-      itensAgenda.filter(i => i.status !== "concluido" && i.status !== "cumprido").length - atrasadas
+      itensAgenda.filter(i => !isItemTratado(i)).length - atrasadas
     );
 
     return { total, pendentes, atrasadas, concluidas };
@@ -495,6 +496,10 @@ export default function MinhaAgenda() {
     // Atrasado filter
     if (statusFiltro === "atrasado") {
       result = result.filter(item => item.is_atrasado);
+    } else if (statusFiltro === "concluido") {
+      result = result.filter(item => isItemTratado(item));
+    } else if (statusFiltro === "pendente") {
+      result = result.filter(item => !isItemTratado(item) && !item.is_atrasado);
     }
     
     // Prioridade filter
@@ -589,7 +594,7 @@ export default function MinhaAgenda() {
   const handleConcluirItem = async (item: ItemAgendaUnificado, e?: React.MouseEvent) => {
     e?.stopPropagation();
     
-    const isConcluido = item.status === "concluido" || item.status === "cumprido";
+    const isConcluido = isItemTratado(item);
     const nextStatus = isConcluido ? "pendente" : "concluido";
     const concluidoEm = isConcluido ? null : new Date().toISOString();
     
@@ -680,7 +685,7 @@ export default function MinhaAgenda() {
         key={item.id}
         className={cn(
           "flex gap-3 p-4 border-b hover:bg-muted/50 cursor-pointer transition-colors",
-          item.status === "concluido" && "opacity-60",
+          isItemTratado(item) && "opacity-60",
           item.status === "cancelado" && "opacity-60 grayscale bg-muted/40",
           item.is_atrasado && "border-l-4 border-l-destructive",
           isSelected && "bg-muted/80"
@@ -706,7 +711,7 @@ export default function MinhaAgenda() {
             <div className="space-y-1 min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
                 {/* Status Badge */}
-                 {item.status === "concluido" || item.status === "cumprido" ? (
+                 {isItemTratado(item) ? (
                    <Badge className="bg-green-500/10 text-green-600 border-green-200 text-xs transition-colors duration-300">
                     <CheckCircle2 className="w-3 h-3 mr-1" />
                     Concluído
@@ -768,12 +773,12 @@ export default function MinhaAgenda() {
                 size="icon" 
                 className={cn(
                   "h-8 w-8 transition-colors",
-                  item.status === "concluido" || item.status === "cumprido"
+                  isItemTratado(item)
                     ? "text-green-600 hover:text-yellow-600 hover:bg-yellow-100"
                     : "text-muted-foreground hover:text-green-600 hover:bg-green-100"
                 )}
                 onClick={(e) => handleConcluirItem(item, e)}
-                title={item.status === "concluido" || item.status === "cumprido" ? "Reabrir" : "Concluir"}
+                title={isItemTratado(item) ? "Reabrir" : "Concluir"}
               >
                 <CheckCircle2 className="w-4 h-4" />
               </Button>
@@ -838,7 +843,7 @@ export default function MinhaAgenda() {
               )}
             </div>
             
-            {item.dias_restantes !== undefined && item.status !== "concluido" && item.status !== "cumprido" && (
+            {item.dias_restantes !== undefined && !isItemTratado(item) && (
               <span className={cn(
                 "text-xs font-medium",
                 item.dias_restantes < 0 && "text-destructive",

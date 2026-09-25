@@ -230,9 +230,8 @@ export async function fetchAgendaPage(
           }
         }
 
-        if (filters.status && filters.status !== "todas") {
-          queryEventos = queryEventos.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
-        }
+        // Não filtrar a situação do evento-pai aqui: uma ocorrência recorrente
+        // pode ter situação própria, aplicada mais abaixo após a expansão da série.
 
         if (filters.dataInicio) {
           // Eventos recorrentes que começaram antes da janela precisam ser incluídos
@@ -283,9 +282,7 @@ export async function fetchAgendaPage(
               queryEventosFallback = queryEventosFallback.in("tipo", tiposEvento);
             }
           }
-          if (filters.status && filters.status !== "todas") {
-            queryEventosFallback = queryEventosFallback.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
-          }
+          // A situação efetiva de recorrências é aplicada depois da expansão.
           if (filters.dataInicio) {
             const diIso = filters.dataInicio.toISOString();
             queryEventosFallback = queryEventosFallback.or(
