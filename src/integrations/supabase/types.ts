@@ -10646,6 +10646,16 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: number
       }
+      buscar_processos_global: {
+        Args: { _limite?: number; _termo: string }
+        Returns: {
+          assunto: string
+          id: string
+          numero: string
+          polo_ativo: string
+          polo_passivo: string
+        }[]
+      }
       buscar_teses_aplicaveis: {
         Args: { p_limite?: number; p_processo_id: string; p_tipo_peca?: string }
         Returns: Json
