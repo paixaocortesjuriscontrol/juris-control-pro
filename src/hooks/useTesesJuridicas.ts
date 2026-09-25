@@ -50,7 +50,7 @@ export function useTesesJuridicas(filtros?: { coordenacao_id?: string; tipo_peca
       if (filtros?.area) q = q.eq("area", filtros.area);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as TeseJuridica[];
+      return ((data as unknown) as TeseJuridica[]) ?? [];
     },
   });
 }
