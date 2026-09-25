@@ -95,6 +95,7 @@ import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
 import RelatorioDuplicados from "./pages/RelatorioDuplicados";
 import Workflow from "./pages/Workflow";
+import BancoTeses from "./pages/BancoTeses";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import ImportarCertidaoPdf from "./pages/admin-tst/ImportarCertidaoPdf";
