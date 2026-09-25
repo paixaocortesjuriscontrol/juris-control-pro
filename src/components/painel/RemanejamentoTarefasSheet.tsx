@@ -261,10 +261,10 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
     });
   };
 
-  const BlocoRegra = ({ campo, label }: { campo: string; label: string }) => {
+  const blocoRegra = ({ campo, label }: { campo: string; label: string }) => {
     const r = regra(campo);
     return (
-      <div className="rounded-md border p-2.5 space-y-2 bg-background">
+      <div key={campo} className="rounded-md border p-2.5 space-y-2 bg-background">
         <div className="text-xs font-semibold">{label}</div>
         <RadioGroup value={r.modo} onValueChange={(v) => setRegra(campo, { modo: v as ModoData })} className="flex flex-wrap gap-3">
           <label className="flex items-center gap-1 text-xs"><RadioGroupItem value="manter" /> Manter</label>
@@ -380,7 +380,7 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
 
         <div className="border-t bg-muted/20 px-6 py-4 space-y-3">
           <div className="grid gap-3 md:grid-cols-4">
-            {campos.filter(({ campo }) => !(ehEvento && campo === "data_fim" && fimJunto)).map((c) => <BlocoRegra key={c.campo} {...c} />)}
+            {campos.filter(({ campo }) => !(ehEvento && campo === "data_fim" && fimJunto)).map((c) => blocoRegra(c))}
             {ehEvento && (
               <label className="flex items-center gap-2 text-xs rounded-md border p-2.5 bg-background">
                 <Checkbox checked={fimJunto} onCheckedChange={(c) => setFimJunto(!!c)} /> Mover o fim junto com o início (mantém a duração)
