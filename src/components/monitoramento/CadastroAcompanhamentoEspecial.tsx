@@ -121,7 +121,6 @@ export function CadastroAcompanhamentoEspecial() {
   const [coords, setCoords] = useState<Coord[]>([]);
   const [numero, setNumero] = useState("");
   const [freq, setFreq] = useState(1);
-  const [anexos, setAnexos] = useState(false);
   const [coordId, setCoordId] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [perguntarCriar, setPerguntarCriar] = useState(false);
@@ -180,7 +179,7 @@ export function CadastroAcompanhamentoEspecial() {
         detalhe: `Aplicando as configurações em ${p.numero}.`,
         status: "processando",
       });
-      await ativarAcompanhamento(p.id, freq, anexos);
+      await ativarAcompanhamento(p.id, freq, false);
       setProgressoIndividual({
         percentual: 90,
         etapa: "Atualizando a tela",
@@ -230,7 +229,7 @@ export function CadastroAcompanhamentoEspecial() {
           : "Processo cadastrado sem dados da Judit. Ativando o monitoramento.",
         status: "processando",
       });
-      await ativarAcompanhamento(novo.id, freq, anexos);
+      await ativarAcompanhamento(novo.id, freq, false);
       setProgressoIndividual({
         percentual: 90,
         etapa: "Atualizando a tela",
@@ -331,7 +330,7 @@ export function CadastroAcompanhamentoEspecial() {
           const p = await localizarProcesso(it.numero);
           if (p) {
             atualizarProgressoLote("Ativando acompanhamento", 0.65);
-            await ativarAcompanhamento(p.id, it.freq, it.anexos);
+            await ativarAcompanhamento(p.id, it.freq, false);
             res.push({ numero: p.numero, resultado: "Acompanhamento ativado", ok: true });
           } else if (!loteCriar) {
             res.push({ numero: it.numero, resultado: "Não existe na base — ignorado", ok: false });
@@ -344,7 +343,7 @@ export function CadastroAcompanhamentoEspecial() {
               atualizarProgressoLote("Consultando e preenchendo pela Judit", 0.35);
               const novo = await criarProcessoComJudit(it.numero, cid, uid);
               atualizarProgressoLote("Ativando acompanhamento", 0.75);
-              await ativarAcompanhamento(novo.id, it.freq, it.anexos);
+              await ativarAcompanhamento(novo.id, it.freq, false);
               res.push({
                 numero: novo.numero,
                 resultado: novo.juditOk ? `Cadastrado com Judit (${novo.qtdCampos} campos) e ativado` : "Cadastrado sem dados da Judit e ativado",
