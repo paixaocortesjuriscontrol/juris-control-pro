@@ -62,7 +62,14 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { ChevronsUpDown } from "lucide-react";
+import { ChevronsUpDown, Workflow as WorkflowIcon } from "lucide-react";
+import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
+import {
+  Dialog as WfDialog,
+  DialogContent as WfDialogContent,
+  DialogHeader as WfDialogHeader,
+  DialogTitle as WfDialogTitle,
+} from "@/components/ui/dialog";
 import { garantirEtiquetaCliente } from "@/lib/etiquetaCliente";
 
 // Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
@@ -228,6 +235,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [adotandoExistente, setAdotandoExistente] = useState(false);
   const [criarAudienciaOpen, setCriarAudienciaOpen] = useState(false);
   const [novaTarefaOpen, setNovaTarefaOpen] = useState(false);
+  const [workflowOpen, setWorkflowOpen] = useState(false);
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const { user } = useAuth();
@@ -1391,8 +1399,33 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   <DropdownMenuItem onSelect={() => onAddItem ? onAddItem("audiencia") : setCriarAudienciaOpen(true)}>
                     <Gavel className="w-4 h-4 mr-2" /> Audiência
                   </DropdownMenuItem>
+                  {!isNovo && (
+                    <DropdownMenuItem onSelect={() => setWorkflowOpen(true)}>
+                      <WorkflowIcon className="w-4 h-4 mr-2" /> Workflow
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
+              {!isNovo && (
+                <WfDialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
+                  <WfDialogContent className="sm:max-w-md">
+                    <WfDialogHeader>
+                      <WfDialogTitle>Iniciar Workflow</WfDialogTitle>
+                    </WfDialogHeader>
+                    {workflowOpen && (
+                      <IniciarWorkflowDialog
+                        inline
+                        preSelectedProcesso={{
+                          id: processo.id,
+                          numero: processo.numero,
+                          coordenacao_id: processo.coordenacao_id || undefined,
+                        }}
+                        onDone={() => setWorkflowOpen(false)}
+                      />
+                    )}
+                  </WfDialogContent>
+                </WfDialog>
+              )}
               <Button
                 onClick={handleJuditButtonClick}
                 disabled={juditBusy || saving}
