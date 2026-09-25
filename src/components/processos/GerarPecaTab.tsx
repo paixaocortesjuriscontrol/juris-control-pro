@@ -4,12 +4,27 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, FileText, Save, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Loader2,
+  FileText,
+  Download,
+  CheckCircle2,
+  AlertCircle,
+  Sparkles,
+  Pencil,
+  Save,
+  X,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Document, Packer, Paragraph, TextRun, AlignmentType } from "docx";
 import {
   usePecasGeradas,
   useGerarPecaJuridica,
   useMarcarPecaRevisada,
   useBuscarTesesAplicaveis,
+  useSalvarConteudoPeca,
+  useExcluirPeca,
   type TipoPeca,
 } from "@/hooks/useTesesJuridicas";
 
@@ -22,16 +37,72 @@ const TIPOS_PECA: { value: TipoPeca; label: string }[] = [
   { value: "outros", label: "Outros" },
 ];
 
+function rotuloTipo(tipo: string) {
+  return TIPOS_PECA.find((t) => t.value === tipo)?.label ?? tipo;
+}
+
+function dataBR(valor?: string | null) {
+  if (!valor) return "";
+  return new Date(valor).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
+async function exportarDocx(peca: any) {
+  const paragrafos = String(peca.conteudo ?? "")
+    .split("\n")
+    .map(
+      (linha) =>
+        new Paragraph({
+          alignment: AlignmentType.JUSTIFIED,
+          spacing: { after: 160, line: 360 },
+          children: [new TextRun({ text: linha, font: "Times New Roman", size: 24 })],
+        }),
+    );
+
+  const doc = new Document({
+    sections: [
+      {
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 320 },
+            children: [
+              new TextRun({
+                text: rotuloTipo(peca.tipo_peca).toUpperCase(),
+                bold: true,
+                font: "Times New Roman",
+                size: 26,
+              }),
+            ],
+          }),
+          ...paragrafos,
+        ],
+      },
+    ],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `peca-${peca.tipo_peca}-${new Date(peca.created_at).toISOString().slice(0, 10)}.docx`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function GerarPecaTab({ processoId }: { processoId: string }) {
   const [tipoPeca, setTipoPeca] = useState<TipoPeca>("contestacao");
   const [teseId, setTeseId] = useState<string>("");
   const [observacoes, setObservacoes] = useState("");
   const [showObservacoes, setShowObservacoes] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [textoEdicao, setTextoEdicao] = useState("");
 
   const { data: pecas = [], isLoading: loadingPecas } = usePecasGeradas(processoId);
   const { data: tesesAplicaveis = [], isLoading: loadingTeses } = useBuscarTesesAplicaveis(processoId, tipoPeca);
   const gerar = useGerarPecaJuridica();
   const marcarRevisada = useMarcarPecaRevisada();
+  const salvarConteudo = useSalvarConteudoPeca();
+  const excluirPeca = useExcluirPeca();
 
   async function handleGerar() {
     await gerar.mutateAsync({
@@ -45,15 +116,17 @@ export function GerarPecaTab({ processoId }: { processoId: string }) {
   }
 
   async function handleExportar(peca: any) {
-    if (!peca.revisado) return;
-    // Export como .txt por enquanto (Fase 4: .docx)
-    const blob = new Blob([peca.conteudo], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `peca-${peca.tipo_peca}-${Date.now()}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (!peca.revisado) {
+      toast.error("Só é possível exportar depois da revisão humana. Marque a peça como revisada.");
+      return;
+    }
+    await exportarDocx(peca);
+  }
+
+  async function handleSalvarEdicao(peca: any) {
+    await salvarConteudo.mutateAsync({ id: peca.id, conteudo: textoEdicao });
+    setEditandoId(null);
+    setTextoEdicao("");
   }
 
   return (
@@ -111,7 +184,7 @@ export function GerarPecaTab({ processoId }: { processoId: string }) {
               <Textarea
                 value={observacoes}
                 onChange={(e) => setObservacoes(e.target.value)}
-                placeholder="Ex: Focar no argumento de prescrição. Destinar que o reclamante já recebeu as verbas..."
+                placeholder="Ex: Focar no argumento de prescrição."
                 className="min-h-[80px]"
               />
             </div>
@@ -130,10 +203,14 @@ export function GerarPecaTab({ processoId }: { processoId: string }) {
             </Button>
           </div>
 
+          <p className="text-xs text-muted-foreground">
+            Toda peça nasce como rascunho e só pode ser exportada depois da revisão humana.
+          </p>
+
           {gerar.data?.tese_usada && (
             <p className="text-xs text-muted-foreground">
               Tese utilizada: <span className="font-medium">{gerar.data.tese_usada.titulo}</span>
-              {" "}· Modelo: {gerar.data.modelo} · {gerar.data.tokens.total} tokens · ${(gerar.data.custo_usd ?? 0).toFixed(4)}
+              {" "}· Modelo: {gerar.data.modelo} · {gerar.data.tokens?.total} tokens · ${(gerar.data.custo_usd ?? 0).toFixed(4)}
             </p>
           )}
         </CardContent>
@@ -155,67 +232,101 @@ export function GerarPecaTab({ processoId }: { processoId: string }) {
           </CardContent></Card>
         ) : (
           <div className="space-y-3">
-            {pecas.map((peca: any) => (
-              <Card key={peca.id}>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between gap-2 flex-wrap">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary" className="text-xs">
-                        {TIPOS_PECA.find((t) => t.value === peca.tipo_peca)?.label ?? peca.tipo_peca}
-                      </Badge>
-                      {peca.revisado ? (
-                        <Badge className="text-xs bg-emerald-600"><CheckCircle2 className="h-3 w-3 mr-0.5" /> Revisada</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-xs text-amber-600">Rascunho</Badge>
-                      )}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(peca.created_at).toLocaleString("pt-BR")}
-                      </span>
+            {pecas.map((peca: any) => {
+              const emEdicao = editandoId === peca.id;
+              return (
+                <Card key={peca.id}>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge variant="secondary" className="text-xs">{rotuloTipo(peca.tipo_peca)}</Badge>
+                        {peca.revisado ? (
+                          <Badge className="text-xs bg-emerald-600">
+                            <CheckCircle2 className="h-3 w-3 mr-0.5" /> Revisada
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs text-amber-600">Rascunho</Badge>
+                        )}
+                        <span className="text-xs text-muted-foreground">{dataBR(peca.created_at)}</span>
+                      </div>
+                      <div className="flex gap-1">
+                        {emEdicao ? (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleSalvarEdicao(peca)}
+                              disabled={salvarConteudo.isPending}
+                            >
+                              <Save className="h-4 w-4 mr-1" /> Salvar
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditandoId(null); setTextoEdicao(""); }}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => { setEditandoId(peca.id); setTextoEdicao(peca.conteudo ?? ""); }}
+                            >
+                              <Pencil className="h-4 w-4 mr-1" /> Editar
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => marcarRevisada.mutate({ id: peca.id, revisado: !peca.revisado })}
+                            >
+                              {peca.revisado ? "Desfazer revisão" : "Marcar como revisada"}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleExportar(peca)}
+                              title={peca.revisado ? "Exportar .docx" : "Disponível após a revisão"}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive"
+                              onClick={() => {
+                                if (confirm("Excluir esta peça?")) excluirPeca.mutate(peca.id);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex gap-1">
-                      {!peca.revisado && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => marcarRevisada.mutate({ id: peca.id, revisado: true })}
-                        >
-                          Marcar como revisada
-                        </Button>
-                      )}
-                      {peca.revisado && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => marcarRevisada.mutate({ id: peca.id, revisado: false })}
-                        >
-                          Desfazer revisão
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={!peca.revisado}
-                        onClick={() => handleExportar(peca)}
-                        title={peca.revisado ? "Exportar" : "Revise antes de exportar"}
-                      >
-                        <Save className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {peca.observacoes && (
-                    <p className="text-xs text-muted-foreground mb-2 italic">Obs: {peca.observacoes}</p>
-                  )}
-                  <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/50 p-3 rounded max-h-96 overflow-y-auto">
-                    {peca.conteudo}
-                  </pre>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Modelo: {peca.modelo_ia} · Custo: ${(peca.custo_usd ?? 0).toFixed(4)} · {peca.tokens_input + peca.tokens_output} tokens
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+                  </CardHeader>
+                  <CardContent>
+                    {peca.observacoes && (
+                      <p className="text-xs text-muted-foreground mb-2 italic">Obs: {peca.observacoes}</p>
+                    )}
+                    {emEdicao ? (
+                      <Textarea
+                        value={textoEdicao}
+                        onChange={(e) => setTextoEdicao(e.target.value)}
+                        className="min-h-[400px] font-mono text-sm"
+                      />
+                    ) : (
+                      <pre className="text-sm whitespace-pre-wrap font-mono bg-muted/50 p-3 rounded max-h-96 overflow-y-auto">
+                        {peca.conteudo}
+                      </pre>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-2">
+                      Modelo: {peca.modelo_ia} · Custo: ${(peca.custo_usd ?? 0).toFixed(4)} ·{" "}
+                      {(peca.tokens_input ?? 0) + (peca.tokens_output ?? 0)} tokens
+                      {peca.revisado && peca.revisado_em ? ` · Revisada em ${dataBR(peca.revisado_em)}` : ""}
+                    </p>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>
