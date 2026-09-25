@@ -2059,7 +2059,7 @@ export function ProcessoDetalhesCompletos({
                               evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
                               historico={historicoDe(linha.original.id)}
-                              onClick={() => abrirNovoItem("evento", linha.original)}
+                              onClick={() => abrirNovoItem("evento", oc)}
                             />
                           ),
                           { corBorda: "border-violet-200 dark:border-violet-900" }
