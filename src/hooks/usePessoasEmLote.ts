@@ -28,6 +28,8 @@ export interface LoteItem {
   responsaveis: string[];
   envolvidos: string[];
   atividades: LoteAtividade[];
+  /** Datas específicas do formulário (remanejamento). */
+  datas?: Record<string, string | null>;
 }
 
 export interface PessoasEmLoteFiltros {
@@ -130,7 +132,7 @@ export function usePessoasEmLoteItens(
           let q = (supabase as any)
             .from("tarefas")
             .select(
-              "id, titulo, tipo_registro, tipo_tarefa, status, data_vencimento, processo_id, coordenacao_id, responsavel_id",
+              "id, titulo, tipo_registro, tipo_tarefa, status, data_vencimento, data_base, data_fatal, processo_id, coordenacao_id, responsavel_id",
             )
             .gte("data_vencimento", inicio)
             .lte("data_vencimento", fim)
@@ -145,7 +147,7 @@ export function usePessoasEmLoteItens(
           if (!querEventos) return [] as any[];
           let q = (supabase as any)
             .from("eventos_agenda")
-            .select("id, titulo, tipo, status, data_inicio, processo_id, coordenacao_id")
+            .select("id, titulo, tipo, status, data_inicio, data_fim, processo_id, coordenacao_id")
             .gte("data_inicio", inicioTs)
             .lte("data_inicio", fimTs)
             .order("data_inicio", { ascending: true })
@@ -247,6 +249,7 @@ export function usePessoasEmLoteItens(
           tipo,
           titulo: row.titulo || "(sem título)",
           data: row.data_vencimento ?? null,
+          datas: { data_base: row.data_base ?? null, data_vencimento: row.data_vencimento ?? null, data_fatal: row.data_fatal ?? null },
           status: row.status ?? null,
           processo_id: row.processo_id ?? null,
           processo_numero: row.processo_id ? numerosProcesso[row.processo_id] ?? null : null,
@@ -270,6 +273,7 @@ export function usePessoasEmLoteItens(
           tipo,
           titulo: row.titulo || "(sem título)",
           data: row.data_inicio ?? null,
+          datas: { data_inicio: row.data_inicio ?? null, data_fim: row.data_fim ?? null },
           status: row.status ?? null,
           processo_id: row.processo_id ?? null,
           processo_numero: row.processo_id ? numerosProcesso[row.processo_id] ?? null : null,
