@@ -798,7 +798,20 @@ export default function AdminTstBasePcaDistribuicoes() {
       const total = Math.ceil(aCadastrar.length / APPLY_CHUNK);
 
       for (let i = 0; i < aCadastrar.length; i += APPLY_CHUNK) {
-        const slice = aCadastrar.slice(i, i + APPLY_CHUNK);
+        const sliceBruto = aCadastrar.slice(i, i + APPLY_CHUNK);
+        // Reconfere logo antes de gravar (outra importação pode ter cadastrado nesse meio tempo)
+        const recheck = await carregarProcessosExistentes(sliceBruto);
+        const slice = sliceBruto.filter((it) => {
+          if (!recheck.has(it.processoDigitos)) return true;
+          itensAudit.push({
+            processo: it.processo || null,
+            dossie: it.dossie || null,
+            acao: "ignorado",
+            detalhe: "Cadastrado por outra importação durante este lote — não duplicado",
+          });
+          return false;
+        });
+        if (slice.length === 0) continue;
         const payload = slice.map((it) => {
           const campos = { ...(it.campos || {}) };
           // Remove chaves nulas para não sobrescrever defaults do banco
