@@ -84,3 +84,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Fase 5: revisão humana editável, exportar .docx só após revisão, registro de quem revisou e quando, exclusão de peça
 
 - [x] Interromper solicitações repetidas de permissão no Supabase e concluir a validação da busca sem novas migrações.
+
+- [x] Encerrar definitivamente o ciclo de solicitações de alteração no Supabase.
