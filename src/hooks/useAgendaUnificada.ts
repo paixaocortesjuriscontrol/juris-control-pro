@@ -8,6 +8,7 @@ import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { dataInicioAudiencia } from "@/utils/date";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -1213,6 +1214,11 @@ export async function fetchAgendaPage(
             item.status = b.status;
             item.concluido_em = b.concluido_em ?? null;
             item.baixa_individual = true;
+            // O atraso era calculado antes de aplicarmos a baixa individual.
+            // Recalcular aqui evita uma ocorrência concluída aparecer simultaneamente
+            // como concluída na ficha e atrasada/pendente na lista e nos totalizadores.
+            item.is_atrasado = !isItemTratado({ status: b.status, concluido_em: b.concluido_em })
+              && Number(item.dias_restantes) < 0;
           }
         }
       }
