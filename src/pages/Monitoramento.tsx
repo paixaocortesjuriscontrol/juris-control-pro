@@ -764,26 +764,29 @@ export default function Monitoramento() {
     <div className="flex flex-col border border-border rounded-lg bg-background">
       <Tabs defaultValue="movimentacoes" className="flex flex-col">
         <div className="px-4 md:px-6 pt-3 border-b border-border bg-card">
-          <TabsList>
-            <TabsTrigger value="movimentacoes" className="gap-2">
-              <Sparkles className="w-3.5 h-3.5" />
-              Movimentações
-              {countMov > 0 && (
-                <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
-                  {countMov}
-                </Badge>
-              )}
-            </TabsTrigger>
-            <TabsTrigger value="divergencias" className="gap-2">
-              <AlertTriangle className="w-3.5 h-3.5" />
-              Divergências Judit
-              {countDiv > 0 && (
-                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                  {countDiv}
-                </Badge>
-              )}
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <TabsList>
+              <TabsTrigger value="movimentacoes" className="gap-2">
+                <Sparkles className="w-3.5 h-3.5" />
+                Movimentações
+                {countMov > 0 && (
+                  <Badge variant="destructive" className="h-5 px-1.5 text-[10px]">
+                    {countMov}
+                  </Badge>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value="divergencias" className="gap-2">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Divergências Judit
+                {countDiv > 0 && (
+                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                    {countDiv}
+                  </Badge>
+                )}
+              </TabsTrigger>
+            </TabsList>
+            <CadastroAcompanhamentoEspecial />
+          </div>
         </div>
 
         <TabsContent value="movimentacoes" className="m-0 flex flex-col">
