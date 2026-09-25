@@ -9,6 +9,8 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ItemAtividades } from "@/components/comum/ItemAtividades";
+import { BaixaOcorrenciaBar } from "@/components/agenda/BaixaOcorrenciaBar";
+import { isOcorrenciaRecorrente } from "@/lib/baixaOcorrencia";
 
 export type NovoItemTipo = "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
 
@@ -44,6 +46,8 @@ export function NovoItemPanel({
 }: NovoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
+  const ocorrenciaRecorrente = isOcorrenciaRecorrente(itemParaEditar);
+  const registroParaEditar = itemParaEditar?._registro_pai ?? itemParaEditar;
 
   const { data: membrosCoordenacoes = [] } = useQuery({
     queryKey: ["membros-coordenacoes-novo-item-panel", user?.id],
@@ -98,10 +102,11 @@ export function NovoItemPanel({
             open
             onOpenChange={handleOpenChange}
             coordenacoes={coordenacoes}
-            tarefaParaEditar={itemParaEditar}
+            tarefaParaEditar={registroParaEditar}
             processoPreSelecionado={processoPreSelecionado ?? undefined}
             publicacao={publicacao ?? undefined}
             onSuccess={() => { void onSuccess(); }}
+            ocultarSituacao={ocorrenciaRecorrente}
           />
         )}
         {tipo === "evento" && (
@@ -110,9 +115,10 @@ export function NovoItemPanel({
             embedded={embedded}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
-            evento={itemParaEditar}
+            evento={registroParaEditar}
             defaultProcessoId={processoPreSelecionado?.id}
             publicacao={publicacao ?? undefined}
+            ocultarSituacao={ocorrenciaRecorrente}
           />
         )}
         {tipo === "prazo" && (
@@ -121,9 +127,10 @@ export function NovoItemPanel({
             embedded={embedded}
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
-            prazo={itemParaEditar}
+            prazo={registroParaEditar}
             defaultProcessoId={processoPreSelecionado?.id}
             publicacao={publicacao ?? undefined}
+            ocultarSituacao={ocorrenciaRecorrente}
           />
         )}
         {tipo === "audiencia" && (
@@ -159,6 +166,11 @@ export function NovoItemPanel({
         {itemParaEditar?.id && (
           <div className="px-4 sm:px-6 pb-6 pt-2 border-t mt-2">
             <ItemAtividades tipo={tipo} itemId={String(itemParaEditar.id)} />
+          </div>
+        )}
+        {ocorrenciaRecorrente && (
+          <div className="flex-shrink-0 border-t">
+            <BaixaOcorrenciaBar item={itemParaEditar} onUpdate={() => { void onSuccess(); }} />
           </div>
         )}
       </div>
