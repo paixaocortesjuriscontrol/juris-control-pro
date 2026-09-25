@@ -34,7 +34,8 @@ import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
 import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
-import { Download, UsersRound, Bell } from "lucide-react";
+import { Download, UsersRound, Bell, ArrowRightLeft } from "lucide-react";
+import { RemanejamentoTarefasSheet } from "@/components/painel/RemanejamentoTarefasSheet";
 import { PessoasEmLoteDialog } from "@/components/painel/PessoasEmLoteDialog";
 import {
   DropdownMenu,
@@ -1444,6 +1445,7 @@ export default function PainelControle() {
   // ===== Exportação (Excel) com período e tipos selecionáveis =====
   const [exportOpen, setExportOpen] = useState(false);
   const [pessoasLoteOpen, setPessoasLoteOpen] = useState(false);
+  const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
   const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
@@ -2396,6 +2398,17 @@ export default function PainelControle() {
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
               />
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-2 text-xs gap-1"
+                onClick={() => setRemanejamentoOpen(true)}
+                title="Alterar datas e responsáveis de vários itens"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                Remanejar
+              </Button>
+              <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
               {isAdminOrCoordinator && (
                 <>
                   <Button
