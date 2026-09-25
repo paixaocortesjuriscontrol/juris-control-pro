@@ -22,6 +22,7 @@ import {
   Bell,
   Radar,
   Workflow,
+  Gavel,
 } from "lucide-react";
 
 export type MenuItem = {
