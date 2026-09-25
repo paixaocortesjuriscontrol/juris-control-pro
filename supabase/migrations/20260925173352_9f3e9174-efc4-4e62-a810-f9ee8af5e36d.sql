@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.buscar_processos_global(text, integer) IS 'Busca global de processos e dossies com normalizacao de pontuacao e respeito as politicas de acesso.';
