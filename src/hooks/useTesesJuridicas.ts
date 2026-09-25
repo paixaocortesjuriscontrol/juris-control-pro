@@ -135,3 +135,44 @@ export function useMarcarPecaRevisada() {
     onError: (e: any) => toast.error("Erro ao atualizar: " + e.message),
   });
 }
+
+export function useGerarPecaJuridica() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      processoId: string;
+      tipoPeca: TipoPeca;
+      teseId?: string | null;
+      observacoes?: string | null;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("gerar-peca-juridica", {
+        body: params,
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pecas-geradas"] });
+      toast.success("Peça gerada");
+    },
+    onError: (e: any) => toast.error("Erro ao gerar peça: " + e.message),
+  });
+}
+
+export function useBuscarTesesAplicaveis(processoId?: string | null, tipoPeca?: TipoPeca) {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["teses-aplicaveis", processoId, tipoPeca],
+    enabled: !!user && !!processoId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("buscar_teses_aplicaveis", {
+        p_processo_id: processoId,
+        p_tipo_peca: tipoPeca ?? null,
+        p_limite: 5,
+      });
+      if (error) throw error;
+      return (data as any[]) ?? [];
+    },
+  });
+}

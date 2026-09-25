@@ -74,3 +74,10 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Corrigir Varas, Estados e Juízes recebidos como texto e eliminar linhas vazias
 - [x] Oportunidades de acordo: corrigir filtro de coordenação que retornava 0 para coordenações não-b0f690ad
 - [x] Análise da Judit: organizar resultados em abas (Tempo, Advogados, Assuntos, Varas e Região, Juízes)
+
+## Geração de Peças Jurídicas com IA (estilo Vert/CyndIA)
+- [x] Fase 1: tabelas tese_juridicas + pecas_geradas (RLS, índices, constraints)
+- [x] Fase 1: tela Banco de Teses (menu lateral, CRUD, filtros por coordenação/tipo/área/busca)
+- [x] Fase 2: RPC buscar_teses_aplicaveis (busca por score: tipo_peca + assunto/materia/fundamentos)
+- [x] Fase 3: edge function gerar-peca-juridica (Gemini flash, contexto do processo, tese RAG, salva em pecas_geradas com custo/tokens)
+- [x] Fase 3: aba "Peças IA" na ficha do processo (gerar, revisar, exportar)

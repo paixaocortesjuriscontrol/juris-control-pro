@@ -1,0 +1,1 @@
+ALTER FUNCTION public.buscar_teses_aplicaveis(uuid, text, int) SECURITY INVOKER;

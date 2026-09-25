@@ -84,7 +84,8 @@ import {
   Globe,
   ListPlus,
   MoreVertical,
-  ListChecks
+  ListChecks,
+  Sparkles
 } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
@@ -106,6 +107,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { ProcessoTstTab } from "@/components/processos/ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "@/components/processos/ProcessoDistribuicoesTab";
+import { GerarPecaTab } from "@/components/processos/GerarPecaTab";
 
 import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
 import { ProcessoEditarCompleto } from "@/components/processos/ProcessoEditarCompleto";
@@ -1651,6 +1653,17 @@ export default function ProcessoDetalhes() {
           <Scale className="w-4 h-4" />
           <span className="hidden sm:inline">Distribuições</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="pecas-ia" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "pecas-ia" ? "" : "pecas-ia");
+          }}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="hidden sm:inline">Peças IA</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
@@ -2134,6 +2147,11 @@ export default function ProcessoDetalhes() {
       {/* Tab Contents - Distribuições TST */}
       <TabsContent value="distribuicoes-tst" className="mt-4">
         <ProcessoDistribuicoesTab processoId={id!} processoNumero={processo?.numero || ""} />
+      </TabsContent>
+
+      {/* Tab Contents - Peças IA */}
+      <TabsContent value="pecas-ia" className="mt-4">
+        <GerarPecaTab processoId={id!} />
       </TabsContent>
     </Tabs>
   );
