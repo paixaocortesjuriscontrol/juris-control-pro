@@ -18,7 +18,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 import { usePessoasEmLoteItens, labelTipoLote, type LoteItem, type LoteTipo, type PessoasEmLoteFiltros } from "@/hooks/usePessoasEmLote";
-import { ArrowRightLeft, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
+import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { ArrowRightLeft, AlertTriangle, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -33,6 +34,26 @@ const TIPOS_REMANEJAVEIS: { value: LoteTipo; label: string }[] = [
 
 type ModoData = "manter" | "fixa" | "deslocar";
 type ModoResp = "manter" | "substituir" | "acrescentar";
+interface Regra { modo: ModoData; data: string; dias: number; diaUtil: boolean }
+const REGRA_PADRAO: Regra = { modo: "manter", data: "", dias: 1, diaUtil: true };
+const TZ = "America/Sao_Paulo";
+
+const CAMPOS: Record<string, { campo: string; label: string }[]> = {
+  tarefa: [
+    { campo: "data_base", label: "Data base" },
+    { campo: "data_vencimento", label: "Data prevista" },
+    { campo: "data_fatal", label: "Data fatal" },
+  ],
+  prazo: [
+    { campo: "data_base", label: "Data base" },
+    { campo: "data_vencimento", label: "Data limite" },
+    { campo: "data_fatal", label: "Data fatal" },
+  ],
+  evento: [
+    { campo: "data_inicio", label: "Início" },
+    { campo: "data_fim", label: "Fim" },
+  ],
+};
 
 const proximoDiaUtil = (d: Date) => {
   let r = d;
@@ -40,10 +61,40 @@ const proximoDiaUtil = (d: Date) => {
   return r;
 };
 
-const fmtData = (v: string | null) => {
+const diaBRT = (v: string) => (v.length > 10 ? formatInTimeZone(new Date(v), TZ, "yyyy-MM-dd") : v.slice(0, 10));
+const horaBRT = (v: string) => (v.length > 10 ? formatInTimeZone(new Date(v), TZ, "HH:mm:ss") : "12:00:00");
+
+const fmtData = (v: string | null | undefined, comHora = false) => {
   if (!v) return "—";
-  try { return format(parseISO(v.slice(0, 10)), "dd/MM/yyyy"); } catch { return v; }
+  try {
+    if (v.length > 10) return formatInTimeZone(new Date(v), TZ, comHora ? "dd/MM/yyyy HH:mm" : "dd/MM/yyyy");
+    return format(parseISO(v), "dd/MM/yyyy");
+  } catch { return v; }
 };
+
+/** Aplica a regra a um valor (data "yyyy-MM-dd" ou timestamp). Retorna null quando não muda. */
+function aplicarRegra(atual: string | null | undefined, r: Regra, timestamp: boolean): string | null {
+  if (r.modo === "manter") return null;
+  let dia: string;
+  if (r.modo === "fixa") {
+    if (!r.data) return null;
+    dia = r.data;
+  } else {
+    if (!atual) return null;
+    let d = addDays(parseISO(diaBRT(atual)), r.dias);
+    if (r.diaUtil) d = proximoDiaUtil(d);
+    dia = format(d, "yyyy-MM-dd");
+  }
+  if (!timestamp) return dia;
+  const hora = atual ? horaBRT(atual) : "12:00:00";
+  return fromZonedTime(`${dia}T${hora}`, TZ).toISOString();
+}
+
+function descreverRegra(label: string, r: Regra) {
+  if (r.modo === "manter") return `${label} mantida`;
+  if (r.modo === "fixa") return `${label} → ${r.data ? fmtData(r.data) : "?"}`;
+  return `${label} ${r.dias >= 0 ? "+" : ""}${r.dias} dia(s)${r.diaUtil ? " (dia útil)" : ""}`;
+}
 
 export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
   const { toast } = useToast();
