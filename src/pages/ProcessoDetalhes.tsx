@@ -84,7 +84,8 @@ import {
   Globe,
   ListPlus,
   MoreVertical,
-  ListChecks
+  ListChecks,
+  Sparkles
 } from "lucide-react";
 import { AudienciaDetectada } from "@/hooks/useAudienciasDetectadas";
 import { AudienciaObservacaoInline } from "@/components/audiencias/AudienciaObservacaoInline";
