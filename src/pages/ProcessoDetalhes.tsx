@@ -106,6 +106,7 @@ import { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { TarefaPublicacaoView } from "@/components/processos/TarefaPublicacaoView";
 import { ProcessoTstTab } from "@/components/processos/ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "@/components/processos/ProcessoDistribuicoesTab";
+import { GerarPecaTab } from "@/components/processos/GerarPecaTab";
 
 import { ProcessoDetalhesCompletos } from "@/components/processos/ProcessoDetalhesCompletos";
 import { ProcessoEditarCompleto } from "@/components/processos/ProcessoEditarCompleto";
