@@ -257,7 +257,14 @@ export function PeoplePicker({
                   </SelectContent>
                 </Select>
               </div>
-              <CommandList className="max-h-[260px]">
+              <CommandList
+                className="max-h-[260px] overscroll-contain"
+                onWheel={(e) => {
+                  // Painéis laterais (Sheet) bloqueiam a rolagem de listas em portal; rola manualmente.
+                  e.stopPropagation();
+                  e.currentTarget.scrollTop += e.deltaY;
+                }}
+              >
                 <CommandEmpty>Nenhuma pessoa encontrada.</CommandEmpty>
                 <CommandGroup>
                   {filtrados.map((u) => {
