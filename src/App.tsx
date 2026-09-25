@@ -95,6 +95,7 @@ import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
 import RelatorioDuplicados from "./pages/RelatorioDuplicados";
 import Workflow from "./pages/Workflow";
+import BancoTeses from "./pages/BancoTeses";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import ImportarCertidaoPdf from "./pages/admin-tst/ImportarCertidaoPdf";
@@ -154,6 +155,7 @@ function App() {
               <Route path="/ranking-atendimento" element={<ProtectedRoute><RankingAtendimento /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
               <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
+              <Route path="/banco-teses" element={<ProtectedRoute><BancoTeses /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
             <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
             <Route path="/prazos" element={<Navigate to="/minha-agenda" replace />} />
