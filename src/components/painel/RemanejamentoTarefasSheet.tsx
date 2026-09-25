@@ -83,9 +83,9 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
     queryKey: ["remanejamento-nomes", JSON.stringify(idsPessoas)],
     enabled: idsPessoas.length > 0,
     queryFn: async () => {
-      const { data } = await (supabase as any).from("profiles_basic").select("id, nome_completo").in("id", idsPessoas.slice(0, 500));
+      const { data } = await (supabase as any).from("profiles_basic").select("id, nome").in("id", idsPessoas.slice(0, 500));
       const m: Record<string, string> = {};
-      (data || []).forEach((p: any) => { m[p.id] = p.nome_completo; });
+      (data || []).forEach((p: any) => { m[p.id] = p.nome; });
       return m;
     },
   });
