@@ -1,0 +1,1 @@
+ALTER FUNCTION public.buscar_processos_global(text, integer) SECURITY INVOKER;
