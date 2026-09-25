@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.3.0";
+export const APP_VERSION = "7.4.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -72,4 +72,5 @@ export const VERSION_HISTORY = [
   { version: "7.1.1", date: "2026-09-21", notes: "Judit traz o nome completo das partes quando existe em qualquer instância da consulta; prazo fatal do DJEN contado a partir da data da publicação" },
   { version: "7.2.0", date: "2026-09-24", notes: "Painel de Controle: ordenação por data clicável no modo Lista (Limite, Fatal, Publicação); data de publicação e badge 'P' na visão Equipe; filtros em painel lateral" },
   { version: "7.3.0", date: "2026-09-24", notes: "Módulo Inteligência Jurídica (4 fases): dashboard de resultados, ofensores e tendências, previsão de êxito, oportunidades de acordo e análise dos dados da Judit; trava de baixa de itens de terceiros com permissões por coordenação" },
+  { version: "7.4.0", date: "2026-09-25", notes: "Geração de peças jurídicas com IA (Banco de Teses, busca automática de teses e aba Peças IA na ficha do processo, com revisão obrigatória e exportação em Word); dossiês inválidos corrigidos ('SEGREDO' em branco e texto a mais removido); Base PCA - TST - Distribuições blindada contra duplicados" },
 ];
