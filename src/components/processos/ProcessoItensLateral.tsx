@@ -396,6 +396,26 @@ export function ProcessoItensLateral({
         } as ItemAgendaUnificado);
       }
 
+      const recorrentes = lista.filter((i: any) => i.recorrencia_pai_id);
+      const idsRecorrentes = [...new Set(recorrentes.map((i: any) => String(i.recorrencia_pai_id)))];
+      if (idsRecorrentes.length > 0) {
+        const { data: baixas, error } = await supabase
+          .from("ocorrencias_recorrentes_status")
+          .select("origem,item_id,data_ocorrencia,status,concluido_em")
+          .in("item_id", idsRecorrentes);
+        if (error) throw error;
+        const mapa = new Map(
+          (baixas || []).map((b: any) => [`${b.origem}:${b.item_id}:${b.data_ocorrencia}`, b]),
+        );
+        for (const item of recorrentes as any[]) {
+          const dia = String(item.id).split("::")[1] || String(item.data_inicio).slice(0, 10);
+          const baixa = mapa.get(`${item.origem}:${item.recorrencia_pai_id}:${dia}`) as any;
+          item.status = baixa?.status ?? "pendente";
+          item.concluido_em = baixa?.concluido_em ?? null;
+          if (item.origem === "tarefa") item.data_cumprimento = baixa?.concluido_em ?? null;
+        }
+      }
+
       // Nomes dos responsáveis em um único lote (o select "*" não traz o join).
       const ids = [
         ...new Set(

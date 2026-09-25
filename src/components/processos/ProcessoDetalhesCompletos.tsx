@@ -132,6 +132,7 @@ import { CustasProcessuaisCard } from "./CustasProcessuaisCard";
 import { AnaliseDocumentoDialog } from "./AnaliseDocumentoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { NovoItemPanel, type NovoItemTipo } from "@/components/shared/NovoItemPanel";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { ClipboardList, CalendarPlus, Coins } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
@@ -322,6 +323,29 @@ export function ProcessoDetalhesCompletos({
     eventosAgenda.map((e: any) => String(e.id)).filter(Boolean)
   );
   const parcelamentosDoProcesso = eventosAgenda.filter((evento: any) => (evento.tipo || "").toLowerCase() === "parcelamento");
+  const idsRecorrentes = useMemo(
+    () => [
+      ...tarefas.filter((t: any) => t.recorrencia_tipo).map((t: any) => String(t.id)),
+      ...eventosDoProcesso.filter((e: any) => e.recorrencia_tipo && !e.grupo_parcelas).map((e: any) => String(e.id)),
+    ],
+    [JSON.stringify(tarefas), JSON.stringify(eventosDoProcesso)]
+  );
+  const { data: baixasRecorrentes = [] } = useQuery({
+    queryKey: ["baixas-recorrentes-processo", processo?.id, idsRecorrentes],
+    enabled: idsRecorrentes.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ocorrencias_recorrentes_status")
+        .select("origem,item_id,data_ocorrencia,status,concluido_em")
+        .in("item_id", idsRecorrentes);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const baixasPorOcorrencia = useMemo(
+    () => new Map(baixasRecorrentes.map((b: any) => [`${b.origem}:${b.item_id}:${b.data_ocorrencia}`, b])),
+    [JSON.stringify(baixasRecorrentes)]
+  );
   // Itens com repetição ficam gravados em um único registro: aqui abrimos as
   // ocorrências (mesma regra da Agenda geral) e agrupamos a série em uma linha,
   // mostrando a mais próxima e permitindo expandir as demais.
@@ -382,6 +406,9 @@ export function ProcessoDetalhesCompletos({
             id: `${e.id}::${d.toISOString().slice(0, 10)}`,
             data_inicio: d.toISOString(),
             recorrencia_pai_id: e.id,
+            _registro_pai: e,
+            status: baixasPorOcorrencia.get(`evento:${e.id}:${d.toISOString().slice(0, 10)}`)?.status ?? "pendente",
+            concluido_em: baixasPorOcorrencia.get(`evento:${e.id}:${d.toISOString().slice(0, 10)}`)?.concluido_em ?? null,
           }),
         }),
         {
@@ -394,7 +421,7 @@ export function ProcessoDetalhesCompletos({
           new Date(a.principal.data_inicio || 0).getTime() -
           new Date(b.principal.data_inicio || 0).getTime()
       )),
-    [eventosDoProcesso]
+    [eventosDoProcesso, baixasPorOcorrencia]
   );
 
   const seriesParcelamentos = useMemo(
@@ -459,11 +486,15 @@ export function ProcessoDetalhesCompletos({
             : null,
         aplicarData: (t, d) => {
           const dia = d.toISOString().slice(0, 10);
+          const baixa = baixasPorOcorrencia.get(`tarefa:${t.id}:${dia}`) as any;
           return {
             ...t,
             id: `${t.id}::${dia}`,
             _ocorrencia_id: `${t.id}::${dia}`,
             _registro_pai: t,
+            status: baixa?.status ?? "pendente",
+            data_cumprimento: baixa?.concluido_em ?? null,
+            concluido_em: baixa?.concluido_em ?? null,
             data_vencimento: t.data_vencimento ? dia : t.data_vencimento,
             data_prevista: t.data_prevista ? dia : t.data_prevista,
             data_fatal:
@@ -489,11 +520,11 @@ export function ProcessoDetalhesCompletos({
 
   const seriesTarefas = useMemo(
     () => pendentesPrimeiro(agruparTarefas(tarefasSemPrazo)),
-    [JSON.stringify(tarefasSemPrazo)]
+    [JSON.stringify(tarefasSemPrazo), baixasPorOcorrencia]
   );
   const seriesPrazos = useMemo(
     () => pendentesPrimeiro(agruparTarefas(prazosDoProcesso)),
-    [JSON.stringify(prazosDoProcesso)]
+    [JSON.stringify(prazosDoProcesso), baixasPorOcorrencia]
   );
 
 
@@ -1513,7 +1544,7 @@ export function ProcessoDetalhesCompletos({
                             <Card 
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer"
-                              onClick={() => abrirNovoItem("tarefa", tarefa._registro_pai || tarefa)}
+                               onClick={() => abrirNovoItem("tarefa", tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
@@ -1566,7 +1597,7 @@ export function ProcessoDetalhesCompletos({
                                         Veio do Astrea
                                       </Badge>
                                     )}
-                                    <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
+                                     <Badge variant={isItemTratado(tarefa) ? 'default' : 'secondary'} className="text-xs">
                                       {tarefa.status}
                                     </Badge>
                                   </div>
@@ -1746,7 +1777,7 @@ export function ProcessoDetalhesCompletos({
                             <Card
                               key={tarefa._ocorrencia_id || tarefa.id}
                               className="hover:shadow-md transition-shadow cursor-pointer border-l-[3px] border-l-destructive"
-                              onClick={() => abrirNovoItem("prazo", tarefa._registro_pai || tarefa)}
+                               onClick={() => abrirNovoItem("prazo", tarefa)}
                             >
                               <CardContent className="p-3">
                                 <div className="flex items-start justify-between gap-2">
@@ -1788,7 +1819,7 @@ export function ProcessoDetalhesCompletos({
                                         Veio do Astrea
                                       </Badge>
                                     )}
-                                    <Badge variant={tarefa.status === 'cumprido' ? 'default' : 'secondary'} className="text-xs">
+                                     <Badge variant={isItemTratado(tarefa) ? 'default' : 'secondary'} className="text-xs">
                                       {tarefa.status}
                                     </Badge>
                                   </div>
@@ -2028,7 +2059,7 @@ export function ProcessoDetalhesCompletos({
                               evento={oc}
                               pessoas={eventosPessoas[String(linha.original.id)]}
                               historico={historicoDe(linha.original.id)}
-                              onClick={() => abrirNovoItem("evento", linha.original)}
+                              onClick={() => abrirNovoItem("evento", oc)}
                             />
                           ),
                           { corBorda: "border-violet-200 dark:border-violet-900" }
