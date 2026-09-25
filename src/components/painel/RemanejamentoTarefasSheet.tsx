@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import { addDays, format, isWeekend, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
+import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -318,12 +320,51 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
             <Label className="text-xs">Busca</Label>
             <Input className="h-8" placeholder="Título ou processo" value={filtros.busca} onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))} />
           </div>
-          <div className="col-span-2 md:col-span-5 flex flex-wrap gap-1.5 items-center">
-            <span className="text-xs text-muted-foreground mr-1">Situação:</span>
-            {situacaoOptions.map((s) => (
-              <Badge key={s.value} className="cursor-pointer" variant={filtros.situacoes.includes(s.value) ? "default" : "outline"}
-                onClick={() => setFiltros((f) => ({ ...f, situacoes: f.situacoes.includes(s.value) ? f.situacoes.filter((x) => x !== s.value) : [...f.situacoes, s.value] }))}>{s.label}</Badge>
-            ))}
+          <div className="col-span-2 md:col-span-5">
+            <Label className="text-xs">Situação</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 w-full justify-between font-normal">
+                  <span className="truncate text-left">
+                    {filtros.situacoes.length === 0
+                      ? "Todas as situações"
+                      : `${filtros.situacoes.length} selecionada(s)`}
+                  </span>
+                  <ChevronDown className="h-4 w-4 opacity-50 shrink-0" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>Nenhuma situação</CommandEmpty>
+                    <CommandGroup>
+                      {situacaoOptions.map((s) => {
+                        const checked = filtros.situacoes.includes(s.value);
+                        return (
+                          <CommandItem
+                            key={s.value}
+                            onSelect={() =>
+                              setFiltros((f) => ({
+                                ...f,
+                                situacoes: f.situacoes.includes(s.value)
+                                  ? f.situacoes.filter((x) => x !== s.value)
+                                  : [...f.situacoes, s.value],
+                              }))
+                            }
+                            className="gap-2"
+                          >
+                            <div className="flex h-4 w-4 items-center justify-center rounded border">
+                              {checked && <Check className="h-3 w-3" />}
+                            </div>
+                            {s.label}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <Button size="sm" className="h-8 gap-1" onClick={() => { setBuscou(true); setSel(new Set()); void refetch(); }}>
             {isFetching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />} Buscar
