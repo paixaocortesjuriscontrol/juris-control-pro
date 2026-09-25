@@ -10634,6 +10634,10 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: number
       }
+      buscar_teses_aplicaveis: {
+        Args: { p_limite?: number; p_processo_id: string; p_tipo_peca?: string }
+        Returns: Json
+      }
       calcular_primeiro_dia_util: {
         Args: { data_base: string; dias_uteis_adicionar?: number }
         Returns: string
