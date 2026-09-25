@@ -152,6 +152,7 @@ export function CadastroAcompanhamentoEspecial() {
   };
 
   const handleCadastrar = async () => {
+    if (salvando) return;
     if (digitos(numero).length < 15) { toast.warning("Digite um número de processo válido."); return; }
     const numeroExibicao = formatarCnj(numero);
     setProgressoIndividual({
@@ -410,7 +411,7 @@ export function CadastroAcompanhamentoEspecial() {
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="w-4 h-4 mr-2" /> Cadastrar acompanhamento
       </Button>
-      <Sheet open={open} onOpenChange={(v) => !processandoLote && setOpen(v)}>
+      <Sheet open={open} onOpenChange={(v) => !processandoLote && !salvando && setOpen(v)}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Acompanhamento Especial</SheetTitle>
@@ -418,15 +419,15 @@ export function CadastroAcompanhamentoEspecial() {
           </SheetHeader>
           <Tabs defaultValue="individual" className="mt-4">
             <TabsList className="grid grid-cols-2">
-              <TabsTrigger value="individual">Um processo</TabsTrigger>
-              <TabsTrigger value="lote">Em lote (Excel)</TabsTrigger>
+              <TabsTrigger value="individual" disabled={salvando || processandoLote}>Um processo</TabsTrigger>
+              <TabsTrigger value="lote" disabled={salvando || processandoLote}>Em lote (Excel)</TabsTrigger>
             </TabsList>
 
             <TabsContent value="individual" className="space-y-4 pt-4">
               <div className="space-y-1">
                 <Label>Número do processo</Label>
                 <Input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Com ou sem pontuação"
-                  onKeyDown={(e) => e.key === "Enter" && handleCadastrar()} />
+                  disabled={salvando} onKeyDown={(e) => e.key === "Enter" && !salvando && handleCadastrar()} />
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -455,7 +456,7 @@ export function CadastroAcompanhamentoEspecial() {
                     {progressoIndividual.status === "processando" ? (
                       <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
                     ) : progressoIndividual.status === "sucesso" ? (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     ) : progressoIndividual.status === "erro" ? (
                       <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                     ) : (
@@ -503,7 +504,7 @@ export function CadastroAcompanhamentoEspecial() {
                     {processandoLote ? (
                       <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
                     ) : (
-                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-3">
