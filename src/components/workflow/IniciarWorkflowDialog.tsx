@@ -34,6 +34,8 @@ interface IniciarWorkflowDialogProps {
   trigger?: React.ReactNode;
   /** Renderiza o formulário direto na página, sem abrir janela/popup */
   inline?: boolean;
+  /** Lista todos os workflows acessíveis e usa a coordenação do fluxo escolhido. */
+  listarTodosWorkflows?: boolean;
   onDone?: () => void;
   publicacaoOrigem?: PublicacaoUnificada | null;
   onStarted?: (item: { id: string; titulo: string; tipo: ItemCriado["tipo"] }) => void | Promise<void>;
@@ -45,6 +47,7 @@ export function IniciarWorkflowDialog({
   preSelectedProcesso,
   trigger,
   inline,
+  listarTodosWorkflows = false,
   onDone,
   publicacaoOrigem,
   onStarted,
@@ -85,8 +88,8 @@ export function IniciarWorkflowDialog({
   });
   const processos = useMemo(() => processosData?.processos || [], [processosData]);
 
-  const { data: workflows } = useWorkflows({
-    coordenacaoId: coordenacaoId || undefined,
+  const { data: workflows = [], isLoading: carregandoWorkflows } = useWorkflows({
+    coordenacaoId: listarTodosWorkflows ? undefined : coordenacaoId || undefined,
     ativo: true,
   });
 
@@ -181,18 +184,34 @@ export function IniciarWorkflowDialog({
               <Label htmlFor="workflow">Workflow *</Label>
               <Select
                 value={selectedWorkflowId}
-                onValueChange={setSelectedWorkflowId}
-                disabled={!coordenacaoId}
+                onValueChange={(workflowSelecionadoId) => {
+                  setSelectedWorkflowId(workflowSelecionadoId);
+                  if (listarTodosWorkflows) {
+                    const workflowSelecionado = workflows.find((workflow: any) => workflow.id === workflowSelecionadoId);
+                    if (workflowSelecionado?.coordenacao_id) {
+                      setCoordenacaoId(workflowSelecionado.coordenacao_id);
+                    }
+                  }
+                }}
+                disabled={!listarTodosWorkflows && !coordenacaoId}
               >
                 <SelectTrigger id="workflow">
                   <SelectValue placeholder="Selecione o workflow" />
                 </SelectTrigger>
                 <SelectContent>
-                  {workflows?.map((w: any) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.nome}
-                    </SelectItem>
-                  ))}
+                  {carregandoWorkflows ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">Carregando workflows...</div>
+                  ) : workflows.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">
+                      Nenhum workflow ativo nesta coordenação.
+                    </div>
+                  ) : (
+                    workflows.map((w: any) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.nome}{listarTodosWorkflows && w.coordenacao?.nome ? ` — ${w.coordenacao.nome}` : ""}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
