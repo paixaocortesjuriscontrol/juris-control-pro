@@ -1,0 +1,1 @@
+COMMENT ON FUNCTION public.buscar_processos_global(text, integer) IS 'Busca global por texto ou números normalizados em processo, dossiê e pastas, respeitando RLS.';
