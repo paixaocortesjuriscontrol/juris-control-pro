@@ -60,6 +60,13 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { AcompanhamentoEspecialEventos } from "./AcompanhamentoEspecialEventos";
 import { supabase } from "@/integrations/supabase/client";
@@ -1248,21 +1255,7 @@ export function ProcessoDetalhesCompletos({
             Evita ScrollArea (Radix) no conteúdo para não capturar gestos no mobile.
             No desktop mantemos scroll interno via overflow-y-auto + altura fixa.
           */}
-          <div className={cn("min-h-0", novoItemTipo ? "p-0" : "p-3 sm:p-4")}>
-              {/* Painel unificado (mesmo do Painel de Controle) — sobrepõe o conteúdo */}
-              {novoItemTipo && (
-                <div className="min-h-0">
-                  <NovoItemPanel
-                    tipo={novoItemTipo}
-                    embedded
-                    itemParaEditar={itemParaEditar}
-                    processoPreSelecionado={processoPreSelecionado}
-                    onClose={fecharNovoItem}
-                    onSuccess={invalidarAposSalvar}
-                  />
-                </div>
-              )}
-              {!novoItemTipo && (<>
+          <div className="min-h-0 p-3 sm:p-4">
               {/* Toolbar global de ações Judit — ocultada temporariamente */}
               {/* Resumo Section - Visão geral rápida */}
               {/* Visão Geral — formulário único editável (Resumo + Detalhes + Envolvidos) */}
@@ -2211,10 +2204,33 @@ export function ProcessoDetalhesCompletos({
                   </div>
                 </div>
               )}
-              </>)}
             </div>
         </div>
       </div>
+      <Sheet
+        open={novoItemTipo !== null}
+        onOpenChange={(aberto) => {
+          if (!aberto) fecharNovoItem();
+        }}
+      >
+        <SheetContent side="right" className="w-full overflow-hidden p-0 sm:max-w-2xl">
+          <SheetHeader className="sr-only">
+            <SheetTitle>Adicionar item ao processo</SheetTitle>
+            <SheetDescription>
+              Preencha os dados do novo item vinculado a este processo.
+            </SheetDescription>
+          </SheetHeader>
+          {novoItemTipo && (
+            <NovoItemPanel
+              tipo={novoItemTipo}
+              itemParaEditar={itemParaEditar}
+              processoPreSelecionado={processoPreSelecionado}
+              onClose={fecharNovoItem}
+              onSuccess={invalidarAposSalvar}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
       {/* AI Analysis Dialog */}
       <AnaliseDocumentoDialog
         open={analiseDialogOpen}
