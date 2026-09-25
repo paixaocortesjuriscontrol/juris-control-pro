@@ -676,6 +676,16 @@ export default function AdminTstBasePcaDistribuicoes() {
         if (!porDigitos.has(d)) porDigitos.set(d, new Set<string>());
         porDigitos.get(d)!.add(String(row.dossie || "").trim().toLowerCase());
       }
+      const { data: arq, error: errArq } = await supabase.rpc("dados_benner_arquivados_existentes" as any, {
+        _digitos: digitos.slice(i, i + SEARCH_CHUNK),
+      });
+      if (errArq) throw errArq;
+      for (const row of ((arq ?? []) as any[])) {
+        const d = String(row.digitos || "");
+        if (!d) continue;
+        if (!porDigitos.has(d)) porDigitos.set(d, new Set<string>());
+        porDigitos.get(d)!.add("__arquivado__");
+      }
     }
     return porDigitos;
   };
@@ -734,14 +744,30 @@ export default function AdminTstBasePcaDistribuicoes() {
       const vistosNaPlanilha = new Set<string>();
       const aCadastrar: LinhaPlanilha[] = [];
       const duplicados: LinhaPlanilha[] = [];
+      const motivos = new Map<LinhaPlanilha, string>();
       for (const it of alvo) {
-        const dig = it.processoDigitos || it.processo.trim().toLowerCase();
-        const chaveLinha = `${dig}||${it.dossie.trim().toLowerCase()}`;
-        if (existentes.has(dig) || vistosNaPlanilha.has(chaveLinha)) {
+        const dig = it.processoDigitos || "";
+        if (dig.length !== 20) {
           duplicados.push(it);
+          motivos.set(it, "Número de processo incompleto — não cadastrado");
           continue;
         }
-        vistosNaPlanilha.add(chaveLinha);
+        if (existentes.has(dig)) {
+          duplicados.push(it);
+          motivos.set(
+            it,
+            existentes.get(dig)!.has("__arquivado__")
+              ? "Já existe como arquivado — nenhum processo duplicado foi criado"
+              : "Já existe na base — nenhum processo duplicado foi criado",
+          );
+          continue;
+        }
+        if (vistosNaPlanilha.has(dig)) {
+          duplicados.push(it);
+          motivos.set(it, "Processo repetido na planilha — cadastrado só uma vez");
+          continue;
+        }
+        vistosNaPlanilha.add(dig);
         aCadastrar.push(it);
       }
       for (const it of duplicados) {
@@ -749,7 +775,7 @@ export default function AdminTstBasePcaDistribuicoes() {
           processo: it.processo || null,
           dossie: it.dossie || null,
           acao: "ignorado",
-          detalhe: "Já existe na base — nenhum processo duplicado foi criado",
+          detalhe: motivos.get(it) || "Já existe na base",
         });
       }
       if (aCadastrar.length === 0) {
@@ -772,7 +798,20 @@ export default function AdminTstBasePcaDistribuicoes() {
       const total = Math.ceil(aCadastrar.length / APPLY_CHUNK);
 
       for (let i = 0; i < aCadastrar.length; i += APPLY_CHUNK) {
-        const slice = aCadastrar.slice(i, i + APPLY_CHUNK);
+        const sliceBruto = aCadastrar.slice(i, i + APPLY_CHUNK);
+        // Reconfere logo antes de gravar (outra importação pode ter cadastrado nesse meio tempo)
+        const recheck = await carregarProcessosExistentes(sliceBruto);
+        const slice = sliceBruto.filter((it) => {
+          if (!recheck.has(it.processoDigitos)) return true;
+          itensAudit.push({
+            processo: it.processo || null,
+            dossie: it.dossie || null,
+            acao: "ignorado",
+            detalhe: "Cadastrado por outra importação durante este lote — não duplicado",
+          });
+          return false;
+        });
+        if (slice.length === 0) continue;
         const payload = slice.map((it) => {
           const campos = { ...(it.campos || {}) };
           // Remove chaves nulas para não sobrescrever defaults do banco
