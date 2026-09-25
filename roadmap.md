@@ -82,3 +82,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Fase 3: edge function gerar-peca-juridica (Gemini flash, contexto do processo, tese RAG, salva em pecas_geradas com custo/tokens)
 - [x] Fase 3: aba "Peças IA" na ficha do processo (gerar, revisar, exportar)
 - [x] Fase 5: revisão humana editável, exportar .docx só após revisão, registro de quem revisou e quando, exclusão de peça
+
+- [x] Interromper solicitações repetidas de permissão no Supabase e concluir a validação da busca sem novas migrações.
