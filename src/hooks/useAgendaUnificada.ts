@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { dataInicioAudiencia } from "@/utils/date";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
+import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -1335,17 +1336,43 @@ export function useUpdateItemAgenda() {
         const avancou = await sincronizarWorkflowPorItem(tarefaId, tarefaStatus);
         return { avancou };
       } else {
-        const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", id);
-        if (error) throw error;
+        // Eventos recorrentes chegam com id composto "uuid::AAAA-MM-DD".
+        // Nesse caso a baixa é da ocorrência (ocorrencias_recorrentes_status),
+        // não do evento-pai — gravar o id composto em eventos_agenda falhava
+        // silenciosamente e a tela não atualizava.
+        const { rawId, dataOcorrencia } = parseOcorrenciaId(String(id));
+        if (dataOcorrencia) {
+          const concluindo = status === "concluido" || status === "cumprido";
+          if (concluindo) {
+            const { data: auth } = await supabase.auth.getUser();
+            await salvarBaixaOcorrencia({
+              origem: "evento",
+              itemId: rawId,
+              dataOcorrencia,
+              status: status ?? "concluido",
+              observacao: null,
+              userId: auth?.user?.id ?? null,
+            });
+          } else {
+            await removerBaixaOcorrencia({
+              origem: "evento",
+              itemId: rawId,
+              dataOcorrencia,
+            });
+          }
+        } else {
+          const { error } = await supabase.from("eventos_agenda").update({ status, concluido_em, updated_at: new Date().toISOString() }).eq("id", rawId);
+          if (error) throw error;
+        }
         await registrarAuditoriaTarefa({
           acao: "atualizar",
           sucesso: true,
           dadosEntrada: { id, status, concluido_em },
           origem: "useAgendaUnificada.useUpdateItemAgenda",
-          itemId: id,
+          itemId: rawId,
           tipoItem: "evento",
         });
-        const avancou = await sincronizarWorkflowPorItem(id, status);
+        const avancou = await sincronizarWorkflowPorItem(rawId, status);
         return { avancou };
       }
     },
