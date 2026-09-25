@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 type Resultado = {
   id: string;
@@ -37,13 +36,6 @@ function normalizeSearchTerm(s: string) {
 function buildOr(columns: string[], terms: string[]) {
   const uniqueTerms = Array.from(new Set(terms.map(escapeIlike).filter((term) => term.length >= 2)));
   return columns.flatMap((column) => uniqueTerms.map((term) => `${column}.ilike.%${term}%`)).join(",");
-}
-
-/** Variantes do número do processo (com e sem máscara CNJ) para busca. */
-function variantesNumero(termo: string): string[] {
-  return obterVariantesCnjBusca(termo)
-    .map(escapeIlike)
-    .filter((v) => v.replace(/\D/g, "").length >= 3);
 }
 
 export function BuscaGlobalPainel() {
@@ -79,25 +71,15 @@ export function BuscaGlobalPainel() {
     const termosBusca = [termo, normalizeSearchTerm(termo)];
     const like = `%${termo}%`;
     const digitsOnly = termo.replace(/\D/g, "");
-    const numeroVariantes = variantesNumero(termo);
+    const numeroVariantes = digitsOnly.length >= 4 ? [termo, digitsOnly] : [];
     const numeroOr = (coluna: string) =>
       numeroVariantes.map((v) => `${coluna}.ilike.%${v}%`).join(",");
     try {
         const [proc, cli, tar, evt, aud, pub] = await Promise.all([
-          supabase
-            .from("processos")
-            .select("id, numero, assunto, polo_ativo, polo_passivo")
-            .or(
-              [
-                ...(numeroVariantes.length > 0 ? [numeroOr("numero")] : [`numero.ilike.${like}`]),
-                `assunto.ilike.${like}`,
-                `polo_ativo.ilike.${like}`,
-                `polo_passivo.ilike.${like}`,
-              ]
-                .filter(Boolean)
-                .join(",")
-            )
-            .limit(8),
+          supabase.rpc("buscar_processos_global", {
+            _termo: termo,
+            _limite: 8,
+          }),
           supabase
             .from("clientes")
             .select("id, nome, cpf_cnpj")
