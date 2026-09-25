@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
+import { GerarPecaTab } from "./GerarPecaTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
 import { AudienciaPublicacaoVinculada } from "@/components/shared/AudienciaPublicacaoVinculada";
 import { AudienciaResponsaveisResumo } from "@/components/audiencias/AudienciaResponsaveisResumo";
@@ -1100,6 +1101,7 @@ export function ProcessoDetalhesCompletos({
       label: "Distribuições",
       items: [
         { id: "distribuicoes-tst", label: "Distribuições", icon: Scale },
+        { id: "pecas-ia", label: "Peças IA", icon: Sparkles },
       ],
     },
     {
@@ -1707,6 +1709,10 @@ export function ProcessoDetalhesCompletos({
               {/* Distribuições TST Section */}
               {activeSection === "distribuicoes-tst" && (
                 <ProcessoDistribuicoesTab processoId={processo.id} processoNumero={processo.numero || ""} />
+              )}
+
+              {activeSection === "pecas-ia" && (
+                <GerarPecaTab processoId={processo.id} />
               )}
 
               {/* Prazo Section - campos da planilha TST - edição inline */}
