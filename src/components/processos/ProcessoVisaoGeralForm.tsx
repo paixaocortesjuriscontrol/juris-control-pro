@@ -1419,6 +1419,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     {workflowOpen && (
                       <IniciarWorkflowDialog
                         inline
+                        listarTodosWorkflows
                         preSelectedProcesso={{
                           id: processo.id,
                           numero: processo.numero,
