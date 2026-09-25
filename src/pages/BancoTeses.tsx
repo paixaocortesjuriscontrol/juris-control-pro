@@ -19,6 +19,7 @@ import {
   type TeseInsert,
 } from "@/hooks/useTesesJuridicas";
 import { useUserRole } from "@/hooks/useUserRole";
+import { ImportarPecasTeses } from "@/components/teses/ImportarPecasTeses";
 
 const TIPOS_PECA: { value: TipoPeca; label: string }[] = [
   { value: "contestacao", label: "Contestação" },
@@ -110,9 +111,12 @@ export default function BancoTeses() {
             </p>
           </div>
           {isAdminOrCoordinator && (
-            <Button onClick={novaTese} disabled={!coords.length}>
-              <Plus className="h-4 w-4 mr-1" /> Nova tese
-            </Button>
+            <div className="flex gap-2">
+              <ImportarPecasTeses coords={coords} coordPadrao={coordId && coordId !== "__all__" ? coordId : undefined} />
+              <Button onClick={novaTese} disabled={!coords.length}>
+                <Plus className="h-4 w-4 mr-1" /> Nova tese
+              </Button>
+            </div>
           )}
         </div>
 
