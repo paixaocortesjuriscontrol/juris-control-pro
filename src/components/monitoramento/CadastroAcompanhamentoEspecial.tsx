@@ -294,7 +294,6 @@ export function CadastroAcompanhamentoEspecial() {
           numero: pegar(l, "processo", "numero", "cnj"),
           coord: pegar(l, "coordenac"),
           freq: Math.max(1, Math.min(3, parseInt(pegar(l, "vezes", "frequen")) || 1)),
-          anexos: /^(s|sim|x|1|true)/i.test(pegar(l, "anexo")),
         }))
         .filter((i) => digitos(i.numero).length >= 15);
       const vistos = new Set<string>();
