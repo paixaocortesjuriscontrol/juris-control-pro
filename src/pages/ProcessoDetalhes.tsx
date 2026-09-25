@@ -1651,6 +1651,17 @@ export default function ProcessoDetalhes() {
           <Scale className="w-4 h-4" />
           <span className="hidden sm:inline">Distribuições</span>
         </TabsTrigger>
+        <TabsTrigger 
+          value="pecas-ia" 
+          className="gap-1.5"
+          onClick={(e) => {
+            e.preventDefault();
+            setActiveTab(prev => prev === "pecas-ia" ? "" : "pecas-ia");
+          }}
+        >
+          <Sparkles className="w-4 h-4" />
+          <span className="hidden sm:inline">Peças IA</span>
+        </TabsTrigger>
       </TabsList>
 
       {/* Tab Contents - Audiências */}
