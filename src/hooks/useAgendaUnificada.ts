@@ -1379,11 +1379,13 @@ export function useUpdateItemAgenda() {
         return { avancou };
       }
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+        queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] }),
+      ]);
       toast.success("Item atualizado com sucesso!");
       if (result?.avancou) toast.success("Próxima etapa do workflow criada!");
     },
