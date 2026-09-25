@@ -56,7 +56,7 @@ const chunk = <T,>(arr: T[], size: number): T[][] => {
 
 function classificarTarefa(row: any): LoteTipo {
   const tipoUpper = String(row.tipo_tarefa ?? "").toUpperCase().trim();
-  const tipo = String(row.tipo ?? "").toLowerCase().trim();
+  const tipo = String(row.tipo_registro ?? row.tipo ?? "").toLowerCase().trim();
   if (tipoUpper.includes("AUDI") || tipo === "audiencia") return "audiencia";
   if (tipo === "prazo" || tipo === "prazo_parcela" || tipoUpper.includes("PRAZO")) return "prazo";
   return "tarefa";
@@ -130,7 +130,7 @@ export function usePessoasEmLoteItens(
           let q = (supabase as any)
             .from("tarefas")
             .select(
-              "id, titulo, tipo, tipo_tarefa, status, data_vencimento, processo_id, coordenacao_id, responsavel_id",
+              "id, titulo, tipo_registro, tipo_tarefa, status, data_vencimento, processo_id, coordenacao_id, responsavel_id",
             )
             .gte("data_vencimento", inicio)
             .lte("data_vencimento", fim)
