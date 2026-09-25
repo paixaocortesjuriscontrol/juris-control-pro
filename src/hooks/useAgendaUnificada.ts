@@ -1369,10 +1369,10 @@ export function useUpdateItemAgenda() {
           sucesso: true,
           dadosEntrada: { id, status, concluido_em },
           origem: "useAgendaUnificada.useUpdateItemAgenda",
-          itemId: id,
+          itemId: rawId,
           tipoItem: "evento",
         });
-        const avancou = await sincronizarWorkflowPorItem(id, status);
+        const avancou = await sincronizarWorkflowPorItem(rawId, status);
         return { avancou };
       }
     },
