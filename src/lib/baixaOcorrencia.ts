@@ -20,6 +20,16 @@ export function isOcorrenciaRecorrente(item: any): boolean {
   return String(item.id ?? "").includes("::") || !!item.recorrencia_pai_id;
 }
 
+/** Descobre se a ocorrência é de tarefa/prazo ou de evento, mesmo quando `origem` não vem preenchida. */
+function inferirOrigem(item: any): OrigemOcorrencia {
+  const o = String(item?.origem ?? item?._registro_pai?.origem ?? "").toLowerCase();
+  if (o === "tarefa" || o === "prazo") return "tarefa";
+  if (o === "evento") return "evento";
+  const ref = item?._registro_pai ?? item;
+  if (ref && ("data_vencimento" in ref || "tipo_tarefa" in ref || "tipo_registro" in ref)) return "tarefa";
+  return "evento";
+}
+
 export function dadosOcorrencia(item: any): {
   origem: OrigemOcorrencia;
   itemId: string;
@@ -30,7 +40,7 @@ export function dadosOcorrencia(item: any): {
   const itemId = (item.recorrencia_pai_id as string | undefined) ?? rawId;
   const data = dataOcorrencia ?? String(item.data_inicio ?? "").slice(0, 10);
   if (!itemId || !data) return null;
-  return { origem: item.origem === "tarefa" ? "tarefa" : "evento", itemId, dataOcorrencia: data };
+  return { origem: inferirOrigem(item), itemId, dataOcorrencia: data };
 }
 
 /** Grava (ou atualiza) a baixa de UMA ocorrência da série. */
