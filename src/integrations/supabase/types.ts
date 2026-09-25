@@ -10766,6 +10766,12 @@ export type Database = {
         }
         Returns: string
       }
+      dados_benner_arquivados_existentes: {
+        Args: { _digitos: string[] }
+        Returns: {
+          digitos: string
+        }[]
+      }
       dados_benner_processos_existentes: {
         Args: { _digitos: string[] }
         Returns: {
