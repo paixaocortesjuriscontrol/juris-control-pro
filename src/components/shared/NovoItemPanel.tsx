@@ -168,12 +168,13 @@ export function NovoItemPanel({
             <ItemAtividades tipo={tipo} itemId={String(itemParaEditar.id)} />
           </div>
         )}
-        {ocorrenciaRecorrente && (
-          <div className="flex-shrink-0 border-t">
-            <BaixaOcorrenciaBar item={itemParaEditar} onUpdate={() => { void onSuccess(); }} />
-          </div>
-        )}
       </div>
+      {/* Barra de baixa da ocorrência fica fixa no rodapé, sempre visível */}
+      {ocorrenciaRecorrente && (
+        <div className="flex-shrink-0 border-t bg-card">
+          <BaixaOcorrenciaBar item={itemParaEditar} onUpdate={() => { void onSuccess(); }} />
+        </div>
+      )}
     </div>
   );
 }
