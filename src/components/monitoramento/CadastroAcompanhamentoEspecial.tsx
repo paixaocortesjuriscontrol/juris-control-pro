@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, Download, Sparkles } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, Loader2, Plus, Sparkles, Upload } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +98,22 @@ async function criarProcessoComJudit(numero: string, coordenacaoId: string, uid:
 }
 
 type ResultadoLote = { numero: string; resultado: string; ok: boolean };
+type StatusProgresso = "processando" | "aguardando" | "sucesso" | "erro";
+type ProgressoIndividual = {
+  percentual: number;
+  etapa: string;
+  detalhe: string;
+  status: StatusProgresso;
+};
+type ProgressoLote = {
+  feito: number;
+  total: number;
+  percentual: number;
+  numeroAtual: string;
+  etapa: string;
+  sucessos: number;
+  erros: number;
+};
 
 export function CadastroAcompanhamentoEspecial() {
   const qc = useQueryClient();
@@ -109,11 +125,20 @@ export function CadastroAcompanhamentoEspecial() {
   const [coordId, setCoordId] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [perguntarCriar, setPerguntarCriar] = useState(false);
+  const [progressoIndividual, setProgressoIndividual] = useState<ProgressoIndividual | null>(null);
 
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [loteCoordId, setLoteCoordId] = useState("");
   const [loteCriar, setLoteCriar] = useState(true);
-  const [progresso, setProgresso] = useState({ feito: 0, total: 0 });
+  const [progresso, setProgresso] = useState<ProgressoLote>({
+    feito: 0,
+    total: 0,
+    percentual: 0,
+    numeroAtual: "",
+    etapa: "",
+    sucessos: 0,
+    erros: 0,
+  });
   const [processandoLote, setProcessandoLote] = useState(false);
   const [resultados, setResultados] = useState<ResultadoLote[]>([]);
 
@@ -127,16 +152,57 @@ export function CadastroAcompanhamentoEspecial() {
   };
 
   const handleCadastrar = async () => {
+    if (salvando) return;
     if (digitos(numero).length < 15) { toast.warning("Digite um número de processo válido."); return; }
+    const numeroExibicao = formatarCnj(numero);
+    setProgressoIndividual({
+      percentual: 15,
+      etapa: "Procurando processo",
+      detalhe: `Consultando ${numeroExibicao} na base do escritório.`,
+      status: "processando",
+    });
     setSalvando(true);
     try {
       const p = await localizarProcesso(numero);
-      if (!p) { setPerguntarCriar(true); return; }
+      if (!p) {
+        setProgressoIndividual({
+          percentual: 25,
+          etapa: "Processo não encontrado",
+          detalhe: "Aguardando a confirmação para cadastrar e consultar a Judit.",
+          status: "aguardando",
+        });
+        setPerguntarCriar(true);
+        return;
+      }
+      setProgressoIndividual({
+        percentual: 65,
+        etapa: "Ativando acompanhamento",
+        detalhe: `Aplicando as configurações em ${p.numero}.`,
+        status: "processando",
+      });
       await ativarAcompanhamento(p.id, freq, anexos);
+      setProgressoIndividual({
+        percentual: 90,
+        etapa: "Atualizando a tela",
+        detalhe: "Sincronizando os dados do monitoramento.",
+        status: "processando",
+      });
       await atualizarTela();
+      setProgressoIndividual({
+        percentual: 100,
+        etapa: "Acompanhamento ativado",
+        detalhe: `${p.numero} já está no Acompanhamento Especial.`,
+        status: "sucesso",
+      });
       toast.success(`Acompanhamento especial ativado em ${p.numero}.`);
       setNumero("");
     } catch (e: any) {
+      setProgressoIndividual({
+        percentual: 100,
+        etapa: "Não foi possível concluir",
+        detalhe: e?.message || "Erro ao cadastrar acompanhamento.",
+        status: "erro",
+      });
       toast.error(e?.message || "Erro ao cadastrar acompanhamento.");
     } finally {
       setSalvando(false);
@@ -147,11 +213,39 @@ export function CadastroAcompanhamentoEspecial() {
     if (!coordId) { toast.warning("Escolha a coordenação."); return; }
     setPerguntarCriar(false);
     setSalvando(true);
+    setProgressoIndividual({
+      percentual: 35,
+      etapa: "Consultando a Judit",
+      detalhe: `Buscando informações de ${formatarCnj(numero)}. Esta etapa pode levar alguns instantes.`,
+      status: "processando",
+    });
     try {
       const { data: u } = await supabase.auth.getUser();
       const novo = await criarProcessoComJudit(numero, coordId, u?.user?.id || null);
+      setProgressoIndividual({
+        percentual: 72,
+        etapa: "Ativando acompanhamento",
+        detalhe: novo.juditOk
+          ? `${novo.qtdCampos} informação(ões) recebida(s) da Judit. Ativando o monitoramento.`
+          : "Processo cadastrado sem dados da Judit. Ativando o monitoramento.",
+        status: "processando",
+      });
       await ativarAcompanhamento(novo.id, freq, anexos);
+      setProgressoIndividual({
+        percentual: 90,
+        etapa: "Atualizando a tela",
+        detalhe: "Sincronizando os dados do monitoramento.",
+        status: "processando",
+      });
       await atualizarTela();
+      setProgressoIndividual({
+        percentual: 100,
+        etapa: "Cadastro concluído",
+        detalhe: novo.juditOk
+          ? `${novo.numero} foi cadastrado com dados da Judit e já está sendo acompanhado.`
+          : `${novo.numero} foi cadastrado e já está sendo acompanhado. A Judit não retornou dados.`,
+        status: "sucesso",
+      });
       toast.success(
         novo.juditOk
           ? `Processo ${novo.numero} cadastrado com ${novo.qtdCampos} informação(ões) da Judit e acompanhamento ativado.`
@@ -159,6 +253,12 @@ export function CadastroAcompanhamentoEspecial() {
       );
       setNumero("");
     } catch (e: any) {
+      setProgressoIndividual({
+        percentual: 100,
+        etapa: "Não foi possível concluir",
+        detalhe: e?.message || "Erro ao cadastrar o processo.",
+        status: "erro",
+      });
       toast.error(e?.message || "Erro ao cadastrar o processo.");
     } finally {
       setSalvando(false);
@@ -180,6 +280,7 @@ export function CadastroAcompanhamentoEspecial() {
     if (!arquivo) { toast.warning("Selecione a planilha."); return; }
     setProcessandoLote(true);
     setResultados([]);
+    setProgresso({ feito: 0, total: 0, percentual: 0, numeroAtual: "", etapa: "Lendo a planilha", sucessos: 0, erros: 0 });
     try {
       const wb = XLSX.read(await arquivo.arrayBuffer(), { type: "array" });
       const linhas: any[] = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
@@ -202,12 +303,35 @@ export function CadastroAcompanhamentoEspecial() {
 
       const { data: u } = await supabase.auth.getUser();
       const uid = u?.user?.id || null;
-      setProgresso({ feito: 0, total: unicos.length });
+      setProgresso({
+        feito: 0,
+        total: unicos.length,
+        percentual: 0,
+        numeroAtual: formatarCnj(unicos[0]?.numero || ""),
+        etapa: "Preparando o lote",
+        sucessos: 0,
+        erros: 0,
+      });
       const res: ResultadoLote[] = [];
       for (const [idx, it] of unicos.entries()) {
+        const atualizarProgressoLote = (etapa: string, fracao: number) => {
+          const sucessos = res.filter((r) => r.ok).length;
+          const erros = res.length - sucessos;
+          setProgresso({
+            feito: idx,
+            total: unicos.length,
+            percentual: ((idx + fracao) / unicos.length) * 100,
+            numeroAtual: formatarCnj(it.numero),
+            etapa,
+            sucessos,
+            erros,
+          });
+        };
         try {
+          atualizarProgressoLote("Procurando processo na base", 0.15);
           const p = await localizarProcesso(it.numero);
           if (p) {
+            atualizarProgressoLote("Ativando acompanhamento", 0.65);
             await ativarAcompanhamento(p.id, it.freq, it.anexos);
             res.push({ numero: p.numero, resultado: "Acompanhamento ativado", ok: true });
           } else if (!loteCriar) {
@@ -218,7 +342,9 @@ export function CadastroAcompanhamentoEspecial() {
             if (!cid) {
               res.push({ numero: it.numero, resultado: "Coordenação não informada ou não encontrada", ok: false });
             } else {
+              atualizarProgressoLote("Consultando e preenchendo pela Judit", 0.35);
               const novo = await criarProcessoComJudit(it.numero, cid, uid);
+              atualizarProgressoLote("Ativando acompanhamento", 0.75);
               await ativarAcompanhamento(novo.id, it.freq, it.anexos);
               res.push({
                 numero: novo.numero,
@@ -230,14 +356,34 @@ export function CadastroAcompanhamentoEspecial() {
         } catch (e: any) {
           res.push({ numero: it.numero, resultado: `Erro: ${e?.message || e}`, ok: false });
         }
-        setProgresso({ feito: idx + 1, total: unicos.length });
+        const sucessos = res.filter((r) => r.ok).length;
+        const erros = res.length - sucessos;
+        setProgresso({
+          feito: idx + 1,
+          total: unicos.length,
+          percentual: ((idx + 1) / unicos.length) * 100,
+          numeroAtual: formatarCnj(it.numero),
+          etapa: idx + 1 === unicos.length ? "Finalizando e atualizando a tela" : "Processo concluído",
+          sucessos,
+          erros,
+        });
         setResultados([...res]);
         await new Promise((r) => requestAnimationFrame(() => r(null)));
       }
       await atualizarTela();
       const ok = res.filter((r) => r.ok).length;
+      setProgresso({
+        feito: res.length,
+        total: res.length,
+        percentual: 100,
+        numeroAtual: "",
+        etapa: "Lote concluído",
+        sucessos: ok,
+        erros: res.length - ok,
+      });
       toast.success(`Lote concluído: ${ok} de ${res.length} processo(s) com acompanhamento ativado.`);
     } catch (e: any) {
+      setProgresso((atual) => ({ ...atual, etapa: e?.message || "Erro ao ler a planilha" }));
       toast.error(e?.message || "Erro ao ler a planilha.");
     } finally {
       setProcessandoLote(false);
@@ -265,7 +411,7 @@ export function CadastroAcompanhamentoEspecial() {
       <Button size="sm" onClick={() => setOpen(true)}>
         <Plus className="w-4 h-4 mr-2" /> Cadastrar acompanhamento
       </Button>
-      <Sheet open={open} onOpenChange={(v) => !processandoLote && setOpen(v)}>
+      <Sheet open={open} onOpenChange={(v) => !processandoLote && !salvando && setOpen(v)}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Acompanhamento Especial</SheetTitle>
@@ -273,15 +419,15 @@ export function CadastroAcompanhamentoEspecial() {
           </SheetHeader>
           <Tabs defaultValue="individual" className="mt-4">
             <TabsList className="grid grid-cols-2">
-              <TabsTrigger value="individual">Um processo</TabsTrigger>
-              <TabsTrigger value="lote">Em lote (Excel)</TabsTrigger>
+              <TabsTrigger value="individual" disabled={salvando || processandoLote}>Um processo</TabsTrigger>
+              <TabsTrigger value="lote" disabled={salvando || processandoLote}>Em lote (Excel)</TabsTrigger>
             </TabsList>
 
             <TabsContent value="individual" className="space-y-4 pt-4">
               <div className="space-y-1">
                 <Label>Número do processo</Label>
                 <Input value={numero} onChange={(e) => setNumero(e.target.value)} placeholder="Com ou sem pontuação"
-                  onKeyDown={(e) => e.key === "Enter" && handleCadastrar()} />
+                  disabled={salvando} onKeyDown={(e) => e.key === "Enter" && !salvando && handleCadastrar()} />
               </div>
               <div className="flex flex-wrap items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -298,6 +444,35 @@ export function CadastroAcompanhamentoEspecial() {
               <Button onClick={handleCadastrar} disabled={salvando} className="w-full">
                 {salvando && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Cadastrar acompanhamento
               </Button>
+              {progressoIndividual && (
+                <div
+                  className={`space-y-3 rounded-md border p-3 ${
+                    progressoIndividual.status === "erro" ? "border-destructive/40 bg-destructive/5" : "bg-muted/30"
+                  }`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <div className="flex items-start gap-2">
+                    {progressoIndividual.status === "processando" ? (
+                      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+                    ) : progressoIndividual.status === "sucesso" ? (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    ) : progressoIndividual.status === "erro" ? (
+                      <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                    ) : (
+                      <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{progressoIndividual.etapa}</p>
+                        <span className="text-xs tabular-nums text-muted-foreground">{progressoIndividual.percentual}%</span>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">{progressoIndividual.detalhe}</p>
+                    </div>
+                  </div>
+                  <Progress value={progressoIndividual.percentual} />
+                </div>
+              )}
             </TabsContent>
 
             <TabsContent value="lote" className="space-y-4 pt-4">
@@ -324,9 +499,28 @@ export function CadastroAcompanhamentoEspecial() {
                 Processar planilha
               </Button>
               {progresso.total > 0 && (
-                <div className="space-y-1">
-                  <Progress value={(progresso.feito / progresso.total) * 100} />
-                  <p className="text-xs text-muted-foreground">{progresso.feito} de {progresso.total}</p>
+                <div className="space-y-3 rounded-md border bg-muted/30 p-3" role="status" aria-live="polite">
+                  <div className="flex items-start gap-2">
+                    {processandoLote ? (
+                      <Loader2 className="mt-0.5 h-4 w-4 shrink-0 animate-spin text-primary" />
+                    ) : (
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium">{progresso.etapa}</p>
+                        <span className="text-xs tabular-nums text-muted-foreground">{Math.round(progresso.percentual)}%</span>
+                      </div>
+                      {progresso.numeroAtual && (
+                        <p className="mt-1 truncate font-mono text-xs text-muted-foreground">{progresso.numeroAtual}</p>
+                      )}
+                    </div>
+                  </div>
+                  <Progress value={progresso.percentual} />
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+                    <span>{progresso.feito} de {progresso.total} concluído(s)</span>
+                    <span>{progresso.sucessos} sucesso(s) · {progresso.erros} erro(s)</span>
+                  </div>
                 </div>
               )}
               {resultados.length > 0 && (
