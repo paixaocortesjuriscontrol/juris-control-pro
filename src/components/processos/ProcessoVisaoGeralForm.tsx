@@ -65,11 +65,12 @@ import {
 import { ChevronsUpDown, Workflow as WorkflowIcon } from "lucide-react";
 import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import {
-  Dialog as WfDialog,
-  DialogContent as WfDialogContent,
-  DialogHeader as WfDialogHeader,
-  DialogTitle as WfDialogTitle,
-} from "@/components/ui/dialog";
+  Sheet as WorkflowSheet,
+  SheetContent as WorkflowSheetContent,
+  SheetDescription as WorkflowSheetDescription,
+  SheetHeader as WorkflowSheetHeader,
+  SheetTitle as WorkflowSheetTitle,
+} from "@/components/ui/sheet";
 import { garantirEtiquetaCliente } from "@/lib/etiquetaCliente";
 
 // Rascunho do formulário no modo criação (/processos/novo). Mantém o que a
@@ -1407,11 +1408,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 </DropdownMenuContent>
               </DropdownMenu>
               {!isNovo && (
-                <WfDialog open={workflowOpen} onOpenChange={setWorkflowOpen}>
-                  <WfDialogContent className="sm:max-w-md">
-                    <WfDialogHeader>
-                      <WfDialogTitle>Iniciar Workflow</WfDialogTitle>
-                    </WfDialogHeader>
+                <WorkflowSheet open={workflowOpen} onOpenChange={setWorkflowOpen}>
+                  <WorkflowSheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-lg">
+                    <WorkflowSheetHeader className="border-b border-border px-5 py-4 text-left">
+                      <WorkflowSheetTitle>Iniciar Workflow</WorkflowSheetTitle>
+                      <WorkflowSheetDescription>
+                        Escolha o fluxo que será iniciado para este processo.
+                      </WorkflowSheetDescription>
+                    </WorkflowSheetHeader>
                     {workflowOpen && (
                       <IniciarWorkflowDialog
                         inline
@@ -1423,8 +1427,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                         onDone={() => setWorkflowOpen(false)}
                       />
                     )}
-                  </WfDialogContent>
-                </WfDialog>
+                  </WorkflowSheetContent>
+                </WorkflowSheet>
               )}
               <Button
                 onClick={handleJuditButtonClick}

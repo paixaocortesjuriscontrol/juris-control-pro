@@ -85,7 +85,7 @@ export function IniciarWorkflowDialog({
   });
   const processos = useMemo(() => processosData?.processos || [], [processosData]);
 
-  const { data: workflows } = useWorkflows({
+  const { data: workflows = [], isLoading: carregandoWorkflows } = useWorkflows({
     coordenacaoId: coordenacaoId || undefined,
     ativo: true,
   });
@@ -188,11 +188,19 @@ export function IniciarWorkflowDialog({
                   <SelectValue placeholder="Selecione o workflow" />
                 </SelectTrigger>
                 <SelectContent>
-                  {workflows?.map((w: any) => (
-                    <SelectItem key={w.id} value={w.id}>
-                      {w.nome}
-                    </SelectItem>
-                  ))}
+                  {carregandoWorkflows ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">Carregando workflows...</div>
+                  ) : workflows.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground">
+                      Nenhum workflow ativo nesta coordenação.
+                    </div>
+                  ) : (
+                    workflows.map((w: any) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {w.nome}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
