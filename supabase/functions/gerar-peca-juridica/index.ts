@@ -193,6 +193,7 @@ Tags: ${(tese.tags || []).join(", ") || "N/A"}
 
 FUNDAMENTOS DA TESE:
 ${tese.fundamentos || "N/A"}
+${tese.peca_modelo ? `\nPEÇA-MODELO DO ESCRITÓRIO (siga a estrutura, o estilo e os argumentos, adaptando aos fatos deste processo; não copie nomes):\n${String(tese.peca_modelo).slice(0, 30000)}\n` : ""}
 `
       : `
 Nenhuma tese específica encontrada no banco de teses. Gere a peça com base nas melhores práticas processuais e na legislação aplicável.

@@ -9974,6 +9974,8 @@ export type Database = {
           fundamentos: string
           id: string
           materia: string | null
+          origem_arquivo: string | null
+          peca_modelo: string | null
           tags: string[] | null
           tipo_peca: string
           tipo_recurso: string | null
@@ -9990,6 +9992,8 @@ export type Database = {
           fundamentos?: string
           id?: string
           materia?: string | null
+          origem_arquivo?: string | null
+          peca_modelo?: string | null
           tags?: string[] | null
           tipo_peca?: string
           tipo_recurso?: string | null
@@ -10006,6 +10010,8 @@ export type Database = {
           fundamentos?: string
           id?: string
           materia?: string | null
+          origem_arquivo?: string | null
+          peca_modelo?: string | null
           tags?: string[] | null
           tipo_peca?: string
           tipo_recurso?: string | null
