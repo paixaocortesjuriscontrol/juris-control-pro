@@ -47,6 +47,7 @@ import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamento
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { CadastroAcompanhamentoEspecial } from "@/components/monitoramento/CadastroAcompanhamentoEspecial";
 
 
 type Evento = {
@@ -745,6 +746,8 @@ export default function Monitoramento() {
       title="Monitoramento"
       subtitle="Movimentações encontradas nos processos em acompanhamento e divergências Judit"
       headerActions={(
+        <div className="flex items-center gap-2">
+        <CadastroAcompanhamentoEspecial />
         <Button
           variant="outline"
           size="sm"
@@ -758,6 +761,7 @@ export default function Monitoramento() {
           )}
           Atualizar
         </Button>
+        </div>
       )}
     >
     <div className="flex flex-col border border-border rounded-lg bg-background">
