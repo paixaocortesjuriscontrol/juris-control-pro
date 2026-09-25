@@ -6855,6 +6855,8 @@ export type Database = {
           observacoes: string | null
           processo_id: string | null
           revisado: boolean
+          revisado_em: string | null
+          revisado_por: string | null
           tese_id: string | null
           tipo_peca: string
           tokens_input: number | null
@@ -6871,6 +6873,8 @@ export type Database = {
           observacoes?: string | null
           processo_id?: string | null
           revisado?: boolean
+          revisado_em?: string | null
+          revisado_por?: string | null
           tese_id?: string | null
           tipo_peca?: string
           tokens_input?: number | null
@@ -6887,6 +6891,8 @@ export type Database = {
           observacoes?: string | null
           processo_id?: string | null
           revisado?: boolean
+          revisado_em?: string | null
+          revisado_por?: string | null
           tese_id?: string | null
           tipo_peca?: string
           tokens_input?: number | null
