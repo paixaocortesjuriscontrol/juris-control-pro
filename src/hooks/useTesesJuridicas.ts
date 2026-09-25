@@ -121,18 +121,57 @@ export function usePecasGeradas(processoId?: string | null) {
 
 export function useMarcarPecaRevisada() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   return useMutation({
     mutationFn: async ({ id, revisado }: { id: string; revisado: boolean }) => {
       const { error } = await supabase
         .from("pecas_geradas" as any)
-        .update({ revisado })
+        .update({
+          revisado,
+          revisado_por: revisado ? user?.id ?? null : null,
+          revisado_em: revisado ? new Date().toISOString() : null,
+        })
         .eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       qc.invalidateQueries({ queryKey: ["pecas-geradas"] });
+      toast.success(vars.revisado ? "Peça marcada como revisada" : "Revisão desfeita");
     },
     onError: (e: any) => toast.error("Erro ao atualizar: " + e.message),
+  });
+}
+
+export function useSalvarConteudoPeca() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, conteudo }: { id: string; conteudo: string }) => {
+      const { error } = await supabase
+        .from("pecas_geradas" as any)
+        .update({ conteudo, updated_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["pecas-geradas"] });
+      toast.success("Peça salva");
+    },
+    onError: (e: any) => toast.error("Erro ao salvar peça: " + e.message),
+  });
+}
+
+export function useExcluirPeca() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("pecas_geradas" as any).delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["pecas-geradas"] });
+      toast.success("Peça excluída");
+    },
+    onError: (e: any) => toast.error("Erro ao excluir: " + e.message),
   });
 }
 
