@@ -8,6 +8,7 @@ import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { dataInicioAudiencia } from "@/utils/date";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -229,9 +230,8 @@ export async function fetchAgendaPage(
           }
         }
 
-        if (filters.status && filters.status !== "todas") {
-          queryEventos = queryEventos.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
-        }
+        // Não filtrar a situação do evento-pai aqui: uma ocorrência recorrente
+        // pode ter situação própria, aplicada mais abaixo após a expansão da série.
 
         if (filters.dataInicio) {
           // Eventos recorrentes que começaram antes da janela precisam ser incluídos
@@ -282,9 +282,7 @@ export async function fetchAgendaPage(
               queryEventosFallback = queryEventosFallback.in("tipo", tiposEvento);
             }
           }
-          if (filters.status && filters.status !== "todas") {
-            queryEventosFallback = queryEventosFallback.eq("status", filters.status === "pendente" ? "pendente" : filters.status);
-          }
+          // A situação efetiva de recorrências é aplicada depois da expansão.
           if (filters.dataInicio) {
             const diIso = filters.dataInicio.toISOString();
             queryEventosFallback = queryEventosFallback.or(
@@ -1213,6 +1211,11 @@ export async function fetchAgendaPage(
             item.status = b.status;
             item.concluido_em = b.concluido_em ?? null;
             item.baixa_individual = true;
+            // O atraso era calculado antes de aplicarmos a baixa individual.
+            // Recalcular aqui evita uma ocorrência concluída aparecer simultaneamente
+            // como concluída na ficha e atrasada/pendente na lista e nos totalizadores.
+            item.is_atrasado = !isItemTratado({ status: b.status, concluido_em: b.concluido_em })
+              && Number(item.dias_restantes) < 0;
           }
         }
       }
@@ -1376,11 +1379,13 @@ export function useUpdateItemAgenda() {
         return { avancou };
       }
     },
-    onSuccess: (result) => {
-      queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
-      queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] });
+    onSuccess: async (result) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] }),
+        queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucoes"] }),
+        queryClient.invalidateQueries({ queryKey: ["workflow-execucao-etapas"] }),
+      ]);
       toast.success("Item atualizado com sucesso!");
       if (result?.avancou) toast.success("Próxima etapa do workflow criada!");
     },

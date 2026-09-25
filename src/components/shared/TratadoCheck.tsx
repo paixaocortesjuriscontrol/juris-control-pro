@@ -46,6 +46,7 @@ export function isItemTratado(item: {
   const tratados = new Set([
     "concluido",
     "concluida",
+    "concluido_sem_sucesso",
     "cumprido",
     "cumprida",
     "tratado",
