@@ -49,7 +49,7 @@ serve(async (req) => {
     // 1. Buscar dados do processo
     const { data: processo, error: procError } = await supabase
       .from("processos")
-      .select("numero, classe, assunto, area, tribunal, vara, comarca, data_distribuicao, polo_ativo, polo_passivo, valor, resultado, status")
+      .select("numero, classe, assunto, area, tribunal, vara, comarca, data_distribuicao, polo_ativo, polo_passivo, valor_causa, valor_condenacao, resultado, status")
       .eq("id", processoId)
       .single();
     if (procError || !processo) {
