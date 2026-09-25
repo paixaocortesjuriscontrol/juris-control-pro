@@ -121,7 +121,6 @@ export function CadastroAcompanhamentoEspecial() {
   const [coords, setCoords] = useState<Coord[]>([]);
   const [numero, setNumero] = useState("");
   const [freq, setFreq] = useState(1);
-  const [anexos, setAnexos] = useState(false);
   const [coordId, setCoordId] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [perguntarCriar, setPerguntarCriar] = useState(false);
@@ -180,7 +179,7 @@ export function CadastroAcompanhamentoEspecial() {
         detalhe: `Aplicando as configurações em ${p.numero}.`,
         status: "processando",
       });
-      await ativarAcompanhamento(p.id, freq, anexos);
+      await ativarAcompanhamento(p.id, freq, false);
       setProgressoIndividual({
         percentual: 90,
         etapa: "Atualizando a tela",
@@ -230,7 +229,7 @@ export function CadastroAcompanhamentoEspecial() {
           : "Processo cadastrado sem dados da Judit. Ativando o monitoramento.",
         status: "processando",
       });
-      await ativarAcompanhamento(novo.id, freq, anexos);
+      await ativarAcompanhamento(novo.id, freq, false);
       setProgressoIndividual({
         percentual: 90,
         etapa: "Atualizando a tela",
@@ -267,10 +266,10 @@ export function CadastroAcompanhamentoEspecial() {
 
   const baixarModelo = () => {
     const ws = XLSX.utils.aoa_to_sheet([
-      ["Processo", "Coordenação", "Vezes ao dia", "Baixar anexos"],
-      ["0000000-00.2024.5.02.0001", "", 1, "Não"],
+      ["Processo", "Coordenação", "Vezes ao dia"],
+      ["0000000-00.2024.5.02.0001", "", 1],
     ]);
-    ws["!cols"] = [{ wch: 28 }, { wch: 40 }, { wch: 14 }, { wch: 14 }];
+    ws["!cols"] = [{ wch: 28 }, { wch: 40 }, { wch: 14 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Acompanhamento");
     XLSX.writeFile(wb, "modelo_acompanhamento_especial.xlsx");
@@ -294,7 +293,6 @@ export function CadastroAcompanhamentoEspecial() {
           numero: pegar(l, "processo", "numero", "cnj"),
           coord: pegar(l, "coordenac"),
           freq: Math.max(1, Math.min(3, parseInt(pegar(l, "vezes", "frequen")) || 1)),
-          anexos: /^(s|sim|x|1|true)/i.test(pegar(l, "anexo")),
         }))
         .filter((i) => digitos(i.numero).length >= 15);
       const vistos = new Set<string>();
@@ -332,7 +330,7 @@ export function CadastroAcompanhamentoEspecial() {
           const p = await localizarProcesso(it.numero);
           if (p) {
             atualizarProgressoLote("Ativando acompanhamento", 0.65);
-            await ativarAcompanhamento(p.id, it.freq, it.anexos);
+            await ativarAcompanhamento(p.id, it.freq, false);
             res.push({ numero: p.numero, resultado: "Acompanhamento ativado", ok: true });
           } else if (!loteCriar) {
             res.push({ numero: it.numero, resultado: "Não existe na base — ignorado", ok: false });
@@ -345,7 +343,7 @@ export function CadastroAcompanhamentoEspecial() {
               atualizarProgressoLote("Consultando e preenchendo pela Judit", 0.35);
               const novo = await criarProcessoComJudit(it.numero, cid, uid);
               atualizarProgressoLote("Ativando acompanhamento", 0.75);
-              await ativarAcompanhamento(novo.id, it.freq, it.anexos);
+              await ativarAcompanhamento(novo.id, it.freq, false);
               res.push({
                 numero: novo.numero,
                 resultado: novo.juditOk ? `Cadastrado com Judit (${novo.qtdCampos} campos) e ativado` : "Cadastrado sem dados da Judit e ativado",
@@ -435,10 +433,6 @@ export function CadastroAcompanhamentoEspecial() {
                   <Input type="number" min={1} max={3} value={freq} className="w-16 h-8"
                     onChange={(e) => setFreq(Math.max(1, Math.min(3, Number(e.target.value) || 1)))} />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label>Baixar anexos</Label>
-                  <Switch checked={anexos} onCheckedChange={setAnexos} />
-                </div>
               </div>
               <p className="text-xs text-muted-foreground">Horários BRT: 1x=10h, 2x=10h/18h, 3x=10h/14h/18h. Cada checagem consome créditos Judit.</p>
               <Button onClick={handleCadastrar} disabled={salvando} className="w-full">
@@ -477,7 +471,7 @@ export function CadastroAcompanhamentoEspecial() {
 
             <TabsContent value="lote" className="space-y-4 pt-4">
               <div className="rounded-md border border-border bg-muted/40 p-3 text-xs text-muted-foreground space-y-1">
-                <p>Colunas da planilha: <b>Processo</b> (obrigatória), <b>Coordenação</b>, <b>Vezes ao dia</b> (1 a 3) e <b>Baixar anexos</b> (Sim/Não).</p>
+                <p>Colunas da planilha: <b>Processo</b> (obrigatória), <b>Coordenação</b> e <b>Vezes ao dia</b> (1 a 3).</p>
                 <p>Processos que não existem na base são cadastrados na coordenação da linha (ou na coordenação padrão abaixo) e preenchidos pela Judit.</p>
                 <Button variant="link" size="sm" className="h-auto p-0" onClick={baixarModelo}>
                   <Download className="w-3.5 h-3.5 mr-1" /> Baixar planilha modelo
