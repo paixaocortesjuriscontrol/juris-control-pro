@@ -38,6 +38,7 @@ import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/Alterac
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { exportarCoordenacoesExcel } from "@/lib/exportCoordenacoesExcel";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useQueryClient } from "@tanstack/react-query";
