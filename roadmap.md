@@ -94,4 +94,9 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 - [x] Encerrar definitivamente o ciclo de solicitações de alteração no Supabase.
 
-- [ ] União coordenações Dra. Renata: falta mover 14.553 publicações DJEN (tempo limite do banco) e renomear Santander como INATIVA
+- [x] União coordenações Dra. Renata concluída; publicações DJEN mantidas na coordenação antiga por decisão do usuário
+
+
+## Coordenações — 28/09/2026
+- [ ] Corrigir persistência da troca de cargo de membro
+- [ ] Modernizar tela com grade compacta e painel lateral direito
