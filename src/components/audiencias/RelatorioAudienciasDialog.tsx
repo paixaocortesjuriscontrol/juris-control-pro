@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Download, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Download, X, CalendarRange, CalendarDays } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -22,12 +23,17 @@ const SITUACOES_FIXAS = ["pendente","confirmado","reagendado","tratado","cancela
 const TODOS = "__todos__";
 
 export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, periodoInicio, periodoFim }: Props) {
-  const usaPeriodoExterno = !!(periodoInicio && periodoFim);
   const hoje = new Date();
   const [ano, setAno] = useState<number | "todos">(hoje.getFullYear());
   const [mes, setMes] = useState<number | "todos">(hoje.getMonth() + 1);
   const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
   const [coordSel, setCoordSel] = useState<string>("__todas__");
+  // Período editável dentro do relatório (inicia com o período do painel)
+  const [modoPeriodo, setModoPeriodo] = useState<"periodo" | "mesAno">("periodo");
+  const [dataDe, setDataDe] = useState<string>(periodoInicio ?? "");
+  const [dataAte, setDataAte] = useState<string>(periodoFim ?? "");
+  const periodoValido = !!dataDe && !!dataAte && dataDe <= dataAte;
+  const usaPeriodoExterno = modoPeriodo === "periodo" && periodoValido;
 
   // Coordenação efetiva aplicada nos filtros
   const coordenacaoFiltro = coordenacaoId
@@ -35,11 +41,16 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
 
   useEffect(() => {
     // Reset ao abrir
-    if (open) setCoordSel("__todas__");
-  }, [open]);
+    if (open) {
+      setCoordSel("__todas__");
+      setModoPeriodo(periodoInicio && periodoFim ? "periodo" : "mesAno");
+      setDataDe(periodoInicio ?? "");
+      setDataAte(periodoFim ?? "");
+    }
+  }, [open, periodoInicio, periodoFim]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, periodoInicio, periodoFim],
+    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, modoPeriodo, dataDe, dataAte],
     enabled: open,
     queryFn: async () => {
       let q = supabase
