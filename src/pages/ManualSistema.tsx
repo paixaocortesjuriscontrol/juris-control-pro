@@ -11,10 +11,22 @@ type Manual = {
 
 const manuais: Manual[] = [
   {
-    titulo: "Manual Completo do Juris Control (v4.2.9)",
+    titulo: "Manual Completo do Juris Control (v7.4.0)",
     descricao:
-      "Guia institucional completo: Painel de Controle, Processos e Casos, Análise DJEN, Termos DJEN e Coordenações, com perfis de acesso e fluxos de trabalho.",
-    arquivo: "/manuais/Manual_Juris_Control_v4.2.9.pdf",
+      "Guia atualizado de todos os módulos: operação diária, processos, DJEN, inteligência jurídica, TST, Benner, auditoria e administração.",
+    arquivo: "/manuais/Manual_Juris_Control_v7.4.0.pdf",
+  },
+  {
+    titulo: "Manual do Painel de Controle",
+    descricao:
+      "Guia completo de filtros, visões, criação e baixa de itens, recorrências, ações em lote, relatórios e exportação de audiências.",
+    arquivo: "/manuais/Manual_Painel_de_Controle.pdf",
+  },
+  {
+    titulo: "Manual da Distribuição TST",
+    descricao:
+      "Guia de distribuições, filtros, matérias, pendências, Judit, delegação, Carga Benner, Admin. TST, arquivamento e auditoria.",
+    arquivo: "/manuais/Manual_Distribuicao_TST.pdf",
   },
   {
     titulo: "Manual de Termos DJEN",
