@@ -1777,39 +1777,52 @@ export default function PainelControle() {
   // TERCEIRIZADO, TIPO DE AUDIÊNCIA, RESUMO DO OBJETO, PREPOSTO, TESTEMUNHA,
   // ADVOGADO / CORRESPONDENTE, OBS, STATUS FINAL — obedecendo os filtros do painel.
   const [exportandoAud, setExportandoAud] = useState(false);
-  const exportarAudienciasPlanilha = async () => {
+  const [exportAudSheetOpen, setExportAudSheetOpen] = useState(false);
+
+  // Busca as audiências do período obedecendo os filtros do painel.
+  // coordId (opcional) restringe a uma coordenação escolhida no painel lateral.
+  const buscarItensAudienciasExport = async (
+    inicio: string,
+    fim: string,
+    coordId?: string,
+  ): Promise<any[]> => {
+    const dInicio = new Date(inicio + "T00:00:00");
+    const dFim = new Date(fim + "T23:59:59");
+    const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+    const coletados: any[] = [];
+    for (let page = 0; page < 40; page++) {
+      const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
+      coletados.push(...pageItens);
+      if (pageItens.length === 0) break;
+    }
+    const vistos = new Set<string>();
+    return coletados
+      .filter((it) => {
+        const k = String(it.id);
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      })
+      .filter((it) => classificarItem(it) === "audiencia")
+      .filter((it) => passaFiltrosPainel(it, true))
+      .filter((it) => {
+        if (!coordId) return true;
+        const cid = (it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? null;
+        return cid === coordId;
+      })
+      .filter((it) => {
+        const d = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
+        return !!d && d >= inicio && d <= fim;
+      });
+  };
+
+  const exportarAudienciasPlanilha = async (inicio: string, fim: string, coordId?: string) => {
     if (exportandoAud) return;
     setExportandoAud(true);
     try {
       const ExcelJS = (await import("exceljs")).default;
 
-      // Período: o dos filtros do painel; se vazio, o mês exibido no calendário.
-      const inicio = painelFiltros.periodoInicio || rangeInicioStr;
-      const fim = painelFiltros.periodoFim || rangeFimStr;
-
-      const dInicio = new Date(inicio + "T00:00:00");
-      const dFim = new Date(fim + "T23:59:59");
-      const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
-      const coletados: any[] = [];
-      for (let page = 0; page < 40; page++) {
-        const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
-        coletados.push(...pageItens);
-        if (pageItens.length === 0) break;
-      }
-      const vistos = new Set<string>();
-      const itensAud = coletados
-        .filter((it) => {
-          const k = String(it.id);
-          if (vistos.has(k)) return false;
-          vistos.add(k);
-          return true;
-        })
-        .filter((it) => classificarItem(it) === "audiencia")
-        .filter((it) => passaFiltrosPainel(it, true))
-        .filter((it) => {
-          const d = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
-          return !!d && d >= inicio && d <= fim;
-        });
+      const itensAud = await buscarItensAudienciasExport(inicio, fim, coordId);
 
       if (itensAud.length === 0) {
         toast.error("Nenhuma audiência encontrada com os filtros atuais.");
