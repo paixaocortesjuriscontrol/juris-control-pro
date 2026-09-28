@@ -76,6 +76,7 @@ function buildBucketsPorAno(): { key: string; label: string }[] {
 }
 
 export default function Indicadores() {
+  const { isAdminOrCoordinator } = useUserRole();
   const { user } = useAuth();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
