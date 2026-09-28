@@ -21,7 +21,8 @@ const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Ag
 const SITUACOES_FIXAS = ["pendente","confirmado","reagendado","tratado","cancelado","ignorado"] as const;
 const TODOS = "__todos__";
 
-export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }: Props) {
+export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, periodoInicio, periodoFim }: Props) {
+  const usaPeriodoExterno = !!(periodoInicio && periodoFim);
   const hoje = new Date();
   const [ano, setAno] = useState<number | "todos">(hoje.getFullYear());
   const [mes, setMes] = useState<number | "todos">(hoje.getMonth() + 1);
@@ -38,14 +39,16 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
   }, [open]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro],
+    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, periodoInicio, periodoFim],
     enabled: open,
     queryFn: async () => {
       let q = supabase
         .from("audiencias_detectadas")
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id), audiencias_advogados(advogado_id)")
         ;
-      if (ano !== "todos" && mes !== "todos") {
+      if (usaPeriodoExterno) {
+        q = q.gte("data_audiencia", periodoInicio!).lte("data_audiencia", periodoFim! + "T23:59:59");
+      } else if (ano !== "todos" && mes !== "todos") {
         const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
         const fim = new Date(Date.UTC(ano as number, mes as number, 1)).toISOString();
         q = q.gte("data_audiencia", inicio).lt("data_audiencia", fim);
