@@ -2480,6 +2480,16 @@ export default function PainelControle() {
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>
+          <Button
+            size="sm"
+            onClick={exportarAudienciasPlanilha}
+            disabled={exportandoAud}
+            title="Exportar audiências em Excel (planilha de controle), obedecendo os filtros do painel"
+            className="whitespace-nowrap bg-green-700 hover:bg-green-800 text-white"
+          >
+            {exportandoAud ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            Exportar Audiências
+          </Button>
           {false && isAdmin && (
             <Button asChild variant="outline" size="sm">
               <Link to="/painel-intimacoes">Painel Intimações</Link>
