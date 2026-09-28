@@ -77,6 +77,14 @@ class ManualDoc(BaseDocTemplate):
 
     def _header_footer(self, canvas, doc):
         if doc.page == 1:
+            canvas.saveState()
+            canvas.setFillColor(NAVY)
+            canvas.rect(0, 0, A4[0], A4[1], fill=1, stroke=0)
+            canvas.setFillColor(NAVY_2)
+            canvas.rect(A4[0] - 42 * mm, 0, 42 * mm, A4[1], fill=1, stroke=0)
+            canvas.setFillColor(GOLD)
+            canvas.rect(A4[0] - 42 * mm, 0, 2 * mm, A4[1], fill=1, stroke=0)
+            canvas.restoreState()
             return
         canvas.saveState()
         canvas.setFillColor(NAVY)
@@ -153,7 +161,8 @@ def callout(label: str, text: str, tone="gold"):
 
 
 def toc(title: str, entries: list[str]):
-    out = chapter("", "Sumário")
+    out = [Spacer(1, 3 * mm), Paragraph("NAVEGAÇÃO", S["chapter"]), Paragraph("Sumário", S["h1"]),
+           Table([[""]], colWidths=[42 * mm], rowHeights=[1.2 * mm], style=TableStyle([("BACKGROUND", (0, 0), (-1, -1), GOLD)])), Spacer(1, 5 * mm)]
     out.append(p(title))
     for i, entry in enumerate(entries, 1):
         out.append(Paragraph(f"<b>{i}.</b>  {escape(entry)}", S["toc"]))

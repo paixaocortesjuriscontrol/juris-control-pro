@@ -77,7 +77,6 @@ import {
 import { ProcessoTagPicker } from "@/components/distribuicao-tst/ProcessoTagPicker";
 import { BulkTagAction } from "@/components/distribuicao-tst/BulkTagAction";
 import { useQuery } from "@tanstack/react-query";
-import { gerarManualDistribuicaoTst } from "@/utils/gerarManualDistribuicaoTst";
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import {
@@ -2477,7 +2476,7 @@ export default function DistribuicaoTst() {
                     </DropdownMenuItem>
                   </>
                 )}
-                <DropdownMenuItem onSelect={() => gerarManualDistribuicaoTst()}>
+                <DropdownMenuItem onSelect={() => window.open("/manuais/Manual_Distribuicao_TST.pdf", "_blank", "noopener,noreferrer")}>
                   <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
