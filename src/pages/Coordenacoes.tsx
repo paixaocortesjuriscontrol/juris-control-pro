@@ -91,6 +91,7 @@ const Coordenacoes = () => {
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
+  const [savingCargoId, setSavingCargoId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -142,6 +143,7 @@ const Coordenacoes = () => {
     cargoOptions.find((option) => option.value === normalizeCargo(cargo))?.label || "Advogado";
 
   const handleUpdateCargo = async (membroId: string) => {
+    setSavingCargoId(membroId);
     try {
       const { data, error } = await supabase
         .from("membros_coordenacao")
@@ -168,6 +170,8 @@ const Coordenacoes = () => {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setSavingCargoId(null);
     }
   };
 
@@ -207,16 +211,10 @@ const Coordenacoes = () => {
         title="Coordenações" 
         subtitle="Gestão de equipes e distribuição de processos"
       >
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 space-y-4">
-            {[...Array(3)].map((_, i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
-            ))}
-          </div>
-          <div className="lg:col-span-2 space-y-6">
-            <Skeleton className="h-48 rounded-xl" />
-            <Skeleton className="h-64 rounded-xl" />
-          </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          {[...Array(8)].map((_, i) => (
+            <Skeleton key={i} className="h-44 rounded-lg" />
+          ))}
         </div>
       </MainLayout>
     );
@@ -550,9 +548,11 @@ const Coordenacoes = () => {
                                   variant="ghost"
                                   size="icon"
                                   className="h-6 w-6 text-green-600"
+                                  disabled={savingCargoId === member.id}
                                   onClick={() => handleUpdateCargo(member.id)}
+                                  title="Salvar cargo"
                                 >
-                                  <Check className="w-4 h-4" />
+                                  {savingCargoId === member.id ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -562,6 +562,7 @@ const Coordenacoes = () => {
                                     setEditingCargoId(null);
                                     setEditingCargoValue("");
                                   }}
+                                  title="Cancelar alteração"
                                 >
                                   <X className="w-4 h-4" />
                                 </Button>
