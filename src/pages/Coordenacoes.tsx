@@ -117,6 +117,7 @@ const Coordenacoes = () => {
 
   const cargoOptions = [
     "Coordenador",
+    "Assistente Coordenador",
     "Advogado Sênior",
     "Advogado",
     "Estagiário",
