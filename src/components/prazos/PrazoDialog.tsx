@@ -643,17 +643,11 @@ export function PrazoDialog({
         // Vincular à publicação (se aplicável)
         if (publicacao?.id && !prazo) {
           try {
-            if (publicacao.tipo_origem === "termo") {
-              await supabase.from("tarefas_publicacoes").insert({
-                tarefa_id: tarefaId,
-                publicacao_id: publicacao.id,
-              });
-            } else if (publicacao.tipo_origem === "processo") {
-              await supabase.from("tarefas_publicacoes_processos").insert({
-                tarefa_id: tarefaId,
-                publicacao_processo_id: publicacao.id,
-              });
-            }
+            const { vincularItemPublicacao } = await import("@/lib/vincularItemPublicacao");
+            await vincularItemPublicacao(
+              { id: tarefaId, tipo: "prazo" },
+              { tipo: publicacao.tipo_origem, id: publicacao.id },
+            );
           } catch (err) {
             console.warn("Falha ao vincular prazo à publicação", err);
           }

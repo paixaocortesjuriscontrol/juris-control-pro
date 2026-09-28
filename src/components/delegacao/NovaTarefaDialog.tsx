@@ -736,6 +736,19 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
+      // Item aberto a partir de uma publicação: sempre grava o vínculo
+      if (novaTarefa?.id && publicacao?.id) {
+        try {
+          const { vincularItemPublicacao } = await import("@/lib/vincularItemPublicacao");
+          await vincularItemPublicacao(
+            { id: novaTarefa.id, tipo: "tarefa" },
+            { tipo: (publicacao as any).tipo_origem, id: publicacao.id },
+          );
+        } catch (e) {
+          console.error("Falha ao vincular tarefa à publicação", e);
+        }
+      }
+
       if (novaTarefa?.id && responsaveisParaSalvar.length > 0) {
         await supabase.from("tarefa_responsaveis").insert(
           responsaveisParaSalvar.map((uid) => ({ tarefa_id: novaTarefa.id, usuario_id: uid }))
