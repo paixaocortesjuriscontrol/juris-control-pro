@@ -300,7 +300,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     const a = document.createElement("a");
     a.href = url;
     a.download = periodoLabel
-      ? `relatorio-audiencias-${periodoInicio}_a_${periodoFim}.xlsx`
+      ? `relatorio-audiencias-${dataDe}_a_${dataAte}.xlsx`
       : `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
@@ -319,10 +319,21 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         </Button>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-          {usaPeriodoExterno ? (
-            <span className="text-sm text-muted-foreground">
-              Período do painel: <strong className="text-foreground">{periodoInicio!.split("-").reverse().join("/")} a {periodoFim!.split("-").reverse().join("/")}</strong>
-            </span>
+          {modoPeriodo === "periodo" ? (
+            <>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-muted-foreground">De</span>
+              <Input type="date" className="w-40 h-9" value={dataDe} onChange={(e) => setDataDe(e.target.value)} />
+              <span className="text-sm text-muted-foreground">Até</span>
+              <Input type="date" className="w-40 h-9" value={dataAte} onChange={(e) => setDataAte(e.target.value)} />
+            </div>
+            {dataDe && dataAte && dataDe > dataAte && (
+              <span className="text-xs text-destructive">A data inicial está depois da final.</span>
+            )}
+            <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => setModoPeriodo("mesAno")}>
+              <CalendarDays className="h-3.5 w-3.5 mr-1" /> Usar mês/ano
+            </Button>
+            </>
           ) : (
           <>
           <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
@@ -339,6 +350,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
               {anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => setModoPeriodo("periodo")}>
+            <CalendarRange className="h-3.5 w-3.5 mr-1" /> Usar período
+          </Button>
           </>
           )}
           {!coordenacaoId && precisaSelecionar && (
