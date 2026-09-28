@@ -100,6 +100,7 @@ import BancoTeses from "./pages/BancoTeses";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
 import ImportarCertidaoPdf from "./pages/admin-tst/ImportarCertidaoPdf";
+import CompararCertidaoPlanilha from "./pages/admin-tst/CompararCertidaoPlanilha";
 import ImportarDistribuicao from "./pages/admin-tst/ImportarDistribuicao";
 import AtualizarDossies from "./pages/admin-tst/AtualizarDossies";
 import AtualizarEquipe from "./pages/admin-tst/AtualizarEquipe";
@@ -238,6 +239,7 @@ function App() {
               <Route path="/admin-tst" element={<ProtectedRoute><AdminTst /></ProtectedRoute>} />
               <Route path="/admin-tst/importacoes-distribuicao" element={<ProtectedRoute><AdminTstImportacoes /></ProtectedRoute>} />
               <Route path="/admin-tst/importar-certidao-pdf" element={<ProtectedRoute><ImportarCertidaoPdf /></ProtectedRoute>} />
+              <Route path="/admin-tst/comparar-certidao-planilha" element={<ProtectedRoute><CompararCertidaoPlanilha /></ProtectedRoute>} />
               <Route path="/admin-tst/importar-distribuicao" element={<ProtectedRoute><ImportarDistribuicao /></ProtectedRoute>} />
               <Route path="/admin-tst/atualizar-dossies" element={<ProtectedRoute><AtualizarDossies /></ProtectedRoute>} />
               <Route path="/admin-tst/atualizar-equipe" element={<ProtectedRoute><AtualizarEquipe /></ProtectedRoute>} />
