@@ -33,6 +33,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
+import { ExportarAudienciasSheet } from "@/components/painel/ExportarAudienciasSheet";
 import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell, ArrowRightLeft } from "lucide-react";
 import { RemanejamentoTarefasSheet } from "@/components/painel/RemanejamentoTarefasSheet";
@@ -2522,6 +2523,16 @@ export default function PainelControle() {
               periodoFim={rangeFimStr}
             />
           )}
+          <ExportarAudienciasSheet
+            open={exportAudSheetOpen}
+            onOpenChange={setExportAudSheetOpen}
+            periodoInicio={painelFiltros.periodoInicio || rangeInicioStr}
+            periodoFim={painelFiltros.periodoFim || rangeFimStr}
+            coordenacaoId={adminCoordFilter !== "todas" ? adminCoordFilter : undefined}
+            exportando={exportandoAud}
+            onContar={async (ini, fim, coord) => (await buscarItensAudienciasExport(ini, fim, coord)).length}
+            onExportar={async (ini, fim, coord) => { await exportarAudienciasPlanilha(ini, fim, coord); }}
+          />
           {mostrarFiltros && (<>
           <div className="flex items-center gap-2 md:gap-3 flex-wrap">
             <div className="flex gap-1 flex-shrink-0">
