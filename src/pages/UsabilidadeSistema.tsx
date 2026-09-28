@@ -97,13 +97,13 @@ export default function UsabilidadeSistema() {
 
         <div className="grid lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-2"><CardHeader><CardTitle className="text-base">Uso diário</CardTitle>
-            <CardDescription>Pessoas que entraram e ações feitas em itens, por dia (BRT){r ? ` · média de ${r.mediaDiaria} pessoa(s) por dia` : ""}</CardDescription></CardHeader>
+            <CardDescription>Pessoas que usaram o sistema e ações feitas em itens, por dia (BRT){r ? ` · média de ${r.mediaDiaria} pessoa(s) por dia` : ""}</CardDescription></CardHeader>
             <CardContent className="h-64">{isLoading ? <Skeleton className="h-full" /> :
               <ResponsiveContainer><AreaChart data={serieDia}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="label" fontSize={11} /><YAxis fontSize={11} /><Tooltip /><Legend />
                 <Area dataKey="usuarios" name="Pessoas" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.2} />
                 <Area dataKey="acoes" name="Ações em itens" stroke="hsl(var(--accent-foreground))" fill="hsl(var(--accent))" fillOpacity={0.3} />
               </AreaChart></ResponsiveContainer>}</CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4" />Horários de acesso</CardTitle>
+          <Card><CardHeader><CardTitle className="text-base flex items-center gap-2"><Clock className="w-4 h-4" />Horários de uso</CardTitle>
             <CardDescription>{r?.horaPico != null ? `Pico às ${r.horaPico}h` : "Acessos por hora (BRT)"}</CardDescription></CardHeader>
             <CardContent className="h-64">{isLoading ? <Skeleton className="h-full" /> :
               <ResponsiveContainer><BarChart data={data?.por_hora || []}><CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="hora" fontSize={11} tickFormatter={(h) => `${h}h`} /><YAxis fontSize={11} /><Tooltip labelFormatter={(h) => `${h}h`} />
