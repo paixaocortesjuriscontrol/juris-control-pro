@@ -72,7 +72,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         .select("id, status, criado_por, responsavel_id, data_vencimento, coordenacao_id")
         .ilike("tipo_tarefa", "audi%")
         .not("data_vencimento", "is", null);
-      if (ano !== "todos" && mes !== "todos") {
+      if (usaPeriodoExterno) {
+        qt = qt.gte("data_vencimento", periodoInicio!).lte("data_vencimento", periodoFim!);
+      } else if (ano !== "todos" && mes !== "todos") {
         const ini = `${ano}-${String(mes).padStart(2, "0")}-01`;
         const fimD = new Date(Date.UTC(ano as number, mes as number, 1));
         const fim = fimD.toISOString().slice(0, 10);
@@ -120,6 +122,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
       const registros = [...((data ?? []) as any[]), ...tarefasComoAudiencias];
 
       const dataFiltrada = registros.filter((a: any) => {
+        if (usaPeriodoExterno) return true;
         if (mes === "todos" || !a.data_audiencia) return true;
         const m = Number(String(a.data_audiencia).slice(5, 7));
         return m === (mes as number);
