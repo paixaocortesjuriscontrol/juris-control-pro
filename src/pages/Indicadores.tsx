@@ -19,7 +19,7 @@ import {
   CartesianGrid,
   LabelList,
 } from "recharts";
-import { BarChart3, HelpCircle, Trophy } from "lucide-react";
+import { BarChart3, HelpCircle, Trophy, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -233,12 +233,19 @@ export default function Indicadores() {
           : `Produtividade por tipo de atividade em ${ano}`
       }
       headerActions={
+        <div className="flex gap-2">
         <Button asChild variant="outline" className="gap-2">
           <Link to="/ranking-atendimento">
             <Trophy className="w-4 h-4" />
             Ranking de Atendimento
           </Link>
         </Button>
+        {isAdminOrCoordinator && (
+          <Button asChild variant="outline" className="gap-2">
+            <Link to="/usabilidade-sistema"><Activity className="w-4 h-4" />Usabilidade do Sistema</Link>
+          </Button>
+        )}
+        </div>
       }
     >
       <div className="space-y-4">
