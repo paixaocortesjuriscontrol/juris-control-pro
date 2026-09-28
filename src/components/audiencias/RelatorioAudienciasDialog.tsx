@@ -308,6 +308,12 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         </Button>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
+          {usaPeriodoExterno ? (
+            <span className="text-sm text-muted-foreground">
+              Período do painel: <strong className="text-foreground">{periodoInicio!.split("-").reverse().join("/")} a {periodoFim!.split("-").reverse().join("/")}</strong>
+            </span>
+          ) : (
+          <>
           <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -322,6 +328,8 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
               {anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          </>
+          )}
           {!coordenacaoId && precisaSelecionar && (
             <Select value={coordSel} onValueChange={setCoordSel}>
               <SelectTrigger className="w-64"><SelectValue placeholder="Coordenação" /></SelectTrigger>
