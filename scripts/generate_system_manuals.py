@@ -183,7 +183,7 @@ def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[
 
 def screenshot(name: str, caption: str):
     path = ROOT / "scripts" / "manual-painel-assets" / f"{name}.png"
-    image = Image(str(path), width=165 * mm, height=103.125 * mm)
+    image = Image(str(path), width=145 * mm, height=90.625 * mm)
     caption_style = ParagraphStyle("Caption", parent=S["small"], alignment=TA_CENTER, spaceBefore=3, spaceAfter=5)
     return [image, Paragraph(escape(caption), caption_style)]
 
