@@ -11,13 +11,18 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   coordenacaoId?: string;
+  /** Período vindo dos filtros do Painel de Controle (yyyy-MM-dd). Quando
+   *  informados, substituem os seletores de mês/ano. */
+  periodoInicio?: string;
+  periodoFim?: string;
 }
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const SITUACOES_FIXAS = ["pendente","confirmado","reagendado","tratado","cancelado","ignorado"] as const;
 const TODOS = "__todos__";
 
-export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }: Props) {
+export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, periodoInicio, periodoFim }: Props) {
+  const usaPeriodoExterno = !!(periodoInicio && periodoFim);
   const hoje = new Date();
   const [ano, setAno] = useState<number | "todos">(hoje.getFullYear());
   const [mes, setMes] = useState<number | "todos">(hoje.getMonth() + 1);
@@ -34,14 +39,16 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
   }, [open]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro],
+    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, periodoInicio, periodoFim],
     enabled: open,
     queryFn: async () => {
       let q = supabase
         .from("audiencias_detectadas")
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id), audiencias_advogados(advogado_id)")
         ;
-      if (ano !== "todos" && mes !== "todos") {
+      if (usaPeriodoExterno) {
+        q = q.gte("data_audiencia", periodoInicio!).lte("data_audiencia", periodoFim! + "T23:59:59");
+      } else if (ano !== "todos" && mes !== "todos") {
         const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
         const fim = new Date(Date.UTC(ano as number, mes as number, 1)).toISOString();
         q = q.gte("data_audiencia", inicio).lt("data_audiencia", fim);
@@ -65,7 +72,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
         .select("id, status, criado_por, responsavel_id, data_vencimento, coordenacao_id")
         .ilike("tipo_tarefa", "audi%")
         .not("data_vencimento", "is", null);
-      if (ano !== "todos" && mes !== "todos") {
+      if (usaPeriodoExterno) {
+        qt = qt.gte("data_vencimento", periodoInicio!).lte("data_vencimento", periodoFim!);
+      } else if (ano !== "todos" && mes !== "todos") {
         const ini = `${ano}-${String(mes).padStart(2, "0")}-01`;
         const fimD = new Date(Date.UTC(ano as number, mes as number, 1));
         const fim = fimD.toISOString().slice(0, 10);
@@ -113,6 +122,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
       const registros = [...((data ?? []) as any[]), ...tarefasComoAudiencias];
 
       const dataFiltrada = registros.filter((a: any) => {
+        if (usaPeriodoExterno) return true;
         if (mes === "todos" || !a.data_audiencia) return true;
         const m = Number(String(a.data_audiencia).slice(5, 7));
         return m === (mes as number);
@@ -171,13 +181,17 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
 
   async function exportar() {
     if (!data) return;
-    const sufMes = mes === "todos" ? "Todos" : MESES[(mes as number) - 1];
-    const sufAno = ano === "todos" ? "Todos" : String(ano);
+    const fmtBr = (iso: string) => iso.split("-").reverse().join("/");
+    const periodoLabel = usaPeriodoExterno
+      ? `${fmtBr(periodoInicio!)} a ${fmtBr(periodoFim!)}`
+      : null;
+    const sufMes = periodoLabel ?? (mes === "todos" ? "Todos" : MESES[(mes as number) - 1]);
+    const sufAno = periodoLabel ? "" : (ano === "todos" ? "Todos" : String(ano));
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "JurisControl";
     wb.created = new Date();
-    const ws = wb.addWorksheet(`Audiências ${sufMes}-${sufAno}`.slice(0, 31), {
+    const ws = wb.addWorksheet((periodoLabel ? "Audiências período" : `Audiências ${sufMes}-${sufAno}`).slice(0, 31), {
       views: [{ state: "frozen", ySplit: 3 }],
     });
 
@@ -187,7 +201,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     // Título mesclado
     ws.mergeCells(1, 1, 1, totalCols);
     const titleCell = ws.getCell(1, 1);
-    titleCell.value = `RELATÓRIO DE AUDIÊNCIAS — ${sufMes} / ${sufAno}`;
+    titleCell.value = periodoLabel
+      ? `RELATÓRIO DE AUDIÊNCIAS — ${periodoLabel}`
+      : `RELATÓRIO DE AUDIÊNCIAS — ${sufMes} / ${sufAno}`;
     titleCell.font = { name: "Calibri", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
@@ -272,7 +288,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
+    a.download = periodoLabel
+      ? `relatorio-audiencias-${periodoInicio}_a_${periodoFim}.xlsx`
+      : `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -290,6 +308,12 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
         </Button>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
+          {usaPeriodoExterno ? (
+            <span className="text-sm text-muted-foreground">
+              Período do painel: <strong className="text-foreground">{periodoInicio!.split("-").reverse().join("/")} a {periodoFim!.split("-").reverse().join("/")}</strong>
+            </span>
+          ) : (
+          <>
           <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -304,6 +328,8 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId }:
               {anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          </>
+          )}
           {!coordenacaoId && precisaSelecionar && (
             <Select value={coordSel} onValueChange={setCoordSel}>
               <SelectTrigger className="w-64"><SelectValue placeholder="Coordenação" /></SelectTrigger>

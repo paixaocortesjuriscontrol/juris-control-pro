@@ -2301,6 +2301,9 @@ export default function PainelControle() {
             <RelatorioAudienciasDialog
               open={relatorioAudOpen}
               onOpenChange={setRelatorioAudOpen}
+              coordenacaoId={adminCoordFilter !== "todas" ? adminCoordFilter : undefined}
+              periodoInicio={rangeInicioStr}
+              periodoFim={rangeFimStr}
             />
           )}
           {mostrarFiltros && (<>
