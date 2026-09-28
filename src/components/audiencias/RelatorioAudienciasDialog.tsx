@@ -1,7 +1,8 @@
 import { useMemo, useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Download, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, Download, X, CalendarRange, CalendarDays } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -22,12 +23,17 @@ const SITUACOES_FIXAS = ["pendente","confirmado","reagendado","tratado","cancela
 const TODOS = "__todos__";
 
 export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, periodoInicio, periodoFim }: Props) {
-  const usaPeriodoExterno = !!(periodoInicio && periodoFim);
   const hoje = new Date();
   const [ano, setAno] = useState<number | "todos">(hoje.getFullYear());
   const [mes, setMes] = useState<number | "todos">(hoje.getMonth() + 1);
   const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
   const [coordSel, setCoordSel] = useState<string>("__todas__");
+  // Período editável dentro do relatório (inicia com o período do painel)
+  const [modoPeriodo, setModoPeriodo] = useState<"periodo" | "mesAno">("periodo");
+  const [dataDe, setDataDe] = useState<string>(periodoInicio ?? "");
+  const [dataAte, setDataAte] = useState<string>(periodoFim ?? "");
+  const periodoValido = !!dataDe && !!dataAte && dataDe <= dataAte;
+  const usaPeriodoExterno = modoPeriodo === "periodo" && periodoValido;
 
   // Coordenação efetiva aplicada nos filtros
   const coordenacaoFiltro = coordenacaoId
@@ -35,11 +41,16 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
 
   useEffect(() => {
     // Reset ao abrir
-    if (open) setCoordSel("__todas__");
-  }, [open]);
+    if (open) {
+      setCoordSel("__todas__");
+      setModoPeriodo(periodoInicio && periodoFim ? "periodo" : "mesAno");
+      setDataDe(periodoInicio ?? "");
+      setDataAte(periodoFim ?? "");
+    }
+  }, [open, periodoInicio, periodoFim]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, periodoInicio, periodoFim],
+    queryKey: ["relatorio-audiencias", ano, mes, coordenacaoFiltro, modoPeriodo, dataDe, dataAte],
     enabled: open,
     queryFn: async () => {
       let q = supabase
@@ -47,7 +58,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id), audiencias_advogados(advogado_id)")
         ;
       if (usaPeriodoExterno) {
-        q = q.gte("data_audiencia", periodoInicio!).lte("data_audiencia", periodoFim! + "T23:59:59");
+        q = q.gte("data_audiencia", dataDe).lte("data_audiencia", dataAte + "T23:59:59");
       } else if (ano !== "todos" && mes !== "todos") {
         const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
         const fim = new Date(Date.UTC(ano as number, mes as number, 1)).toISOString();
@@ -73,7 +84,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         .ilike("tipo_tarefa", "audi%")
         .not("data_vencimento", "is", null);
       if (usaPeriodoExterno) {
-        qt = qt.gte("data_vencimento", periodoInicio!).lte("data_vencimento", periodoFim!);
+        qt = qt.gte("data_vencimento", dataDe).lte("data_vencimento", dataAte);
       } else if (ano !== "todos" && mes !== "todos") {
         const ini = `${ano}-${String(mes).padStart(2, "0")}-01`;
         const fimD = new Date(Date.UTC(ano as number, mes as number, 1));
@@ -183,7 +194,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     if (!data) return;
     const fmtBr = (iso: string) => iso.split("-").reverse().join("/");
     const periodoLabel = usaPeriodoExterno
-      ? `${fmtBr(periodoInicio!)} a ${fmtBr(periodoFim!)}`
+      ? `${fmtBr(dataDe)} a ${fmtBr(dataAte)}`
       : null;
     const sufMes = periodoLabel ?? (mes === "todos" ? "Todos" : MESES[(mes as number) - 1]);
     const sufAno = periodoLabel ? "" : (ano === "todos" ? "Todos" : String(ano));
@@ -289,7 +300,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     const a = document.createElement("a");
     a.href = url;
     a.download = periodoLabel
-      ? `relatorio-audiencias-${periodoInicio}_a_${periodoFim}.xlsx`
+      ? `relatorio-audiencias-${dataDe}_a_${dataAte}.xlsx`
       : `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
@@ -308,10 +319,21 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         </Button>
       </div>
       <div className="flex items-center gap-3 flex-wrap">
-          {usaPeriodoExterno ? (
-            <span className="text-sm text-muted-foreground">
-              Período do painel: <strong className="text-foreground">{periodoInicio!.split("-").reverse().join("/")} a {periodoFim!.split("-").reverse().join("/")}</strong>
-            </span>
+          {modoPeriodo === "periodo" ? (
+            <>
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm text-muted-foreground">De</span>
+              <Input type="date" className="w-40 h-9" value={dataDe} onChange={(e) => setDataDe(e.target.value)} />
+              <span className="text-sm text-muted-foreground">Até</span>
+              <Input type="date" className="w-40 h-9" value={dataAte} onChange={(e) => setDataAte(e.target.value)} />
+            </div>
+            {dataDe && dataAte && dataDe > dataAte && (
+              <span className="text-xs text-destructive">A data inicial está depois da final.</span>
+            )}
+            <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => setModoPeriodo("mesAno")}>
+              <CalendarDays className="h-3.5 w-3.5 mr-1" /> Usar mês/ano
+            </Button>
+            </>
           ) : (
           <>
           <Select value={mes === "todos" ? TODOS : String(mes)} onValueChange={(v) => setMes(v === TODOS ? "todos" : Number(v))}>
@@ -328,6 +350,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
               {anos.map((a) => <SelectItem key={a} value={String(a)}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Button variant="ghost" size="sm" className="h-9 text-xs" onClick={() => setModoPeriodo("periodo")}>
+            <CalendarRange className="h-3.5 w-3.5 mr-1" /> Usar período
+          </Button>
           </>
           )}
           {!coordenacaoId && precisaSelecionar && (
