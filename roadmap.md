@@ -98,5 +98,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 
 ## Coordenações — 28/09/2026
-- [ ] Corrigir persistência da troca de cargo de membro
-- [ ] Modernizar tela com grade compacta e painel lateral direito
+- [x] Corrigir persistência da troca de cargo de membro
+- [x] Modernizar tela com grade compacta e painel lateral direito
