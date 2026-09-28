@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_usabilidade_sistema(date,date,uuid) FROM anon, public;
