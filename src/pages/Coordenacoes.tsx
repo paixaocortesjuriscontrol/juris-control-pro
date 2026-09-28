@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { CoordenacaoDialog } from "@/components/coordenacoes/CoordenacaoDialog";
@@ -118,46 +119,62 @@ const Coordenacoes = () => {
   };
 
   const cargoOptions = [
-    "Coordenador",
-    "Assistente Coordenador",
-    "Advogado Sênior",
-    "Advogado",
-    "Estagiário",
-    "Assistente",
-    "Secretária",
+    { value: "coordenador", label: "Coordenador" },
+    { value: "assistente_coordenador", label: "Assistente Coordenador" },
+    { value: "advogado_senior", label: "Advogado Sênior" },
+    { value: "advogado", label: "Advogado" },
+    { value: "estagiario", label: "Estagiário" },
+    { value: "assistente", label: "Assistente" },
+    { value: "secretaria", label: "Secretária" },
   ];
+
+  const normalizeCargo = (cargo?: string | null) => {
+    const normalized = String(cargo || "advogado")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+    return cargoOptions.some((option) => option.value === normalized) ? normalized : "advogado";
+  };
+
+  const cargoLabel = (cargo?: string | null) =>
+    cargoOptions.find((option) => option.value === normalizeCargo(cargo))?.label || "Advogado";
 
   const handleUpdateCargo = async (membroId: string) => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("membros_coordenacao")
         .update({ cargo: editingCargoValue })
-        .eq("id", membroId);
+        .eq("id", membroId)
+        .select("id, cargo")
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data || normalizeCargo(data.cargo) !== editingCargoValue) {
+        throw new Error("A alteração não foi autorizada para esta coordenação.");
+      }
 
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] }),
+        queryClient.invalidateQueries({ queryKey: ["usuarios-coordenacao", "v2", selectedCoord?.id] }),
+      ]);
       toast({ title: "Cargo atualizado com sucesso" });
-      queryClient.invalidateQueries({ queryKey: ["coordenacoes-full"] });
+      setEditingCargoId(null);
+      setEditingCargoValue("");
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar cargo",
         description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setEditingCargoId(null);
-      setEditingCargoValue("");
     }
   };
 
   useEffect(() => {
-    if (coordenacoes && coordenacoes.length > 0 && !selectedCoord) {
-      setSelectedCoord(coordenacoes[0]);
-    } else if (selectedCoord && coordenacoes) {
-      // Refresh selected coord data
-      const updated = coordenacoes.find(c => c.id === selectedCoord.id);
-      if (updated) setSelectedCoord(updated);
-    }
+    if (!selectedCoord || !coordenacoes) return;
+    const updated = coordenacoes.find((coord) => coord.id === selectedCoord.id);
+    if (updated && updated !== selectedCoord) setSelectedCoord(updated);
   }, [coordenacoes, selectedCoord]);
 
   const handleRemoveMembro = async () => {
@@ -214,132 +231,106 @@ const Coordenacoes = () => {
       title="Coordenações" 
       subtitle="Gestão de equipes e distribuição de processos"
     >
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Coordinations List */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-lg font-semibold">Equipes</h2>
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => setDistribuirDialog(true)}
-              >
-                <Share2 className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Distribuir</span>
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => setTransferirDialog(true)}
-              >
-                <Repeat className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Transferir</span>
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={exportando}
-                onClick={async () => {
-                  setExportando(true);
-                  try {
-                    await exportarCoordenacoesExcel();
-                    toast({ title: "Relatório de coordenações exportado!" });
-                  } catch (error: any) {
-                    toast({ title: "Erro ao exportar relatório", description: error.message, variant: "destructive" });
-                  } finally {
-                    setExportando(false);
+      <section className="space-y-5">
+        <div className="flex flex-col gap-3 border-b border-border pb-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="font-serif text-xl font-semibold text-foreground">Equipes</h2>
+            <p className="text-sm text-muted-foreground">{coordenacoes?.length || 0} coordenações cadastradas</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" onClick={() => setDistribuirDialog(true)}>
+              <Share2 className="w-4 h-4 mr-1.5" />Distribuir
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setTransferirDialog(true)}>
+              <Repeat className="w-4 h-4 mr-1.5" />Transferir
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={exportando}
+              onClick={async () => {
+                setExportando(true);
+                try {
+                  await exportarCoordenacoesExcel();
+                  toast({ title: "Relatório de coordenações exportado!" });
+                } catch (error: any) {
+                  toast({ title: "Erro ao exportar relatório", description: error.message, variant: "destructive" });
+                } finally {
+                  setExportando(false);
+                }
+              }}
+            >
+              <FileSpreadsheet className="w-4 h-4 mr-1.5" />{exportando ? "Gerando..." : "Relatório"}
+            </Button>
+            <Button size="sm" onClick={() => { setEditCoord(null); setCoordDialog(true); }}>
+              <Plus className="w-4 h-4 mr-1.5" />Nova coordenação
+            </Button>
+          </div>
+        </div>
+
+        {(!coordenacoes || coordenacoes.length === 0) ? (
+          <div className="text-center py-12 border border-dashed rounded-lg">
+            <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma coordenação</h3>
+            <p className="text-muted-foreground text-sm mb-4">Crie coordenações para organizar sua equipe</p>
+            <Button onClick={() => setCoordDialog(true)}><Plus className="w-4 h-4 mr-2" />Criar Coordenação</Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+            {coordenacoes.map((coord, index) => (
+              <Card
+                key={coord.id}
+                role="button"
+                tabIndex={0}
+                aria-label={`Abrir coordenação ${coord.nome}`}
+                className={cn(
+                  "group cursor-pointer border-l-4 transition-all hover:-translate-y-0.5 hover:border-accent hover:shadow-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring animate-slide-up",
+                  areaColors[coord.area as keyof typeof areaColors]
+                )}
+                style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
+                onClick={() => setSelectedCoord(coord)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setSelectedCoord(coord);
                   }
                 }}
               >
-                <FileSpreadsheet className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">{exportando ? "Gerando..." : "Relatório"}</span>
-              </Button>
-              <Button 
-                size="sm" 
-                className="bg-primary hover:bg-primary/90"
-                onClick={() => {
-                  setEditCoord(null);
-                  setCoordDialog(true);
-                }}
-              >
-                <Plus className="w-4 h-4 mr-1" />
-                <span className="hidden sm:inline">Nova</span>
-              </Button>
-            </div>
-          </div>
-
-          {(!coordenacoes || coordenacoes.length === 0) ? (
-            <div className="text-center py-12 border rounded-xl">
-              <Users className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Nenhuma coordenação</h3>
-              <p className="text-muted-foreground text-sm mb-4">Crie coordenações para organizar sua equipe</p>
-              <Button onClick={() => setCoordDialog(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Criar Coordenação
-              </Button>
-            </div>
-          ) : (
-            coordenacoes.map((coord, index) => (
-              <Card 
-                key={coord.id}
-                className={cn(
-                  "cursor-pointer transition-all border-l-4 hover:shadow-medium animate-slide-up",
-                  areaColors[coord.area as keyof typeof areaColors],
-                  selectedCoord?.id === coord.id && "ring-2 ring-primary/20"
-                )}
-                style={{ animationDelay: `${index * 100}ms` }}
-                onClick={() => setSelectedCoord(coord)}
-              >
                 <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-foreground">{coord.nome}</h3>
-                      <p className="text-sm text-muted-foreground">{coord.coordenador?.nome || "Sem coordenador"}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Badge variant="secondary" className="mb-2 text-[11px]">
+                        {areaLabels[coord.area as keyof typeof areaLabels]}
+                      </Badge>
+                      <h3 className="font-serif font-semibold leading-snug text-foreground line-clamp-2">{coord.nome}</h3>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{coord.coordenador?.nome || "Sem coordenador"}</p>
                     </div>
-                    <Badge variant="secondary" className="text-xs">
-                      {areaLabels[coord.area as keyof typeof areaLabels]}
-                    </Badge>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-accent" />
                   </div>
-                  <div className="flex items-center gap-4 text-sm flex-wrap">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Briefcase className="w-4 h-4" />
-                      <span className="font-medium text-foreground">{coord.processCount}</span> processos
-                    </div>
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span className="font-medium text-foreground">{coord.membros.length}</span> membros
-                    </div>
-                    {coord.unassignedCount > 0 && (
-                      <Badge variant="outline" className="text-xs bg-amber-500/10 text-amber-600 border-amber-200">
-                        {coord.unassignedCount} não distribuídos
-                      </Badge>
-                    )}
+                  <div className="mt-4 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
+                    <div><p className="text-lg font-semibold text-foreground">{coord.processCount}</p><p className="text-[11px] text-muted-foreground">processos</p></div>
+                    <div><p className="text-lg font-semibold text-foreground">{coord.membros.length}</p><p className="text-[11px] text-muted-foreground">membros</p></div>
                   </div>
-                  {/* Indicadores de monitoramento */}
-                  <div className="flex items-center gap-2 mt-2">
-                    {coord.monitorar_redistribuicoes && (
-                      <Badge variant="outline" className="text-xs gap-1 bg-blue-500/5 text-blue-600 border-blue-200">
-                        <RefreshCw className="w-3 h-3" />
-                        Redist.
-                      </Badge>
-                    )}
-                    {coord.monitorar_distribuicoes && (
-                      <Badge variant="outline" className="text-xs gap-1 bg-green-500/5 text-green-600 border-green-200">
-                        <Globe className="w-3 h-3" />
-                        Distrib.
-                      </Badge>
-                    )}
+                  <div className="mt-3 flex min-h-6 flex-wrap items-center gap-1.5">
+                    {coord.unassignedCount > 0 && <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-200">{coord.unassignedCount} pendentes</Badge>}
+                    {coord.monitorar_redistribuicoes && <Badge variant="outline" className="text-[10px] gap-1"><RefreshCw className="w-3 h-3" />Redist.</Badge>}
+                    {coord.monitorar_distribuicoes && <Badge variant="outline" className="text-[10px] gap-1"><Globe className="w-3 h-3" />Distrib.</Badge>}
                   </div>
                 </CardContent>
               </Card>
-            ))
-          )}
-        </div>
+            ))}
+          </div>
+        )}
+      </section>
 
-        {/* Selected Coordination Details */}
-        {selectedCoord && (
-          <div className="lg:col-span-2 space-y-6">
+      <Sheet open={!!selectedCoord} onOpenChange={(open) => { if (!open) setSelectedCoord(null); }}>
+        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[min(920px,calc(100vw-3rem))]">
+          {selectedCoord && (
+            <div className="space-y-5 p-5 pr-6 sm:p-7 sm:pr-8">
+              <SheetHeader className="pr-8">
+                <SheetTitle className="sr-only">{selectedCoord.nome}</SheetTitle>
+                <SheetDescription className="sr-only">Dados e gestão da equipe selecionada</SheetDescription>
+              </SheetHeader>
             {/* Coordinator Info */}
             <Card className="animate-fade-in">
               <CardHeader>
@@ -552,7 +543,7 @@ const Coordenacoes = () => {
                                   autoFocus
                                 >
                                   {cargoOptions.map((cargo) => (
-                                    <option key={cargo} value={cargo}>{cargo}</option>
+                                    <option key={cargo.value} value={cargo.value}>{cargo.label}</option>
                                   ))}
                                 </select>
                                 <Button
@@ -576,16 +567,18 @@ const Coordenacoes = () => {
                                 </Button>
                               </div>
                             ) : (
-                              <button
-                                className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 group"
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="group -ml-2 h-7 px-2 text-sm font-normal text-muted-foreground hover:text-foreground"
                                 onClick={() => {
                                   setEditingCargoId(member.id);
-                                  setEditingCargoValue(member.cargo || "Advogado");
+                                  setEditingCargoValue(normalizeCargo(member.cargo));
                                 }}
                               >
-                                {member.cargo || "Advogado"}
-                                <Pencil className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                              </button>
+                                {cargoLabel(member.cargo)}
+                                <Pencil className="ml-1 h-3 w-3 opacity-0 transition-opacity group-hover:opacity-100" />
+                              </Button>
                             )}
                           </div>
                         </div>
@@ -673,10 +666,10 @@ const Coordenacoes = () => {
                 )}
               </CardContent>
             </Card>
-
-          </div>
-        )}
-      </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
 
       {/* Dialogs */}
       <CoordenacaoDialog 
