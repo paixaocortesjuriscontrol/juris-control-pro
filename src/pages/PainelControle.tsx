@@ -1772,6 +1772,200 @@ export default function PainelControle() {
     toast.success(`${rowsFinal.length} atividade(s) exportada(s).`);
   };
 
+  // ===== Exportação de AUDIÊNCIAS no formato da planilha de controle =====
+  // Colunas: DATA, HORA, NÚMERO PROCESSO, COMARCA, UF, PÓLO ATIVO, CLIENTE,
+  // TERCEIRIZADO, TIPO DE AUDIÊNCIA, RESUMO DO OBJETO, PREPOSTO, TESTEMUNHA,
+  // ADVOGADO / CORRESPONDENTE, OBS, STATUS FINAL — obedecendo os filtros do painel.
+  const [exportandoAud, setExportandoAud] = useState(false);
+  const exportarAudienciasPlanilha = async () => {
+    if (exportandoAud) return;
+    setExportandoAud(true);
+    try {
+      const ExcelJS = (await import("exceljs")).default;
+
+      // Período: o dos filtros do painel; se vazio, o mês exibido no calendário.
+      const inicio = painelFiltros.periodoInicio || rangeInicioStr;
+      const fim = painelFiltros.periodoFim || rangeFimStr;
+
+      const dInicio = new Date(inicio + "T00:00:00");
+      const dFim = new Date(fim + "T23:59:59");
+      const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+      const coletados: any[] = [];
+      for (let page = 0; page < 40; page++) {
+        const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length === 0) break;
+      }
+      const vistos = new Set<string>();
+      const itensAud = coletados
+        .filter((it) => {
+          const k = String(it.id);
+          if (vistos.has(k)) return false;
+          vistos.add(k);
+          return true;
+        })
+        .filter((it) => classificarItem(it) === "audiencia")
+        .filter((it) => passaFiltrosPainel(it, true))
+        .filter((it) => {
+          const d = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
+          return !!d && d >= inicio && d <= fim;
+        });
+
+      if (itensAud.length === 0) {
+        toast.error("Nenhuma audiência encontrada com os filtros atuais.");
+        return;
+      }
+
+      // Detalhes das audiências detectadas (pauta)
+      const audIds = itensAud
+        .map((it) => String(it.id))
+        .filter((id) => id.startsWith("audiencia-det-"))
+        .map((id) => id.replace("audiencia-det-", ""));
+      const audDetalhes = new Map<string, any>();
+      for (let i = 0; i < audIds.length; i += 200) {
+        const { data } = await supabase
+          .from("audiencias_detectadas")
+          .select(
+            "id, titulo, tipo_audiencia, modalidade, comarca, polo_ativo, cliente, terceirizado, preposto, testemunhas, advogado, hora, resumo_objeto, observacoes, processo_numero, processo_id",
+          )
+          .in("id", audIds.slice(i, i + 200));
+        (data || []).forEach((a: any) => audDetalhes.set(String(a.id), a));
+      }
+
+      // UF e comarca dos processos vinculados
+      const processoIds = Array.from(
+        new Set(
+          itensAud.map((it: any) => it.processo?.id ?? it.processo_id).filter(Boolean).map(String),
+        ),
+      );
+      const procInfoById = new Map<string, { uf: string; comarca: string; numero: string }>();
+      for (let i = 0; i < processoIds.length; i += 200) {
+        const { data: procs } = await supabase
+          .from("processos")
+          .select("id, uf, comarca, numero")
+          .in("id", processoIds.slice(i, i + 200));
+        (procs || []).forEach((p: any) =>
+          procInfoById.set(String(p.id), {
+            uf: p.uf ?? "",
+            comarca: p.comarca ?? "",
+            numero: p.numero ?? "",
+          }),
+        );
+      }
+
+      const fmtData = (v?: string | null) => {
+        const s = (v ?? "").slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
+        const [y, m, d] = s.split("-");
+        return `${d}/${m}/${y}`;
+      };
+
+      const linhas = itensAud
+        .map((it: any) => {
+          const rawId = String(it.id);
+          const aud = rawId.startsWith("audiencia-det-")
+            ? audDetalhes.get(rawId.replace("audiencia-det-", ""))
+            : null;
+          const procId = String(it.processo?.id ?? it.processo_id ?? aud?.processo_id ?? "");
+          const proc = procInfoById.get(procId);
+          const hora =
+            (aud?.hora ?? "").slice(0, 5) ||
+            (it.dia_inteiro ? "" : horaBrt(it.data_inicio)) ||
+            (it.hora_fatal ?? "").slice(0, 5);
+          const tipoAud = [aud?.tipo_audiencia, aud?.modalidade].filter(Boolean).join(" ").trim();
+          return {
+            data: fmtData(it.data_vencimento ?? it.data_inicio ?? aud?.data_audiencia),
+            hora,
+            processo: it.processo?.numero ?? aud?.processo_numero ?? proc?.numero ?? "",
+            comarca: aud?.comarca ?? proc?.comarca ?? "",
+            uf: proc?.uf ?? "",
+            poloAtivo: aud?.polo_ativo ?? "",
+            cliente: aud?.cliente ?? "",
+            terceirizado: aud?.terceirizado ?? "",
+            tipo: tipoAud || aud?.titulo || it.titulo || "",
+            resumo: aud?.resumo_objeto ?? "",
+            preposto: aud?.preposto ?? "",
+            testemunha: aud?.testemunhas ?? "",
+            advogado: aud?.advogado ?? "",
+            obs: aud?.observacoes ?? it.descricao ?? "",
+            status: (it.status ?? "pendente").toString().toUpperCase(),
+            _ordemData: String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
+            _ordemHora: hora,
+          };
+        })
+        .sort((a, b) =>
+          a._ordemData === b._ordemData
+            ? a._ordemHora.localeCompare(b._ordemHora)
+            : a._ordemData.localeCompare(b._ordemData),
+        );
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "JurisControl";
+      const ws = wb.addWorksheet("Audiências", { views: [{ state: "frozen", ySplit: 1 }] });
+
+      const cabecalho = [
+        "DATA", "HORA", "NÚMERO PROCESSO", "COMARCA", "UF", "PÓLO ATIVO", "CLIENTE",
+        "TERCEIRIZADO", "TIPO DE AUDIÊNCIA", "RESUMO DO OBJETO", "PREPOSTO", "TESTEMUNHA",
+        "ADVOGADO / CORRESPONDENTE", "OBS", "STATUS FINAL",
+      ];
+      const headerRow = ws.addRow(cabecalho);
+      headerRow.height = 22;
+      headerRow.eachCell((cell) => {
+        cell.font = { name: "Calibri", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E4620" } };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FF9E9E9E" } },
+          left: { style: "thin", color: { argb: "FF9E9E9E" } },
+          bottom: { style: "thin", color: { argb: "FF9E9E9E" } },
+          right: { style: "thin", color: { argb: "FF9E9E9E" } },
+        };
+      });
+
+      const bordaFina = {
+        top: { style: "thin" as const, color: { argb: "FFBFBFBF" } },
+        left: { style: "thin" as const, color: { argb: "FFBFBFBF" } },
+        bottom: { style: "thin" as const, color: { argb: "FFBFBFBF" } },
+        right: { style: "thin" as const, color: { argb: "FFBFBFBF" } },
+      };
+      for (const l of linhas) {
+        const row = ws.addRow([
+          l.data, l.hora, l.processo, l.comarca, l.uf, l.poloAtivo, l.cliente,
+          l.terceirizado, l.tipo, l.resumo, l.preposto, l.testemunha, l.advogado, l.obs, l.status,
+        ]);
+        row.eachCell({ includeEmpty: true }, (cell, colNum) => {
+          cell.font = { name: "Calibri", size: 10, color: { argb: "FF1A202C" } };
+          cell.border = bordaFina;
+          cell.alignment = {
+            horizontal: colNum <= 5 || colNum === 15 ? "center" : "left",
+            vertical: "middle",
+            wrapText: colNum === 10 || colNum === 14,
+          };
+        });
+      }
+
+      const larguras = [11, 7, 26, 16, 6, 28, 12, 13, 26, 40, 18, 16, 22, 24, 14];
+      larguras.forEach((w, i) => (ws.getColumn(i + 1).width = w));
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `audiencias_${inicio}_a_${fim}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${linhas.length} audiência(s) exportada(s).`);
+    } catch (e) {
+      console.error("[exportarAudienciasPlanilha] erro:", e);
+      toast.error("Erro ao exportar audiências.");
+    } finally {
+      setExportandoAud(false);
+    }
+  };
+
   // ===== Contagens por classificação, usando a MESMA base do calendário =====
   // Aplica todos os filtros do painel EXCETO o de classificação, de modo que
   // ao clicar num card, o calendário mostra exatamente aqueles itens.
@@ -2285,6 +2479,16 @@ export default function PainelControle() {
           </Button>
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
+          </Button>
+          <Button
+            size="sm"
+            onClick={exportarAudienciasPlanilha}
+            disabled={exportandoAud}
+            title="Exportar audiências em Excel (planilha de controle), obedecendo os filtros do painel"
+            className="whitespace-nowrap bg-green-700 hover:bg-green-800 text-white"
+          >
+            {exportandoAud ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            Exportar Audiências
           </Button>
           {false && isAdmin && (
             <Button asChild variant="outline" size="sm">
