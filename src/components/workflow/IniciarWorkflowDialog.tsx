@@ -114,6 +114,10 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
+    if (publicacaoOrigem && !selectedProcesso?.id) {
+      toast.error("Workflow aberto a partir de publicação precisa de um processo. Cadastre ou vincule o processo antes de iniciar.");
+      return;
+    }
     const resultado = await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
 
