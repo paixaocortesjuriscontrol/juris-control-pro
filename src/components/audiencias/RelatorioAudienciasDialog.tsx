@@ -181,13 +181,17 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
 
   async function exportar() {
     if (!data) return;
-    const sufMes = mes === "todos" ? "Todos" : MESES[(mes as number) - 1];
-    const sufAno = ano === "todos" ? "Todos" : String(ano);
+    const fmtBr = (iso: string) => iso.split("-").reverse().join("/");
+    const periodoLabel = usaPeriodoExterno
+      ? `${fmtBr(periodoInicio!)} a ${fmtBr(periodoFim!)}`
+      : null;
+    const sufMes = periodoLabel ?? (mes === "todos" ? "Todos" : MESES[(mes as number) - 1]);
+    const sufAno = periodoLabel ? "" : (ano === "todos" ? "Todos" : String(ano));
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "JurisControl";
     wb.created = new Date();
-    const ws = wb.addWorksheet(`Audiências ${sufMes}-${sufAno}`.slice(0, 31), {
+    const ws = wb.addWorksheet((periodoLabel ? "Audiências período" : `Audiências ${sufMes}-${sufAno}`).slice(0, 31), {
       views: [{ state: "frozen", ySplit: 3 }],
     });
 
@@ -197,7 +201,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     // Título mesclado
     ws.mergeCells(1, 1, 1, totalCols);
     const titleCell = ws.getCell(1, 1);
-    titleCell.value = `RELATÓRIO DE AUDIÊNCIAS — ${sufMes} / ${sufAno}`;
+    titleCell.value = periodoLabel
+      ? `RELATÓRIO DE AUDIÊNCIAS — ${periodoLabel}`
+      : `RELATÓRIO DE AUDIÊNCIAS — ${sufMes} / ${sufAno}`;
     titleCell.font = { name: "Calibri", size: 14, bold: true, color: { argb: "FFFFFFFF" } };
     titleCell.alignment = { horizontal: "center", vertical: "middle" };
     titleCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E3A5F" } };
@@ -282,7 +288,9 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
+    a.download = periodoLabel
+      ? `relatorio-audiencias-${periodoInicio}_a_${periodoFim}.xlsx`
+      : `relatorio-audiencias-${sufAno}-${mes === "todos" ? "todos" : String(mes).padStart(2, "0")}.xlsx`;
     a.click();
     URL.revokeObjectURL(url);
   }
