@@ -11,6 +11,10 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   coordenacaoId?: string;
+  /** Período vindo dos filtros do Painel de Controle (yyyy-MM-dd). Quando
+   *  informados, substituem os seletores de mês/ano. */
+  periodoInicio?: string;
+  periodoFim?: string;
 }
 
 const MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
