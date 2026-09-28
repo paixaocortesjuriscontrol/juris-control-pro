@@ -23,6 +23,7 @@ import { BarChart3, HelpCircle, Trophy, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useUserRole } from "@/hooks/useUserRole";
 
 type Serie = {
   mes: string;
