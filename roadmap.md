@@ -5,6 +5,7 @@
 - [x] Criar manual separado do Painel de Controle
 - [x] Criar manual separado da Distribuição TST
 - [x] Atualizar a central Manual Sistema e validar os PDFs
+- [x] Ampliar o Manual do Painel de Controle com 20 capítulos, exemplos e capturas ilustrativas
 
 Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criação/desduplicação de usuários.
 
