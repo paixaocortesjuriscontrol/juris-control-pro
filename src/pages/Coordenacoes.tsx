@@ -38,6 +38,7 @@ import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/Alterac
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { exportarCoordenacoesExcel } from "@/lib/exportCoordenacoesExcel";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useQueryClient } from "@tanstack/react-query";
@@ -71,6 +72,7 @@ const Coordenacoes = () => {
   const [coordDialog, setCoordDialog] = useState(false);
   const [editCoord, setEditCoord] = useState<any>(null);
   const [membroDialog, setMembroDialog] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [atribuirDialog, setAtribuirDialog] = useState(false);
   const [distribuirDialog, setDistribuirDialog] = useState(false);
   const [delegarTarefaDialog, setDelegarTarefaDialog] = useState(false);
@@ -233,6 +235,25 @@ const Coordenacoes = () => {
               >
                 <Repeat className="w-4 h-4 mr-1" />
                 <span className="hidden sm:inline">Transferir</span>
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={exportando}
+                onClick={async () => {
+                  setExportando(true);
+                  try {
+                    await exportarCoordenacoesExcel();
+                    toast({ title: "Relatório de coordenações exportado!" });
+                  } catch (error: any) {
+                    toast({ title: "Erro ao exportar relatório", description: error.message, variant: "destructive" });
+                  } finally {
+                    setExportando(false);
+                  }
+                }}
+              >
+                <FileSpreadsheet className="w-4 h-4 mr-1" />
+                <span className="hidden sm:inline">{exportando ? "Gerando..." : "Relatório"}</span>
               </Button>
               <Button 
                 size="sm" 
