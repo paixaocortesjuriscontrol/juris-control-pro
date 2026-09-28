@@ -11546,6 +11546,10 @@ export type Database = {
       get_relatorio_prazos: { Args: never; Returns: Json }
       get_relatorio_resumo: { Args: never; Returns: Json }
       get_relatorio_tarefas: { Args: never; Returns: Json }
+      get_usabilidade_sistema: {
+        Args: { _coordenacao_id?: string; _fim: string; _inicio: string }
+        Returns: Json
+      }
       get_user_coordenacao: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
