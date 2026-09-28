@@ -126,9 +126,17 @@ export function IniciarWorkflowDialog({
       publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
       publicacao_origem_id: publicacaoOrigem?.id,
     });
-    if (resultado.item) {
-      await vincularPrimeiroItemAPublicacao(resultado.item);
-      await onStarted?.(resultado.item as { id: string; titulo: string; tipo: ItemCriado["tipo"] });
+    // Todas as etapas iniciais recebem a publicação de origem (não só a primeira)
+    const itensIniciais = ((resultado as any).itens?.length ? (resultado as any).itens : resultado.item ? [resultado.item] : []) as { id: string; tipo: string; titulo: string }[];
+    for (const it of itensIniciais) {
+      try {
+        await vincularPrimeiroItemAPublicacao(it);
+      } catch (e) {
+        console.error("Falha ao vincular publicação ao item do workflow", e);
+      }
+    }
+    for (const it of itensIniciais) {
+      await onStarted?.(it as { id: string; titulo: string; tipo: ItemCriado["tipo"] });
     }
     if (!inline) setOpen(false);
     reset();
