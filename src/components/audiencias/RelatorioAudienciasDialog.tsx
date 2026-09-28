@@ -58,7 +58,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         .select("id, status, criado_por, data_audiencia, coordenacao_id, audiencia_envolvidos(usuario_id), audiencias_advogados(advogado_id)")
         ;
       if (usaPeriodoExterno) {
-        q = q.gte("data_audiencia", periodoInicio!).lte("data_audiencia", periodoFim! + "T23:59:59");
+        q = q.gte("data_audiencia", dataDe).lte("data_audiencia", dataAte + "T23:59:59");
       } else if (ano !== "todos" && mes !== "todos") {
         const inicio = new Date(Date.UTC(ano as number, (mes as number) - 1, 1)).toISOString();
         const fim = new Date(Date.UTC(ano as number, mes as number, 1)).toISOString();
@@ -84,7 +84,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
         .ilike("tipo_tarefa", "audi%")
         .not("data_vencimento", "is", null);
       if (usaPeriodoExterno) {
-        qt = qt.gte("data_vencimento", periodoInicio!).lte("data_vencimento", periodoFim!);
+        qt = qt.gte("data_vencimento", dataDe).lte("data_vencimento", dataAte);
       } else if (ano !== "todos" && mes !== "todos") {
         const ini = `${ano}-${String(mes).padStart(2, "0")}-01`;
         const fimD = new Date(Date.UTC(ano as number, mes as number, 1));
@@ -194,7 +194,7 @@ export function RelatorioAudienciasDialog({ open, onOpenChange, coordenacaoId, p
     if (!data) return;
     const fmtBr = (iso: string) => iso.split("-").reverse().join("/");
     const periodoLabel = usaPeriodoExterno
-      ? `${fmtBr(periodoInicio!)} a ${fmtBr(periodoFim!)}`
+      ? `${fmtBr(dataDe)} a ${fmtBr(dataAte)}`
       : null;
     const sufMes = periodoLabel ?? (mes === "todos" ? "Todos" : MESES[(mes as number) - 1]);
     const sufAno = periodoLabel ? "" : (ano === "todos" ? "Todos" : String(ano));
