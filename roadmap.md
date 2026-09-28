@@ -4,7 +4,7 @@
 - [x] Atualizar o Manual Completo para a versão 7.4.0 com os módulos atuais
 - [x] Criar manual separado do Painel de Controle
 - [x] Criar manual separado da Distribuição TST
-- [ ] Atualizar a central Manual Sistema e validar os PDFs
+- [x] Atualizar a central Manual Sistema e validar os PDFs
 
 Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criação/desduplicação de usuários.
 
