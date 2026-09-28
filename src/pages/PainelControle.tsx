@@ -2495,12 +2495,11 @@ export default function PainelControle() {
           </Button>
           <Button
             size="sm"
-            onClick={exportarAudienciasPlanilha}
-            disabled={exportandoAud}
+            onClick={() => setExportAudSheetOpen(true)}
             title="Exportar audiências em Excel (planilha de controle), obedecendo os filtros do painel"
             className="whitespace-nowrap bg-green-700 hover:bg-green-800 text-white"
           >
-            {exportandoAud ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+            <Download className="w-4 h-4 mr-1" />
             Exportar Audiências
           </Button>
           {false && isAdmin && (
