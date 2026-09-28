@@ -54,6 +54,7 @@ import Notificacoes from "./pages/Notificacoes";
 import Indicadores from "./pages/Indicadores";
 import InteligenciaJuridica from "./pages/InteligenciaJuridica";
 import RankingAtendimento from "./pages/RankingAtendimento";
+import UsabilidadeSistema from "./pages/UsabilidadeSistema";
 import Monitoramento from "./pages/Monitoramento";
 import AnaliseTarefasProjuris from "./pages/AnaliseTarefasProjuris";
 import ImportarTarefas from "./pages/ImportarTarefas";
@@ -153,6 +154,7 @@ function App() {
               <Route path="/indicadores" element={<ProtectedRoute><Indicadores /></ProtectedRoute>} />
               <Route path="/inteligencia-juridica" element={<ProtectedRoute><InteligenciaJuridica /></ProtectedRoute>} />
               <Route path="/ranking-atendimento" element={<ProtectedRoute><RankingAtendimento /></ProtectedRoute>} />
+              <Route path="/usabilidade-sistema" element={<ProtectedRoute><UsabilidadeSistema /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
               <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
               <Route path="/banco-teses" element={<ProtectedRoute><BancoTeses /></ProtectedRoute>} />
