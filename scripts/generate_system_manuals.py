@@ -12,6 +12,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
+    Image,
     KeepTogether,
     PageBreak,
     PageTemplate,
@@ -180,6 +181,24 @@ def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[
     return out
 
 
+def screenshot(name: str, caption: str):
+    path = ROOT / "scripts" / "manual-painel-assets" / f"{name}.png"
+    image = Image(str(path), width=165 * mm, height=103.125 * mm)
+    caption_style = ParagraphStyle("Caption", parent=S["small"], alignment=TA_CENTER, spaceBefore=3, spaceAfter=5)
+    return [image, Paragraph(escape(caption), caption_style)]
+
+
+def illustrated_section(num: str, title: str, intro: str, image_name: str, caption: str,
+                        subsections: list[tuple[str, list[str]]], notes: list[tuple[str, str, str]] | None = None):
+    out = chapter(num, title, intro) + screenshot(image_name, caption)
+    for subtitle, items in subsections:
+        out += [h2(subtitle)] + bullets(items)
+    for note in notes or []:
+        out.append(callout(*note))
+    out.append(PageBreak())
+    return out
+
+
 def build(filename: str, title: str, story):
     doc = ManualDoc(OUT / filename, title)
     doc.build(story)
@@ -252,56 +271,110 @@ def complete_manual():
 
 def painel_manual():
     title = "Manual do Painel de Controle"
-    entries = ["Visão geral", "Escopo Pessoal e Escritório", "Cards e busca", "Filtros", "Visões", "Criação de itens", "Edição, baixa e recorrência", "Ações em lote", "Relatórios e exportações", "Roteiro e boas práticas"]
-    st = cover(title, "Agenda operacional, filtros, ações e relatórios", ["Tarefas, prazos, eventos e audiências", "Agenda, lista, kanban e equipe", "Baixas, remanejamento e exportações"])
-    st += toc("Guia exclusivo da rotina diária no Painel de Controle.", entries)
-    st += section("1", entries[0], "O Painel de Controle reúne os compromissos jurídicos em uma única área. Alterar a visão não muda os dados; apenas muda a forma de consultá-los.", [
-        ("Tipos de item", ["Tarefa: atividade sem necessariamente possuir prazo fatal.", "Prazo: obrigação com data prevista e, quando aplicável, data fatal.", "Evento: compromisso de agenda.", "Audiência: compromisso processual com informações específicas.", "Parcelamento recorrente: série de parcelas e pagamentos."]),
-        ("Indicadores", ["P indica origem em publicação; W indica item gerado por workflow.", "Comentários não vistos, cobranças e atividades aparecem com indicadores próprios.", "Itens concluídos permanecem legíveis e não são tachados; risco visual é reservado às situações aplicáveis."]),
+    entries = ["Mapa da tela", "Escopo e cartões", "Agenda", "Lista e busca", "Kanban e Equipe", "Filtros completos", "Criar itens", "Preenchimento de Tarefa e Prazo", "Evento, Audiência e Parcelamento", "Workflow", "Edição, baixa e recorrência", "Comentários, atividades e cobranças", "Alertas", "Remanejar em lote", "Pessoas em lote", "Exportar atividades", "Relatório de audiências", "Exportar audiências", "Exemplos completos", "Dúvidas e boas práticas"]
+    st = cover(title, "Guia operacional ilustrado e completo", ["20 capítulos com exemplos passo a passo", "10 capturas ilustrativas da interface", "Filtros, criações, baixas, lotes e relatórios"])
+    st += toc("As imagens reproduzem fielmente a interface, com nomes e processos fictícios para não expor informações de clientes.", entries)
+    st += illustrated_section("1", entries[0], "O Painel reúne toda a rotina jurídica em quatro faixas: comandos, totalizadores, visões/filtros e área de trabalho.", "overview", "Figura 1 — Visão geral ilustrativa do Painel de Controle.", [
+        ("Faixa superior", ["O olho mostra ou oculta totalizadores; o ícone de ajustes mostra ou oculta a faixa de filtros.", "Rel. Audiências abre o relatório por usuário e situação; Exportar Audiências abre a exportação operacional.", "A faixa seguinte contém Pessoal/Escritório, situação, limpar, Exportar, Alertas, Remanejar, Pessoas em lote e Adicionar."]),
+        ("Tipos e símbolos", ["Tarefa organiza trabalho; Evento registra compromisso; Prazo controla datas prevista e fatal; Audiência acrescenta dados processuais próprios; Parcelamento gera ocorrências.", "P indica origem em publicação; W indica workflow. Indicadores também mostram comentários, cobranças e atividades.", "Itens cumpridos ou concluídos permanecem legíveis; não use o aspecto visual como substituto da situação registrada."]),
+    ], [("Privacidade", "Todas as imagens deste manual usam dados fictícios. A aparência pode variar conforme perfil, coordenação e tamanho da tela.", "gold")])
+    st += section("2", entries[1], "Antes de interpretar números, confirme o escopo e os filtros ativos.", [
+        ("Pessoal", ["Mostra sua rotina conforme responsabilidade, envolvimento, criação e demais filtros.", "Use para começar e encerrar o trabalho individual."]),
+        ("Escritório", ["Mostra o escopo coletivo permitido. Administradores podem escolher uma coordenação ou Todas as coordenações.", "Coordenadores veem suas equipes; outros perfis permanecem limitados às autorizações recebidas."]),
+        ("Totalizadores", ["O cartão da data abre as atividades do dia.", "Os cartões Tarefas, Eventos, Prazos, Audiências e Parcelamentos mostram contagens do recorte e funcionam como filtros rápidos.", "Um anel no cartão indica filtro ativo. Clique novamente ou use Limpar filtros para desfazer."]),
+        ("Exemplo", ["Para conferir os cinco prazos exibidos no cartão vermelho: confirme Pessoal/Escritório, clique em Prazos e abra Lista para ler um por linha.", "Se o total parecer menor, verifique período, responsável, situação e origem antes de concluir que faltam registros."]),
     ])
-    st += section("2", entries[1], "O seletor no topo define se o usuário vê sua própria rotina ou o escopo autorizado do escritório.", [
-        ("Pessoal", ["Prioriza itens em que você é responsável, envolvido ou criador, conforme os filtros.", "É o recorte recomendado para a execução diária individual."]),
-        ("Escritório", ["Mostra o escopo das coordenações e pessoas autorizadas.", "Administradores podem selecionar uma coordenação específica ou todas.", "Os dados continuam limitados pelas regras de acesso do usuário."]),
+    st += illustrated_section("3", entries[2], "Agenda é a visão mensal e a melhor opção para localizar concentração de compromissos por dia.", "overview", "Figura 2 — Calendário mensal, totalizadores e atalhos de tipo.", [
+        ("Navegação", ["Use as setas do calendário para trocar o mês e Hoje para voltar ao mês atual.", "Clique em um dia para abrir o painel lateral com todas as atividades daquela data.", "Clique em um item curto do calendário para abrir diretamente seus detalhes."]),
+        ("Criar nesta data", ["Abra o dia desejado e escolha Criar nesta data.", "Selecione Tarefa, Prazo, Evento ou Audiência; a data vem preenchida.", "Revise título, processo, coordenação, situação e pessoas antes de salvar."]),
+        ("Exemplo", ["Para planejar 2 de outubro: clique no dia 02, confira os itens já existentes e use Criar nesta data > Prazo. Se houver data fatal diferente, informe-a separadamente."]),
     ])
-    st += section("3", entries[2], "Os cartões resumem o recorte atual e também funcionam como filtros rápidos.", [
-        ("Cartões", ["O cartão da data abre os itens do dia.", "Tarefas, eventos, prazos, audiências e parcelamentos mostram quantidades do recorte atual.", "Clique em um cartão para focar naquele tipo; clique novamente ou limpe os filtros para voltar."]),
-        ("Busca", ["A busca aceita número do processo com ou sem máscara, cliente, partes, título e outros textos acessíveis.", "A busca global pode localizar itens fora do mês exibido e abrir diretamente o detalhe.", "Use Limpar filtros antes de concluir que um item não existe."]),
+    st += illustrated_section("4", entries[3], "Lista facilita conferência, ordenação e pesquisa de vários registros.", "list", "Figura 3 — Exemplo de lista filtrada por processo e tipo.", [
+        ("Pesquisa", ["Digite número CNJ com ou sem máscara, título ou palavra. A busca pode localizar registros fora do mês mostrado.", "O X dentro do campo apaga apenas a busca; Limpar filtros restaura todo o conjunto.", "Pesquise pelo número completo quando existirem muitos resultados semelhantes."]),
+        ("Filtros rápidos", ["Prazos, Audiências, Tarefas, Eventos e Parcelamentos deixam somente um tipo visível; Tudo remove esse recorte.", "Protocolados/Baixados aparece para perfis autorizados e abre uma lista própria com período e responsáveis.", "Cobranças alterna em três cliques: todos, somente minhas cobranças, somente cobranças da equipe, e volta a todos."]),
+        ("Exemplo", ["Para localizar todas as atividades do processo 0001234-56.2026.5.01.0001: abra Lista, clique Tudo, cole o número no campo de busca e remova filtros de período se necessário."]),
     ])
-    st += section("4", entries[3], "O botão Filtros abre um painel lateral. As escolhas só passam a valer ao clicar em Filtrar.", [
-        ("Período e datas", ["Defina início e fim; o período pode usar data prevista/fatal ou data da publicação.", "Quando Data da publicação está ativa, itens sem publicação ficam fora.", "Em Prazo, escolha Data prevista, Data fatal ou ambas."]),
-        ("Pessoas e situação", ["Filtre por responsáveis; use Sou Responsável e Estou Envolvido para um recorte pessoal.", "Status agrupa Todas, A concluir, Concluídas e Canceladas.", "Situação avançada permite combinar situações detalhadas configuradas no sistema."]),
-        ("Conteúdo", ["Classificação filtra tarefas, eventos, prazos, audiências e parcelamentos.", "Comentários separa itens com ou sem comentário.", "Cobranças separa já cobrados ou ainda não cobrados no dia.", "Origem separa itens criados de publicações dos demais."]),
-    ], [("Aplicação", "Se alterar datas ou opções no painel, clique em Filtrar. Limpar filtros restaura o padrão.", "gold")])
-    st += section("5", entries[4], "Escolha a visão adequada à atividade que deseja executar.", [
-        ("Agenda", ["Mostra o calendário mensal e os itens em cada dia.", "Clique no dia para abrir a lista lateral; use Criar nesta data para pré-preencher um novo item.", "Atividades internas aparecem na data própria, independentemente da conclusão do item-pai."]),
-        ("Lista", ["Ideal para leitura sequencial e comparação.", "A ordenação por data pode usar limite, fatal ou publicação.", "Clique na linha para abrir o item e seus detalhes."]),
-        ("Kanban e Equipe", ["Kanban agrupa itens por situação para acompanhamento visual.", "Equipe organiza por responsável e facilita a gestão coletiva.", "Os filtros do Painel continuam valendo nas duas visões."]),
-        ("Prazos, Audiências e Notificações", ["Prazos apresenta o recorte específico de datas fatais.", "Audiências reúne os compromissos e suas informações próprias.", "Notificações mantém o menu e permite abrir o item apontado no alerta."]),
+    st += illustrated_section("5", entries[4], "Kanban e Equipe atendem à gestão visual do andamento e da carga de trabalho.", "kanban", "Figura 4 — Exemplo de Kanban por situação.", [
+        ("Kanban", ["Agrupa itens por situação. Use para enxergar acúmulo em A concluir, Em andamento, Protocolado, Baixado e demais colunas configuradas.", "Os filtros, o escopo Pessoal/Escritório e a busca continuam valendo.", "Clique no cartão para abrir o detalhe; não arraste supondo alteração se a tela não apresentar esse comando."]),
+        ("Equipe", ["Organiza os itens por responsável e facilita comparação de volume e pendências.", "A origem por publicação e workflow continua identificada.", "Use responsável + situação para analisar uma pessoa sem misturar itens concluídos."]),
+        ("Exemplo", ["Para identificar sobrecarga: escolha Escritório, coordenação, Equipe, período da semana e A concluir. Compare quantidades e abra os itens antes de remanejar."]),
     ])
-    st += section("6", entries[5], "O botão Adicionar cria itens sem sair da agenda.", [
-        ("Tarefa, Prazo, Evento e Audiência", ["Cada opção abre um painel lateral direito sobreposto, mantendo o conteúdo do Painel visível ao fundo.", "Preencha título, processo, coordenação, data, situação, responsável e envolvidos conforme o tipo.", "Pessoas fixas configuradas para o tipo podem aparecer automaticamente e não devem ser removidas."]),
-        ("Parcelamento e Workflow", ["Parcelamento recorrente gera parcelas mensais vinculadas ao evento-pai.", "Workflow inicia uma sequência padronizada de etapas; admin pode escolher coordenação e usuários comuns seguem seu escopo.", "Workflow vindo de publicação exige processo vinculado."]),
-        ("Criar nesta data", ["No painel do dia, selecione Tarefa, Prazo, Evento ou Audiência.", "A data clicada já vem preenchida; revise os demais campos antes de salvar."]),
+    st += illustrated_section("6", entries[5], "Filtros abre um painel lateral. As escolhas ficam em rascunho até clicar em Filtrar.", "filters", "Figura 5 — Painel de filtros com um exemplo de prazo fatal originado de publicação.", [
+        ("Período", ["Informe Início e Fim. Com Data da publicação ativa, o período usa a publicação e exclui itens sem publicação.", "Em Prazo, escolha Data prevista, Data fatal ou ambas. Se somente Data fatal estiver ativa, prazos sem fatal ficam fora."]),
+        ("Pessoas", ["Responsáveis aceita uma ou mais pessoas.", "Sou Responsável e Estou Envolvido podem ser usados isoladamente ou juntos; juntos, aceitam qualquer uma das duas relações."]),
+        ("Status, classificação e situação", ["Status agrupa Todas, A concluir, Concluídas e Canceladas.", "Classificação permite selecionar vários tipos simultaneamente.", "Situação avançada combina valores detalhados como aguardando, protocolado ou baixado, conforme a configuração."]),
+        ("Comentários, cobranças e origem", ["Comentários separa todos, com ou sem comentário.", "Cobranças separa todos, cobrados no dia ou não cobrados no dia.", "Origem separa itens vinculados a publicação dos demais."]),
+        ("Exemplo", ["Para auditar prazos criados a partir de publicações de setembro: ative Data da publicação, informe 01/09/2026 a 30/09/2026, marque Prazo e Com publicação e clique Filtrar."]),
+    ], [("Atenção", "Alterar opções e fechar o painel não aplica o rascunho. Use Filtrar; para zerar tudo, use Limpar filtros.", "gold")])
+    st += illustrated_section("7", entries[6], "Adicionar oferece seis caminhos de criação.", "add", "Figura 6 — Menu Adicionar.", [
+        ("Escolha correta", ["Tarefa: providência ou atividade sem natureza de prazo fatal.", "Evento: reunião, compromisso ou marco de agenda.", "Prazo: obrigação com controle de data prevista e fatal.", "Audiência: ato processual com horário, tipo e participantes.", "Parcelamento recorrente: acordo ou pagamento repetido.", "Workflow: sequência previamente configurada."]),
+        ("Comportamento", ["Tarefa, Prazo, Evento e Audiência abrem em painel lateral direito sobreposto, mantendo o Painel visível.", "Parcelamento e Workflow usam formulários próprios.", "Pessoas fixas configuradas podem ser incluídas automaticamente."]),
     ])
-    st += section("7", entries[6], "Clique em qualquer item para abrir o detalhe. As opções disponíveis dependem do tipo e da permissão.", [
-        ("Edição", ["Altere campos diretamente e salve; comentários e atividades permanecem vinculados.", "Reagendamento permite informar nova data para prazos e audiências.", "Itens recorrentes distinguem esta ocorrência da série completa."]),
-        ("Baixa", ["A baixa rápida solicita situação, data de cumprimento e comentário quando exigido.", "Em recorrências, escolha somente esta ocorrência ou toda a série.", "Cancelar e ocultar preserva o registro, mas remove o item da agenda operacional."]),
-        ("Comentários e cobranças", ["Menções com @ notificam colegas.", "Comentários não vistos recebem destaque.", "A marca de cobrança registra o acompanhamento sem concluir o item."]),
+    st += illustrated_section("8", entries[7], "Tarefa e Prazo compartilham dados de identificação, vínculo, pessoas e acompanhamento, mas Prazo possui controle temporal adicional.", "drawer", "Figura 7 — Exemplo fictício de um novo Prazo no painel lateral.", [
+        ("Passo a passo — Tarefa", ["Clique Adicionar > Tarefa.", "Escreva um título objetivo começando por verbo: Revisar contestação, Solicitar documento, Conferir cálculo.", "Vincule processo e coordenação; escolha situação, responsável e envolvidos.", "Informe data de vencimento, descrição, prioridade e recorrência quando aplicável; salve."]),
+        ("Passo a passo — Prazo", ["Clique Adicionar > Prazo e vincule o processo correto.", "Informe Data prevista para organização interna e Data fatal para o limite jurídico.", "Defina responsável principal, envolvidos, situação, origem e observações.", "Revise o CNJ e as datas antes de salvar."]),
+        ("Exemplo", ["Publicação em 28/09 determinou Recurso Ordinário. Cadastre título Apresentar Recurso Ordinário; processo 0001234-56.2026.5.01.0001; prevista 30/09; fatal 02/10; responsável Ana Exemplo.", "Não use a data interna como substituta automática da fatal: cada campo cumpre finalidade diferente."]),
+    ], [("Vínculo", "Se o item nasceu de uma publicação, prefira criá-lo na Análise DJEN para preservar a origem e a rastreabilidade.", "red")])
+    st += section("9", entries[8], "Os outros três tipos atendem a compromissos e lançamentos com estruturas próprias.", [
+        ("Evento", ["Informe título, início e fim, local ou link, processo, coordenação e participantes.", "Ao remanejar, a opção Mover o fim junto com o início mantém a duração.", "Exemplo: Reunião com cliente em 06/10, 10h às 11h, vinculada ao processo."]),
+        ("Audiência", ["Informe data, hora, tipo, modalidade/local, processo, responsável, preposto, testemunha e observações disponíveis.", "Use os dados processuais corretos porque eles alimentam relatório e planilha de audiências.", "Exemplo: Audiência de instrução em 08/10 às 14h30, modalidade telepresencial, com advogado e preposto definidos."]),
+        ("Parcelamento recorrente", ["Informe título, valor quando disponível, primeira data, quantidade/periodicidade e responsáveis.", "A baixa de uma ocorrência não deve concluir automaticamente a série.", "Exemplo: 12 parcelas mensais com vencimento todo dia 10; cada ocorrência deve registrar sua própria baixa."]),
     ])
-    st += section("8", entries[7], "As ações em lote alteram vários itens. Sempre filtre, confira a quantidade e revise a prévia.", [
-        ("Remanejar", ["Escolha o tipo, período, coordenação, pessoas e situações.", "Selecione os resultados e defina novas datas ou responsáveis.", "Revise a alteração antes de aplicar; itens com erro ficam identificados."]),
-        ("Pessoas em lote", ["Disponível a administradores e coordenadores.", "Localize os itens, selecione e acrescente responsáveis ou envolvidos.", "A ação acrescenta pessoas sem remover as já vinculadas."]),
-        ("Exportar atividades", ["Informe período e os tipos desejados.", "A planilha respeita o escopo e os filtros do Painel."]),
-    ], [("Cuidado", "Ações em lote podem alcançar muitos registros. Use filtros específicos e confira o total antes de confirmar.", "red")])
-    st += section("9", entries[8], "O Painel possui relatório analítico e exportação operacional de audiências.", [
-        ("Relatório de Audiências", ["Abra Rel. Audiências e ajuste De/Até, mesmo quando o período veio preenchido pelo Painel.", "O relatório resume audiências por usuário e situação.", "A exportação em Excel acompanha o período escolhido."]),
-        ("Exportar Audiências", ["Clique no botão verde Exportar Audiências.", "No painel lateral, escolha De, Até e uma das suas coordenações, ou todas.", "Clique em Verificar audiências encontradas; o sistema informa a quantidade.", "O botão Exportar planilha só libera após a conferência e mostra o total que será exportado.", "Se alterar data ou coordenação, faça uma nova verificação."]),
-        ("Formato da planilha", ["A planilha traz data, hora, processo, comarca, UF, polo ativo, cliente, terceirizado, tipo, resumo, preposto, testemunha, advogado/correspondente, observação e status final.", "As linhas são ordenadas por data e hora e obedecem aos demais filtros aplicados."]),
+    st += section("10", entries[9], "Workflow executa um modelo de etapas já configurado e reduz cadastros repetitivos.", [
+        ("Como iniciar", ["Clique Adicionar > Workflow; escolha o modelo.", "Vincule processo e coordenação quando exigidos e confira as etapas previstas.", "Defina dados iniciais e confirme. As etapas materializadas aparecem no Painel com W."]),
+        ("A partir de publicação", ["Abra o workflow pela publicação para manter a origem.", "O sistema deve recusar a inicialização se não houver processo vinculado.", "Corrija ou cadastre o processo e reinicie; não recrie etapas manualmente para contornar a trava."]),
+        ("Exemplo", ["No workflow Acórdão — EDS, a publicação inicia a sequência de análise, prazo e protocolo. Confira processo, datas e responsáveis antes de confirmar."]),
     ])
-    st += section("10", entries[9], "Uma rotina consistente reduz atrasos e mantém a auditoria confiável.", [
-        ("Início do trabalho", ["Confirme Pessoal ou Escritório e a coordenação.", "Revise alertas e itens do dia.", "Aplique filtros de período, status e responsável antes de priorizar."]),
-        ("Durante o trabalho", ["Abra o processo antes de alterar itens sensíveis.", "Registre comentários e datas reais de cumprimento.", "Use workflows quando a sequência já estiver padronizada."]),
-        ("Encerramento", ["Verifique prazos fatais, audiências futuras e itens ainda sem responsável.", "Use relatórios/exportações quando precisar compartilhar o acompanhamento.", "Não conclua uma série recorrente inteira quando somente uma ocorrência foi cumprida."]),
+    st += section("11", entries[10], "Clique no item para abrir seus detalhes. Edição e baixa respeitam tipo, situação e permissão.", [
+        ("Edição", ["Altere os campos permitidos e salve. A auditoria registra mudanças relevantes.", "Use reagendamento quando a data efetivamente mudou; registre o motivo em comentário.", "Em recorrências, confirme se a alteração vale para uma ocorrência ou para a série."]),
+        ("Baixa rápida", ["Escolha a situação final, informe a data real de cumprimento e comentário quando exigido.", "Para recorrentes, selecione somente esta ocorrência ou toda a série.", "Cancelar e ocultar preserva o registro, mas o remove da agenda operacional."]),
+        ("Exemplo", ["Uma parcela de setembro foi paga: abra somente a ocorrência de setembro, registre a data do pagamento e conclua essa ocorrência; não encerre as parcelas futuras."]),
+    ], [("Regra visual", "Cumpridos e concluídos permanecem sem tachado. Protocolado e baixado podem usar risco visual conforme a situação.", "gold")])
+    st += section("12", entries[11], "O detalhe do item concentra comunicação e atividades menores vinculadas.", [
+        ("Comentários", ["Registre decisões e fatos úteis ao histórico.", "Use @nome para mencionar colegas; a menção gera notificação conforme as configurações.", "Comentários ainda não vistos recebem destaque."]),
+        ("Atividades", ["Atividades internas podem ter data e responsável próprios.", "Elas aparecem na data correta mesmo quando o item-pai já foi concluído.", "Concluir uma atividade não conclui automaticamente todo o item."]),
+        ("Cobranças", ["Marcar como cobrado registra o acompanhamento do dia sem dar baixa.", "O botão Cobranças alterna entre todas, minhas e equipe.", "Use para controlar follow-up, não para substituir comentário ou situação."]),
+        ("Exemplo", ["Após cobrar documento do cliente, marque a cobrança e escreva: Contato realizado em 28/09; retorno prometido para 30/09. Não conclua a tarefa enquanto o documento não chegar."]),
+    ])
+    st += illustrated_section("13", entries[12], "Alertas mantém o menu do Painel e reúne avisos ainda não lidos e já consultados.", "alerts", "Figura 8 — Exemplo de Central de notificações.", [
+        ("Leitura", ["O número no botão indica notificações não lidas.", "Clique no alerta para abrir o item relacionado.", "Alertas podem informar prazo próximo, audiência, menção, mudança e outras ocorrências configuradas."]),
+        ("Tratamento", ["Leia o alerta, abra o item e confirme processo, data e responsável.", "Tome a providência no item; marcar como lido não equivale a cumprir a obrigação.", "Se o aviso não for aplicável, registre a justificativa antes de encerrá-lo quando a tela permitir."]),
+    ])
+    st += illustrated_section("14", entries[13], "Remanejar altera datas e responsáveis de vários itens com prévia obrigatória.", "remanejar", "Figura 9 — Exemplo de remanejamento com datas antigas e novas.", [
+        ("Passo a passo", ["Abra Remanejar e escolha o tipo: tarefa, prazo, evento ou audiência.", "Informe período, coordenação, responsável atual, situações e busca; clique Buscar.", "Selecione os itens e defina, por campo, manter, definir nova data ou deslocar por dias úteis/conforme opções exibidas.", "Em responsáveis, escolha Manter, Trocar por ou Acrescentar.", "Clique Revisar alteração, confira antigas e novas datas e confirme."]),
+        ("Eventos e erros", ["Em eventos, Mover o fim junto com o início preserva a duração.", "Itens com data inválida ficam sinalizados e bloqueiam a confirmação.", "O andamento aparece durante a aplicação; aguarde o resultado."]),
+        ("Exemplo", ["Para mover prazos internos dois dias úteis: filtre o período e a coordenação, selecione somente os itens autorizados, aplique +2 dias à prevista e revise se a fatal deve permanecer."]),
+    ], [("Cuidado", "Não mova a data fatal por conveniência interna. Altere-a apenas quando houver fundamento e autorização.", "red")])
+    st += illustrated_section("15", entries[14], "Pessoas em lote acrescenta responsáveis ou envolvidos; nunca remove os existentes.", "people", "Figura 10 — Passo 1 de Pessoas em lote.", [
+        ("Permissão", ["A ação é exibida para administradores e coordenadores.", "Os resultados respeitam coordenações permitidas."]),
+        ("Três passos", ["1. Informe período, tipos, coordenação, pessoa atual, situações e busca; clique Listar itens.", "2. Selecione itens e, opcionalmente, atividades internas específicas.", "3. Escolha novos responsáveis e/ou envolvidos, revise e aplique."]),
+        ("Exemplo", ["Para incluir uma advogada de apoio em audiências de outubro: filtre Audiências + coordenação + período, confira cada resultado, selecione e acrescente-a como envolvida.", "Se uma pessoa deve ser substituída, use a edição individual ou Remanejar quando houver a opção Trocar por."]),
+    ])
+    st += section("16", entries[15], "Exportar gera uma planilha de atividades para conferência ou trabalho externo.", [
+        ("Passo a passo", ["Clique Exportar.", "Informe Data inicial e Data final; campos vazios incluem todas as datas.", "Marque Tarefas, Eventos, Prazos, Audiências e/ou Parcelamentos. Tipos vazios significam Todos.", "Clique Exportar e aguarde o download."]),
+        ("Escopo", ["A exportação obedece ao acesso do usuário e aos filtros aplicáveis do Painel.", "Antes de compartilhar, confira se a planilha contém somente a coordenação e o período desejados."]),
+        ("Exemplo", ["Para uma agenda semanal, informe 28/09/2026 a 02/10/2026 e selecione Prazos + Audiências. Abra o Excel e confira o total antes de encaminhar."]),
+    ])
+    st += section("17", entries[16], "Rel. Audiências apresenta uma visão analítica por usuário e situação.", [
+        ("Uso", ["Clique Rel. Audiências.", "Ajuste De e Até; o período inicialmente sugerido pode ser alterado depois de abrir.", "Escolha Usar período ou Usar mês/ano quando a tela oferecer essa alternância.", "Confira totais e detalhamentos e exporte o Excel se necessário."]),
+        ("Diferença", ["Rel. Audiências é analítico e resume distribuição por pessoa/situação.", "Exportar Audiências gera a planilha operacional no formato padronizado."]),
+    ])
+    st += illustrated_section("18", entries[17], "A exportação operacional exige conferência da quantidade antes de liberar o arquivo.", "export", "Figura 11 — Exemplo de contagem prévia antes da exportação.", [
+        ("Passo a passo", ["Clique no botão verde Exportar Audiências.", "Escolha De, Até e uma coordenação disponível, ou Todas as minhas coordenações.", "Clique Verificar audiências encontradas.", "Leia a quantidade exibida. O botão Exportar planilha fica disponível somente quando o total é maior que zero.", "Clique Exportar planilha (N audiências)."]),
+        ("Validações", ["A data inicial não pode ficar depois da final.", "Alterar período ou coordenação apaga a contagem e exige nova verificação.", "Nenhuma audiência encontrada mantém a exportação bloqueada."]),
+        ("Colunas", ["DATA, HORA, NÚMERO PROCESSO, COMARCA, UF, PÓLO ATIVO, CLIENTE, TERCEIRIZADO, TIPO DE AUDIÊNCIA, RESUMO DO OBJETO, PREPOSTO, TESTEMUNHA, ADVOGADO/CORRESPONDENTE, OBS e STATUS FINAL."]),
+    ])
+    st += section("19", entries[18], "Os exemplos abaixo combinam recursos em situações frequentes.", [
+        ("Encontrar prazo de uma publicação", ["Abra Lista; em Filtros, ative Data da publicação e informe o período.", "Marque Prazo e Com publicação; cole o CNJ na busca.", "Abra o resultado e confirme o vínculo da publicação e as datas prevista/fatal.", "Se não aparecer, limpe filtros e pesquise novamente antes de reportar ausência."]),
+        ("Preparar agenda de audiência", ["Escolha Escritório e a coordenação.", "Filtre Audiências no período desejado e revise responsáveis.", "Use Exportar Audiências, confira o total e gere a planilha.", "Verifique campos vazios de preposto, testemunha ou advogado antes de compartilhar."]),
+        ("Redistribuir trabalho da equipe", ["Abra Equipe com status A concluir e período da semana.", "Identifique concentração por responsável.", "Abra Remanejar, repita filtros, selecione itens, escolha Trocar por ou Acrescentar e revise a prévia."]),
+        ("Registrar cumprimento", ["Abra o item, use baixa rápida e informe situação e data real.", "Adicione comentário com resultado ou protocolo.", "Se recorrente, selecione somente a ocorrência correta."]),
+    ])
+    st += section("20", entries[19], "Use esta lista para prevenir os erros mais comuns.", [
+        ("Quando um item não aparece", ["Confira Pessoal/Escritório, coordenação, período, situação, tipo, responsáveis, origem e busca.", "Use Limpar filtros e pesquise pelo CNJ completo.", "Confirme se o item foi cancelado/ocultado ou concluído fora do grupo atual."]),
+        ("Quando a contagem diverge", ["Cartões refletem o recorte atual; compare os mesmos filtros.", "Data da publicação exclui itens sem publicação.", "Data fatal exclui prazos sem fatal quando usada isoladamente."]),
+        ("Boas práticas", ["Use títulos objetivos e vincule o processo correto.", "Registre data real na baixa e explique reagendamentos.", "Não conclua toda uma série quando somente uma ocorrência terminou.", "Revise quantidades e amostras antes de ações em lote ou exportações.", "Use menções somente para pessoas que precisam agir ou tomar ciência."]),
+        ("Suporte", ["Ao relatar problema, informe tela, escopo, coordenação, filtros, CNJ e ação realizada.", "Não envie senha nem dados sigilosos em capturas. Oculte nomes e documentos quando compartilhar fora do escritório."]),
     ])
     build("Manual_Painel_de_Controle.pdf", title, st)
 
