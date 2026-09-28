@@ -1286,6 +1286,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_merge_coord_renata: {
+        Row: {
+          acao: string
+          created_at: string
+          id: number
+          registro: Json
+          tabela: string
+        }
+        Insert: {
+          acao: string
+          created_at?: string
+          id?: number
+          registro: Json
+          tabela: string
+        }
+        Update: {
+          acao?: string
+          created_at?: string
+          id?: number
+          registro?: Json
+          tabela?: string
+        }
+        Relationships: []
+      }
       baixar_autos_jobs: {
         Row: {
           created_at: string
