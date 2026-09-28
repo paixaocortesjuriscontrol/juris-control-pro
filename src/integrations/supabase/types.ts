@@ -10704,6 +10704,10 @@ export type Database = {
         Args: { _tarefa_id: string; _user_id: string }
         Returns: boolean
       }
+      can_manage_coordenacao_members: {
+        Args: { _coordenacao_id: string; _user_id: string }
+        Returns: boolean
+      }
       can_manage_evento: {
         Args: { _evento_id: string; _user_id: string }
         Returns: boolean
