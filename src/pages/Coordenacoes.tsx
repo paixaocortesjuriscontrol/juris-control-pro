@@ -310,7 +310,7 @@ const Coordenacoes = () => {
                     <div><p className="text-lg font-semibold text-foreground">{coord.membros.length}</p><p className="text-[11px] text-muted-foreground">membros</p></div>
                   </div>
                   <div className="mt-3 flex min-h-6 flex-wrap items-center gap-1.5">
-                    {coord.unassignedCount > 0 && <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-200">{coord.unassignedCount} pendentes</Badge>}
+                    {coord.unassignedCount > 0 && <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-200">{coord.unassignedCount} Não distribuídos</Badge>}
                     {coord.monitorar_redistribuicoes && <Badge variant="outline" className="text-[10px] gap-1"><RefreshCw className="w-3 h-3" />Redist.</Badge>}
                     {coord.monitorar_distribuicoes && <Badge variant="outline" className="text-[10px] gap-1"><Globe className="w-3 h-3" />Distrib.</Badge>}
                   </div>
