@@ -49,25 +49,64 @@ export function resumo(d: DadosUso, du: number) {
   };
 }
 
+type Serie = { rotulo: string; valores: number[]; cor: [number, number, number] };
+function grafico(doc: jsPDF, x: number, y: number, w: number, h: number, titulo: string, sub: string, labels: string[], series: Serie[]) {
+  doc.setDrawColor(220); doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, w, h, 2, 2, "S");
+  doc.setTextColor(30); doc.setFontSize(10); doc.text(titulo, x + 4, y + 6);
+  doc.setFontSize(7); doc.setTextColor(120); doc.text(sub, x + 4, y + 10);
+  const px = x + 10, py = y + 14, pw = w - 14, ph = h - 24;
+  const max = Math.max(1, ...series.flatMap((s) => s.valores));
+  doc.setDrawColor(235); doc.setFontSize(6);
+  for (let i = 0; i <= 4; i++) {
+    const yy = py + ph - (ph * i) / 4; doc.line(px, yy, px + pw, yy);
+    doc.text(String(Math.round((max * i) / 4)), px - 1, yy + 1, { align: "right" });
+  }
+  const n = labels.length || 1, gw = pw / n, bw = Math.max(0.4, (gw * 0.8) / series.length);
+  series.forEach((s, si) => {
+    doc.setFillColor(...s.cor);
+    s.valores.forEach((v, i) => { const bh = (ph * v) / max; if (bh > 0) doc.rect(px + i * gw + gw * 0.1 + si * bw, py + ph - bh, bw, bh, "F"); });
+  });
+  const passo = Math.ceil(n / 16);
+  labels.forEach((l, i) => { if (i % passo === 0) doc.text(l, px + i * gw + gw / 2, py + ph + 4, { align: "center" }); });
+  let lx = x + w - 4;
+  [...series].reverse().forEach((s) => {
+    const tw = doc.getTextWidth(s.rotulo); lx -= tw + 6;
+    doc.setFillColor(...s.cor); doc.rect(lx, y + 3.5, 3, 3, "F"); doc.setTextColor(80); doc.text(s.rotulo, lx + 4, y + 6);
+  });
+}
+
 export function exportarPdf({ dados, inicio, fim, coordenacao, diasUteis }: Params) {
   const doc = new jsPDF({ orientation: "landscape" });
   const r = resumo(dados, diasUteis);
   doc.setFillColor(22, 34, 68); doc.rect(0, 0, 297, 24, "F");
   doc.setTextColor(255); doc.setFontSize(16); doc.text("Relatório de Usabilidade do Sistema", 14, 12);
   doc.setFontSize(9); doc.text(`Juris Control · Paixão Cortes Advogados · Período ${dBr(inicio)} a ${dBr(fim)} · ${coordenacao}`, 14, 19);
-  doc.setTextColor(30);
-  autoTable(doc, {
-    startY: 30, theme: "grid", headStyles: { fillColor: [201, 154, 38] },
-    head: [["Usuários", "Com uso", "Sem uso", "Adoção", "Acessos", "Ações", "Média diária de usuários", "Horário de pico"]],
-    body: [[r.total, r.ativos, r.semUso, `${r.adocao}%`, r.acessos, r.acoes, r.mediaDiaria, r.horaPico != null ? `${r.horaPico}h` : "—"]],
+  const cards: [string, string][] = [["Usuários", String(r.total)], ["Com uso", String(r.ativos)], ["Sem uso", String(r.semUso)],
+    ["Adoção", `${r.adocao}%`], ["Acessos", r.acessos.toLocaleString("pt-BR")], ["Ações", r.acoes.toLocaleString("pt-BR")]];
+  const cw = (269 - 5 * 4) / 6;
+  cards.forEach(([l, v], i) => {
+    const cx = 14 + i * (cw + 4);
+    doc.setDrawColor(220); doc.roundedRect(cx, 30, cw, 20, 2, 2, "S");
+    doc.setFillColor(201, 154, 38); doc.rect(cx, 30, 1.5, 20, "F");
+    doc.setFontSize(8); doc.setTextColor(120); doc.text(l, cx + 5, 36);
+    doc.setFontSize(16); doc.setTextColor(22, 34, 68); doc.text(v, cx + 5, 46);
   });
-  autoTable(doc, {
-    startY: (doc as any).lastAutoTable.finalY + 6, theme: "striped", styles: { fontSize: 7.5 },
-    headStyles: { fillColor: [22, 34, 68] }, head: [cabecalho], body: dados.usuarios.map((l) => linha(l, diasUteis)),
-  });
+  const labelsDia = dados.por_dia.map((d) => d.dia.slice(8, 10) + "/" + d.dia.slice(5, 7));
+  grafico(doc, 14, 56, 175, 80, "Uso diário", `Pessoas com uso e ações em itens por dia (BRT) · média de ${r.mediaDiaria} pessoa(s) por dia`, labelsDia, [
+    { rotulo: "Pessoas", valores: dados.por_dia.map((d) => d.usuarios), cor: [22, 34, 68] },
+    { rotulo: "Ações em itens", valores: dados.por_dia.map((d) => d.acoes), cor: [201, 154, 38] },
+  ]);
+  const horas = Array.from({ length: 24 }, (_, h) => dados.por_hora.find((x) => x.hora === h)?.logins || 0);
+  grafico(doc, 193, 56, 90, 80, "Horários de uso", r.horaPico != null ? `Pico às ${r.horaPico}h (BRT)` : "Por hora (BRT)",
+    horas.map((_, h) => `${h}h`), [{ rotulo: "Uso", valores: horas, cor: [22, 34, 68] }]);
   if (dados.por_tipo.length) autoTable(doc, {
-    startY: (doc as any).lastAutoTable.finalY + 6, theme: "grid", headStyles: { fillColor: [22, 34, 68] },
+    startY: 142, margin: { left: 14 }, theme: "grid", styles: { fontSize: 8 }, headStyles: { fillColor: [22, 34, 68] },
     head: [["Tipo de item", "Ações"]], body: dados.por_tipo.map((t) => [t.tipo, t.qtd]), tableWidth: 90,
+  });
+  doc.addPage();
+  autoTable(doc, {
+    startY: 14, theme: "striped", styles: { fontSize: 7.5 },
+    headStyles: { fillColor: [22, 34, 68] }, head: [cabecalho], body: dados.usuarios.map((l) => linha(l, diasUteis)),
   });
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) {
