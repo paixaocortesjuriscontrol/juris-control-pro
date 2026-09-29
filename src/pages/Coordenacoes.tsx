@@ -102,6 +102,19 @@ const Coordenacoes = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: clientesImportacao = [] } = useQuery({
+    queryKey: ["clientes-importacao-beatriz"],
+    enabled: importDialog,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo")
+        .order("nome");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
   const handleDeleteCoordenacao = async () => {
     if (!deleteCoordId) return;
     try {
@@ -445,6 +458,16 @@ const Coordenacoes = () => {
                           <FileSpreadsheet className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Pautas Excel</span>
                         </Button>
+                        {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setImportDialog(true)}
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            <span className="hidden sm:inline">Importar Processos</span>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
