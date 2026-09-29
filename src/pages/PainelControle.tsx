@@ -3164,7 +3164,11 @@ export default function PainelControle() {
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
               externalItems={comDataPublicacao(itensListaEquipe)}
-              externalLoading={isLoading || (vencidosAtivo && vencidosQuery.isLoading)}
+              externalLoading={
+                buscaGlobalAtiva && !drill
+                  ? buscaGlobalQuery.isLoading
+                  : isLoading || (vencidosAtivo && vencidosQuery.isLoading)
+              }
               forcedCoordenacaoId={
                 tabMode === "pessoal"
                   ? "all"
