@@ -786,7 +786,7 @@ export default function PainelControle() {
       const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
       if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
 
-      const baseSelect = "data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por";
+      const baseSelect = "id, data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por";
 
       // Ids de tarefas em que os membros filtrados são co-responsáveis
       const idsMembros = membrosIdsParaResumo.length > 0 ? membrosIdsParaResumo : [user.id];
@@ -794,22 +794,24 @@ export default function PainelControle() {
       if (!(tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0)) {
         const { data: vinculos } = await supabase
           .from("tarefa_responsaveis")
-          .select("tarefa_id")
+          .select("tarefa_id, tarefas!inner(status, data_vencimento)")
           .in("usuario_id", idsMembros)
+          .not("tarefas.status", "in", "(cumprido,cancelado)")
+          .gte("tarefas.data_vencimento", rangeInicioStr)
+          .lte("tarefas.data_vencimento", rangeFimStr)
           .limit(5000);
         tarefaIdsCoResp = Array.from(new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean)));
       }
-      const orClause = (ids: string) => {
-        const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
-        if (tarefaIdsCoResp.length > 0) parts.push(`id.in.(${tarefaIdsCoResp.join(",")})`);
-        return parts.join(",");
-      };
+      // Os ids de co-responsáveis NÃO vão na mesma URL (milhares de ids estouram o
+      // limite e a consulta inteira falhava, zerando o painel). Buscados em lotes abaixo.
+      const orClause = (ids: string) => [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`].join(",");
 
       let q = supabase
         .from("tarefas")
         .select(baseSelect)
         .not("status", "in", "(cumprido,cancelado)");
 
+      let usarCoResp = false;
       if (tabMode === "escritorio" && isAdmin && adminCoordFilter !== "todas") {
         q = supabase
           .from("tarefas")
@@ -820,15 +822,31 @@ export default function PainelControle() {
         // Admin escritório sem filtro: vê tudo
       } else if (membrosIdsParaResumo.length > 0) {
         q = q.or(orClause(membrosIdsParaResumo.join(",")));
+        usarCoResp = true;
       } else {
         q = q.or(orClause(user.id));
+        usarCoResp = true;
       }
 
-      const { data: tarefas, error } = await q;
+      const { data: tarefasBase, error } = await q;
       if (error) {
         console.error("[resumoStats] erro na query:", error);
         return { tarefas: empty, audiencias: empty, compromissos: empty };
       }
+      const tarefasMap = new Map<string, any>();
+      (tarefasBase || []).forEach((t: any) => tarefasMap.set(t.id, t));
+      if (usarCoResp && tarefaIdsCoResp.length > 0) {
+        const faltantes = tarefaIdsCoResp.filter((id) => !tarefasMap.has(id));
+        for (let i = 0; i < faltantes.length; i += 150) {
+          const { data: extra } = await supabase
+            .from("tarefas")
+            .select(baseSelect)
+            .in("id", faltantes.slice(i, i + 150))
+            .not("status", "in", "(cumprido,cancelado)");
+          (extra || []).forEach((t: any) => tarefasMap.set(t.id, t));
+        }
+      }
+      const tarefas = Array.from(tarefasMap.values());
 
       const hoje_d = new Date(hoje_str + "T00:00:00");
       // Filtra pelo intervalo do mês exibido (usa data_vencimento ?? data_fatal)
