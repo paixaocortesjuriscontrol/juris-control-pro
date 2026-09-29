@@ -62,7 +62,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: FileDiff, label: "Compara Docs TST", path: "/compara-docs-tst", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
   { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
-  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOrCoordOnly: true, restrictedCoordenacoes: TST_COORDS },
+  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
