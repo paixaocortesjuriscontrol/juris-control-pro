@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportarCoordenacoesExcel } from "@/lib/exportCoordenacoesExcel";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BeatrizCostaImportTab } from "@/components/importar/BeatrizCostaImportTab";
+import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,11 +92,28 @@ const Coordenacoes = () => {
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
+  const [importDialog, setImportDialog] = useState(false);
+  const [importSelCoord, setImportSelCoord] = useState("");
+  const [importSelMembro, setImportSelMembro] = useState("");
+  const [importSelCliente, setImportSelCliente] = useState("");
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
   const [savingCargoId, setSavingCargoId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  const { data: clientesImportacao = [] } = useQuery({
+    queryKey: ["clientes-importacao-beatriz"],
+    enabled: importDialog,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("clientes")
+        .select("id, nome, tipo")
+        .order("nome");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
 
   const handleDeleteCoordenacao = async () => {
     if (!deleteCoordId) return;
@@ -438,6 +458,16 @@ const Coordenacoes = () => {
                           <FileSpreadsheet className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Pautas Excel</span>
                         </Button>
+                        {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setImportDialog(true)}
+                          >
+                            <Upload className="w-4 h-4 mr-1" />
+                            <span className="hidden sm:inline">Importar Processos</span>
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="outline"
@@ -722,6 +752,33 @@ const Coordenacoes = () => {
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
+
+          {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
+            <Dialog open={importDialog} onOpenChange={setImportDialog}>
+              <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Importar Processos — {selectedCoord.nome}</DialogTitle>
+                  <DialogDescription>
+                    Mesma importação da aba "Dra. Beatriz Costa" em Administração, com a coordenação já travada nesta equipe.
+                  </DialogDescription>
+                </DialogHeader>
+                <BeatrizCostaImportTab
+                  coordenacoes={[selectedCoord]}
+                  clientes={clientesImportacao}
+                  selectedCoordenacao={importSelCoord}
+                  setSelectedCoordenacao={setImportSelCoord}
+                  selectedMembro={importSelMembro}
+                  setSelectedMembro={setImportSelMembro}
+                  selectedCliente={importSelCliente}
+                  setSelectedCliente={setImportSelCliente}
+                  membrosDisponiveis={selectedCoord.membros
+                    .map((m: any) => ({ id: m.usuario?.id, nome: m.usuario?.nome }))
+                    .filter((m: any) => m.id && m.nome)}
+                  coordenacaoFixa={selectedCoord.id}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
 
           <ResponsaveisFixosTipoDialog
             open={respFixosDialog}
