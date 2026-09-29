@@ -41,7 +41,8 @@ const COLUNAS: Array<{
 ];
 
 function getRefDate(item: ItemAgendaUnificado): Date | null {
-  const raw = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
+  // Mesma data usada na Agenda (prazo interno primeiro), para as duas visões baterem.
+  const raw = item.data_vencimento ?? item.data_fatal ?? item.data_inicio;
   if (!raw) return null;
   const d = parseISO(raw);
   return isValid(d) ? d : null;
