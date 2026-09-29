@@ -20,7 +20,7 @@ function normalizeName(val: unknown): string {
     .replace(/\s+/g, " ");
 }
 
-const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+const RENATA_COORDENACAO_ID = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
 // Apelidos curtos -> nome completo na coordenação Dra. Renata
 const NAME_ALIASES: Record<string, string> = {
@@ -484,7 +484,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
             user_id: user.id,
-            coordenacao_id: "3e47fc83-3539-4fa7-9fcf-33825120e1b7", // Sempre Coordenação Dra. Renata Santander
+            coordenacao_id: "b0f690ad-68da-43d7-af5f-9adafeab3fd5", // Sempre Coordenação Dra. Renata Santander
             data_distribuicao_real: dataPlanilha,
             fontes_importacao: ["Planilha Distribuição"],
           };

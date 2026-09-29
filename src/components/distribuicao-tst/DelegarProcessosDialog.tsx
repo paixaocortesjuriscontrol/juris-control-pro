@@ -102,7 +102,7 @@ export function DelegarProcessosDialog({ open, onOpenChange, selectedIds, onSucc
               selectedIds={advogadoIds}
               onChange={setAdvogadoIds}
               placeholder="Selecione os advogados..."
-              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+              coordenacaoId="b0f690ad-68da-43d7-af5f-9adafeab3fd5"
             />
             <p className="text-xs text-muted-foreground">Os vínculos são adicionados (não substituem os existentes).</p>
           </div>

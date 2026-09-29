@@ -16,7 +16,7 @@ import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProfilesBasic } from "@/hooks/useDistribuicaoResponsaveis";
 
 /** Coordenação responsável pela Distribuição TST */
-export const COORDENACAO_TST_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+export const COORDENACAO_TST_ID = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 /** Pseudo-id usado pela RPC para agrupar processos sem responsável */
 const SEM_RESPONSAVEL_UUID = "00000000-0000-0000-0000-000000000000";
 import { useDistribuicaoTstStats } from "@/hooks/useDistribuicaoTstStats";
@@ -2566,7 +2566,7 @@ export default function DistribuicaoTst() {
                 selectedIds={filtroResponsavelIds}
                 onChange={setFiltroResponsavelIds}
                 placeholder="Todos os responsáveis"
-                coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+                coordenacaoId="b0f690ad-68da-43d7-af5f-9adafeab3fd5"
                 includeUnassignedOption
               />
             </div>

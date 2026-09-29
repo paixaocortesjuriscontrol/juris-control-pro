@@ -11,7 +11,7 @@ interface Props {
   onImported?: () => void;
 }
 
-const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+const RENATA_COORDENACAO_ID = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
 // Números CNJ: "0000006-91.2023.5.21.0001". A data de autuação vem depois, às vezes
 // separada por classe do recurso (que pode conter dígitos), por isso buscamos a

@@ -96,7 +96,7 @@ export interface DistribuicaoTstFormHandle {
   getBennerExtra: () => Record<string, any>;
 }
 
-const RENATA_COORDENACAO_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+const RENATA_COORDENACAO_ID = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
 const emptyForm: DistribuicaoTstInsert = {
   processo_id: "",
@@ -1456,7 +1456,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
                 set("responsaveis_ids", ids);
               }}
               placeholder="Selecionar um ou mais responsáveis..."
-              coordenacaoId="3e47fc83-3539-4fa7-9fcf-33825120e1b7"
+              coordenacaoId="b0f690ad-68da-43d7-af5f-9adafeab3fd5"
             />
           </div>
           <div className="space-y-2">
