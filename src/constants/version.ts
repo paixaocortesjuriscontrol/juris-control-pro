@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.4.2";
+export const APP_VERSION = "7.4.3";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -75,4 +75,5 @@ export const VERSION_HISTORY = [
   { version: "7.4.0", date: "2026-09-25", notes: "Geração de peças jurídicas com IA (Banco de Teses, busca automática de teses e aba Peças IA na ficha do processo, com revisão obrigatória e exportação em Word); dossiês inválidos corrigidos ('SEGREDO' em branco e texto a mais removido); Base PCA - TST - Distribuições blindada contra duplicados" },
   { version: "7.4.2", date: "2026-09-29", notes: "Lista do Painel de Controle encontra prazos de qualquer data ao pesquisar por número de processo (reclamação da Jéssica); Ranking de Atendimento exibe todos os profissionais para todos os perfis (reclamação da Katarine)" },
   { version: "7.4.1", date: "2026-09-29", notes: "Painel de Controle destravado após importação em lote da Coordenação GOL (buscas quebradas em partes); Kanban do Painel usa o prazo interno como a agenda; Ranking de Atendimento liberado para todos os perfis; coluna Coordenações na lista de usuários da Administração" },
+  { version: "7.4.3", date: "2026-09-29", notes: "Índices no banco para acelerar o modo Lista, o calendário e a pesquisa do Painel de Controle; aviso de ocorrências fora do mês na pesquisa em modo Calendário com atalho para o modo Lista" },
 ];
