@@ -19,8 +19,8 @@
 - **Demais providências** (Manifestação, Defesa, Razões, Perícia, Comprovar, Conferir etc.): cadastradas como Prazo, com data fatal = Prazo Fatal e título = Providência.
 - Observação e Nota vão para a descrição do item.
 - Situação: todos entram como **Pendente** (os vencidos aparecem como atrasados automaticamente).
-- Responsáveis ligados às pessoas da GOL: PHELIPE = Phelipe Sampaio, EMILLY = Emilly Rodrigues, BEATRIZ / BEATRIZ ANJOS = Beatriz Anjos, GABRIELLY = Gabrielly Garcias, MARIA LUIZA = Maria Luiza Vieira, DAIANE = Daiane Souza, FERNANDA = Fernanda Sousa. "EMILLY/PHELIPE" fica com os dois.
-- Sem correspondência na GOL: **VICTÓRYA (31 linhas)** - esses itens ficam com a Emilly como responsável e o nome original anotado na descrição, até você indicar quem é.
+- Responsáveis ligados às pessoas da GOL: PHELIPE = Phelipe Sampaio, EMILLY = Emilly Rodrigues, BEATRIZ / BEATRIZ ANJOS = Beatriz Anjos, GABRIELLY = Gabrielly Garcias, MARIA LUIZA = Maria Luiza Vieira, DAIANE = Daiane Souza, FERNANDA = Fernanda Sousa, VICTÓRYA = Victórya Gadelha. "EMILLY/PHELIPE" fica com os dois.
+- Todos os nomes da planilha têm correspondência na Coordenação GOL.
 
 ## Etapa 3 - Conferência
 - Relatório final: processos criados / já existentes, processos com e sem retorno da Judit, audiências e prazos criados, e linhas não importadas com o motivo.
