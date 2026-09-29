@@ -3290,6 +3290,25 @@ export default function PainelControle() {
               </span>
             </div>
 
+            {/* Aviso: pesquisa com ocorrências fora do mês exibido */}
+            {buscaForaDoMesCount > 0 && (
+              <div className="flex items-center gap-2 px-3 md:px-4 py-2 border-b border-border bg-accent/60 text-xs md:text-sm flex-shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span className="flex-1 text-foreground">
+                  Esta pesquisa encontrou <strong>{buscaForaDoMesCount}</strong>{" "}
+                  {buscaForaDoMesCount === 1 ? "ocorrência fora" : "ocorrências fora"} deste mês.
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setViewMode("lista")}
+                >
+                  Ver no modo Lista
+                </Button>
+              </div>
+            )}
+
             {/* Grade do calendário */}
             <div className="flex-1 overflow-auto">
               {/* Dias da semana */}
