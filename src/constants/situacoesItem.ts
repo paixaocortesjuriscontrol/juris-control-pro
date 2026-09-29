@@ -70,7 +70,9 @@ export function situacoesDisponiveis(
   tipo: TipoSituacaoItem,
   opts: { podeGerenciar: boolean; atual?: string | null }
 ): SituacaoOption[] {
-  return situacoesBase(tipo).filter(
-    (s) => !s.restrita || opts.podeGerenciar || s.value === opts.atual
-  );
+  // As restrições por perfil/pessoa vêm SEMPRE da configuração da coordenação
+  // ("Quem pode mudar cada situação"), aplicada via usePermissoesSituacao.
+  // Sem restrição configurada, a situação fica liberada para todos.
+  void opts;
+  return situacoesBase(tipo);
 }
