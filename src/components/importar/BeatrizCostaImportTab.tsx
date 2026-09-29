@@ -8,14 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useImport } from "@/contexts/ImportContext";
-import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Clock, Scale } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface ValidationError {
@@ -262,7 +260,6 @@ export function BeatrizCostaImportTab({
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
-  const [buscarAndamentos, setBuscarAndamentos] = useState(false);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
@@ -410,7 +407,6 @@ export function BeatrizCostaImportTab({
             advogado_responsavel_id: selectedMembro || null,
             cliente_id: selectedCliente || null,
             categoria_importacao: "beatriz_costa",
-            monitorar_andamentos: buscarAndamentos,
           };
 
           const existingId = existingMap.get(p.numero);
@@ -444,7 +440,6 @@ export function BeatrizCostaImportTab({
               novos++;
               if (inserted) {
                 await gravarResponsaveis(inserted.id);
-                if (buscarAndamentos) buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
               }
             }
           }
@@ -651,20 +646,6 @@ export function BeatrizCostaImportTab({
             </Select>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
-            <div className="space-y-0.5">
-              <Label className="flex items-center gap-2 font-medium">
-                <Clock className="h-4 w-4" />
-                Buscar andamentos na importação
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {buscarAndamentos
-                  ? "Os andamentos serão buscados para os processos novos."
-                  : "Os andamentos NÃO serão buscados (importação mais rápida)."}
-              </p>
-            </div>
-            <Switch checked={buscarAndamentos} onCheckedChange={setBuscarAndamentos} disabled={importing || parsing} />
-          </div>
 
           <Alert>
             <AlertCircle className="h-4 w-4" />
