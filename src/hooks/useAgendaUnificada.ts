@@ -689,11 +689,13 @@ export async function fetchAgendaPage(
             const respMap: Record<string, string[]> = {};
             const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
             if (tarefaIdsExibidas.length > 0) {
-              const { data: respRows } = await supabase
-                .from("tarefa_responsaveis")
-                .select("tarefa_id, usuario_id")
-                .in("tarefa_id", tarefaIdsExibidas);
-              (respRows || []).forEach((r: any) => {
+              // Em lotes: listas grandes de ids estouram o tamanho da URL e a consulta falha.
+              const chunks: string[][] = [];
+              for (let i = 0; i < tarefaIdsExibidas.length; i += 150) chunks.push(tarefaIdsExibidas.slice(i, i + 150));
+              const results = await Promise.all(
+                chunks.map((c) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", c)),
+              );
+              results.flatMap((r) => r.data || []).forEach((r: any) => {
                 if (!r?.tarefa_id || !r?.usuario_id) return;
                 (respMap[r.tarefa_id] ||= []).push(r.usuario_id);
               });
