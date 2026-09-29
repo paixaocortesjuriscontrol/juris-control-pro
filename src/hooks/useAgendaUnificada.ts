@@ -84,6 +84,8 @@ export interface ItemAgendaUnificado {
 export interface AgendaUnificadaFilters {
   /** Restringe a busca a estes processos (busca por número no modo Lista). */
   processoIds?: string[];
+  /** Dígitos do CNJ buscado: também casa audiências com número gravado mas sem processo cadastrado. */
+  processoNumeroDigits?: string;
   tipos?: string[];
   status?: string;
   dataInicio?: Date;
@@ -973,6 +975,16 @@ export async function fetchAgendaPage(
           } else {
             queryAud = queryAud.eq("criado_por", user.id);
           }
+        }
+
+        if (filters.processoNumeroDigits && filters.processoNumeroDigits.length === 20) {
+          const d = filters.processoNumeroDigits;
+          const fmt = `${d.slice(0, 7)}-${d.slice(7, 9)}.${d.slice(9, 13)}.${d.slice(13, 14)}.${d.slice(14, 16)}.${d.slice(16, 20)}`;
+          const partes = [`processo_numero.eq.${fmt}`, `processo_numero.eq.${d}`];
+          if (filters.processoIds?.length) partes.push(`processo_id.in.(${filters.processoIds.join(",")})`);
+          queryAud = queryAud.or(partes.join(","));
+        } else if (filters.processoIds?.length) {
+          queryAud = queryAud.in("processo_id", filters.processoIds);
         }
 
         if (filters.dataInicio) {
