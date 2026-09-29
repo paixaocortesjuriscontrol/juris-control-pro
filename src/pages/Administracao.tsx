@@ -827,6 +827,7 @@ const Administracao = () => {
                       <TableHead>Filial</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Perfil</TableHead>
+                      <TableHead>Coordenações</TableHead>
                       <TableHead className="w-12">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
