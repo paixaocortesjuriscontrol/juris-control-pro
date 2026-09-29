@@ -224,7 +224,7 @@ function App() {
               <Route path="/dados-benner" element={<ProtectedRoute><DadosBenner /></ProtectedRoute>} />
               <Route path="/distribuicao-tst" element={<ProtectedRoute><DistribuicaoTst /></ProtectedRoute>} />
               <Route path="/distribuicao-tst/kanban" element={<ProtectedRoute><DistribuicaoTstKanban /></ProtectedRoute>} />
-              <Route path="/distribuicao-tst/arquivados" element={<AdminRoute><DistribuicaoTstArquivados /></AdminRoute>} />
+              <Route path="/distribuicao-tst/arquivados" element={<AdminOrCoordRoute><DistribuicaoTstArquivados /></AdminOrCoordRoute>} />
               <Route path="/prompts-ia-tst" element={<ProtectedRoute><PromptIaTst /></ProtectedRoute>} />
               <Route path="/prompt-ia-publicacoes" element={<ProtectedRoute><PromptIaPublicacoes /></ProtectedRoute>} />
               <Route path="/etiquetas" element={<Etiquetas />} />
@@ -243,16 +243,16 @@ function App() {
               <Route path="/admin-tst/importar-distribuicao" element={<ProtectedRoute><ImportarDistribuicao /></ProtectedRoute>} />
               <Route path="/admin-tst/atualizar-dossies" element={<ProtectedRoute><AtualizarDossies /></ProtectedRoute>} />
               <Route path="/admin-tst/atualizar-equipe" element={<ProtectedRoute><AtualizarEquipe /></ProtectedRoute>} />
-              <Route path="/admin-tst/atualizar-situacao-envio" element={<AdminRoute><AtualizarSituacaoEnvio /></AdminRoute>} />
-              <Route path="/admin-tst/resposta-santander" element={<AdminRoute><RespostaSantander /></AdminRoute>} />
+              <Route path="/admin-tst/atualizar-situacao-envio" element={<AdminOrCoordRoute><AtualizarSituacaoEnvio /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/resposta-santander" element={<AdminOrCoordRoute><RespostaSantander /></AdminOrCoordRoute>} />
               <Route path="/admin-tst/benner-sim" element={<ProtectedRoute><BennerSim /></ProtectedRoute>} />
               <Route path="/admin-tst/pedidos-por-dossie" element={<ProtectedRoute><PedidosPorDossie /></ProtectedRoute>} />
-              <Route path="/admin-tst/outro-escritorio" element={<AdminRoute><AdminTstOutroEscritorio /></AdminRoute>} />
-              <Route path="/admin-tst/busca-publicacao" element={<AdminRoute><BuscaPublicacao /></AdminRoute>} />
-              <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminRoute><AdminTstBasePcaDistribuicoes /></AdminRoute>} />
-              <Route path="/admin-tst/auditoria-distribuicao" element={<AdminRoute><AuditoriaDistribuicaoTst /></AdminRoute>} />
-              <Route path="/admin-tst/ajustar-chance-turma-relator" element={<AdminRoute><AjustarChanceTurmaRelator /></AdminRoute>} />
-              <Route path="/admin-tst/auditoria-lotes" element={<AdminRoute><AuditoriaLotesAdminTst /></AdminRoute>} />
+              <Route path="/admin-tst/outro-escritorio" element={<AdminOrCoordRoute><AdminTstOutroEscritorio /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/busca-publicacao" element={<AdminOrCoordRoute><BuscaPublicacao /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/base-pca-distribuicoes" element={<AdminOrCoordRoute><AdminTstBasePcaDistribuicoes /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/auditoria-distribuicao" element={<AdminOrCoordRoute><AuditoriaDistribuicaoTst /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/ajustar-chance-turma-relator" element={<AdminOrCoordRoute><AjustarChanceTurmaRelator /></AdminOrCoordRoute>} />
+              <Route path="/admin-tst/auditoria-lotes" element={<AdminOrCoordRoute><AuditoriaLotesAdminTst /></AdminOrCoordRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </ImportProvider>
