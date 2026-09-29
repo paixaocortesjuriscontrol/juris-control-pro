@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -235,6 +235,8 @@ interface Props {
   selectedCliente: string;
   setSelectedCliente: (v: string) => void;
   membrosDisponiveis: { id: string; nome: string }[];
+  /** Quando informado, a coordenação vem travada neste valor (uso embutido no painel da coordenação). */
+  coordenacaoFixa?: string;
 }
 
 export function BeatrizCostaImportTab({
@@ -247,7 +249,13 @@ export function BeatrizCostaImportTab({
   selectedCliente,
   setSelectedCliente,
   membrosDisponiveis,
+  coordenacaoFixa,
 }: Props) {
+  useEffect(() => {
+    if (coordenacaoFixa && selectedCoordenacao !== coordenacaoFixa) {
+      setSelectedCoordenacao(coordenacaoFixa);
+    }
+  }, [coordenacaoFixa, selectedCoordenacao, setSelectedCoordenacao]);
   const [file, setFile] = useState<File | null>(null);
   const [processos, setProcessos] = useState<BeatrizProcesso[]>([]);
   const [parsing, setParsing] = useState(false);
@@ -557,7 +565,7 @@ export function BeatrizCostaImportTab({
                 setSelectedCoordenacao(v);
                 setSelectedMembro("");
               }}
-              disabled={importing || parsing}
+              disabled={importing || parsing || !!coordenacaoFixa}
             >
               <SelectTrigger className="max-w-md">
                 <SelectValue placeholder="Selecione a coordenação (opcional)" />
