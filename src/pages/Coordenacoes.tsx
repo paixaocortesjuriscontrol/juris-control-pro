@@ -753,6 +753,33 @@ const Coordenacoes = () => {
             coordenacaoNome={selectedCoord.nome}
           />
 
+          {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
+            <Dialog open={importDialog} onOpenChange={setImportDialog}>
+              <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>Importar Processos — {selectedCoord.nome}</DialogTitle>
+                  <DialogDescription>
+                    Mesma importação da aba "Dra. Beatriz Costa" em Administração, com a coordenação já travada nesta equipe.
+                  </DialogDescription>
+                </DialogHeader>
+                <BeatrizCostaImportTab
+                  coordenacoes={[selectedCoord]}
+                  clientes={clientesImportacao}
+                  selectedCoordenacao={importSelCoord}
+                  setSelectedCoordenacao={setImportSelCoord}
+                  selectedMembro={importSelMembro}
+                  setSelectedMembro={setImportSelMembro}
+                  selectedCliente={importSelCliente}
+                  setSelectedCliente={setImportSelCliente}
+                  membrosDisponiveis={selectedCoord.membros
+                    .map((m: any) => ({ id: m.usuario?.id, nome: m.usuario?.nome }))
+                    .filter((m: any) => m.id && m.nome)}
+                  coordenacaoFixa={selectedCoord.id}
+                />
+              </DialogContent>
+            </Dialog>
+          )}
+
           <ResponsaveisFixosTipoDialog
             open={respFixosDialog}
             onOpenChange={setRespFixosDialog}
