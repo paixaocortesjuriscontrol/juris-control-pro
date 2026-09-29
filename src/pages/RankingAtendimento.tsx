@@ -161,8 +161,8 @@ export default function RankingAtendimento() {
     },
   });
 
-  const podeVerOutros =
-    isAdmin || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador");
+  // Ranking visível por completo para todos os perfis.
+  const podeVerOutros = !!user || isAdmin || (roles || []).length >= 0;
 
   const { data: usuarios } = useQuery({
     queryKey: ["ranking-usuarios", coordenacaoId, coordenacoes.map((c) => c.id).join(",")],
