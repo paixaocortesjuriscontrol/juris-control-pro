@@ -79,7 +79,7 @@ export default function DistribuicaoTstArquivados() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Distribuições Arquivadas</h1>
-            <p className="text-sm text-muted-foreground">Apenas administradores podem consultar e restaurar registros arquivados.</p>
+            <p className="text-sm text-muted-foreground">Apenas administradores e coordenadores podem consultar e restaurar registros arquivados.</p>
           </div>
           <div className="flex gap-2">
             <Link to="/distribuicao-tst">
