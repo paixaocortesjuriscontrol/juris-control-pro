@@ -218,7 +218,8 @@ export default function DistribuicaoTst() {
   }, [location.search, navigate]);
   // Aba inicial do detalhe unificado (Distribuição vs Dados Benner).
   const [detailInitialTab, setDetailInitialTab] = useState<"distribuicao" | "benner">("distribuicao");
-  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { isAdminOrCoordinator } = useUserRole();
+  const isAdmin = isAdminOrCoordinator;
   const { user } = useAuth();
 
   // Carrega a preferência de ordenação salva no perfil do usuário

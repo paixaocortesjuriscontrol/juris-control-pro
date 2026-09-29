@@ -88,7 +88,7 @@ const groups: { title: string; description: string; tools: Tool[] }[] = [
 ];
 
 export default function AdminTst() {
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   const visibleGroups = groups
     .map((g) => ({ ...g, tools: g.tools.filter((t) => !t.adminOnly || isAdmin) }))
     .filter((g) => g.tools.length > 0);

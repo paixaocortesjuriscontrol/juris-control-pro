@@ -81,7 +81,7 @@ function Secao({ titulo, descricao, comoUsar, layout, layoutNota, acao }: SecaoP
 }
 
 export default function AdminTstImportacoes() {
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   const refresh = () => { /* sem lista nesta tela; o refresh ocorre ao voltar para Distribuição TST */ };
 
   return (
