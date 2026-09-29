@@ -484,7 +484,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
             benner_atualizado: toBool(r[26]),
             status: "rascunho",
             user_id: user.id,
-            coordenacao_id: "b0f690ad-68da-43d7-af5f-9adafeab3fd5", // Sempre Coordenação Dra. Renata Santander
+            coordenacao_id: "b0f690ad-68da-43d7-af5f-9adafeab3fd5", // Sempre Coordenação Dra. Renata Oficial
             data_distribuicao_real: dataPlanilha,
             fontes_importacao: ["Planilha Distribuição"],
           };
