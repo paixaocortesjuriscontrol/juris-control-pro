@@ -1,0 +1,18 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE INDEX IF NOT EXISTS idx_tarefas_descricao_trgm ON public.tarefas USING gin (descricao gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_tipo_tarefa_trgm ON public.tarefas USING gin (tipo_tarefa gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_observacoes_trgm ON public.tarefas USING gin (observacoes gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_desc_ult_and_trgm ON public.tarefas USING gin (descricao_ultimo_andamento gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_partes_ativas_trgm ON public.tarefas USING gin (partes_ativas gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_partes_passivas_trgm ON public.tarefas USING gin (partes_passivas gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_env_clientes_trgm ON public.tarefas USING gin (envolvimento_clientes gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_env_contrarios_trgm ON public.tarefas USING gin (envolvimento_contrarios gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_tarefas_coord_venc ON public.tarefas (coordenacao_id, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_tarefas_coord_status_venc ON public.tarefas (coordenacao_id, status, data_vencimento);
+CREATE INDEX IF NOT EXISTS idx_processos_numero_trgm ON public.processos USING gin (numero gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_processos_assunto_trgm ON public.processos USING gin (assunto gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_processos_polo_ativo_trgm ON public.processos USING gin (polo_ativo gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_processos_polo_passivo_trgm ON public.processos USING gin (polo_passivo gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_processos_coord_adv ON public.processos (coordenacao_id, advogado_responsavel_id);
+CREATE INDEX IF NOT EXISTS idx_processos_resp_usuario_proc ON public.processos_responsaveis (usuario_id, processo_id);
+ANALYZE public.tarefas; ANALYZE public.processos;
