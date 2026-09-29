@@ -73,7 +73,7 @@ export function useCoordenacoesFull() {
       });
 
       // ID da coordenação da Dra. Renata (usa dados_benner / Distribuição TST como fonte de verdade)
-      const RENATA_COORD_ID = "3e47fc83-3539-4fa7-9fcf-33825120e1b7";
+      const RENATA_COORD_ID = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
       const coordenacoesWithDetails = await Promise.all(
         (coordenacoes || []).map(async (coord) => {
