@@ -1405,6 +1405,15 @@ export default function PainelControle() {
         dataFim: new Date(2100, 11, 31, 23, 59, 59),
       };
       delete f.enabled;
+      // Busca por número: filtra direto no banco pelos processos encontrados.
+      // Sem isso, o histórico inteiro (2015→2100) era paginado em ordem de data
+      // e itens futuros ficavam fora do limite de páginas e não apareciam.
+      if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
+        const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
+        const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
+        if (ids.length === 0) return [];
+        f.processoIds = ids;
+      }
       const coletados: any[] = [];
       for (let page = 0; page < 20; page++) {
         const pageItens = await fetchAgendaPage(f, page, user?.id);
