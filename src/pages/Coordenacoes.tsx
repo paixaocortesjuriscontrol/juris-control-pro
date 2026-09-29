@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -42,7 +42,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { exportarCoordenacoesExcel } from "@/lib/exportCoordenacoesExcel";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { BeatrizCostaImportTab } from "@/components/importar/BeatrizCostaImportTab";
+import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -89,6 +92,10 @@ const Coordenacoes = () => {
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
   const [deleteCoordId, setDeleteCoordId] = useState<string | null>(null);
+  const [importDialog, setImportDialog] = useState(false);
+  const [importSelCoord, setImportSelCoord] = useState("");
+  const [importSelMembro, setImportSelMembro] = useState("");
+  const [importSelCliente, setImportSelCliente] = useState("");
   const [editingCargoId, setEditingCargoId] = useState<string | null>(null);
   const [editingCargoValue, setEditingCargoValue] = useState<string>("");
   const [savingCargoId, setSavingCargoId] = useState<string | null>(null);
