@@ -735,8 +735,8 @@ export default function ListaAtividadesView({
 
         <div
           className={cn(
-            "grid grid-cols-1 gap-4",
-            showLocalFilters ? "lg:grid-cols-[280px_1fr]" : "lg:grid-cols-1",
+            "grid grid-cols-1",
+            showLocalFilters ? "gap-4 lg:grid-cols-[280px_1fr]" : "gap-2 lg:grid-cols-1 grid-rows-[auto_minmax(0,1fr)]",
 
             embedded && "flex-1 min-h-0 lg:overflow-hidden"
           )}
