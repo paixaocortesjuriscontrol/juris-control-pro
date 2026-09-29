@@ -36,6 +36,8 @@ export type MenuItem = {
   restrictedCoordenacoes?: string[];
 };
 
+const TST_COORDS = ["Coordenação Dra. Renata Oficial", "Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"];
+
 // Itens visíveis para todos os usuários autenticados
 export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
@@ -56,11 +58,11 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
   { icon: Tag, label: "Etiquetas", path: "/etiquetas", highlight: true },
   // Demais itens
-  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: ["Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
-  { icon: FileDiff, label: "Compara Docs TST", path: "/compara-docs-tst", color: "text-sky-400", restrictedCoordenacoes: ["Coordenação Dra. Renata com termos do João", "Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
+  { icon: Scale, label: "Distribuição TST", path: "/distribuicao-tst", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
+  { icon: FileDiff, label: "Compara Docs TST", path: "/compara-docs-tst", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
   { icon: Mail, label: "Remessas Benner", path: "/remessas-benner", color: "text-sky-400", adminOnly: true },
-  { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400", restrictedCoordenacoes: ["Dr. Renata com termos do João", "Coordenação Dra. Renata Santander"] },
-  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOnly: true },
+  { icon: BookOpen, label: "Matérias Benner", path: "/materias-benner", color: "text-sky-400", restrictedCoordenacoes: TST_COORDS },
+  { icon: ShieldCheck, label: "Admin. TST", path: "/admin-tst", color: "text-sky-400", adminOrCoordOnly: true, restrictedCoordenacoes: TST_COORDS },
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
