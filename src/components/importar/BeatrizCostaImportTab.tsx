@@ -8,14 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useImport } from "@/contexts/ImportContext";
-import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Clock, Scale } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface ValidationError {
