@@ -602,16 +602,8 @@ export async function fetchAgendaPage(
           if (filters.fetchAll) {
             // sem filtro
           } else if (coordScopeIds.length > 0) {
-            // Fallback sem join: filtrar por processos da(s) coordenação(ões)
-            const { data: processosCoord } = await supabase
-              .from("processos")
-              .select("id")
-              .in("coordenacao_id", coordScopeIds);
-
-            const processoIds = (processosCoord || []).map((p: { id: string }) => p.id);
-
-            // Fallback: usa a coordenação da própria tarefa (lista de processos estoura a URL).
-            void processoIds;
+            // Fallback sem join: usa a coordenação da própria tarefa
+            // (a lista de processos da coordenação estourava o tamanho da URL).
             queryTarefasFallback = queryTarefasFallback.in("coordenacao_id", coordScopeIds);
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
             queryTarefasFallback = queryTarefasFallback.or(buildTarefasOr(filters.responsavelIds.join(",")));
