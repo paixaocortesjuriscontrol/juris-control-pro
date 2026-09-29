@@ -89,6 +89,34 @@ Deno.serve(async (req) => {
     return json({ processos_novos: novos.length, processos_total: mapa.size, prazos: tRows.length, audiencias: aRows.length, erros });
   }
 
+  if (body.mode === "all") {
+    // Processa em segundo plano, em lotes, e se reinvoca enquanto houver pendentes
+    const tarefa = (async () => {
+      const t0 = Date.now();
+      let restantes = 1;
+      while (restantes > 0 && Date.now() - t0 < 240000) {
+        const r = await fetch(`${url}/functions/v1/importar-planilha-gol-tmp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, apikey: key, "x-import-token": TOKEN },
+          body: JSON.stringify({ mode: "judit", limit: 10 }),
+        });
+        const j: any = await r.json().catch(() => ({}));
+        restantes = Number(j?.restantes ?? 0);
+      }
+      if (restantes > 0) {
+        fetch(`${url}/functions/v1/importar-planilha-gol-tmp`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}`, apikey: key, "x-import-token": TOKEN },
+          body: JSON.stringify({ mode: "all" }),
+        }).catch(() => {});
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+    })();
+    // @ts-ignore EdgeRuntime existe no runtime do Supabase
+    EdgeRuntime.waitUntil(tarefa);
+    return json({ iniciado: true });
+  }
+
   if (body.mode === "judit") {
     // Processa até `limit` processos importados ainda sem consulta Judit
     const limit = Math.min(Number(body.limit) || 8, 15);
