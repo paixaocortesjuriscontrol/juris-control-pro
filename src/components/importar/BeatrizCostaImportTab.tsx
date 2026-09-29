@@ -440,7 +440,6 @@ export function BeatrizCostaImportTab({
               novos++;
               if (inserted) {
                 await gravarResponsaveis(inserted.id);
-                if (buscarAndamentos) buscarAndamentosExternos(inserted.id, p.numero).catch(() => {});
               }
             }
           }
@@ -647,20 +646,6 @@ export function BeatrizCostaImportTab({
             </Select>
           </div>
 
-          <div className="flex items-center justify-between rounded-lg border p-4 bg-muted/30 max-w-md">
-            <div className="space-y-0.5">
-              <Label className="flex items-center gap-2 font-medium">
-                <Clock className="h-4 w-4" />
-                Buscar andamentos na importação
-              </Label>
-              <p className="text-xs text-muted-foreground">
-                {buscarAndamentos
-                  ? "Os andamentos serão buscados para os processos novos."
-                  : "Os andamentos NÃO serão buscados (importação mais rápida)."}
-              </p>
-            </div>
-            <Switch checked={buscarAndamentos} onCheckedChange={setBuscarAndamentos} disabled={importing || parsing} />
-          </div>
 
           <Alert>
             <AlertCircle className="h-4 w-4" />
