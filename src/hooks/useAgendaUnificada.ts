@@ -140,6 +140,16 @@ function addBusinessDays(d: Date, n: number): Date {
   return out;
 }
 
+async function inChunks(build: (ids: string[]) => any, ids: string[], size = 150): Promise<any[]> {
+  const out: any[] = [];
+  for (let i = 0; i < ids.length; i += size) {
+    const { data, error } = await build(ids.slice(i, i + size));
+    if (error) console.error("[agenda] erro em lote:", error);
+    if (data) out.push(...data);
+  }
+  return out;
+}
+
 export async function fetchAgendaPage(
   filters: AgendaUnificadaFilters,
   page: number,
@@ -300,17 +310,17 @@ export async function fetchAgendaPage(
 
         if (!eventosError && eventos && eventos.length > 0) {
           const eventIds = eventos.map((e: any) => e.id);
-          const { data: participanteRows } = await supabase
-            .from("participantes_evento")
-            .select("evento_id, usuario_id")
-            .in("evento_id", eventIds);
+          const participanteRows = await inChunks(
+            (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
+            eventIds,
+          );
 
           const eventProcessCoordIds = new Map<string, string[]>();
           if (hasCoordScope) {
-            const { data: eventoProcessosRows } = await (supabase as any)
-              .from("evento_processos")
-              .select("evento_id, processo:processos(coordenacao_id)")
-              .in("evento_id", eventIds);
+            const eventoProcessosRows = await inChunks(
+              (c) => (supabase as any).from("evento_processos").select("evento_id, processo:processos(coordenacao_id)").in("evento_id", c),
+              eventIds,
+            );
 
             (eventoProcessosRows || []).forEach((row: any) => {
               const coordId = row?.processo?.coordenacao_id;
@@ -327,10 +337,10 @@ export async function fetchAgendaPage(
 
           const profilesById = new Map<string, { id: string; nome: string }>();
           if (participantUserIds.length > 0) {
-            const { data: participantesUsuarios } = await supabase
-              .from("profiles")
-              .select("id, nome")
-              .in("id", participantUserIds);
+            const participantesUsuarios = await inChunks(
+              (c) => supabase.from("profiles").select("id, nome").in("id", c),
+              participantUserIds,
+            );
             (participantesUsuarios || []).forEach((u: any) => {
               if (u?.id) profilesById.set(u.id, { id: u.id, nome: u.nome });
             });
@@ -600,13 +610,9 @@ export async function fetchAgendaPage(
 
             const processoIds = (processosCoord || []).map((p: { id: string }) => p.id);
 
-            if (processoIds.length === 0) {
-              shouldRunFallbackQuery = false;
-              tarefas = [];
-              tarefasError = null;
-            } else {
-              queryTarefasFallback = queryTarefasFallback.in("processo_id", processoIds);
-            }
+            // Fallback: usa a coordenação da própria tarefa (lista de processos estoura a URL).
+            void processoIds;
+            queryTarefasFallback = queryTarefasFallback.in("coordenacao_id", coordScopeIds);
           } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
             queryTarefasFallback = queryTarefasFallback.or(buildTarefasOr(filters.responsavelIds.join(",")));
           } else {
