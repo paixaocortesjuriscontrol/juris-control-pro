@@ -949,11 +949,8 @@ export default function PainelControle() {
       } else if (isAdmin && adminCoordFilter !== "todas") {
         // Admin com coordenação selecionada: TODOS os eventos vinculados a
         // processos da coordenação, independente de quem criou.
-        if (processosIds.length > 0) {
-          q = q.in("processo_id", processosIds);
-        } else {
-          return { eventos: empty, parcelamentos: empty };
-        }
+        // Filtra pela coordenação do evento (lista de processos em URL estourava o limite).
+        q = q.eq("coordenacao_id", adminCoordFilter);
       } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
         q = q.in("criado_por", membrosIdsParaResumo);
       }
@@ -1074,15 +1071,18 @@ export default function PainelControle() {
       }
 
       // Filtrar pelos processos das coordenações do usuário (ou pessoal)
-      if (processosIds.length > 0) {
-        q = q.in("processo_id", processosIds);
-      } else {
-        // Sem processos encontrados — retorna 0 em vez de mostrar global
-        return 0;
+      if (processosIds.length === 0) return 0;
+      // Em lotes: milhares de ids numa só URL fazem a consulta falhar.
+      let total = 0;
+      for (let i = 0; i < processosIds.length; i += 150) {
+        const { count } = await supabase
+          .from("intimacoes_detectadas")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "pendente")
+          .in("processo_id", processosIds.slice(i, i + 150));
+        total += count ?? 0;
       }
-
-      const { count } = await q;
-      return count ?? 0;
+      return total;
     },
     enabled: !!user?.id,
   });
