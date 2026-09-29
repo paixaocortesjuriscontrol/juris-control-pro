@@ -1411,8 +1411,9 @@ export default function PainelControle() {
       if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
         const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
         const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
-        if (ids.length === 0) return [];
-        f.processoIds = ids;
+        // Sem processo cadastrado ainda pode haver audiência com o número gravado.
+        f.processoIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
+        f.processoNumeroDigits = buscaProcessoDigits;
       }
       const coletados: any[] = [];
       for (let page = 0; page < 20; page++) {
@@ -1453,8 +1454,9 @@ export default function PainelControle() {
       if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
         const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
         const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
-        if (ids.length === 0) return [];
-        f.processoIds = ids;
+        // Sem processo cadastrado ainda pode haver audiência com o número gravado.
+        f.processoIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
+        f.processoNumeroDigits = buscaProcessoDigits;
       }
       const coletados: any[] = [];
       for (let page = 0; page < 20; page++) {
