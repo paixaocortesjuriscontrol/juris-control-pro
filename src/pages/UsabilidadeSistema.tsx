@@ -112,7 +112,7 @@ export default function UsabilidadeSistema() {
 
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <div><CardTitle className="text-base">Uso por pessoa</CardTitle>
-            <CardDescription>Nível pela proporção de dias úteis com uso ({diasUteis} no período): Alto ≥ 60%, Médio ≥ 25%. Clique no título da coluna para ordenar.</CardDescription></div>
+            <CardDescription>Nível pela proporção de dias úteis com uso desde o cadastro de cada pessoa ({diasUteis} no período; cadastros importados sem acesso e desativados não entram): Alto ≥ 60%, Médio ≥ 25%. Clique no título da coluna para ordenar.</CardDescription></div>
           <div className="flex gap-2">
             <Input placeholder="Buscar pessoa" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48" />
             <Select value={nivel} onValueChange={setNivel}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger>

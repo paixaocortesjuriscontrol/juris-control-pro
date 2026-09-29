@@ -6,7 +6,7 @@ export type LinhaUso = {
   id: string; nome: string | null; email: string | null; ativo: boolean;
   logins: number; dias_login: number; dias_acao: number; ultimo_acesso: string | null;
   acoes_itens: number; criados: number; atualizados: number; excluidos: number; erros: number;
-  acoes_tst: number; consultas_judit: number; usos_ia: number;
+  acoes_tst: number; consultas_judit: number; usos_ia: number; dias_uteis?: number; criado_em?: string | null;
 };
 export type DadosUso = {
   usuarios: LinhaUso[];
@@ -19,7 +19,8 @@ export const totalAcoes = (l: LinhaUso) => l.acoes_itens + l.acoes_tst + l.consu
 export const nivelUso = (l: LinhaUso, diasUteis: number) => {
   const d = Math.max(l.dias_login, l.dias_acao);
   if (d === 0 && totalAcoes(l) === 0) return "Sem uso";
-  const pct = diasUteis ? d / diasUteis : 0;
+  const du = l.dias_uteis ?? diasUteis;
+  const pct = du ? Math.min(1, d / du) : (d > 0 ? 1 : 0);
   if (pct >= 0.6) return "Alto";
   if (pct >= 0.25) return "Médio";
   return "Baixo";
