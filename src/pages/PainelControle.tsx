@@ -1394,56 +1394,25 @@ export default function PainelControle() {
     buscaAtiva &&
     !painelFiltros.periodoInicio &&
     !painelFiltros.periodoFim;
-  const buscaGlobalQuery = useQuery({
-    queryKey: ["painel-busca-global", JSON.stringify(filters), buscaProcesso],
-    enabled: buscaGlobalAtiva,
-    staleTime: 60_000,
-    queryFn: async () => {
-      const f: any = {
-        ...filters,
-        dataInicio: new Date(2015, 0, 1),
-        dataFim: new Date(2100, 11, 31, 23, 59, 59),
-      };
-      delete f.enabled;
-      // Busca por número: filtra direto no banco pelos processos encontrados.
-      // Sem isso, o histórico inteiro (2015→2100) era paginado em ordem de data
-      // e itens futuros ficavam fora do limite de páginas e não apareciam.
-      if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
-        const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
-        const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
-        // Sem processo cadastrado ainda pode haver audiência com o número gravado.
-        f.processoIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
-        f.processoNumeroDigits = buscaProcessoDigits;
-      }
-      const coletados: any[] = [];
-      for (let page = 0; page < 20; page++) {
-        const pageItens = await fetchAgendaPage(f, page, user?.id);
-        coletados.push(...pageItens);
-        if (pageItens.length < 1000) break;
-      }
-      const vistos = new Set<string>();
-      return coletados.filter((it) => {
-        const k = `${it.origem}:${it.id}`;
-        if (vistos.has(k)) return false;
-        vistos.add(k);
-        return true;
-      });
-    },
-  });
 
   // ===== Aviso no modo Calendário: pesquisa com ocorrências fora do mês =====
-  // O calendário só carrega o mês exibido. Quando há pesquisa ativa, contamos
-  // quantas ocorrências existem fora dessa janela para avisar o usuário e
-  // sugerir o modo Lista (que pesquisa todo o histórico).
   const buscaForaDoMesAtiva =
     viewMode === "agenda" &&
     buscaAtiva &&
     !painelFiltros.periodoInicio &&
     !painelFiltros.periodoFim;
-  const buscaForaDoMesQuery = useQuery({
-    queryKey: ["painel-busca-fora-mes", JSON.stringify(filters), buscaProcesso],
-    enabled: buscaForaDoMesAtiva,
-    staleTime: 60_000,
+
+  // Desempenho: o histórico baixado NÃO depende do texto digitado (o texto é
+  // filtrado localmente). Só a busca por número completo (>=15 dígitos) filtra
+  // no banco. Assim o histórico é baixado uma vez e reaproveitado a cada tecla,
+  // e Lista e Calendário compartilham o mesmo cache.
+  const buscaPorNumeroServidor = buscaProcessoDigits.length >= 15 && !buscaTexto;
+  const chaveBuscaHistorico = buscaPorNumeroServidor ? buscaProcessoDigits : "historico";
+  const buscaHistoricoQuery = useQuery({
+    queryKey: ["painel-busca-historico", JSON.stringify(filters), chaveBuscaHistorico],
+    enabled: buscaGlobalAtiva || buscaForaDoMesAtiva,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
     queryFn: async () => {
       const f: any = {
         ...filters,
@@ -1451,18 +1420,25 @@ export default function PainelControle() {
         dataFim: new Date(2100, 11, 31, 23, 59, 59),
       };
       delete f.enabled;
-      if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
+      if (buscaPorNumeroServidor) {
         const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
         const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
         // Sem processo cadastrado ainda pode haver audiência com o número gravado.
         f.processoIds = ids.length ? ids : ["00000000-0000-0000-0000-000000000000"];
         f.processoNumeroDigits = buscaProcessoDigits;
       }
+      // Páginas baixadas em paralelo (lotes de 4) em vez de uma por vez.
       const coletados: any[] = [];
-      for (let page = 0; page < 20; page++) {
-        const pageItens = await fetchAgendaPage(f, page, user?.id);
-        coletados.push(...pageItens);
-        if (pageItens.length < 1000) break;
+      const LOTE = 4;
+      let acabou = false;
+      for (let base = 0; base < 20 && !acabou; base += LOTE) {
+        const paginas = await Promise.all(
+          Array.from({ length: Math.min(LOTE, 20 - base) }, (_, i) => fetchAgendaPage(f, base + i, user?.id)),
+        );
+        for (const pageItens of paginas) {
+          coletados.push(...pageItens);
+          if (pageItens.length < 1000) { acabou = true; break; }
+        }
       }
       const vistos = new Set<string>();
       return coletados.filter((it) => {
@@ -1473,6 +1449,8 @@ export default function PainelControle() {
       });
     },
   });
+  const buscaGlobalQuery = buscaHistoricoQuery;
+  const buscaForaDoMesQuery = buscaHistoricoQuery;
   const buscaForaDoMesCount = useMemo(() => {
     if (!buscaForaDoMesAtiva || !buscaForaDoMesQuery.data) return 0;
     return (buscaForaDoMesQuery.data as any[]).filter((item) => {
