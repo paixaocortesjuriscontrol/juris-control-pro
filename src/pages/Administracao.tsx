@@ -39,6 +39,7 @@ type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 
 interface UserWithRole extends Profile {
   role: AppRole | null;
+  coordenacoes?: string[];
 }
 
 interface LoginHistory {
@@ -190,11 +191,29 @@ const Administracao = () => {
       return;
     }
 
+    const { data: membros, error: membrosError } = await supabase
+      .from("membros_coordenacao")
+      .select("usuario_id, coordenacoes(nome)");
+
+    if (membrosError) {
+      console.error("Erro ao carregar coordenações dos usuários:", membrosError);
+    }
+
     const rolesMap = new Map(roles?.map(r => [r.user_id, r.role]) ?? []);
+
+    const coordMap = new Map<string, string[]>();
+    (membros ?? []).forEach((m: any) => {
+      const nome = m.coordenacoes?.nome;
+      if (!nome) return;
+      const atual = coordMap.get(m.usuario_id) ?? [];
+      if (!atual.includes(nome)) atual.push(nome);
+      coordMap.set(m.usuario_id, atual);
+    });
     
     const usersWithRoles: UserWithRole[] = (profiles ?? []).map(profile => ({
       ...profile,
       role: rolesMap.get(profile.id) ?? null,
+      coordenacoes: coordMap.get(profile.id) ?? [],
     }));
 
     setUsers(usersWithRoles);
@@ -808,6 +827,7 @@ const Administracao = () => {
                       <TableHead>Filial</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Perfil</TableHead>
+                      <TableHead>Coordenações</TableHead>
                       <TableHead className="w-12">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -856,6 +876,19 @@ const Administracao = () => {
                             </Badge>
                           ) : (
                             <Badge variant="outline" className="text-xs">Sem perfil</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {(user.coordenacoes?.length ?? 0) > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-w-[260px]">
+                              {user.coordenacoes!.map((c) => (
+                                <Badge key={c} variant="outline" className="text-xs">
+                                  {c}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
                           )}
                         </TableCell>
                         <TableCell>
