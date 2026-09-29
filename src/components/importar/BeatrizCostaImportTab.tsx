@@ -12,7 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { buscarAndamentosExternos } from "@/hooks/useBuscarAndamentos";
 import { useImport } from "@/contexts/ImportContext";
 import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -261,7 +260,6 @@ export function BeatrizCostaImportTab({
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState("");
-  const [buscarAndamentos, setBuscarAndamentos] = useState(false);
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
@@ -409,7 +407,6 @@ export function BeatrizCostaImportTab({
             advogado_responsavel_id: selectedMembro || null,
             cliente_id: selectedCliente || null,
             categoria_importacao: "beatriz_costa",
-            monitorar_andamentos: buscarAndamentos,
           };
 
           const existingId = existingMap.get(p.numero);
