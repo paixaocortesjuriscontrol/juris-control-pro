@@ -879,6 +879,19 @@ const Administracao = () => {
                           )}
                         </TableCell>
                         <TableCell>
+                          {(user.coordenacoes?.length ?? 0) > 0 ? (
+                            <div className="flex flex-wrap gap-1 max-w-[260px]">
+                              {user.coordenacoes!.map((c) => (
+                                <Badge key={c} variant="outline" className="text-xs">
+                                  {c}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
                           <Button variant="ghost" size="icon" onClick={() => handleEditUser(user)}>
                             <Pencil className="w-4 h-4" />
                           </Button>
