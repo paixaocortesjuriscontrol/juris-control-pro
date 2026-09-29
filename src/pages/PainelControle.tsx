@@ -49,7 +49,7 @@ import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
 import { labelSituacaoAtividade, atividadeEncerrada } from "@/components/comum/ItemAtividades";
-import { BarChart3, Search } from "lucide-react";
+import { BarChart3, Search, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
@@ -1429,6 +1429,56 @@ export default function PainelControle() {
       });
     },
   });
+
+  // ===== Aviso no modo Calendário: pesquisa com ocorrências fora do mês =====
+  // O calendário só carrega o mês exibido. Quando há pesquisa ativa, contamos
+  // quantas ocorrências existem fora dessa janela para avisar o usuário e
+  // sugerir o modo Lista (que pesquisa todo o histórico).
+  const buscaForaDoMesAtiva =
+    viewMode === "agenda" &&
+    buscaAtiva &&
+    !painelFiltros.periodoInicio &&
+    !painelFiltros.periodoFim;
+  const buscaForaDoMesQuery = useQuery({
+    queryKey: ["painel-busca-fora-mes", JSON.stringify(filters), buscaProcesso],
+    enabled: buscaForaDoMesAtiva,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const f: any = {
+        ...filters,
+        dataInicio: new Date(2015, 0, 1),
+        dataFim: new Date(2100, 11, 31, 23, 59, 59),
+      };
+      delete f.enabled;
+      if (buscaProcessoDigits.length >= 15 && !buscaTexto) {
+        const { data: procs } = await supabase.rpc("find_processo_by_digits" as any, { _numero: buscaProcessoDigits });
+        const ids = ((procs as any[]) ?? []).map((p) => p.id).filter(Boolean);
+        if (ids.length === 0) return [];
+        f.processoIds = ids;
+      }
+      const coletados: any[] = [];
+      for (let page = 0; page < 20; page++) {
+        const pageItens = await fetchAgendaPage(f, page, user?.id);
+        coletados.push(...pageItens);
+        if (pageItens.length < 1000) break;
+      }
+      const vistos = new Set<string>();
+      return coletados.filter((it) => {
+        const k = `${it.origem}:${it.id}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+    },
+  });
+  const buscaForaDoMesCount = useMemo(() => {
+    if (!buscaForaDoMesAtiva || !buscaForaDoMesQuery.data) return 0;
+    return (buscaForaDoMesQuery.data as any[]).filter((item) => {
+      if (!passaFiltrosPainel(item)) return false;
+      const dk = String(item.data_inicio ?? item.data_vencimento ?? item.data_fatal ?? "").slice(0, 10);
+      return !!dk && (dk < rangeInicioStr || dk > rangeFimStr);
+    }).length;
+  }, [buscaForaDoMesAtiva, buscaForaDoMesQuery.data, passaFiltrosPainel, rangeInicioStr, rangeFimStr]);
 
   // Itens vencidos (anteriores ao mês exibido) ainda não tratados/cancelados,
   // mesclados às visões Lista e Equipe.
@@ -3239,6 +3289,25 @@ export default function PainelControle() {
                 {format(mesAtual, "MMM 'de' yyyy", { locale: ptBR })}
               </span>
             </div>
+
+            {/* Aviso: pesquisa com ocorrências fora do mês exibido */}
+            {buscaForaDoMesCount > 0 && (
+              <div className="flex items-center gap-2 px-3 md:px-4 py-2 border-b border-border bg-accent/60 text-xs md:text-sm flex-shrink-0">
+                <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                <span className="flex-1 text-foreground">
+                  Esta pesquisa encontrou <strong>{buscaForaDoMesCount}</strong>{" "}
+                  {buscaForaDoMesCount === 1 ? "ocorrência fora" : "ocorrências fora"} deste mês.
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setViewMode("lista")}
+                >
+                  Ver no modo Lista
+                </Button>
+              </div>
+            )}
 
             {/* Grade do calendário */}
             <div className="flex-1 overflow-auto">
