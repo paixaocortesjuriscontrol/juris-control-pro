@@ -82,6 +82,8 @@ export interface ItemAgendaUnificado {
 }
 
 export interface AgendaUnificadaFilters {
+  /** Restringe a busca a estes processos (busca por número no modo Lista). */
+  processoIds?: string[];
   tipos?: string[];
   status?: string;
   dataInicio?: Date;
@@ -206,6 +208,7 @@ export async function fetchAgendaPage(
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos && incluirEventosPorTipo) {
         let queryEventos = buildEventosQuery(true);
+        if (filters.processoIds?.length) queryEventos = queryEventos.in("processo_id", filters.processoIds);
 
         if (!filters.fetchAll && !hasCoordScope) {
           // Quando há filtro de membros (coordenação/pessoas), precisamos buscar eventos
@@ -495,6 +498,7 @@ export async function fetchAgendaPage(
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas && incluirTarefasPorTipo) {
         let queryTarefas = buildTarefasQuery(true);
+        if (filters.processoIds?.length) queryTarefas = queryTarefas.in("processo_id", filters.processoIds);
 
         // Tarefas onde o(s) usuário(s) alvo aparecem em tarefa_responsaveis
         // (multi-responsáveis): sem isso, prazos com mais de um responsável só
@@ -597,6 +601,7 @@ export async function fetchAgendaPage(
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
           let queryTarefasFallback = buildTarefasQuery(false);
+          if (filters.processoIds?.length) queryTarefasFallback = queryTarefasFallback.in("processo_id", filters.processoIds);
           let shouldRunFallbackQuery = true;
 
           if (filters.fetchAll) {
@@ -829,6 +834,7 @@ export async function fetchAgendaPage(
           .from("processos")
           .select("id, numero, polo_ativo, polo_passivo, data_fatal, coordenacao_id, criado_por_tst, responsavel_tst_id, responsavel_tst, equipe_tst, decisao_tst, status, prazo_fatal_conferido")
           .not("data_fatal", "is", null);
+        if (filters.processoIds?.length) queryPrazos = queryPrazos.in("id", filters.processoIds);
 
         if (!filters.fetchAll) {
           // Filter: user is creator OR responsible
