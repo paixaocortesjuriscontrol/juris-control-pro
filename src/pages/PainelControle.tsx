@@ -2131,8 +2131,25 @@ export default function PainelControle() {
         dateKey = item.data_inicio.slice(0, 10);
       }
 
-      if (!map.has(dateKey)) map.set(dateKey, []);
-      map.get(dateKey)!.push(item);
+      // Eventos de vários dias aparecem em todos os dias do período (limite 92 dias)
+      const keys: string[] = [dateKey];
+      if (item.origem === "evento" && item.data_fim) {
+        const fimKey = item.data_fim.slice(0, 10);
+        if (fimKey > dateKey) {
+          const d = new Date(`${dateKey}T12:00:00Z`);
+          for (let i = 0; i < 92; i++) {
+            d.setUTCDate(d.getUTCDate() + 1);
+            const k = d.toISOString().slice(0, 10);
+            if (k > fimKey) break;
+            keys.push(k);
+          }
+        }
+      }
+
+      keys.forEach((k) => {
+        if (!map.has(k)) map.set(k, []);
+        map.get(k)!.push(item);
+      });
     });
 
     // Ordenar: pendentes/atrasados primeiro, concluídos por último
