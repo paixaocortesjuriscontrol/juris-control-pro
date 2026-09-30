@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { normalizeMateriaNome } from "@/utils/outraMateria";
+import { ensurePedidosPorDossie, resolverChaveDossie } from "@/utils/pedidosPorDossieCache";
 
 export interface PedidoPorDossie {
   id: string;
@@ -21,10 +22,16 @@ export function usePedidosPorDossie(dossie: string | null | undefined) {
     enabled: key.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<PedidoPorDossie[]> => {
+      // Aceita divergência no trecho do meio do dossiê (mesmo final/ano).
+      let alvo = key;
+      try {
+        await ensurePedidosPorDossie();
+        alvo = resolverChaveDossie(key) || key;
+      } catch { /* usa o dossiê exato */ }
       const { data, error } = await supabase
         .from("pedidos_por_dossie" as any)
         .select("id, dossie, pedido, pedido_normalizado")
-        .eq("dossie", key)
+        .eq("dossie", alvo)
         .order("pedido")
         .limit(2000);
       if (error) throw error;
