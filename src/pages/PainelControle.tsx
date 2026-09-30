@@ -2247,7 +2247,7 @@ export default function PainelControle() {
       }
       if (!map.has(key)) map.set(key, []);
       // A situação exibida no formulário pertence ao item pai. Quando ele
-      // estiver concluído, a atividade também deve aparecer riscada no calendário.
+      // estiver concluído, a atividade recebe o V verde (sem risco) no calendário.
       map.get(key)!.push({ ...a, _paiConcluido: pai ? isItemTratado(pai) : false });
     });
     return map;
@@ -3437,15 +3437,22 @@ export default function PainelControle() {
                                 const infoCobrancaAtiv =
                                   infoCobrancaItem(mapaCobrancasAtividades, { id: String(a.item_id ?? "") }) ||
                                   infoCobrancaItem(mapaCobrancas, { id: String(a.item_id ?? "") });
+                                // Risco somente quando a atividade está cancelada;
+                                // concluída recebe o V verde, sem risco.
+                                const situacaoAtiv = (a.situacao ?? "")
+                                  .normalize("NFD")
+                                  .replace(/[\u0300-\u036f]/g, "")
+                                  .trim()
+                                  .toLowerCase();
+                                const ativCancelada = situacaoAtiv === "cancelada" || situacaoAtiv === "cancelado";
+                                const ativConcluida = (atividadeEncerrada(a.situacao) && !ativCancelada) || a._paiConcluido;
                                 return (
                                 <div
                                   key={`ativ-${a.id}`}
                                   className={cn(
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
-                                    (atividadeEncerrada(a.situacao) || a._paiConcluido) && "line-through opacity-70",
-
-
+                                    ativCancelada && "line-through opacity-70",
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3453,7 +3460,11 @@ export default function PainelControle() {
                                   }}
                                   title={`Atividade: ${a.titulo} — ${labelSituacaoAtividade(a.situacao)}`}
                                 >
-                                  <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                                  {ativConcluida ? (
+                                    <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" />
+                                  ) : (
+                                    <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
+                                  )}
                                   <span className="truncate">{a.titulo}</span>
                                   {infoCobrancaAtiv && (
                                     <CobrancaBadge
