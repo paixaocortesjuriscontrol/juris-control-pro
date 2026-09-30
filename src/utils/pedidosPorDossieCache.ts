@@ -13,6 +13,13 @@ import { normalizeMateriaNome } from "./outraMateria";
 let cache: Map<string, Set<string>> | null = null;
 /** dossiê -> (pedido normalizado -> pedido com a grafia exata do cadastro) */
 let nomesCache: Map<string, Map<string, string>> | null = null;
+/**
+ * Final do dossiê ("0004356802/25") -> dossiê completo cadastrado.
+ * Usado como fallback quando o dossiê do cadastro diverge da lista da
+ * Dra. Iara apenas no trecho do meio (ex.: 482 x 033). Só entra no índice
+ * quando o final é inequívoco (nenhuma colisão entre dossiês distintos).
+ */
+let suffixIndex: Map<string, string> | null = null;
 let inflight: Promise<Map<string, Set<string>>> | null = null;
 
 export function pedidosPorDossieCarregados(): boolean {
@@ -28,6 +35,7 @@ const PARALELO = 4;
 export function resetPedidosPorDossie(): void {
   cache = null;
   nomesCache = null;
+  suffixIndex = null;
   inflight = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
@@ -43,12 +51,21 @@ interface LinhaAgrupada {
   pedidos_normalizados: string[] | null;
 }
 
+/** Extrai o final estável do dossiê: o número longo + ano ("0004356802/25"). */
+function sufixoDossie(dossie: string): string | null {
+  const m = String(dossie || "").trim().match(/\.(\d+\/\d+)$/);
+  return m ? m[1] : null;
+}
+
 function montarMapas(linhas: LinhaAgrupada[]): {
   mapa: Map<string, Set<string>>;
   nomes: Map<string, Map<string, string>>;
+  suffix: Map<string, string>;
 } {
   const mapa = new Map<string, Set<string>>();
   const nomes = new Map<string, Map<string, string>>();
+  const suffix = new Map<string, string>();
+  const suffixAmbiguos = new Set<string>();
   for (const linha of linhas) {
     const dossie = String(linha?.dossie || "").trim();
     if (!dossie) continue;
@@ -65,8 +82,19 @@ function montarMapas(linhas: LinhaAgrupada[]): {
     }
     if (set.size > 0) mapa.set(dossie, set);
     if (nm.size > 0) nomes.set(dossie, nm);
+    const suf = sufixoDossie(dossie);
+    if (suf) {
+      const existente = suffix.get(suf);
+      if (existente && existente !== dossie) {
+        // Final compartilhado por dossiês distintos: não usar como fallback.
+        suffixAmbiguos.add(suf);
+      } else {
+        suffix.set(suf, dossie);
+      }
+    }
   }
-  return { mapa, nomes };
+  for (const suf of suffixAmbiguos) suffix.delete(suf);
+  return { mapa, nomes, suffix };
 }
 
 function lerDaSessao(): LinhaAgrupada[] | null {
@@ -105,10 +133,11 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
     // 1) Sessão: evita refazer a carga ao trocar filtros ou voltar à tela.
     const salvo = lerDaSessao();
     if (salvo) {
-      const { mapa, nomes } = montarMapas(salvo);
+      const { mapa, nomes, suffix } = montarMapas(salvo);
       if (mapa.size > 0) {
         cache = mapa;
         nomesCache = nomes;
+        suffixIndex = suffix;
         inflight = null;
         return mapa;
       }
@@ -131,10 +160,11 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
       offset += PARALELO * RPC_PAGE;
     }
 
-    const { mapa, nomes } = montarMapas(linhas);
+    const { mapa, nomes, suffix } = montarMapas(linhas);
     if (mapa.size > 0) {
       cache = mapa;
       nomesCache = nomes;
+      suffixIndex = suffix;
       gravarNaSessao(linhas);
     }
     inflight = null;
@@ -150,12 +180,28 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
  * Grafia exata cadastrada em `pedidos_por_dossie` para a matéria informada,
  * ou `null` quando o cache não carregou ou a matéria não consta na lista.
  */
+/**
+ * Resolve o dossiê informado para a chave usada na lista de pedidos:
+ * primeiro a grafia exata; se não houver, tenta pelo final estável do
+ * dossiê (número longo + ano), cobrindo divergências no trecho do meio
+ * (ex.: cadastro "07.02.482.0004356802/25" x lista "07.02.033.0004356802/25").
+ */
+function resolverChaveDossie(dossie: string | null | undefined): string | null {
+  const key = String(dossie || "").trim();
+  if (!key) return null;
+  if (cache?.has(key)) return key;
+  if (!suffixIndex || suffixIndex.size === 0) return null;
+  const suf = sufixoDossie(key);
+  if (!suf) return null;
+  return suffixIndex.get(suf) || null;
+}
+
 export function nomeCanonicoDoDossieSync(
   dossie: string | null | undefined,
   materia: string | null | undefined,
 ): string | null {
   if (!nomesCache || nomesCache.size === 0) return null;
-  const key = String(dossie || "").trim();
+  const key = resolverChaveDossie(dossie);
   if (!key) return null;
   const nm = nomesCache.get(key);
   if (!nm) return null;
@@ -166,12 +212,13 @@ export function nomeCanonicoDoDossieSync(
 /**
  * Pedidos cadastrados para o dossiê, ou `null` quando o cache não carregou
  * ou o dossiê não tem lista cadastrada (nesses casos não há o que comparar).
+ * Aceita divergência no trecho do meio do dossiê via `resolverChaveDossie`.
  */
 export function pedidosDoDossieSync(
   dossie: string | null | undefined,
 ): Set<string> | null {
   if (!cache || cache.size === 0) return null;
-  const key = String(dossie || "").trim();
+  const key = resolverChaveDossie(dossie);
   if (!key) return null;
   const set = cache.get(key);
   return set && set.size > 0 ? set : null;
