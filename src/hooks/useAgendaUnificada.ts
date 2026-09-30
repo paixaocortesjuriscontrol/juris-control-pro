@@ -496,6 +496,7 @@ export async function fetchAgendaPage(
                 numero_parcela: (evento as any).numero_parcela ?? null,
                 valor_parcela: (evento as any).valor_parcela ?? null,
                 criado_por: evento.criado_por,
+                anexos_count: (evento as any).documentos?.[0]?.count ?? 0,
                 dias_restantes: diasRestantes,
                 is_atrasado: isAtrasado,
               });
@@ -842,6 +843,7 @@ export async function fetchAgendaPage(
                   data_prevista: (tarefa as any).data_prevista ?? null,
                   data_cumprimento: (tarefa as any).data_cumprimento ?? null,
                   origem_importacao: (tarefa as any).origem ?? null,
+                  anexos_count: (tarefa as any).documentos?.[0]?.count ?? 0,
                 });
               }
             }
@@ -1062,6 +1064,7 @@ export async function fetchAgendaPage(
                 ? { id: aud.processo_id ?? aud.id, numero: aud.processo_numero }
                 : null,
               criado_por: aud.criado_por,
+              anexos_count: (aud as any).documentos?.[0]?.count ?? 0,
               coordenacao_id: aud.coordenacao_id ?? null,
               dias_restantes: diasRestantes,
               is_atrasado: isAtrasado,
