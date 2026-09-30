@@ -265,6 +265,7 @@ export async function fetchAgendaPage(
         queryEventos = queryEventos.range(from, to);
 
         let { data: eventos, error: eventosError } = await queryEventos;
+        if ((eventos?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (eventosError) {
           console.error("Erro ao buscar eventos:", eventosError);
@@ -551,13 +552,13 @@ export async function fetchAgendaPage(
           return parts.join(",");
         };
 
-        if (filters.fetchAll) {
-          // Admin vendo todas - sem filtro
-        } else if (coordScopeIds.length > 0) {
-          // Coordenador: vê todas as tarefas da(s) coordenação(ões), independente de criador/responsável.
-          // Usa o campo tarefas.coordenacao_id (sincronizado por trigger), assim tarefas sem processo
-          // também aparecem no escopo da coordenação.
+        if (coordScopeIds.length > 0) {
+          // Coordenação escolhida (inclusive admin no modo Escritório): filtrar no banco.
+          // Sem isso, o admin baixava 1.000 itens de todas as coordenações e o fim do
+          // mês da coordenação escolhida ficava de fora.
           queryTarefas = queryTarefas.in("coordenacao_id", coordScopeIds);
+        } else if (filters.fetchAll) {
+          // Admin vendo todas - sem filtro
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
           // Tarefas onde o usuário (ou qualquer membro filtrado) é responsável
           // principal, co-responsável ou criador.
@@ -599,6 +600,7 @@ export async function fetchAgendaPage(
         queryTarefas = queryTarefas.range(from, to);
 
         let { data: tarefas, error: tarefasError } = await queryTarefas;
+        if ((tarefas?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
@@ -862,6 +864,7 @@ export async function fetchAgendaPage(
         queryPrazos = queryPrazos.order("data_fatal", { ascending: true }).range(from, to);
 
         const { data: prazosTst, error: prazosError } = await queryPrazos;
+        if ((prazosTst?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (!prazosError && prazosTst) {
           // Fetch responsável names
@@ -997,6 +1000,7 @@ export async function fetchAgendaPage(
         queryAud = queryAud.range(from, to);
 
         const { data: audiencias, error: audError } = await queryAud;
+        if ((audiencias?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (!audError && audiencias) {
           for (const aud of audiencias as any[]) {
@@ -1259,7 +1263,9 @@ export async function fetchAgendaPage(
         .filter((e) => new Date(e.data_inicio) < now)
         .sort((a, b) => new Date(b.data_inicio).getTime() - new Date(a.data_inicio).getTime());
 
-      return [...futureItems, ...pastItems];
+      const resultado = [...futureItems, ...pastItems];
+      (resultado as any).__temMais = fonteCheia;
+      return resultado;
 }
 
 /**
