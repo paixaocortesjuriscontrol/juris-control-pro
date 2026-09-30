@@ -45,6 +45,16 @@ export function atividadeEncerrada(situacao?: string | null): boolean {
   return ["concluida", "concluido", "cancelada", "cancelado", "nao_realizada"].includes(v);
 }
 
+/** Somente a conclusão da própria atividade autoriza exibir o V verde. */
+export function atividadeConcluida(situacao?: string | null): boolean {
+  const v = (situacao ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  return v === "concluida" || v === "concluido";
+}
+
 
 /** Formata data/hora com segurança (valores inválidos não podem quebrar a aba). */
 function fmtDataHora(valor?: string | null): string | null {

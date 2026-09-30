@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
-import { labelSituacaoAtividade, atividadeEncerrada } from "@/components/comum/ItemAtividades";
+import { labelSituacaoAtividade, atividadeConcluida } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
@@ -377,7 +377,9 @@ export function DiaAgendaLateral({
             />
           ))}
           {atividades.map((a: any) => {
-            const encerrada = atividadeEncerrada(a.situacao) || Boolean(a._paiConcluido);
+            const concluida = atividadeConcluida(a.situacao);
+            const situacao = normalize(a.situacao);
+            const cancelada = situacao === "cancelada" || situacao === "cancelado";
             const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
             return (
               <button
@@ -386,7 +388,11 @@ export function DiaAgendaLateral({
                 className="w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/50 transition-colors"
               >
                 <div className="pt-0.5 flex-shrink-0">
-                  <ListChecks className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  {concluida ? (
+                    <TratadoCheck tratado size={14} />
+                  ) : (
+                    <ListChecks className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-[10px] font-bold tracking-wide text-blue-600 dark:text-blue-400">
@@ -395,7 +401,7 @@ export function DiaAgendaLateral({
                   <p
                     className={cn(
                       "text-sm text-foreground leading-snug",
-                      encerrada && "line-through text-muted-foreground"
+                      cancelada && "line-through text-muted-foreground"
                     )}
                   >
                     {a.titulo || "Atividade"}
