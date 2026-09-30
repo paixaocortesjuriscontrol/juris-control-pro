@@ -3452,6 +3452,7 @@ export default function PainelControle() {
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
                                     ativCancelada && "line-through opacity-70",
+                                    !ativCancelada && (ativConcluida || ["baixado", "baixada", "protocolado", "protocolada"].includes(situacaoAtiv)) && "line-through",
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
