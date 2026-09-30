@@ -13,8 +13,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useImport } from "@/contexts/ImportContext";
-import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Scale } from "lucide-react";
+import { Upload, AlertCircle, CheckCircle2, XCircle, Loader2, FileDown, Building2, Users, Scale, Tag } from "lucide-react";
 import * as XLSX from "xlsx";
+import { useQuery } from "@tanstack/react-query";
 
 interface ValidationError {
   campo: string;
@@ -263,6 +264,22 @@ export function BeatrizCostaImportTab({
   const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const [visibleRows, setVisibleRows] = useState(TABLE_PAGE_SIZE);
   const cancelledRef = useRef(false);
+  const [etiquetasIds, setEtiquetasIds] = useState<string[]>([]);
+  const { data: etiquetasCoord = [] } = useQuery({
+    queryKey: ["etiquetas-coord-import", selectedCoordenacao],
+    enabled: !!selectedCoordenacao,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("etiquetas")
+        .select("id, nome, cor, modulos")
+        .eq("coordenacao_id", selectedCoordenacao)
+        .eq("ativo", true)
+        .order("nome");
+      if (error) throw error;
+      return ((data as any[]) || []).filter((e) => (e.modulos || []).includes("processos"));
+    },
+  });
+  useEffect(() => { setEtiquetasIds([]); }, [selectedCoordenacao]);
   const { toast } = useToast();
   const { startImport, endImport } = useImport();
 
@@ -290,6 +307,22 @@ export function BeatrizCostaImportTab({
     await supabase
       .from("processos_responsaveis")
       .upsert(rows as any, { onConflict: "processo_id,usuario_id" });
+  };
+
+  /** Aplica as etiquetas escolhidas ao processo novo. */
+  const gravarEtiquetas = async (processoId: string) => {
+    if (etiquetasIds.length === 0) return;
+    const { data: u } = await supabase.auth.getUser();
+    const rows = etiquetasIds.map((eid) => ({
+      etiqueta_id: eid,
+      entidade: "processo",
+      entidade_id: processoId,
+      created_by: u.user?.id,
+    }));
+    const { error } = await supabase.from("etiquetas_itens").insert(rows as any);
+    if (error && !String(error.message).toLowerCase().includes("duplicate")) {
+      console.error("[BeatrizCostaImport] etiquetas:", error.message);
+    }
   };
 
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -441,6 +474,7 @@ export function BeatrizCostaImportTab({
               novos++;
               if (inserted) {
                 await gravarResponsaveis(inserted.id);
+                await gravarEtiquetas(inserted.id);
               }
             }
           }
@@ -646,6 +680,50 @@ export function BeatrizCostaImportTab({
               </SelectContent>
             </Select>
           </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Tag className="h-4 w-4" />
+              Etiquetas da coordenação (opcional, várias)
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              Os processos novos receberão estas etiquetas. Processos que já existiam não são alterados.
+            </p>
+            <div className="border rounded-md p-2 max-w-md max-h-44 overflow-auto">
+              {etiquetasCoord.length === 0 ? (
+                <p className="text-sm text-muted-foreground p-1">
+                  Nenhuma etiqueta de Processos criada nesta coordenação.
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {etiquetasCoord.map((e) => {
+                    const ativo = etiquetasIds.includes(e.id);
+                    return (
+                      <button
+                        type="button"
+                        key={e.id}
+                        disabled={importing}
+                        onClick={() =>
+                          setEtiquetasIds((prev) =>
+                            prev.includes(e.id) ? prev.filter((x) => x !== e.id) : [...prev, e.id]
+                          )
+                        }
+                        className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition ${
+                          ativo ? "border-primary bg-primary/10 font-semibold" : "border-border opacity-80"
+                        }`}
+                      >
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: e.cor }} />
+                        {e.nome}
+                        {ativo && <CheckCircle2 className="h-3 w-3 text-primary" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+
 
 
           <Alert>
