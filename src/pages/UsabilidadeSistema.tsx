@@ -47,13 +47,23 @@ export default function UsabilidadeSistema() {
 
   const r = data ? resumo(data, diasUteis) : null;
   const linhas = useMemo(() => {
+    const min = Number(minAcoes) || 0;
     const l = (data?.usuarios || []).filter((u) =>
-      (!busca || `${u.nome} ${u.email}`.toLowerCase().includes(busca.toLowerCase())) && (nivel === "todos" || nivelUso(u, diasUteis) === nivel));
-    return [...l].sort((a, b) => ordem === "total" ? totalAcoes(b) - totalAcoes(a)
-      : ordem === "nome" ? String(a.nome).localeCompare(String(b.nome))
-      : ordem === "ultimo_acesso" ? String(b.ultimo_acesso || "").localeCompare(String(a.ultimo_acesso || ""))
-      : Number(b[ordem]) - Number(a[ordem]));
-  }, [data, busca, nivel, ordem, diasUteis]);
+      (!busca || `${u.nome} ${u.email}`.toLowerCase().includes(busca.toLowerCase()))
+      && (nivel === "todos" || nivelUso(u, diasUteis) === nivel)
+      && (situacao === "todos" || (situacao === "ativos" ? u.ativo : !u.ativo))
+      && (!cadastroPeriodo || (u.criado_em && u.criado_em.slice(0, 10) >= inicio && u.criado_em.slice(0, 10) <= fim))
+      && totalAcoes(u) >= min);
+    const dir = ordemDir === "asc" ? 1 : -1;
+    const nivelRank = (n: string) => ({ "Sem uso": 0, Baixo: 1, "Médio": 2, Alto: 3 }[n] ?? 0);
+    return [...l].sort((a, b) => {
+      if (ordem === "total") return (totalAcoes(a) - totalAcoes(b)) * dir;
+      if (ordem === "nivel") return (nivelRank(nivelUso(a, diasUteis)) - nivelRank(nivelUso(b, diasUteis))) * dir;
+      if (ordem === "nome") return String(a.nome).localeCompare(String(b.nome)) * dir;
+      if (ordem === "ultimo_acesso") return String(a.ultimo_acesso || "").localeCompare(String(b.ultimo_acesso || "")) * dir;
+      return (Number(a[ordem]) - Number(b[ordem])) * dir;
+    });
+  }, [data, busca, nivel, situacao, cadastroPeriodo, minAcoes, ordem, ordemDir, diasUteis, inicio, fim]);
 
   const coordNome = coord === "todas" ? "Todas as coordenações" : coordenacoes?.find((c: any) => c.id === coord)?.nome || "";
   const exp = async (tipo: "pdf" | "xlsx") => {
