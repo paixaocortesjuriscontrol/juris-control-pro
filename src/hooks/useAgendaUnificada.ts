@@ -79,6 +79,8 @@ export interface ItemAgendaUnificado {
   marcadores?: string | null;
   modulo?: string | null;
   quadro_kanban?: string | null;
+  /** Quantidade de anexos (documentos) vinculados ao item. */
+  anexos_count?: number;
 }
 
 export interface AgendaUnificadaFilters {
@@ -190,7 +192,7 @@ export async function fetchAgendaPage(
       let fonteCheia = false;
 
       // Constants for queries
-      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id)" as const;
+      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id),documentos(count)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
         "id,titulo,descricao,data_vencimento,data_fatal,data_prevista,data_cumprimento,tipo_tarefa,status,prioridade,observacoes,origem,created_at,updated_at,processo_id,coordenacao_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,hora_prevista,data_base,prazo_dias,prazo_unidade,link_local,orgao,partes_ativas,partes_passivas,recorrente,recorrencia_tipo,recorrencia_intervalo,recorrencia_fim,recorrencia_rrule,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
