@@ -545,8 +545,23 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       // Count by aba
       const abaCount = new Map<string, number>();
 
+      // Completa campos de julgamento vazios com os do registro duplicado
+      // (mesmo processo + dossiê), para a coluna K não sair vazia.
+      const JULG_KEYS = ["tem_data_julgamento", "data_julgamento", "horario_julgamento", "tipo_julgamento"];
+      const julgKey = (r: any) => {
+        const dz = String(r?.dossie ?? "").trim();
+        return String(r?.processo ?? r?.processo_numero ?? "").replace(/\D/g, "") + "|" + (dz === "Não localizado" ? "" : dz);
+      };
+      const julgPorChave = new Map<string, any>();
+      for (const r of allDist as any[]) {
+        if (String(r?.tem_data_julgamento ?? "").trim() && !julgPorChave.has(julgKey(r))) julgPorChave.set(julgKey(r), r);
+      }
       for (let i = 0; i < allDist.length; i++) {
         const d = allDist[i];
+        if (!String((d as any).tem_data_julgamento ?? "").trim()) {
+          const irmao = julgPorChave.get(julgKey(d));
+          if (irmao) for (const k of JULG_KEYS) if (!String((d as any)[k] ?? "").trim()) (d as any)[k] = irmao[k];
+        }
         const rejStartIdx = rejected.length;
         const numProcesso = String(d.processo ?? d.processo_numero ?? "").trim();
         const dossie = String(d.dossie ?? "").trim();
