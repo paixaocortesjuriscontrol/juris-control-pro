@@ -180,12 +180,28 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
  * Grafia exata cadastrada em `pedidos_por_dossie` para a matéria informada,
  * ou `null` quando o cache não carregou ou a matéria não consta na lista.
  */
+/**
+ * Resolve o dossiê informado para a chave usada na lista de pedidos:
+ * primeiro a grafia exata; se não houver, tenta pelo final estável do
+ * dossiê (número longo + ano), cobrindo divergências no trecho do meio
+ * (ex.: cadastro "07.02.482.0004356802/25" x lista "07.02.033.0004356802/25").
+ */
+function resolverChaveDossie(dossie: string | null | undefined): string | null {
+  const key = String(dossie || "").trim();
+  if (!key) return null;
+  if (cache?.has(key)) return key;
+  if (!suffixIndex || suffixIndex.size === 0) return null;
+  const suf = sufixoDossie(key);
+  if (!suf) return null;
+  return suffixIndex.get(suf) || null;
+}
+
 export function nomeCanonicoDoDossieSync(
   dossie: string | null | undefined,
   materia: string | null | undefined,
 ): string | null {
   if (!nomesCache || nomesCache.size === 0) return null;
-  const key = String(dossie || "").trim();
+  const key = resolverChaveDossie(dossie);
   if (!key) return null;
   const nm = nomesCache.get(key);
   if (!nm) return null;
@@ -196,12 +212,13 @@ export function nomeCanonicoDoDossieSync(
 /**
  * Pedidos cadastrados para o dossiê, ou `null` quando o cache não carregou
  * ou o dossiê não tem lista cadastrada (nesses casos não há o que comparar).
+ * Aceita divergência no trecho do meio do dossiê via `resolverChaveDossie`.
  */
 export function pedidosDoDossieSync(
   dossie: string | null | undefined,
 ): Set<string> | null {
   if (!cache || cache.size === 0) return null;
-  const key = String(dossie || "").trim();
+  const key = resolverChaveDossie(dossie);
   if (!key) return null;
   const set = cache.get(key);
   return set && set.size > 0 ? set : null;
