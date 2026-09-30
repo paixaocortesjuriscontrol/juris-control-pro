@@ -73,7 +73,10 @@ export default function UsabilidadeSistema() {
   };
   const serieDia = (data?.por_dia || []).map((d) => ({ ...d, label: d.dia.slice(8, 10) + "/" + d.dia.slice(5, 7) }));
   const Th = ({ k, children }: { k: any; children: any }) => (
-    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => setOrdem(k)}>{children}{ordem === k ? " ↓" : ""}</TableHead>
+    <TableHead className="cursor-pointer select-none whitespace-nowrap"
+      onClick={() => { if (ordem === k) setOrdemDir((d) => (d === "desc" ? "asc" : "desc")); else { setOrdem(k); setOrdemDir(k === "nome" ? "asc" : "desc"); } }}>
+      {children}{ordem === k ? (ordemDir === "desc" ? " ↓" : " ↑") : ""}
+    </TableHead>
   );
 
   return (
