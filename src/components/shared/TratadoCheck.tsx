@@ -75,7 +75,7 @@ export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolea
       .trim()
       .toLowerCase();
 
-  const riscados = new Set(["cancelado", "cancelada", "protocolado", "protocolada"]);
+  const riscados = new Set(["cancelado", "cancelada", "protocolado", "protocolada", "baixado", "baixada"]);
   if ([item.status, item.status_tst, item.situacao].some((value) => riscados.has(normalize(value)))) return true;
 
   return isItemTratado(item);
