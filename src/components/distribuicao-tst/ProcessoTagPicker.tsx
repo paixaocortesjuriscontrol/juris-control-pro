@@ -41,7 +41,7 @@ export function ProcessoTagPicker({ dadoId, tagIds, readOnly, compact, entidade 
   const atualizarCor = useAtualizarCorTag();
   const renomear = useRenomearTag();
   const visibilidade = useAtualizarVisibilidadeTag();
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   const removerTodasDado = useRemoverTodasTagsDoDado();
   const removerTodasRemessa = useRemoverTodasTagsDaRemessa();
   const removerTodas = isRemessa ? removerTodasRemessa : removerTodasDado;

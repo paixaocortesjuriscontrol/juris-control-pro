@@ -14,7 +14,7 @@ export interface ProcessoTag {
 }
 
 export function useProcessoTagsCatalogo() {
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   return useQuery({
     queryKey: ["processo-tags-catalogo", isAdmin ? "admin" : "user"],
     queryFn: async () => {

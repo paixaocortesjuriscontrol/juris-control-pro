@@ -59,7 +59,7 @@ export function BulkTagAction({ selectedIds, filters, totalFiltered }: Props) {
   const criar = useCriarTag();
   const atualizarCor = useAtualizarCorTag();
   const visibilidade = useAtualizarVisibilidadeTag();
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [novoNome, setNovoNome] = useState("");
