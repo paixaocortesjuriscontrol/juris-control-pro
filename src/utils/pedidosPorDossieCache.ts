@@ -13,6 +13,13 @@ import { normalizeMateriaNome } from "./outraMateria";
 let cache: Map<string, Set<string>> | null = null;
 /** dossiê -> (pedido normalizado -> pedido com a grafia exata do cadastro) */
 let nomesCache: Map<string, Map<string, string>> | null = null;
+/**
+ * Final do dossiê ("0004356802/25") -> dossiê completo cadastrado.
+ * Usado como fallback quando o dossiê do cadastro diverge da lista da
+ * Dra. Iara apenas no trecho do meio (ex.: 482 x 033). Só entra no índice
+ * quando o final é inequívoco (nenhuma colisão entre dossiês distintos).
+ */
+let suffixIndex: Map<string, string> | null = null;
 let inflight: Promise<Map<string, Set<string>>> | null = null;
 
 export function pedidosPorDossieCarregados(): boolean {
@@ -28,6 +35,7 @@ const PARALELO = 4;
 export function resetPedidosPorDossie(): void {
   cache = null;
   nomesCache = null;
+  suffixIndex = null;
   inflight = null;
   try {
     sessionStorage.removeItem(STORAGE_KEY);
