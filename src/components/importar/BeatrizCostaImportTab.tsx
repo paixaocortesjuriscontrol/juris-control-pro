@@ -197,10 +197,10 @@ function consolidar(items: BeatrizProcesso[]) {
       invalid.push(item);
       continue;
     }
-    const key = item.numero.trim();
+    const key = onlyDigits(item.numero);
     const existing = validMap.get(key);
     if (!existing) {
-      validMap.set(key, { ...item, numero: key });
+      validMap.set(key, { ...item, numero: item.numero.trim() });
       continue;
     }
     duplicadas += 1;
@@ -351,17 +351,28 @@ export function BeatrizCostaImportTab({
     setProgressMsg(`Preparando ${validos.length} processo(s) único(s) (${duplicadas} duplicada(s) consolidada(s))...`);
     await yieldToUI();
 
-    // Fase 1: buscar existentes em lotes
+    // Fase 1: buscar existentes em toda a base, comparando só os dígitos
+    const buscarExistente = async (numero: string): Promise<string | null> => {
+      const { data, error } = await supabase.rpc("find_processo_by_digits" as any, { _numero: onlyDigits(numero) });
+      if (error) throw error;
+      const row = ((data as any[]) || [])[0];
+      return row?.id ?? null;
+    };
     const existingMap = new Map<string, string>();
-    const numeros = validos.map((p) => p.numero);
-    const lookupChunks = chunkArray(numeros, LOOKUP_BATCH_SIZE);
+    const lookupChunks = chunkArray(validos, 10);
     for (let i = 0; i < lookupChunks.length; i++) {
       if (cancelledRef.current) break;
-      const { data } = await supabase.from("processos").select("id, numero").in("numero", lookupChunks[i]);
-      data?.forEach((row: any) => existingMap.set(row.numero, row.id));
+      await Promise.all(
+        lookupChunks[i].map(async (p) => {
+          try {
+            const id = await buscarExistente(p.numero);
+            if (id) existingMap.set(p.numero, id);
+          } catch { /* conferido de novo antes de gravar */ }
+        }),
+      );
       setProgress(((i + 1) / lookupChunks.length) * 15);
-      setProgressMsg(`Verificando processos existentes (${Math.min((i + 1) * LOOKUP_BATCH_SIZE, numeros.length)}/${numeros.length})...`);
-      await yieldToUI();
+      setProgressMsg(`Verificando processos existentes (${Math.min((i + 1) * 10, validos.length)}/${validos.length})...`);
+      if (i % 5 === 0) await yieldToUI();
     }
 
     let novos = 0;
@@ -409,23 +420,13 @@ export function BeatrizCostaImportTab({
             categoria_importacao: "beatriz_costa",
           };
 
-          const existingId = existingMap.get(p.numero);
+          // Confere de novo logo antes de gravar
+          const existingId = existingMap.get(p.numero) || (await buscarExistente(p.numero));
 
           if (existingId) {
-            const updateData = { ...payload };
-            delete updateData.numero;
-            if (!selectedCoordenacao) delete updateData.coordenacao_id;
-            if (!selectedMembro) delete updateData.advogado_responsavel_id;
-            if (!selectedCliente) delete updateData.cliente_id;
-            const { error } = await supabase.from("processos").update(updateData).eq("id", existingId);
-            if (error) {
-              results.set(p.numero, { status: "erro", msg: error.message });
-              erros++;
-            } else {
-              await gravarResponsaveis(existingId);
-              results.set(p.numero, { status: "sucesso", msg: "Atualizado (já existia)" });
-              atualizados++;
-            }
+            // Processo já existe: não altera nada
+            results.set(p.numero, { status: "sucesso", msg: "Já existia — não alterado" });
+            atualizados++;
           } else {
             const { data: inserted, error } = await supabase
               .from("processos")
