@@ -124,13 +124,15 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
             toast.error(`Erro ao enviar ${file.name}: ${upErr.message}`);
             continue;
           }
-          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", path);
+          // Grava primeiro um endereço estável com o caminho do arquivo:
+          // a regra de acesso ao arquivo depende desse registro existir.
+          const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/sign/documentos_processos/${path}`;
           const { data: inserido, error: insErr } = await supabase
             .from("documentos")
             .insert({
               nome: file.name,
               tipo: file.type,
-              url: signedUrl,
+              url: baseUrl,
               tamanho_bytes: file.size,
               processo_id: procId || null,
               uploaded_by: user?.id || null,
@@ -142,6 +144,11 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
             console.error("Erro ao vincular documento:", insErr);
             toast.error(`Não foi possível vincular ${file.name}: ${insErr?.message ?? "erro desconhecido"}`);
             continue;
+          }
+          const signedUrl = await getSignedUrlOrEmpty("documentos_processos", path);
+          if (signedUrl) {
+            await supabase.from("documentos").update({ url: signedUrl } as any).eq("id", (inserido as any).id);
+            (inserido as any).url = signedUrl;
           }
           setAnexos((prev) => [
             { ...(inserido as any), uploaded: true },
@@ -216,7 +223,7 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
                     <span className="text-xs text-muted-foreground hidden sm:inline">
                       ({formatFileSize(anexo.file?.size ?? anexo.tamanho_bytes ?? 0)})
                     </span>
-                    {anexo.uploaded && anexo.url && (
+                    {anexo.uploaded && (
                       <Button
                         type="button"
                         variant="ghost"
@@ -224,16 +231,24 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
                         className="h-6 w-6"
                         title="Baixar documento"
                         onClick={async () => {
-                          const janela = window.open("", "_blank");
-                          let url = anexo.url!;
+                          let url = anexo.url || "";
                           const m = url.match(/\/object\/(?:sign|public)\/documentos_processos\/([^?]+)/);
+                          if (!m && !url) {
+                            toast.error("Este anexo foi gravado sem o arquivo. Envie o documento de novo.");
+                            return;
+                          }
+                          const janela = window.open("", "_blank");
                           if (m) {
                             const novo = await getSignedUrlOrEmpty(
                               "documentos_processos",
                               decodeURIComponent(m[1]),
                             );
                             if (novo) url = novo;
-                            else toast.error("Não foi possível gerar o link do documento.");
+                            else {
+                              janela?.close();
+                              toast.error("Não foi possível gerar o link do documento.");
+                              return;
+                            }
                           }
                           if (janela) janela.location.href = url;
                           else window.open(url, "_blank", "noopener");
