@@ -25,7 +25,11 @@ export default function UsabilidadeSistema() {
   const [coord, setCoord] = useState("todas");
   const [busca, setBusca] = useState("");
   const [nivel, setNivel] = useState("todos");
-  const [ordem, setOrdem] = useState<keyof LinhaUso | "total">("total");
+  const [situacao, setSituacao] = useState("todos");
+  const [cadastroPeriodo, setCadastroPeriodo] = useState(false);
+  const [minAcoes, setMinAcoes] = useState("");
+  const [ordem, setOrdem] = useState<keyof LinhaUso | "total" | "nivel">("total");
+  const [ordemDir, setOrdemDir] = useState<"asc" | "desc">("desc");
   const { coordenacoes } = useCoordenacoesDoUsuario();
 
   const { data, isLoading, error } = useQuery({
