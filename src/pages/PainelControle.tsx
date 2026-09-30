@@ -1478,8 +1478,16 @@ export default function PainelControle() {
       return (buscaGlobalQuery.data as any[]).filter((item) => passaFiltrosPainel(item));
     }
     if (vencidosAtivo) {
+      // Quando o usuário filtra por uma situação (ex.: Protocolado, Baixado) ou
+      // pelo grupo Concluídas/Canceladas, os itens encerrados de meses anteriores
+      // também precisam aparecer — antes eram descartados aqui.
+      const pediuEncerrados =
+        painelFiltros.situacoes.length > 0 ||
+        (situacaoFilter && situacaoFilter !== "todos") ||
+        painelFiltros.statusGroup === "concluidas" ||
+        painelFiltros.statusGroup === "canceladas";
       const anteriores = (vencidosQuery.data ?? []).filter(
-        (item) => (drill || modoProtocoladosBaixados ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
+        (item) => (drill || modoProtocoladosBaixados || pediuEncerrados ? true : !isItemEncerrado(item)) && passaFiltrosPainel(item),
       );
       if (anteriores.length > 0) {
         const vistos = new Set(base.map((i) => `${i.origem}:${i.id}`));
