@@ -3393,8 +3393,6 @@ export default function PainelControle() {
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     isCancelado
                                       ? "bg-muted border border-foreground/60 text-foreground"
-                                      : isConcluido
-                                      ? "bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-300 opacity-80"
                                       : TIPO_CORES[item.tipo] || "bg-muted border border-border text-muted-foreground"
                                   )}
 
@@ -3405,7 +3403,7 @@ export default function PainelControle() {
                                   title={item.titulo}
                                 >
                                   {isConcluido ? (
-                                    <TratadoCheck tratado size={10} className="text-current dark:text-current" />
+                                    <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" />
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
