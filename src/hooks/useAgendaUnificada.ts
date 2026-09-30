@@ -184,6 +184,8 @@ export async function fetchAgendaPage(
       const halfPage = filters.fetchAll ? PAGE_SIZE : Math.floor(PAGE_SIZE / 2);
       const from = page * halfPage;
       const to = from + halfPage - 1;
+      // Marca se alguma fonte veio cheia (há mais páginas a buscar).
+      let fonteCheia = false;
 
       // Constants for queries
       const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id)" as const;
