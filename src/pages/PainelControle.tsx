@@ -578,6 +578,15 @@ export default function PainelControle() {
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
+    // Filtro de situação vai direto ao banco: sem isso, com "Todas as coordenações"
+    // a busca pegava só as primeiras páginas e sumiam protocolados/baixados.
+    const sitSel = [
+      ...painelFiltros.situacoes,
+      ...(situacaoFilter && situacaoFilter !== "todos" ? [situacaoFilter] : []),
+    ].flatMap((v) => v.split("|")).filter(Boolean);
+    const statusScope = sitSel.length > 0
+      ? { statusIn: Array.from(new Set(sitSel.flatMap((v) => (v === "concluido" ? ["concluido", "cumprido"] : v === "cumprido" ? ["cumprido", "concluido"] : [v])))) }
+      : {};
     const dateRange = modoProtocoladosBaixados
       ? {
           dataInicio: painelFiltros.periodoInicio
@@ -597,7 +606,7 @@ export default function PainelControle() {
         responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined),
         fetchAll: false,
         pessoal: true,
-        ...dateRange,
+        ...dateRange, ...statusScope,
       };
     }
 
@@ -610,7 +619,7 @@ export default function PainelControle() {
           coordenacaoId: adminCoordFilter,
           responsavelIds: responsavelIdsSelecionados ?? membrosCoordFiltrada,
           fetchAll: false,
-          ...dateRange,
+          ...dateRange, ...statusScope,
         };
       }
       if (adminCoordFilter !== "todas" && membrosFilterLoading) {
@@ -618,14 +627,14 @@ export default function PainelControle() {
           coordenacaoId: adminCoordFilter,
           strictCoordenacaoIsolation: true,
           fetchAll: false,
-          ...dateRange,
+          ...dateRange, ...statusScope,
         };
       }
-      return { fetchAll: true, ...dateRange };
+      return { fetchAll: true, ...dateRange, ...statusScope };
     }
 
     if (coordLoading || membrosLoading) {
-      return { responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined), fetchAll: false, pessoal: false, ...dateRange };
+      return { responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined), fetchAll: false, pessoal: false, ...dateRange, ...statusScope };
     }
 
     if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
@@ -633,7 +642,7 @@ export default function PainelControle() {
         responsavelIds: responsavelIdsSelecionados ?? (membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined),
         coordenacaoIds: coordenacoesUsuario,
         fetchAll: false,
-        ...dateRange,
+        ...dateRange, ...statusScope,
       };
     }
 
@@ -641,16 +650,16 @@ export default function PainelControle() {
       return {
         responsavelIds: responsavelIdsSelecionados ?? membrosDasCoordenacoes,
         fetchAll: false,
-        ...dateRange,
+        ...dateRange, ...statusScope,
       };
     }
 
     return {
       responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined),
       fetchAll: false,
-      ...dateRange,
+      ...dateRange, ...statusScope,
     };
-  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;

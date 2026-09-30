@@ -97,6 +97,7 @@ export interface AgendaUnificadaFilters {
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
   pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
+  statusIn?: string[]; // Situações exatas (filtro aplicado no banco)
   strictCoordenacaoIsolation?: boolean; // Se true, exclui itens sem processo da visão por coordenação
   enabled?: boolean; // Se false, a query não é executada
 }
@@ -578,6 +579,10 @@ export async function fetchAgendaPage(
           }
         }
 
+        if (filters.statusIn && filters.statusIn.length > 0) {
+          queryTarefas = queryTarefas.in("status", filters.statusIn as any);
+        }
+
         if (filters.dataInicio) {
           const di = filters.dataInicio;
           const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
@@ -642,6 +647,9 @@ export async function fetchAgendaPage(
               const df = filters.dataFim;
               const dfStr = `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`;
               queryTarefasFallback = queryTarefasFallback.lte("data_vencimento", dfStr);
+            }
+            if (filters.statusIn && filters.statusIn.length > 0) {
+              queryTarefasFallback = queryTarefasFallback.in("status", filters.statusIn as any);
             }
             queryTarefasFallback = queryTarefasFallback.range(from, to);
             const fallbackRes = await queryTarefasFallback;
@@ -931,6 +939,9 @@ export async function fetchAgendaPage(
             "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
           )
           .not("data_audiencia", "is", null);
+        if (filters.statusIn && filters.statusIn.length > 0) {
+          queryAud = queryAud.in("status", filters.statusIn as any);
+        }
 
         // Se há filtro de coordenação (admin escolheu uma coord específica), usa-o
         // como escopo — inclui audiências importadas via pauta Excel que não têm
