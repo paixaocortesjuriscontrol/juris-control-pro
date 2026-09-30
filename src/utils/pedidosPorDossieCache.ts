@@ -51,12 +51,21 @@ interface LinhaAgrupada {
   pedidos_normalizados: string[] | null;
 }
 
+/** Extrai o final estável do dossiê: o número longo + ano ("0004356802/25"). */
+function sufixoDossie(dossie: string): string | null {
+  const m = String(dossie || "").trim().match(/\.(\d+\/\d+)$/);
+  return m ? m[1] : null;
+}
+
 function montarMapas(linhas: LinhaAgrupada[]): {
   mapa: Map<string, Set<string>>;
   nomes: Map<string, Map<string, string>>;
+  suffix: Map<string, string>;
 } {
   const mapa = new Map<string, Set<string>>();
   const nomes = new Map<string, Map<string, string>>();
+  const suffix = new Map<string, string>();
+  const suffixAmbiguos = new Set<string>();
   for (const linha of linhas) {
     const dossie = String(linha?.dossie || "").trim();
     if (!dossie) continue;
@@ -73,8 +82,19 @@ function montarMapas(linhas: LinhaAgrupada[]): {
     }
     if (set.size > 0) mapa.set(dossie, set);
     if (nm.size > 0) nomes.set(dossie, nm);
+    const suf = sufixoDossie(dossie);
+    if (suf) {
+      const existente = suffix.get(suf);
+      if (existente && existente !== dossie) {
+        // Final compartilhado por dossiês distintos: não usar como fallback.
+        suffixAmbiguos.add(suf);
+      } else {
+        suffix.set(suf, dossie);
+      }
+    }
   }
-  return { mapa, nomes };
+  for (const suf of suffixAmbiguos) suffix.delete(suf);
+  return { mapa, nomes, suffix };
 }
 
 function lerDaSessao(): LinhaAgrupada[] | null {
