@@ -250,7 +250,18 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <FileText className="w-4 h-4 text-primary shrink-0" />
-                    <span className="truncate font-medium">{anexo.file?.name || anexo.nome}</span>
+                    {anexo.uploaded ? (
+                      <button
+                        type="button"
+                        className="truncate font-medium cursor-pointer hover:underline focus:outline-none text-left"
+                        title="Baixar documento"
+                        onClick={() => baixarAnexo(anexo)}
+                      >
+                        {anexo.file?.name || anexo.nome}
+                      </button>
+                    ) : (
+                      <span className="truncate font-medium">{anexo.file?.name || anexo.nome}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     <span className="text-xs text-muted-foreground hidden sm:inline">
