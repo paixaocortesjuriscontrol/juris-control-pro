@@ -12,11 +12,15 @@ interface AnexoBadgeProps {
  */
 export function AnexoBadge({ className, title = "Possui anexos" }: AnexoBadgeProps) {
   return (
-    <Paperclip
+    <span
       title={title}
       aria-hidden
-      className={cn("w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400", className)}
-      strokeWidth={2.5}
-    />
+      className="inline-flex shrink-0 items-center justify-center"
+    >
+      <Paperclip
+        className={cn("w-3.5 h-3.5 text-sky-600 dark:text-sky-400", className)}
+        strokeWidth={2.5}
+      />
+    </span>
   );
 }
