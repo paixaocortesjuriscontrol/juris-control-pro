@@ -48,7 +48,7 @@ import {
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaFormSimplificado";
 import { ClipboardList, CalendarPlus, Clock, Gavel, Coins, Eye, EyeOff, SlidersHorizontal, FilterX, ListChecks, X } from "lucide-react";
-import { labelSituacaoAtividade, atividadeEncerrada } from "@/components/comum/ItemAtividades";
+import { labelSituacaoAtividade, atividadeConcluida } from "@/components/comum/ItemAtividades";
 import { BarChart3, Search, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
@@ -2246,9 +2246,8 @@ export default function PainelControle() {
         if (!pai || !itemPassaFiltroComentario(pai)) return;
       }
       if (!map.has(key)) map.set(key, []);
-      // A situação exibida no formulário pertence ao item pai. Quando ele
-      // estiver concluído, a atividade recebe o V verde (sem risco) no calendário.
-      map.get(key)!.push({ ...a, _paiConcluido: pai ? isItemTratado(pai) : false });
+      // A atividade mantém a própria situação; concluir o item pai não a conclui.
+      map.get(key)!.push(a);
     });
     return map;
   }, [
@@ -3445,7 +3444,7 @@ export default function PainelControle() {
                                   .trim()
                                   .toLowerCase();
                                 const ativCancelada = situacaoAtiv === "cancelada" || situacaoAtiv === "cancelado";
-                                const ativConcluida = (atividadeEncerrada(a.situacao) && !ativCancelada) || a._paiConcluido;
+                                const ativConcluida = atividadeConcluida(a.situacao);
                                 return (
                                 <div
                                   key={`ativ-${a.id}`}
