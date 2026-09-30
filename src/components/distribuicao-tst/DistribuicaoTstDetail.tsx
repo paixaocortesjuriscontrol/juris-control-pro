@@ -1057,8 +1057,6 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 if (Object.keys(julgPatch).length && digits.length >= 15) {
                   const normD = (d: any) => { const s = String(d || "").trim(); return s === "Não localizado" ? "" : s; };
                   const meuDossie = normD((bennerDado as any)?.dossie ?? currentDado?.dossie);
-                  const { data: irmaos } = await (supabase as any).rpc("find_processo_by_digits", { _numero: digits }).then(() => ({ data: null }));
-                  void irmaos;
                   const { data: cands } = await supabase
                     .from("dados_benner" as any)
                     .select("id, processo, dossie")
