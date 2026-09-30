@@ -517,8 +517,8 @@ export function BeatrizCostaImportTab({
             Importar — Dra. Beatriz Costa
           </CardTitle>
           <CardDescription>
-            Importação em lotes da planilha "BASE - RELATÓRIOS - TODOS OS CLIENTES". Processos existentes são
-            atualizados e os novos são cadastrados, aparecendo na tela Processos e Casos.
+            Importação em lotes da planilha "BASE - RELATÓRIOS - TODOS OS CLIENTES". Processos que já existem (em qualquer
+            coordenação) não são alterados; só os novos são cadastrados, aparecendo na tela Processos e Casos.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
