@@ -2253,6 +2253,21 @@ export default function PainelControle() {
       ) {
         if (!pai || !itemPassaFiltroComentario(pai)) return;
       }
+      // Filtros de situação (rápido e avançado) valem para a situação da
+      // própria atividade — antes as atividades pendentes apareciam mesmo
+      // filtrando só Protocolado/Baixado.
+      const sitAtiv = normalizeAgendaStatus(a.situacao || "pendente");
+      const sitMasc = sitAtiv.replace(/ada$/, "ado").replace(/ida$/, "ido");
+      const casa = (v: string) => statusCasaSituacao(sitAtiv, v) || statusCasaSituacao(sitMasc, v);
+      if (painelFiltros.situacoes.length > 0 && !painelFiltros.situacoes.some(casa)) return;
+      if (situacaoFilter && situacaoFilter !== "todos" && !casa(situacaoFilter)) return;
+      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+        const cancelada = sitMasc === "cancelado";
+        const concluida = !cancelada && sitMasc !== "pendente" && sitMasc !== "em_execucao" && sitMasc !== "atrasado";
+        if (painelFiltros.statusGroup === "a_concluir" && (concluida || cancelada)) return;
+        if (painelFiltros.statusGroup === "concluidas" && !concluida) return;
+        if (painelFiltros.statusGroup === "canceladas" && !cancelada) return;
+      }
       if (!map.has(key)) map.set(key, []);
       // A atividade mantém a própria situação; concluir o item pai não a conclui.
       map.get(key)!.push(a);
@@ -2269,6 +2284,9 @@ export default function PainelControle() {
     buscaTexto,
     itemPassaFiltroComentario,
     passaFiltrosPainel,
+    painelFiltros.situacoes,
+    painelFiltros.statusGroup,
+    situacaoFilter,
   ]);
 
 
