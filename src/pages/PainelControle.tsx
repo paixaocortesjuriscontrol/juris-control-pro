@@ -676,8 +676,14 @@ export default function PainelControle() {
       dataInicio: subMonths(dataInicio, 24),
       dataFim: addDays(dataInicio, -1),
       enabled: vencidosAtivo,
+      // Desempenho: dos meses anteriores só interessam os itens em aberto
+      // (salvo quando o usuário pede encerrados). Antes baixava 24 meses inteiros.
+      ...(!(filters as any).statusIn && !modoProtocoladosBaixados && !drill &&
+        painelFiltros.statusGroup !== "concluidas" && painelFiltros.statusGroup !== "canceladas"
+        ? { statusNotIn: ["cumprido", "concluido", "cancelado", "cancelado_oculto", "protocolado", "baixado", "tratado", "verificado", "concluido_sem_sucesso"] }
+        : {}),
     }),
-    [filters, dataInicio, vencidosAtivo],
+    [filters, dataInicio, vencidosAtivo, modoProtocoladosBaixados, drill, painelFiltros.statusGroup],
   );
   const vencidosQuery = useAgendaUnificada(filtersVencidos);
   useEffect(() => {
