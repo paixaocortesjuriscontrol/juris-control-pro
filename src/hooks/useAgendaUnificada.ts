@@ -253,7 +253,7 @@ export async function fetchAgendaPage(
           // para que a expansão de ocorrências no cliente cubra o intervalo pedido.
           const diIso = filters.dataInicio.toISOString();
           queryEventos = queryEventos.or(
-            `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
+            `data_inicio.gte.${diIso},data_fim.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
           );
         }
 
@@ -301,7 +301,7 @@ export async function fetchAgendaPage(
           if (filters.dataInicio) {
             const diIso = filters.dataInicio.toISOString();
             queryEventosFallback = queryEventosFallback.or(
-              `data_inicio.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
+              `data_inicio.gte.${diIso},data_fim.gte.${diIso},recorrente.eq.true,recorrencia_tipo.not.is.null`
             );
           }
           if (filters.dataFim) {
@@ -422,7 +422,7 @@ export async function fetchAgendaPage(
               // Dias úteis: a série sempre começa em um dia útil (Seg–Sex).
               let cursor = tipo === "weekdays" ? snapToWeekday(dataOriginal) : new Date(dataOriginal);
               let safety = 0;
-              const MAX = 500;
+              const MAX = 20000;
               while (cursor <= hardStop && safety < MAX) {
                 safety++;
                 if (cursor >= windowStart) {
@@ -754,7 +754,7 @@ export async function fetchAgendaPage(
                 // Dias úteis: a série sempre começa em um dia útil (Seg–Sex).
                 let cursor = tipo === "weekdays" ? snapToWeekday(dataBase) : new Date(dataBase);
                 let safety = 0;
-                const MAX = 500;
+                const MAX = 20000;
                 while (cursor <= hardStopT && safety < MAX) {
                   safety++;
                   if (cursor >= windowStartT) {
