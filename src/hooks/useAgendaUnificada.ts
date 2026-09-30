@@ -97,6 +97,7 @@ export interface AgendaUnificadaFilters {
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
   pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
+  statusNotIn?: string[]; // Situações excluídas no banco
   statusIn?: string[]; // Situações exatas (filtro aplicado no banco)
   strictCoordenacaoIsolation?: boolean; // Se true, exclui itens sem processo da visão por coordenação
   enabled?: boolean; // Se false, a query não é executada
@@ -581,6 +582,8 @@ export async function fetchAgendaPage(
 
         if (filters.statusIn && filters.statusIn.length > 0) {
           queryTarefas = queryTarefas.in("status", filters.statusIn as any);
+        } else if (filters.statusNotIn && filters.statusNotIn.length > 0) {
+          queryTarefas = queryTarefas.not("status", "in", `(${filters.statusNotIn.join(",")})`);
         }
 
         if (filters.dataInicio) {
@@ -650,6 +653,8 @@ export async function fetchAgendaPage(
             }
             if (filters.statusIn && filters.statusIn.length > 0) {
               queryTarefasFallback = queryTarefasFallback.in("status", filters.statusIn as any);
+            } else if (filters.statusNotIn && filters.statusNotIn.length > 0) {
+              queryTarefasFallback = queryTarefasFallback.not("status", "in", `(${filters.statusNotIn.join(",")})`);
             }
             queryTarefasFallback = queryTarefasFallback.range(from, to);
             const fallbackRes = await queryTarefasFallback;
@@ -941,6 +946,8 @@ export async function fetchAgendaPage(
           .not("data_audiencia", "is", null);
         if (filters.statusIn && filters.statusIn.length > 0) {
           queryAud = queryAud.in("status", filters.statusIn as any);
+        } else if (filters.statusNotIn && filters.statusNotIn.length > 0) {
+          queryAud = queryAud.or(`status.is.null,status.not.in.(${filters.statusNotIn.join(",")})`);
         }
 
         // Se há filtro de coordenação (admin escolheu uma coord específica), usa-o
