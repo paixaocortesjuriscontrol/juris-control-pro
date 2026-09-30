@@ -16,7 +16,7 @@ interface Props {
 }
 
 export function EquipeTstSelect({ value, onChange, baseOptions }: Props) {
-  const { isAdmin } = useUserRole();
+  const { isAdminOrCoordinator: isAdmin } = useUserRole();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
