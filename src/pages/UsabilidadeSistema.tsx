@@ -141,7 +141,7 @@ export default function UsabilidadeSistema() {
           </div></CardHeader>
           <CardContent className="overflow-x-auto">{isLoading ? <Skeleton className="h-48" /> :
             <Table><TableHeader><TableRow>
-              <Th k="nome">Pessoa</Th><TableHead>Nível</TableHead><Th k="dias_login">Dias ativos</Th><Th k="logins">Acessos</Th><Th k="ultimo_acesso">Último acesso</Th>
+              <Th k="nome">Pessoa</Th><Th k="nivel">Nível</Th><Th k="dias_login">Dias ativos</Th><Th k="logins">Acessos</Th><Th k="ultimo_acesso">Último acesso</Th>
               <Th k="acoes_itens">Ações em itens</Th><Th k="criados">Criados</Th><Th k="atualizados">Alterados</Th><Th k="acoes_tst">Distrib. TST</Th>
               <Th k="consultas_judit">Judit</Th><Th k="usos_ia">IA</Th><Th k="total">Total</Th>
             </TableRow></TableHeader>
