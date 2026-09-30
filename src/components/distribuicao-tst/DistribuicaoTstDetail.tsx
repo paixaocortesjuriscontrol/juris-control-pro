@@ -113,7 +113,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
       benner: false,
       centralizadores: isAdminOrCoordinator,
       "log-judit": podeVerLogJudit,
-      auditoria: isAdmin,
+      auditoria: true,
     };
     if (tab in restritas && !restritas[tab]) setTab("distribuicao");
   }, [tab, isAdminOrCoordinator, isAdmin, podeVerLogJudit]);
@@ -987,9 +987,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {podeVerLogJudit && (
               <TabsTrigger value="log-judit" disabled={bennerDisabled}>Log Judit</TabsTrigger>
             )}
-            {isAdmin && (
-              <TabsTrigger value="auditoria" disabled={bennerDisabled}>Auditoria</TabsTrigger>
-            )}
+            <TabsTrigger value="auditoria" disabled={bennerDisabled}>Auditoria</TabsTrigger>
           </TabsList>
         </div>
 
@@ -1071,15 +1069,13 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
           <AnaliseJuditTab processoNumero={processoNumero} />
         </TabsContent>
 
-        {isAdmin && (
-          <TabsContent value="auditoria" className="mt-4">
-            <AuditoriaTab
-              dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
-              processo={processoNumero}
-              dossie={currentDado?.dossie || null}
-            />
-          </TabsContent>
-        )}
+        <TabsContent value="auditoria" className="mt-4">
+          <AuditoriaTab
+            dadosBennerId={(bennerDado as any)?.id || (currentDado as any)?.id || null}
+            processo={processoNumero}
+            dossie={currentDado?.dossie || null}
+          />
+        </TabsContent>
 
         {isAdminOrCoordinator && (
           <TabsContent value="centralizadores" className="mt-4">
