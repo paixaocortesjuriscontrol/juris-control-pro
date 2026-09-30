@@ -25,7 +25,11 @@ export default function UsabilidadeSistema() {
   const [coord, setCoord] = useState("todas");
   const [busca, setBusca] = useState("");
   const [nivel, setNivel] = useState("todos");
-  const [ordem, setOrdem] = useState<keyof LinhaUso | "total">("total");
+  const [situacao, setSituacao] = useState("todos");
+  const [cadastroPeriodo, setCadastroPeriodo] = useState(false);
+  const [minAcoes, setMinAcoes] = useState("");
+  const [ordem, setOrdem] = useState<keyof LinhaUso | "total" | "nivel">("total");
+  const [ordemDir, setOrdemDir] = useState<"asc" | "desc">("desc");
   const { coordenacoes } = useCoordenacoesDoUsuario();
 
   const { data, isLoading, error } = useQuery({
@@ -43,13 +47,23 @@ export default function UsabilidadeSistema() {
 
   const r = data ? resumo(data, diasUteis) : null;
   const linhas = useMemo(() => {
+    const min = Number(minAcoes) || 0;
     const l = (data?.usuarios || []).filter((u) =>
-      (!busca || `${u.nome} ${u.email}`.toLowerCase().includes(busca.toLowerCase())) && (nivel === "todos" || nivelUso(u, diasUteis) === nivel));
-    return [...l].sort((a, b) => ordem === "total" ? totalAcoes(b) - totalAcoes(a)
-      : ordem === "nome" ? String(a.nome).localeCompare(String(b.nome))
-      : ordem === "ultimo_acesso" ? String(b.ultimo_acesso || "").localeCompare(String(a.ultimo_acesso || ""))
-      : Number(b[ordem]) - Number(a[ordem]));
-  }, [data, busca, nivel, ordem, diasUteis]);
+      (!busca || `${u.nome} ${u.email}`.toLowerCase().includes(busca.toLowerCase()))
+      && (nivel === "todos" || nivelUso(u, diasUteis) === nivel)
+      && (situacao === "todos" || (situacao === "ativos" ? u.ativo : !u.ativo))
+      && (!cadastroPeriodo || (u.criado_em && u.criado_em.slice(0, 10) >= inicio && u.criado_em.slice(0, 10) <= fim))
+      && totalAcoes(u) >= min);
+    const dir = ordemDir === "asc" ? 1 : -1;
+    const nivelRank = (n: string) => ({ "Sem uso": 0, Baixo: 1, "Médio": 2, Alto: 3 }[n] ?? 0);
+    return [...l].sort((a, b) => {
+      if (ordem === "total") return (totalAcoes(a) - totalAcoes(b)) * dir;
+      if (ordem === "nivel") return (nivelRank(nivelUso(a, diasUteis)) - nivelRank(nivelUso(b, diasUteis))) * dir;
+      if (ordem === "nome") return String(a.nome).localeCompare(String(b.nome)) * dir;
+      if (ordem === "ultimo_acesso") return String(a.ultimo_acesso || "").localeCompare(String(b.ultimo_acesso || "")) * dir;
+      return (Number(a[ordem]) - Number(b[ordem])) * dir;
+    });
+  }, [data, busca, nivel, situacao, cadastroPeriodo, minAcoes, ordem, ordemDir, diasUteis, inicio, fim]);
 
   const coordNome = coord === "todas" ? "Todas as coordenações" : coordenacoes?.find((c: any) => c.id === coord)?.nome || "";
   const exp = async (tipo: "pdf" | "xlsx") => {
@@ -59,7 +73,10 @@ export default function UsabilidadeSistema() {
   };
   const serieDia = (data?.por_dia || []).map((d) => ({ ...d, label: d.dia.slice(8, 10) + "/" + d.dia.slice(5, 7) }));
   const Th = ({ k, children }: { k: any; children: any }) => (
-    <TableHead className="cursor-pointer select-none whitespace-nowrap" onClick={() => setOrdem(k)}>{children}{ordem === k ? " ↓" : ""}</TableHead>
+    <TableHead className="cursor-pointer select-none whitespace-nowrap"
+      onClick={() => { if (ordem === k) setOrdemDir((d) => (d === "desc" ? "asc" : "desc")); else { setOrdem(k); setOrdemDir(k === "nome" ? "asc" : "desc"); } }}>
+      {children}{ordem === k ? (ordemDir === "desc" ? " ↓" : " ↑") : ""}
+    </TableHead>
   );
 
   return (
@@ -113,14 +130,18 @@ export default function UsabilidadeSistema() {
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <div><CardTitle className="text-base">Uso por pessoa</CardTitle>
             <CardDescription>Nível pela proporção de dias úteis com uso desde o cadastro de cada pessoa ({diasUteis} no período; cadastros importados sem acesso e desativados não entram): Alto ≥ 60%, Médio ≥ 25%. Clique no título da coluna para ordenar.</CardDescription></div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input placeholder="Buscar pessoa" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48" />
             <Select value={nivel} onValueChange={setNivel}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>{["todos", "Alto", "Médio", "Baixo", "Sem uso"].map((n) => <SelectItem key={n} value={n}>{n === "todos" ? "Todos os níveis" : n}</SelectItem>)}</SelectContent></Select>
+            <Select value={situacao} onValueChange={setSituacao}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="todos">Ativos e inativos</SelectItem><SelectItem value="ativos">Somente ativos</SelectItem><SelectItem value="inativos">Somente inativos</SelectItem></SelectContent></Select>
+            <Input type="number" min={0} placeholder="Mín. de ações" value={minAcoes} onChange={(e) => setMinAcoes(e.target.value)} className="w-32" title="Mostrar só quem tem pelo menos este total de ações" />
+            <Button variant={cadastroPeriodo ? "default" : "outline"} size="sm" onClick={() => setCadastroPeriodo((v) => !v)}>Cadastradas no período</Button>
           </div></CardHeader>
           <CardContent className="overflow-x-auto">{isLoading ? <Skeleton className="h-48" /> :
             <Table><TableHeader><TableRow>
-              <Th k="nome">Pessoa</Th><TableHead>Nível</TableHead><Th k="dias_login">Dias ativos</Th><Th k="logins">Acessos</Th><Th k="ultimo_acesso">Último acesso</Th>
+              <Th k="nome">Pessoa</Th><Th k="nivel">Nível</Th><Th k="dias_login">Dias ativos</Th><Th k="logins">Acessos</Th><Th k="ultimo_acesso">Último acesso</Th>
               <Th k="acoes_itens">Ações em itens</Th><Th k="criados">Criados</Th><Th k="atualizados">Alterados</Th><Th k="acoes_tst">Distrib. TST</Th>
               <Th k="consultas_judit">Judit</Th><Th k="usos_ia">IA</Th><Th k="total">Total</Th>
             </TableRow></TableHeader>
