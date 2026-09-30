@@ -9,6 +9,7 @@ import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
@@ -173,6 +174,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                       {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                        {veioDePublicacao && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
+                      {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
                     </div>
                     {item.processo?.numero && (
                       <p className="text-[10px] font-mono text-muted-foreground mt-1 truncate">

@@ -79,6 +79,8 @@ export interface ItemAgendaUnificado {
   marcadores?: string | null;
   modulo?: string | null;
   quadro_kanban?: string | null;
+  /** Quantidade de anexos (documentos) vinculados ao item. */
+  anexos_count?: number;
 }
 
 export interface AgendaUnificadaFilters {
@@ -190,10 +192,10 @@ export async function fetchAgendaPage(
       let fonteCheia = false;
 
       // Constants for queries
-      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id)" as const;
+      const EVENTOS_SELECT_WITH_JOINS = "*,processo:processos!eventos_agenda_processo_id_fkey(id,numero,assunto,coordenacao_id),documentos(count)" as const;
       const EVENTOS_SELECT_BASE = "*" as const;
       const TAREFAS_SELECT_WITH_JOINS =
-        "id,titulo,descricao,data_vencimento,data_fatal,data_prevista,data_cumprimento,tipo_tarefa,status,prioridade,observacoes,origem,created_at,updated_at,processo_id,coordenacao_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,hora_prevista,data_base,prazo_dias,prazo_unidade,link_local,orgao,partes_ativas,partes_passivas,recorrente,recorrencia_tipo,recorrencia_intervalo,recorrencia_fim,recorrencia_rrule,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome)" as const;
+        "id,titulo,descricao,data_vencimento,data_fatal,data_prevista,data_cumprimento,tipo_tarefa,status,prioridade,observacoes,origem,created_at,updated_at,processo_id,coordenacao_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,hora_prevista,data_base,prazo_dias,prazo_unidade,link_local,orgao,partes_ativas,partes_passivas,recorrente,recorrencia_tipo,recorrencia_intervalo,recorrencia_fim,recorrencia_rrule,processo:processos!tarefas_processo_id_fkey(id,numero,assunto,cliente_id,coordenacao_id),responsavel:profiles!tarefas_responsavel_id_fkey(id,nome),documentos(count)" as const;
       const TAREFAS_SELECT_BASE =
         "id,titulo,descricao,data_vencimento,data_fatal,data_prevista,data_cumprimento,tipo_tarefa,status,prioridade,observacoes,origem,created_at,updated_at,processo_id,coordenacao_id,responsavel_id,criado_por,identificador_projuris,hora_fatal,hora_prevista,data_base,prazo_dias,prazo_unidade,link_local,orgao,partes_ativas,partes_passivas,recorrente,recorrencia_tipo,recorrencia_intervalo,recorrencia_fim,recorrencia_rrule" as const;
 
@@ -494,6 +496,7 @@ export async function fetchAgendaPage(
                 numero_parcela: (evento as any).numero_parcela ?? null,
                 valor_parcela: (evento as any).valor_parcela ?? null,
                 criado_por: evento.criado_por,
+                anexos_count: (evento as any).documentos?.[0]?.count ?? 0,
                 dias_restantes: diasRestantes,
                 is_atrasado: isAtrasado,
               });
@@ -840,6 +843,7 @@ export async function fetchAgendaPage(
                   data_prevista: (tarefa as any).data_prevista ?? null,
                   data_cumprimento: (tarefa as any).data_cumprimento ?? null,
                   origem_importacao: (tarefa as any).origem ?? null,
+                  anexos_count: (tarefa as any).documentos?.[0]?.count ?? 0,
                 });
               }
             }
@@ -941,7 +945,7 @@ export async function fetchAgendaPage(
         let queryAud = supabase
           .from("audiencias_detectadas")
           .select(
-            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
+            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)"
           )
           .not("data_audiencia", "is", null);
         if (filters.statusIn && filters.statusIn.length > 0) {
@@ -1060,6 +1064,7 @@ export async function fetchAgendaPage(
                 ? { id: aud.processo_id ?? aud.id, numero: aud.processo_numero }
                 : null,
               criado_por: aud.criado_por,
+              anexos_count: (aud as any).documentos?.[0]?.count ?? 0,
               coordenacao_id: aud.coordenacao_id ?? null,
               dias_restantes: diasRestantes,
               is_atrasado: isAtrasado,

@@ -55,6 +55,7 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
 import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -3450,6 +3451,9 @@ export default function PainelControle() {
                                   <span className={cn("truncate", (isItemRiscado(item) || isCancelado) && "line-through")}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
+                                  {(item.anexos_count ?? 0) > 0 && (
+                                    <AnexoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 ml-0.5" />
+                                  )}
                                   {temAtividade && (
                                     <AtividadeBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
                                   )}
