@@ -52,6 +52,7 @@ import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
 import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from "@/hooks/useCobrancasItens";
@@ -1105,6 +1106,7 @@ export default function ListaAtividadesView({
                                 </span>
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
+                                {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
                                 <span data-stop className="inline-flex">
                                   <CobrancaBotao
                                     itemId={getItemRawId(r.id)}

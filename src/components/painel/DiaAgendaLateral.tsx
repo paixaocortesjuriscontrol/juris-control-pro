@@ -15,6 +15,7 @@ import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/
 import { labelSituacaoAtividade, atividadeConcluida } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
@@ -200,6 +201,7 @@ export function AgendaItemRow({
           {veioDeWorkflow && <WorkflowBadge />}
           {veioDePublicacao && <PublicacaoBadge />}
           {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
+          {(item.anexos_count ?? 0) > 0 && <AnexoBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">

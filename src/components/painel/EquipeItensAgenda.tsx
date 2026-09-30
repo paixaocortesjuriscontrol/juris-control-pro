@@ -16,6 +16,7 @@ import { isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -519,6 +520,7 @@ export function EquipeItensAgenda({
                         {itensDeWorkflow.has(getItemRawId(item.id)) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {(item as any).data_publicacao_origem && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
+                        {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
                         {(() => {
                           const info = infoCobrancaItem(mapaCobrancas, item);
                           return info ? (
