@@ -130,10 +130,14 @@ export default function UsabilidadeSistema() {
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
           <div><CardTitle className="text-base">Uso por pessoa</CardTitle>
             <CardDescription>Nível pela proporção de dias úteis com uso desde o cadastro de cada pessoa ({diasUteis} no período; cadastros importados sem acesso e desativados não entram): Alto ≥ 60%, Médio ≥ 25%. Clique no título da coluna para ordenar.</CardDescription></div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input placeholder="Buscar pessoa" value={busca} onChange={(e) => setBusca(e.target.value)} className="w-48" />
             <Select value={nivel} onValueChange={setNivel}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
               <SelectContent>{["todos", "Alto", "Médio", "Baixo", "Sem uso"].map((n) => <SelectItem key={n} value={n}>{n === "todos" ? "Todos os níveis" : n}</SelectItem>)}</SelectContent></Select>
+            <Select value={situacao} onValueChange={setSituacao}><SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="todos">Ativos e inativos</SelectItem><SelectItem value="ativos">Somente ativos</SelectItem><SelectItem value="inativos">Somente inativos</SelectItem></SelectContent></Select>
+            <Input type="number" min={0} placeholder="Mín. de ações" value={minAcoes} onChange={(e) => setMinAcoes(e.target.value)} className="w-32" title="Mostrar só quem tem pelo menos este total de ações" />
+            <Button variant={cadastroPeriodo ? "default" : "outline"} size="sm" onClick={() => setCadastroPeriodo((v) => !v)}>Cadastradas no período</Button>
           </div></CardHeader>
           <CardContent className="overflow-x-auto">{isLoading ? <Skeleton className="h-48" /> :
             <Table><TableHeader><TableRow>
