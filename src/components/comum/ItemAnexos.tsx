@@ -223,7 +223,21 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
                         size="icon"
                         className="h-6 w-6"
                         title="Baixar documento"
-                        onClick={() => window.open(anexo.url!, "_blank", "noopener")}
+                        onClick={async () => {
+                          const janela = window.open("", "_blank");
+                          let url = anexo.url!;
+                          const m = url.match(/\/object\/(?:sign|public)\/documentos_processos\/([^?]+)/);
+                          if (m) {
+                            const novo = await getSignedUrlOrEmpty(
+                              "documentos_processos",
+                              decodeURIComponent(m[1]),
+                            );
+                            if (novo) url = novo;
+                            else toast.error("Não foi possível gerar o link do documento.");
+                          }
+                          if (janela) janela.location.href = url;
+                          else window.open(url, "_blank", "noopener");
+                        }}
                       >
                         <Download className="w-3 h-3" />
                       </Button>
