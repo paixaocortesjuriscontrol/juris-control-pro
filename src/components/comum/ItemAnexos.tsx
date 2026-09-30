@@ -274,29 +274,7 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
                         size="icon"
                         className="h-6 w-6"
                         title="Baixar documento"
-                        onClick={async () => {
-                          let url = anexo.url || "";
-                          const m = url.match(/\/object\/(?:sign|public)\/documentos_processos\/([^?]+)/);
-                          if (!m && !url) {
-                            toast.error("Este anexo foi gravado sem o arquivo. Envie o documento de novo.");
-                            return;
-                          }
-                          const janela = window.open("", "_blank");
-                          if (m) {
-                            const novo = await getSignedUrlOrEmpty(
-                              "documentos_processos",
-                              decodeURIComponent(m[1]),
-                            );
-                            if (novo) url = novo;
-                            else {
-                              janela?.close();
-                              toast.error("Não foi possível gerar o link do documento.");
-                              return;
-                            }
-                          }
-                          if (janela) janela.location.href = url;
-                          else window.open(url, "_blank", "noopener");
-                        }}
+                        onClick={() => baixarAnexo(anexo)}
                       >
                         <Download className="w-3 h-3" />
                       </Button>
