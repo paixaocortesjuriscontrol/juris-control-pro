@@ -945,7 +945,7 @@ export async function fetchAgendaPage(
         let queryAud = supabase
           .from("audiencias_detectadas")
           .select(
-            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at"
+            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)"
           )
           .not("data_audiencia", "is", null);
         if (filters.statusIn && filters.statusIn.length > 0) {
