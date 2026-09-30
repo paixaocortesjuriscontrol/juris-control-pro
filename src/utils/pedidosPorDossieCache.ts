@@ -133,10 +133,11 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
     // 1) Sessão: evita refazer a carga ao trocar filtros ou voltar à tela.
     const salvo = lerDaSessao();
     if (salvo) {
-      const { mapa, nomes } = montarMapas(salvo);
+      const { mapa, nomes, suffix } = montarMapas(salvo);
       if (mapa.size > 0) {
         cache = mapa;
         nomesCache = nomes;
+        suffixIndex = suffix;
         inflight = null;
         return mapa;
       }
@@ -159,10 +160,11 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
       offset += PARALELO * RPC_PAGE;
     }
 
-    const { mapa, nomes } = montarMapas(linhas);
+    const { mapa, nomes, suffix } = montarMapas(linhas);
     if (mapa.size > 0) {
       cache = mapa;
       nomesCache = nomes;
+      suffixIndex = suffix;
       gravarNaSessao(linhas);
     }
     inflight = null;
