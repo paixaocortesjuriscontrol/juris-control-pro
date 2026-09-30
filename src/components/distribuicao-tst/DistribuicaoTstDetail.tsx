@@ -1052,7 +1052,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
                 const JULG = ["tem_data_julgamento", "data_julgamento", "horario_julgamento", "tipo_julgamento"];
                 const julgPatch: Record<string, any> = {};
                 for (const k of JULG) if (k in (patch || {})) julgPatch[k] = (patch as any)[k];
-                const proc = String((bennerDado as any)?.processo || currentDado?.processo || "");
+                const proc = String((bennerDado as any)?.processo || (currentDado as any)?.processo_numero || "");
                 const digits = proc.replace(/\D/g, "");
                 if (Object.keys(julgPatch).length && digits.length >= 15) {
                   const normD = (d: any) => { const s = String(d || "").trim(); return s === "Não localizado" ? "" : s; };
