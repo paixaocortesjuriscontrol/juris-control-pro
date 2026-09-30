@@ -3403,7 +3403,7 @@ export default function PainelControle() {
                                   title={item.titulo}
                                 >
                                   {isConcluido ? (
-                                    <TratadoCheck tratado size={10} className="text-current dark:text-current" />
+                                    <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" />
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
