@@ -191,7 +191,7 @@ export function AgendaItemRow({
           className={cn(
             "text-sm text-foreground leading-snug flex items-center gap-1.5",
             (concluido || riscado) && "line-through",
-            (concluido || cancelado) && "text-muted-foreground"
+            cancelado && "text-muted-foreground"
           )}
         >
           {item.titulo || TIPO_LABELS[item.tipo] || "Sem título"}

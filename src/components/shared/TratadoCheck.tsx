@@ -63,9 +63,9 @@ export function isItemTratado(item: {
 }
 
 /**
- * Situação que recebe o RISCO no texto (line-through): APENAS CANCELADO.
- * Itens cumpridos/concluídos NÃO são riscados — mantêm o visual original
- * e apenas o V verde indica que foram tratados.
+ * Situações que recebem o RISCO no texto (line-through): cancelado, protocolado
+ * e tudo que está tratado/concluído (cumprido, concluído, tratado etc.).
+ * O risquinho NÃO altera a cor do item — a cor do tipo permanece.
  */
 export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolean {
   const normalize = (value?: string | null) =>
@@ -75,6 +75,8 @@ export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolea
       .trim()
       .toLowerCase();
 
-  const riscados = new Set(["cancelado", "cancelada"]);
-  return [item.status, item.status_tst, item.situacao].some((value) => riscados.has(normalize(value)));
+  const riscados = new Set(["cancelado", "cancelada", "protocolado", "protocolada"]);
+  if ([item.status, item.status_tst, item.situacao].some((value) => riscados.has(normalize(value)))) return true;
+
+  return isItemTratado(item);
 }
