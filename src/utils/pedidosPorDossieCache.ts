@@ -186,7 +186,7 @@ export function ensurePedidosPorDossie(): Promise<Map<string, Set<string>>> {
  * dossiê (número longo + ano), cobrindo divergências no trecho do meio
  * (ex.: cadastro "07.02.482.0004356802/25" x lista "07.02.033.0004356802/25").
  */
-function resolverChaveDossie(dossie: string | null | undefined): string | null {
+export function resolverChaveDossie(dossie: string | null | undefined): string | null {
   const key = String(dossie || "").trim();
   if (!key) return null;
   if (cache?.has(key)) return key;
