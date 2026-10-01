@@ -4858,7 +4858,7 @@ const AnaliseDjen = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 mt-3 md:mt-4">
-              {coordenacaoFiltroEfetivo && tribunaisDisponiveis.length > 0 && (
+              {tribunaisDisponiveis.length > 0 && (
                 <div className="space-y-1.5">
                   <Label className="text-xs md:text-sm">Tribunal</Label>
                   <select
