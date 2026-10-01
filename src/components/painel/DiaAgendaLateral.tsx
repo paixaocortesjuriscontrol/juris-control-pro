@@ -192,7 +192,7 @@ export function AgendaItemRow({
           className={cn(
             "text-sm text-foreground leading-snug flex items-center gap-1.5",
             (concluido || riscado) && "line-through",
-            isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
+            isItemConcluidoComSucesso(item) && "!text-emerald-800 dark:!text-emerald-300",
             cancelado && "text-muted-foreground"
           )}
         >
