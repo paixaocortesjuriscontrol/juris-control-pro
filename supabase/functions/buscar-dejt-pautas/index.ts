@@ -337,6 +337,8 @@ function makePautaStreamSegmenter() {
   // DESIGNADA..."). Se a linha anterior termina em vírgula ou em palavra de
   // ligação, o marcador não abre nova pauta.
   const CONTINUACAO_RE = /(?:,|\b(?:a|o|as|os|de|da|do|das|dos|para|uma|um|em|na|no|nas|nos|à|ao|aos|e|com|por|pela|pelo|pelas|pelos|sua|seu|que|ser|cuja|cujo|à|nesta|neste|desta|deste|na|qualquer))\s*$/i;
+  const BARE_MARKER_RE = /^PAUTAS?\s+DE\s+JULGAMENTOS?\s*\.?$/i;
+  const ITEM_LINE_RE = /^(?:\d+\s*[.)\-–]?\s*)?Processo\b/i;
   const findMarker = (from: number): RegExpExecArray | null => {
     markerRe.lastIndex = from;
     let mm: RegExpExecArray | null;
@@ -346,7 +348,20 @@ function makePautaStreamSegmenter() {
       while (pe > 0 && /\s/.test(buf[pe - 1] ?? "") && buf[pe - 1] !== "\n") pe--;
       const ps = buf.lastIndexOf("\n", pe - 1) + 1;
       const prevLine = ls > 0 ? buf.slice(ps, Math.max(ps, ls - 1)).trim() : "";
-      if (!prevLine || !CONTINUACAO_RE.test(prevLine)) return mm;
+      const le = buf.indexOf("\n", ls);
+      const markerLine = buf.slice(ls, le === -1 ? buf.length : le).trim();
+      const bare = BARE_MARKER_RE.test(markerLine);
+      let valid = !prevLine || !CONTINUACAO_RE.test(prevLine);
+      if (valid && bare && le !== -1) {
+        // "PAUTA DE JULGAMENTOS" sozinho logo antes da lista de processos é
+        // subtítulo da mesma pauta (TRT18), não o início de outra.
+        const rest = buf.slice(le + 1, le + 400).replace(/^\s+/, "");
+        if (ITEM_LINE_RE.test(rest)) valid = false;
+      }
+      // Linha "Pauta de Julgamento" isolada seguida do título da sessão: o
+      // título pertence ao mesmo bloco, não fecha um bloco vazio.
+      if (valid && from > 0 && BARE_MARKER_RE.test(buf.slice(Math.max(0, from - 1), ls).trim())) valid = false;
+      if (valid) return mm;
       if (markerRe.lastIndex <= mm.index) markerRe.lastIndex = mm.index + 1;
     }
     return null;
