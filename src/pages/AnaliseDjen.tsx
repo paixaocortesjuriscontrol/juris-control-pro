@@ -5171,6 +5171,24 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">{gerandoDocResumoIntimacaoSemRep ? "..." : "Intimação s/ rep."}</span>
           </Button>
 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGerarDocResumoIntimacaoCorrigido}
+            disabled={allPublicacoes.length === 0 || gerandoDocResumoIntimacaoCorrigido}
+            title="TESTE: mesma lógica do 'sem repetição', mas mantém as intimações do Cejusc e só retira Lista de Distribuição pelo tipo. Lista no início o que foi retirado e o motivo."
+            className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
+          >
+            {gerandoDocResumoIntimacaoCorrigido ? (
+              <Loader2 className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2 animate-spin" />
+            ) : (
+              <Download className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            )}
+            <span className="hidden sm:inline">{gerandoDocResumoIntimacaoCorrigido ? "Gerando..." : "Doc Resumo Intimação (corrigido)"}</span>
+            <span className="sm:hidden">{gerandoDocResumoIntimacaoCorrigido ? "..." : "Intimação corrig."}</span>
+            <Badge variant="secondary" className="ml-1 px-1 py-0 text-[10px]">Teste</Badge>
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
