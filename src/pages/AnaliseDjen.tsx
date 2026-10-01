@@ -3093,6 +3093,113 @@ const AnaliseDjen = () => {
     }
   };
 
+  // ===== TESTE: "Doc Resumo Intimação (corrigido)" — não altera o botão atual.
+  // Diferenças: Cejusc não é pauta; Lista de Distribuição só pelo tipo;
+  // lista no início o que foi retirado e o motivo.
+  const [gerandoDocResumoIntimacaoCorrigido, setGerandoDocResumoIntimacaoCorrigido] = useState(false);
+  const isPautaTurma = (conteudo?: string | null): boolean => {
+    if (!conteudo) return false;
+    const txt = decodeHtmlEntities(String(conteudo).replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ");
+    const ehAcordaoOuDecisao =
+      /A\s*C\s*Ó\s*R\s*D\s*Ã\s*O/i.test(txt) ||
+      /\bACORDAM\s+os\s+Ministros/i.test(txt) ||
+      /\bACORDAM\s+as?\s+(Turma|Desembargadora|Desembargadores)/i.test(txt) ||
+      /\bISTO\s+POSTO\b/i.test(txt) ||
+      /Embargos\s+de\s+declara[çc][ãa]o\s+acolhidos/i.test(txt) ||
+      /\bDECIS[ÃA]O\s+MONOCR[ÁA]TICA\b/i.test(txt) ||
+      (/\bRelator[:(]/i.test(txt) && /\bV\s*O\s*T\s*O\b/i.test(txt));
+    if (ehAcordaoOuDecisao) return false;
+    if (/\bCEJUSC\b/i.test(txt)) return false;
+    const cabecalho = txt.slice(0, 500);
+    const temCabecalhoPauta =
+      /(^|\s)PAUTA\s+DE\s+JULGAMENTO/i.test(cabecalho) ||
+      /Aditamento\s+[àa]\s+Pauta/i.test(cabecalho);
+    const temSessao =
+      /\bSess[aã]o\s+(Ordin[áa]ria|Extraordin[áa]ria|Virtual|Presencial)/i.test(txt) &&
+      /\bsess[aã]o\s+(virtual|presencial)/i.test(txt);
+    return temCabecalhoPauta || temSessao;
+  };
+
+  const handleGerarDocResumoIntimacaoCorrigido = async () => {
+    const rawPubs = getPubsParaGerar();
+    if (rawPubs.length === 0) {
+      toast.error("Nenhuma publicação para exportar");
+      return;
+    }
+    const retiradas: Array<{ pub: any; motivo: string }> = [];
+    const base: any[] = [];
+    rawPubs.forEach((p: any) => {
+      const tipo = (p?.tipo_comunicacao || "").toString().toLowerCase();
+      if (tipo.includes("lista de distribui")) retiradas.push({ pub: p, motivo: "Lista de distribuição (tipo da comunicação)" });
+      else if (isPautaTurma(p?.conteudo)) retiradas.push({ pub: p, motivo: "Pauta de julgamento de Turma" });
+      else base.push(p);
+    });
+    const allPubs = dedupPubsPorProcessoSemDestinatarios(base);
+    const mantidos = new Set(allPubs.map((p: any) => p.id));
+    base.forEach((p) => { if (!mantidos.has(p.id)) retiradas.push({ pub: p, motivo: "Repetida (mesma comunicação)" }); });
+    if (allPubs.length === 0) {
+      toast.error("Todas as publicações foram retiradas — nada a exportar");
+      return;
+    }
+    setGerandoDocResumoIntimacaoCorrigido(true);
+    const toastId = toast.loading("Gerando Doc Resumo Intimação (corrigido)...");
+    try {
+      const origemLabel = tipoOrigem === 'djet-pautas' ? 'DEJT' : 'DJEN';
+      const children: Paragraph[] = [...buildDocHeader(
+        `Resumo de Intimações ${origemLabel} — regra corrigida (Cejusc incluído)`,
+        allPubs.length
+      )];
+      const p = (text: string, bold = false, color = "333333") => new Paragraph({
+        spacing: { after: 60 },
+        children: [new TextRun({ text: sanitizeForXml(text), bold, size: docFontSize, font: docFont, color })],
+      });
+      children.push(p(`Publicações na tela: ${rawPubs.length} • Incluídas: ${allPubs.length} • Retiradas: ${retiradas.length}`, true));
+      if (retiradas.length > 0) {
+        children.push(p("Publicações retiradas e motivo:", true, darkBlue));
+        retiradas.forEach(({ pub, motivo }) => {
+          const data = pub.data_disponibilizacao ? formatDateOnlyFull(pub.data_disponibilizacao) : "—";
+          children.push(p(`• ${formatProcessoNumero(pub.processo_numero) || "sem número"} — ${data} — ${motivo}`));
+        });
+      }
+      children.push(new Paragraph({ children: [new PageBreak()] }));
+
+      const comentariosMap = await fetchComentariosMap(allPubs.map((x: any) => x.id));
+      allPubs.forEach((pub: any, idx: number) => {
+        children.push(...buildPubMetadata(pub, idx));
+        children.push(...buildPartesAdvogados(pub));
+        const ehPauta = isPautaDeJulgamento(pub.conteudo);
+        const trecho = extractResumoSemIA(pub);
+        const ehCejusc = /\bCEJUSC\b/i.test(String(pub.conteudo || "").replace(/<[^>]+>/g, " "));
+        children.push(...buildConteudoParagraphs(
+          trecho || "Sem conteúdo disponível",
+          ehCejusc ? "" : ehPauta ? "PAUTA DE JULGAMENTO (ÍNTEGRA)" : "RESUMO (ÚLTIMOS PARÁGRAFOS + ASSINATURA/INTIMADOS)"
+        ));
+        children.push(...buildComentariosParagraphs(comentariosMap.get(pub.id)));
+      });
+
+      const doc = new Document({
+        styles: { default: { document: { run: { font: docFont, size: docFontSize } } } },
+        sections: [{
+          properties: { page: { margin: { top: 720, bottom: 720, left: 1080, right: 1080 } } },
+          children,
+        }],
+      });
+      const blob = await Packer.toBlob(doc);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `resumo_intimacao_corrigido_djen_${format(new Date(), "yyyy-MM-dd_HHmm")}.docx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Doc corrigido gerado! (${allPubs.length} incluídas, ${retiradas.length} retiradas)`, { id: toastId });
+    } catch (err: any) {
+      console.error("Erro ao gerar Doc corrigido:", err);
+      toast.error(`Erro ao gerar Doc corrigido: ${err?.message || ""}`, { id: toastId });
+    } finally {
+      setGerandoDocResumoIntimacaoCorrigido(false);
+    }
+  };
+
   // mas descartando publicações duplicadas para o mesmo processo (varia só o intimado).
   const handleGerarDocResumoSemRepeticao = async () => {
     const rawPubs = getPubsParaGerar();
