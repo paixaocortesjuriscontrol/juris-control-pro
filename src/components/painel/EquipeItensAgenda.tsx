@@ -511,7 +511,7 @@ export function EquipeItensAgenda({
                           className={cn(
                             "font-medium truncate text-sm",
                             (isItemTratado(item) || isItemRiscado(item)) && "line-through",
-                            isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
+                            isItemConcluidoComSucesso(item) && "!text-emerald-800 dark:!text-emerald-300",
                           )}
                           title={item.titulo || undefined}
                         >

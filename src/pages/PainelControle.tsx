@@ -3434,6 +3434,8 @@ export default function PainelControle() {
                                     "text-[9px] md:text-[10px] leading-tight px-0.5 md:px-1 py-0.5 rounded truncate cursor-pointer font-medium flex items-center gap-0.5",
                                     isCancelado
                                       ? "bg-muted border border-foreground/60 text-foreground"
+                                      : isItemConcluidoComSucesso(item)
+                                      ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
                                       : TIPO_CORES[item.tipo] || "bg-muted border border-border text-muted-foreground"
                                   )}
 
@@ -3451,7 +3453,7 @@ export default function PainelControle() {
                                   <span className={cn(
                                     "truncate",
                                     (isItemRiscado(item) || isCancelado) && "line-through",
-                                    isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2"
+                                    isItemConcluidoComSucesso(item) && "!text-emerald-800 dark:!text-emerald-300"
                                   )}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
@@ -3502,7 +3504,7 @@ export default function PainelControle() {
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
                                     ativCancelada && "line-through opacity-70",
                                     !ativCancelada && (ativConcluida || ["baixado", "baixada", "protocolado", "protocolada"].includes(situacaoAtiv)) && "line-through",
-                                    !ativCancelada && ativConcluida && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
+                                    !ativCancelada && ativConcluida && "!bg-emerald-700/20 !border-emerald-700 !text-emerald-800 dark:!text-emerald-300",
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();
