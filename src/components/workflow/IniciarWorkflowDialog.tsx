@@ -331,6 +331,11 @@ export function IniciarWorkflowDialog({
               placeholder="Opcional"
             />
           </div>
+      {!selectedProcesso?.id && !preSelectedProcesso && (
+        <p className="text-xs text-amber-600 dark:text-amber-500 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2">
+          Atenção: o workflow será iniciado <strong>sem processo vinculado</strong>. Os itens criados ficarão sem processo no Painel de Controle.
+        </p>
+      )}
       <div className="flex gap-2">
         <Button
           onClick={handleSubmit}
