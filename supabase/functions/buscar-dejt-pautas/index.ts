@@ -360,7 +360,13 @@ function makePautaStreamSegmenter() {
       }
       // Linha "Pauta de Julgamento" isolada seguida do título da sessão: o
       // título pertence ao mesmo bloco, não fecha um bloco vazio.
-      if (valid && from > 0 && BARE_MARKER_RE.test(buf.slice(Math.max(0, from - 1), ls).trim())) valid = false;
+      if (valid && from > 0) {
+        const entre = buf.slice(Math.max(0, from - 1), ls).split("\n").map((l) => l.trim()).filter(Boolean);
+        if (
+          entre.length > 0 && entre.length <= 8 && BARE_MARKER_RE.test(entre[0]) &&
+          entre.slice(1).every((l) => l.length <= 140 && PAUTA_HEADING_LINE_RE.test(l))
+        ) valid = false;
+      }
       if (valid) return mm;
       if (markerRe.lastIndex <= mm.index) markerRe.lastIndex = mm.index + 1;
     }
