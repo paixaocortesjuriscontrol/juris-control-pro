@@ -1178,8 +1178,10 @@ const AnaliseDjen = () => {
     enabled: !!coordenacaoFiltroEfetivo,
   });
 
-  // Lista de tribunais configurados nos termos da coordenação selecionada
-  // (união dos arrays `tribunais` de cada monitoramento ativo).
+  // Lista de tribunais do filtro: união dos arrays `tribunais` dos termos ativos
+  // da coordenação selecionada + tribunais presentes nas publicações carregadas.
+  // Assim o filtro aparece mesmo quando os termos não têm tribunais configurados
+  // e quando "Todas as coordenações" está selecionado.
   const tribunaisDisponiveis = useMemo(() => {
     const set = new Set<string>();
     (monitoramentos as any[]).forEach((m) => {
@@ -1189,6 +1191,13 @@ const AnaliseDjen = () => {
         if (v) set.add(v);
       });
     });
+    // Tribunais vindos das publicações já carregadas na tela (campo `tribunal`,
+    // sigla como 'TST', 'TRT2' etc.). Limitamos aos primeiros 2000 itens para
+    // não percorrer listas enormes em cada render.
+    for (const p of mergedPublicacoes.slice(0, 2000)) {
+      const v = (p.tribunal || "").toString().trim().toUpperCase();
+      if (v) set.add(v);
+    }
     return Array.from(set).sort((a, b) => {
       if (a === 'TST') return -1;
       if (b === 'TST') return 1;
@@ -1202,7 +1211,7 @@ const AnaliseDjen = () => {
       if (numA && numB) return Number(numA) - Number(numB);
       return a.localeCompare(b);
     });
-  }, [monitoramentos]);
+  }, [monitoramentos, mergedPublicacoes]);
 
   const toggleSelect = (id: string, tipo: TipoOrigemPublicacao) => {
     const newSelected = new Map<string, TipoOrigemPublicacao>(selectedIds);
