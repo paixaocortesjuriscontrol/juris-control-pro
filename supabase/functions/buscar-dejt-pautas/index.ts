@@ -127,6 +127,58 @@ function collapseLetterSpacing(s: string): string {
   return out;
 }
 
+/**
+ * Limpa o texto de uma página do caderno DEJT antes da segmentação:
+ *  - remove o cabeçalho/rodapé repetido em toda página ("Código para aferir
+ *    autenticidade deste caderno: ..." e "Data da Disponibilização: <dia>,
+ *    <d> de <mês> de <aaaa>"), que antes aparecia no meio das publicações;
+ *  - em linhas justificadas (palavras separadas por 2+ espaços), junta letras
+ *    soltas da mesma palavra ("S E" → "SE", "N O" → "NO", "D A" → "DA");
+ *  - reduz espaços repetidos a um só.
+ */
+const DEJT_PAGE_CODE_RE = /^\s*C[óo]digo\s+para\s+aferir\s+autenticidade\s+deste\s+caderno\b.*$/i;
+const DEJT_PAGE_NUM_RE = /^\s*\d{1,6}\/\d{4}\s+Tribunal\s+(?:Regional|Superior)\s+do\s+Trabalho(?:\s+da\s+\d+\s*[ªa°º]?\s*Regi[ãa]o)?\s+\d+\s*$/i;
+const DEJT_PAGE_DATE_RE = /^\s*Data\s+da\s+Disponibiliza[çc][ãa]o\s*:\s*[A-Za-zÀ-ÿ\-]+\s*,\s*\d{1,2}\s+de\s+[A-Za-zÀ-ÿ]+\s+de\s+\d{4}\s*$/i;
+function cleanDejtPageText(page: string): string {
+  if (!page) return page;
+  const lines = page.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    if (DEJT_PAGE_CODE_RE.test(line) || DEJT_PAGE_NUM_RE.test(line) || DEJT_PAGE_DATE_RE.test(line)) continue;
+    let l = line;
+    if (/\S {2,}\S/.test(l)) {
+      l = l
+        .split(/ {2,}/)
+        .map((tok) => (/^(?:\S )+\S$/.test(tok) && tok.split(" ").every((c) => c.length === 1) ? tok.replace(/ /g, "") : tok))
+        .join(" ");
+    }
+    out.push(l.replace(/[ \t]{2,}/g, " "));
+  }
+  // Cada página termina em quebra de linha: sem isso, a última linha de uma
+  // página grudava na primeira da seguinte ("Ordinária Presencial4556/2026...").
+  const joined = out.join("\n");
+  return joined.endsWith("\n") ? joined : `${joined}\n`;
+}
+
+/** Linhas institucionais que antecedem "PAUTA DE JULGAMENTO" e pertencem a ela. */
+const PAUTA_HEADING_LINE_RE = /^\s*(?:PODER\s+JUDICI[ÁA]RIO|JUSTI[ÇC]A\s+DO\s+TRABALHO|TRIBUNAL\s+(?:REGIONAL|SUPERIOR)|\d+\s*[ªa]\s*REGI[ÃA]O|COORDENADORIA|SECRETARIA|GABINETE|\d+\s*[ªa]\s*TURMA|SE[ÇC][ÃA]O\s+ESPECIALIZADA|[ÓO]RG[ÃA]O\s+ESPECIAL|TRIBUNAL\s+PLENO)/i;
+function headingStart(buf: string, lineStart: number, minPos = 0): number {
+  let start = lineStart;
+  for (let n = 0; n < 8 && start > minPos; n++) {
+    const prevEnd = start - 1; // posição do "\n" anterior
+    const prevStart = buf.lastIndexOf("\n", prevEnd - 1) + 1;
+    if (prevStart < minPos) break;
+    const prevLine = buf.slice(prevStart, prevEnd);
+    if (lineStart - prevStart > 800) break;
+    if (prevLine.trim() === "" || (prevLine.length <= 140 && PAUTA_HEADING_LINE_RE.test(prevLine))) {
+      start = prevStart;
+      continue;
+    }
+    break;
+  }
+  return start;
+}
+
 // Dedup de pautas: remove rodapé de intimados/destinatários/partes APENAS para
 // efeito de cálculo da chave de comparação. O `conteudo` gravado segue completo.
 const PAUTA_STRIP_INTIMADOS_RE = /(Intimad[ao]|Destinat[áa]rio|Advogad[ao]|Parte|Reclamante|Reclamad[ao]|Autor|R[eé]u|Requerente|Requerid[ao])\s*\(?s?\)?\s*:/i;
@@ -171,11 +223,52 @@ function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; 
   if (cnjs.length === 0) {
     return [{ processo: null, texto: bloco }];
   }
-  const headerEnd = cnjs[0].index;
+  // Cada processo de pauta começa na própria linha "N. Processo ROT-" (que pode
+  // estar na mesma linha do CNJ ou na anterior). Antes, o trecho ia do CNJ atual
+  // até o CNJ seguinte, então levava no final o "4. Processo ROT-" do vizinho e
+  // o cabeçalho levava o "1. Processo ..." do primeiro processo para todos.
+  const ITEM_PREFIX_SAME_LINE_RE = /^\s*(?:\d+\s*[.)\-–]?\s*)?Processo\b[^\n]*$/i;
+  const ITEM_PREFIX_PREV_LINE_RE = /^\s*(?:\d+\s*[.)\-–]?\s*)?Processo\s*(?:N[º°o.]*\s*)?[A-Za-z]*\s*[-–]?\s*$/i;
+  const itemStart = (idx: number): number => {
+    const ls = bloco.lastIndexOf("\n", idx - 1) + 1;
+    const prefix = bloco.slice(ls, idx);
+    if (prefix.trim() === "") {
+      if (ls > 0) {
+        const pls = bloco.lastIndexOf("\n", ls - 2) + 1;
+        const prevLine = bloco.slice(pls, ls - 1);
+        if (ITEM_PREFIX_PREV_LINE_RE.test(prevLine)) return pls;
+      }
+      return ls;
+    }
+    if (ITEM_PREFIX_SAME_LINE_RE.test(prefix)) return ls;
+    return idx;
+  };
+  const headerEnd = itemStart(cnjs[0].index);
   // O cabeçalho de uma pauta pode conter várias páginas de instruções antes
   // do primeiro processo. O limite antigo de 1.500 caracteres eliminava data,
   // hora, local e boa parte dos avisos (TRT18, pauta 32/2026, por exemplo).
-  const header = bloco.slice(0, Math.min(headerEnd, MAX_CABECALHO_PAUTA_CHARS));
+  let header = bloco.slice(0, Math.min(headerEnd, MAX_CABECALHO_PAUTA_CHARS)).replace(/\s+$/, "");
+  // Pautas divididas em salas (ex.: TRT18 "SALA1-SO-V-11/09-SL3/..."): a linha
+  // da sala pertence aos processos que vêm depois dela, não ao cabeçalho geral.
+  // Retira a sala do fim do cabeçalho e coloca em cada processo a sala mais
+  // próxima acima dele.
+  const SALA_LINE_RE = /^[ \t]*SALA[ \t]*\d+[^\n]*$/gim;
+  const salas: Array<{ index: number; line: string }> = [];
+  for (const sm of bloco.matchAll(SALA_LINE_RE)) salas.push({ index: sm.index ?? 0, line: sm[0].trim() });
+  if (salas.length > 0) {
+    const lastHeaderLineStart = header.lastIndexOf("\n") + 1;
+    if (/^[ \t]*SALA[ \t]*\d+/i.test(header.slice(lastHeaderLineStart))) {
+      header = header.slice(0, lastHeaderLineStart).replace(/\s+$/, "");
+    }
+  }
+  const salaFor = (pos: number): string | null => {
+    let found: string | null = null;
+    for (const sl of salas) {
+      if (sl.index < pos) found = sl.line;
+      else break;
+    }
+    return found;
+  };
   const out: Array<{ processo: string | null; texto: string }> = [];
   const seen = new Set<string>();
   for (let i = 0; i < cnjs.length; i++) {
@@ -183,9 +276,15 @@ function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; 
     if (seen.has(cur.value)) continue;
     seen.add(cur.value);
     const next = cnjs[i + 1];
-    const end = next ? next.index : Math.min(bloco.length, cur.index + 3000);
-    const slice = bloco.slice(cur.index, end);
-    const texto = (header && cur.index > 0 ? `${header}\n` : "") + slice;
+    const start = i === 0 ? headerEnd : itemStart(cur.index);
+    let end = next ? itemStart(next.index) : Math.min(bloco.length, cur.index + 3000);
+    if (end <= cur.index) end = next ? next.index : Math.min(bloco.length, cur.index + 3000);
+    let slice = bloco.slice(start, end).replace(/\s+$/, "");
+    const sala = salaFor(start);
+    if (sala && !slice.trimStart().toUpperCase().startsWith(sala.toUpperCase())) {
+      slice = `${sala}\n${slice.replace(/^\s+/, "")}`;
+    }
+    const texto = (header && start > 0 ? `${header}\n` : "") + slice;
     out.push({
       processo: cur.value,
       texto: texto.length > MAX_SUB_BLOCO_CHARS ? texto.slice(0, MAX_SUB_BLOCO_CHARS) : texto,
@@ -224,33 +323,61 @@ function makePautaStreamSegmenter() {
   const markerRe = new RegExp(`(?:^|\\n)\\s*(${escaped})`, "gim");
   let buf = "";
   let inBlock = false;
+  // Posição (dentro de buf) do início da linha do marcador do bloco atual.
+  // O bloco pode começar antes dela (linhas institucionais "PODER JUDICIÁRIO",
+  // "TRIBUNAL REGIONAL...", "COORDENADORIA..." que pertencem à pauta).
+  let markerPos = 0;
+
+  const markerLineStart = (mm: RegExpExecArray): number => {
+    const markerIdx = mm.index + mm[0].length - mm[1].length;
+    return buf.lastIndexOf("\n", markerIdx - 1) + 1;
+  };
+  // Um marcador no começo de linha ainda pode ser continuação de frase
+  // ("...SERÁ ADIADO PARA UMA\nSESSÃO DE JULGAMENTO PRESENCIAL A SER
+  // DESIGNADA..."). Se a linha anterior termina em vírgula ou em palavra de
+  // ligação, o marcador não abre nova pauta.
+  const CONTINUACAO_RE = /(?:,|\b(?:a|o|as|os|de|da|do|das|dos|para|uma|um|em|na|no|nas|nos|à|ao|aos|e|com|por|pela|pelo|pelas|pelos|sua|seu|que|ser|cuja|cujo|à|nesta|neste|desta|deste|na|qualquer))\s*$/i;
+  const findMarker = (from: number): RegExpExecArray | null => {
+    markerRe.lastIndex = from;
+    let mm: RegExpExecArray | null;
+    while ((mm = markerRe.exec(buf)) !== null) {
+      const ls = markerLineStart(mm);
+      let pe = ls - 1;
+      while (pe > 0 && /\s/.test(buf[pe - 1] ?? "") && buf[pe - 1] !== "\n") pe--;
+      const ps = buf.lastIndexOf("\n", pe - 1) + 1;
+      const prevLine = ls > 0 ? buf.slice(ps, Math.max(ps, ls - 1)).trim() : "";
+      if (!prevLine || !CONTINUACAO_RE.test(prevLine)) return mm;
+      if (markerRe.lastIndex <= mm.index) markerRe.lastIndex = mm.index + 1;
+    }
+    return null;
+  };
 
   function* flushSegments(text: string, final: boolean): Generator<string> {
     buf += text;
     while (true) {
-      markerRe.lastIndex = 0;
-      const first = markerRe.exec(buf);
-      if (!first) {
-        // Sem marcador: se já estávamos num bloco, mantém acumulando.
-        // Se não estávamos e o buffer ficou grande, descarta o início (lixo).
-        if (!inBlock && buf.length > 4000) buf = buf.slice(-2000);
-        return;
-      }
       if (!inBlock) {
-        // Descarta tudo antes do primeiro marcador.
-        buf = buf.slice(first.index);
+        const first = findMarker(0);
+        if (!first) {
+          // Fora de bloco e sem marcador: descarta o início (lixo), mas guarda
+          // o final para não perder linhas institucionais do próximo marcador.
+          if (buf.length > 4000) buf = buf.slice(-2000);
+          return;
+        }
+        const ls = markerLineStart(first);
+        const start = headingStart(buf, ls);
+        buf = buf.slice(start);
+        markerPos = ls - start;
         inBlock = true;
       }
-      // Procura o próximo marcador depois do início atual para fechar o bloco.
-      markerRe.lastIndex = 1;
-      const next = markerRe.exec(buf);
+      // Procura o próximo marcador depois do marcador atual para fechar o bloco.
+      const next = findMarker(markerPos + 1);
       if (!next) {
         // Bloco aberto, mas não temos o próximo marcador ainda.
         if (final) {
           const bloco = buf.length > MAX_BLOCO_CHARS ? buf.slice(0, MAX_BLOCO_CHARS) : buf;
           buf = "";
           inBlock = false;
-          yield bloco;
+          if (bloco.trim()) yield bloco;
         } else if (buf.length > MAX_BUF_FLUSH_CHARS) {
           // Bloco "infinito" — mesmo limite do engine Browser para não cortar pautas grandes.
           yield buf.slice(0, MAX_BLOCO_CHARS);
@@ -259,9 +386,12 @@ function makePautaStreamSegmenter() {
         }
         return;
       }
-      const bloco = buf.slice(0, next.index);
+      const nextLs = markerLineStart(next);
+      const nextStart = Math.max(markerPos + 1, headingStart(buf, nextLs, markerPos + 1));
+      const bloco = buf.slice(0, nextStart);
       yield bloco.length > MAX_BLOCO_CHARS ? bloco.slice(0, MAX_BLOCO_CHARS) : bloco;
-      buf = buf.slice(next.index);
+      buf = buf.slice(nextStart);
+      markerPos = nextLs - nextStart;
       // continua o while: pode haver mais blocos completos no buffer
     }
   }
@@ -806,7 +936,7 @@ Deno.serve(async (req) => {
           onNumPages: (n) => { numPagesPdf = n; },
         })
       ) {
-        for (const bloco of seg.push(pageText)) await processBloco(bloco);
+        for (const bloco of seg.push(cleanDejtPageText(pageText))) await processBloco(bloco);
       }
       for (const bloco of seg.end()) await processBloco(bloco);
     } catch (e) {
