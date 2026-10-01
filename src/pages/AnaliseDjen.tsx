@@ -3018,10 +3018,14 @@ const AnaliseDjen = () => {
       return texto.includes("lista de distribuicao");
     };
     const semListas = rawPubs.filter((p) => !ehListaDistribuicao(p));
-    // No modo "sem repetição" também removemos as pautas de julgamento:
-    // o documento deve conter somente intimações.
+    // No modo "sem repetição" removemos as pautas de julgamento de Turma.
+    // Publicações do CEJUSC NUNCA são removidas (intimações de audiência).
     const baseFiltrada = semRepeticao
-      ? semListas.filter((p) => !isPautaDeJulgamento(p?.conteudo))
+      ? semListas.filter((p) => {
+          const plano = String(p?.conteudo || "").replace(/<[^>]+>/g, " ");
+          if (/\bCEJUSC\b/i.test(plano)) return true;
+          return !isPautaDeJulgamento(p?.conteudo);
+        })
       : semListas;
     const allPublicacoes = semRepeticao
       ? dedupPubsPorProcessoSemDestinatarios(baseFiltrada)
