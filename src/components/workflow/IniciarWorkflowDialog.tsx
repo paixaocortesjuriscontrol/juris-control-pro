@@ -230,7 +230,7 @@ export function IniciarWorkflowDialog({
 
           {!preSelectedProcesso && (
             <div className="space-y-2">
-              <Label htmlFor="proc">Processo *</Label>
+              <Label htmlFor="proc">Processo (opcional)</Label>
 
 
               <div className="relative">
