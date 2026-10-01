@@ -54,7 +54,7 @@ import { Input } from "@/components/ui/input";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
-import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado, isItemRiscado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
 import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";

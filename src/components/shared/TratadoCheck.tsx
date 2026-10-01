@@ -80,3 +80,25 @@ export function isItemRiscado(item: Parameters<typeof isItemTratado>[0]): boolea
 
   return isItemTratado(item);
 }
+
+/**
+ * Concluído com sucesso: tratado, mas NÃO "concluído sem sucesso".
+ * Recebe a LINHA VERDE no texto (line-through verde), sem mudar a cor do item.
+ */
+export function isItemConcluidoComSucesso(
+  item: Parameters<typeof isItemTratado>[0]
+): boolean {
+  if (!isItemTratado(item)) return false;
+
+  const normalize = (value?: string | null) =>
+    (value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const semSucesso = new Set(["concluido_sem_sucesso"]);
+  return ![item.status, item.status_tst, item.situacao].some(
+    (value) => !!value && semSucesso.has(normalize(value))
+  );
+}
