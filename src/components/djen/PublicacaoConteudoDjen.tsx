@@ -315,6 +315,36 @@ const extractPartesAndAdvogados = (
     }
   }
 
+  // ── 3a2. Formato de pauta do DEJT (PDF): "Recorrente(s) : NOME",
+  //        "Advogado(s) : NOME - OAB: 12345/UF" (OAB pode quebrar a linha).
+  if (texto && /\b(?:Recorrente|Recorrido|Agravante|Agravado|Embargante|Embargado|Reclamante|Reclamado|Perito|Advogado)\s*\(\s*s\s*\)\s*:/i.test(texto)) {
+    const joined = texto
+      .replace(/<[^>]*>/g, "\n")
+      .replace(/[-–—]\s*\n\s*OAB\b/gi, "- OAB")
+      .replace(/OAB\s*:?\s*\n\s*/gi, "OAB: ");
+    for (const rawLine of joined.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      const adv = line.match(/^Advogado\s*\(\s*s\s*\)\s*:\s*(.+?)\s*[-–—]\s*OAB\s*:?\s*([\d.]+)\s*\/\s*([A-Z]{2})\b/i);
+      if (adv) {
+        const nome = adv[1].replace(/\s+/g, " ").trim();
+        const numero = adv[2].replace(/\D/g, "");
+        const uf = adv[3].toUpperCase();
+        if (nome.length >= 4 && numero) addAdvogado(`${nome} - OAB ${uf}-${numero}`, `${numero}-${uf}`);
+        continue;
+      }
+      const parte = line.match(/^(Recorrente|Recorrido|Agravante|Agravado|Embargante|Embargado|Reclamante|Reclamado|Perito)\s*\(\s*s\s*\)\s*:\s*(.+)$/i);
+      if (parte) {
+        const papel = parte[1].charAt(0).toUpperCase() + parte[1].slice(1).toLowerCase();
+        const nome = parte[2].replace(/\s+/g, " ").trim();
+        const key = nome.toUpperCase();
+        if (nome.length >= 3 && !partesSet.has(key)) {
+          partes.push(`[${papel}] ${nome}`);
+          partesSet.add(key);
+        }
+      }
+    }
+  }
+
   // ── 3b. Advogados no formato do DJEN: "ADVOGADO: NOME" ou "ADVOGADO: NOME - OAB UF-12345" (em qualquer linha do conteúdo)
   if (texto) {
     const lines = texto.split(/\r?\n/);
