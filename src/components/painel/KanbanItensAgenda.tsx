@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
-import { isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
+import { isItemRiscado, isItemTratado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
@@ -166,6 +166,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                         className={cn(
                           "text-xs font-medium line-clamp-2 flex-1",
                           (isItemTratado(item) || isItemRiscado(item)) && "line-through",
+                          isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
                         )}
                       >
                         {item.titulo || "(sem título)"}

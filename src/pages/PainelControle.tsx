@@ -54,7 +54,7 @@ import { Input } from "@/components/ui/input";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import { RelatorioAudienciasDialog } from "@/components/audiencias/RelatorioAudienciasDialog";
-import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado, isItemRiscado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
 import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
@@ -3448,7 +3448,11 @@ export default function PainelControle() {
                                   ) : (
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
-                                  <span className={cn("truncate", (isItemRiscado(item) || isCancelado) && "line-through")}>
+                                  <span className={cn(
+                                    "truncate",
+                                    (isItemRiscado(item) || isCancelado) && "line-through",
+                                    isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2"
+                                  )}>
                                     {item.titulo || TIPO_LABELS[item.tipo]}
                                   </span>
                                   {(item.anexos_count ?? 0) > 0 && (
@@ -3498,6 +3502,7 @@ export default function PainelControle() {
                                     "bg-background border border-blue-500/60 text-blue-600 dark:text-blue-400",
                                     ativCancelada && "line-through opacity-70",
                                     !ativCancelada && (ativConcluida || ["baixado", "baixada", "protocolado", "protocolada"].includes(situacaoAtiv)) && "line-through",
+                                    !ativCancelada && ativConcluida && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
                                   )}
                                   onClick={(e) => {
                                     e.stopPropagation();

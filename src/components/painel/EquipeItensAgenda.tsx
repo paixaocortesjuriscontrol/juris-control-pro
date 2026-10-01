@@ -12,7 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
-import { isItemRiscado, isItemTratado } from "@/components/shared/TratadoCheck";
+import { isItemRiscado, isItemTratado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
@@ -511,6 +511,7 @@ export function EquipeItensAgenda({
                           className={cn(
                             "font-medium truncate text-sm",
                             (isItemTratado(item) || isItemRiscado(item)) && "line-through",
+                            isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
                           )}
                           title={item.titulo || undefined}
                         >
