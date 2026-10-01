@@ -115,10 +115,7 @@ export function IniciarWorkflowDialog({
       return;
     }
     if (!selectedProcesso?.id) {
-      toast.error(publicacaoOrigem
-        ? "Workflow aberto a partir de publicação precisa de um processo. Cadastre ou vincule o processo antes de iniciar."
-        : "Selecione o processo antes de iniciar o workflow.");
-      return;
+      toast.warning("O workflow será iniciado sem processo vinculado.");
     }
     const resultado = await iniciar.mutateAsync({
       workflow_id: selectedWorkflowId,
@@ -337,7 +334,7 @@ export function IniciarWorkflowDialog({
       <div className="flex gap-2">
         <Button
           onClick={handleSubmit}
-          disabled={iniciar.isPending || !selectedWorkflowId || !selectedProcesso?.id}
+          disabled={iniciar.isPending || !selectedWorkflowId}
           className={inline ? "" : "w-full"}
         >
           {iniciar.isPending ? "Iniciando..." : "Iniciar execução"}
