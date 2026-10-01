@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TratadoCheck, isItemTratado, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { TratadoCheck, isItemTratado, isItemRiscado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
 import { labelSituacaoAtividade, atividadeConcluida } from "@/components/comum/ItemAtividades";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
@@ -192,6 +192,7 @@ export function AgendaItemRow({
           className={cn(
             "text-sm text-foreground leading-snug flex items-center gap-1.5",
             (concluido || riscado) && "line-through",
+            isItemConcluidoComSucesso(item) && "decoration-emerald-600 dark:decoration-emerald-400 decoration-2",
             cancelado && "text-muted-foreground"
           )}
         >
