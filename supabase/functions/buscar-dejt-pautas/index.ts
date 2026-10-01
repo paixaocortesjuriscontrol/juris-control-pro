@@ -151,6 +151,8 @@ const CNJ_REGEX = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/;
 const CNJ_REGEX_GLOBAL = /\b\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}\b/g;
 const MAX_BLOCO_CHARS = 400_000;
 const MAX_BUF_FLUSH_CHARS = 800_000;
+const MAX_CABECALHO_PAUTA_CHARS = 20_000;
+const MAX_SUB_BLOCO_CHARS = 40_000;
 
 /**
  * Quebra um bloco grande de pauta em sub-blocos, um por processo (CNJ).
@@ -170,7 +172,10 @@ function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; 
     return [{ processo: null, texto: bloco }];
   }
   const headerEnd = cnjs[0].index;
-  const header = bloco.slice(0, Math.min(headerEnd, 1500));
+  // O cabeçalho de uma pauta pode conter várias páginas de instruções antes
+  // do primeiro processo. O limite antigo de 1.500 caracteres eliminava data,
+  // hora, local e boa parte dos avisos (TRT18, pauta 32/2026, por exemplo).
+  const header = bloco.slice(0, Math.min(headerEnd, MAX_CABECALHO_PAUTA_CHARS));
   const out: Array<{ processo: string | null; texto: string }> = [];
   const seen = new Set<string>();
   for (let i = 0; i < cnjs.length; i++) {
@@ -181,7 +186,10 @@ function splitBlocoByProcessos(bloco: string): Array<{ processo: string | null; 
     const end = next ? next.index : Math.min(bloco.length, cur.index + 3000);
     const slice = bloco.slice(cur.index, end);
     const texto = (header && cur.index > 0 ? `${header}\n` : "") + slice;
-    out.push({ processo: cur.value, texto: texto.length > 8000 ? texto.slice(0, 8000) : texto });
+    out.push({
+      processo: cur.value,
+      texto: texto.length > MAX_SUB_BLOCO_CHARS ? texto.slice(0, MAX_SUB_BLOCO_CHARS) : texto,
+    });
   }
   return out;
 }
@@ -210,7 +218,10 @@ function makePautaStreamSegmenter() {
   const escaped = PAUTA_MARKERS.map((m) =>
     m.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
   ).join("|");
-  const markerRe = new RegExp(`(${escaped})`, "gi");
+  // Marcadores só valem no início de linha. Antes, a expressão genérica
+  // "sessão de julgamento" dentro de uma frase de instrução abria um novo
+  // bloco no meio da publicação e descartava todo o conteúdo anterior.
+  const markerRe = new RegExp(`(?:^|\\n)\\s*(${escaped})`, "gim");
   let buf = "";
   let inBlock = false;
 
