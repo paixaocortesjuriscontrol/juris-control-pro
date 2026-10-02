@@ -538,7 +538,27 @@ export async function fetchAgendaPage(
               `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
             );
           }
-          const [{ data: vinculos }, { data: vinculosRecorrentes }] = await Promise.all([
+          // Envolvidos (tarefa_envolvidos) no mesmo período: sem isso, quem só
+          // estava envolvida no prazo não aparecia ao filtrar pela pessoa.
+          let envolvidosQuery = supabase
+            .from("tarefa_envolvidos")
+            .select("tarefa_id, tarefas!inner(data_vencimento)")
+            .in("usuario_id", targetTaskUserIds);
+          if (filters.dataInicio) {
+            const di = filters.dataInicio;
+            envolvidosQuery = envolvidosQuery.gte(
+              "tarefas.data_vencimento",
+              `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`,
+            );
+          }
+          if (filters.dataFim) {
+            const df = filters.dataFim;
+            envolvidosQuery = envolvidosQuery.lte(
+              "tarefas.data_vencimento",
+              `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
+            );
+          }
+          const [{ data: vinculos }, { data: vinculosRecorrentes }, { data: vinculosEnv }] = await Promise.all([
             vinculosQuery.limit(2000),
             supabase
               .from("tarefa_responsaveis")
@@ -546,9 +566,14 @@ export async function fetchAgendaPage(
               .in("usuario_id", targetTaskUserIds)
               .not("tarefas.recorrencia_tipo", "is", null)
               .limit(2000),
+            envolvidosQuery.limit(2000),
           ]);
           tarefaIdsPorResponsavel = Array.from(
-            new Set([...(vinculos || []), ...(vinculosRecorrentes || [])].map((v: any) => v.tarefa_id).filter(Boolean))
+            new Set(
+              [...(vinculos || []), ...(vinculosRecorrentes || []), ...(vinculosEnv || [])]
+                .map((v: any) => v.tarefa_id)
+                .filter(Boolean),
+            )
           ).slice(0, 400);
         }
         const buildTarefasOr = (ids: string) => {
