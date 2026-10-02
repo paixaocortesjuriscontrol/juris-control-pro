@@ -1127,7 +1127,7 @@ export function PrazoDialog({
           </div>
           {recorrenciaTipo !== "nenhuma" && (
             <div>
-              <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+              <Label className="text-xs text-muted-foreground">Ou até a data <span className="text-destructive">*</span> (obrigatório com repetição)</Label>
               <Input
                 type="date"
                 value={recorrenciaFim}

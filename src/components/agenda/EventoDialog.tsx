@@ -1039,7 +1039,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               {recorrenciaTipo !== "nenhuma" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+                    <Label className="text-xs text-muted-foreground">Ou até a data <span className="text-destructive">*</span> (obrigatório com repetição)</Label>
                     <Input
                       type="date"
                       value={recorrenciaFim}
