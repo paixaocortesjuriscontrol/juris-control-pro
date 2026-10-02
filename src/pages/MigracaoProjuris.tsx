@@ -614,6 +614,26 @@ export default function MigracaoProjuris() {
               ))}
             </div>
 
+            {anexos.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Origem dos anexos</CardTitle></CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  {zips.map((z, zi) => {
+                    const doZip = anexos.filter((a) => a.zip === zi);
+                    if (!doZip.length) return null;
+                    const lig = doZip.filter((a) => a.destino).length;
+                    return (
+                      <div key={zi} className="flex items-center gap-2">
+                        <FileArchive className="h-4 w-4 text-primary" />
+                        <span className="truncate">{z.file.name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{lig} ligados · {doZip.length - lig} sem vínculo</span>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader><CardTitle className="text-base">Tipos identificados pelo título</CardTitle></CardHeader>
               <CardContent className="flex flex-wrap gap-2">
