@@ -385,11 +385,38 @@ export function AudienciaFormSimplificado({
       }
     }
 
+    // Reagendamento para uma data em que o processo JÁ tem audiência (ex.: criada
+    // a partir da publicação): não move esta para lá — evita duplicata. Mantém a
+    // data original como histórico "Reagendado" e liga a existente a esta.
+    let dataAudienciaUsar = dataAudienciaFinal;
+    let existenteNaNovaData: string | null = null;
+    if (isEditing && reagendando && novaDataReagendamento && processoIdParaSalvar) {
+      const { data: existentes } = await supabase
+        .from("audiencias_detectadas")
+        .select("id, status")
+        .eq("processo_id", processoIdParaSalvar)
+        .neq("id", audienciaParaEditar.id)
+        .gte("data_audiencia", `${novaDataReagendamento}T00:00:00-03:00`)
+        .lte("data_audiencia", `${novaDataReagendamento}T23:59:59-03:00`);
+      const ativa = (existentes || []).find(
+        (a: any) => !["cancelado", "cancelado_oculto"].includes(String(a.status || "")),
+      );
+      if (ativa) {
+        const dataBr = novaDataReagendamento.split("-").reverse().join("/");
+        const ok = window.confirm(
+          `Já existe audiência deste processo em ${dataBr}.\n\nDeseja apenas marcar esta como reagendada (mantendo a data original) e ligá-la à audiência existente?\n\nCancelar = não salvar.`,
+        );
+        if (!ok) return;
+        dataAudienciaUsar = form.data_audiencia;
+        existenteNaNovaData = ativa.id;
+      }
+    }
+
     const payload: NovaAudiencia = {
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",
       titulo: form.titulo.trim(),
-      data_audiencia: dataAudienciaFinal,
+      data_audiencia: dataAudienciaUsar,
       hora: form.hora || undefined,
 
       hora_fim: form.hora_fim || undefined,
@@ -437,6 +464,14 @@ export function AudienciaFormSimplificado({
         } as any)
         .eq("id", audienciaParaEditar.id);
       if (error) throw error;
+      if (existenteNaNovaData) {
+        await supabase
+          .from("audiencias_detectadas")
+          .update({ originada_de: audienciaParaEditar.id } as any)
+          .eq("id", existenteNaNovaData)
+          .is("originada_de", null);
+      }
+
 
       await supabase.from("audiencias_advogados").delete().eq("audiencia_id", audienciaParaEditar.id);
       if (advogados_ids && advogados_ids.length > 0) {
