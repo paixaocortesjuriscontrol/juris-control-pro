@@ -93,8 +93,23 @@ export default function MigracaoProjuris() {
         setLendo(f.name);
         if (nome.endsWith(".zip")) {
           const reader = new ZipReader(new BlobReader(f));
-          const entries = (await reader.getEntries()).filter((e) => !e.directory);
-          setZips((z) => [...z, { file: f, entries }]);
+          const todas = (await reader.getEntries()).filter((e) => !e.directory);
+          const ehPlanilha = (e: Entry) => /\.(xlsx|xls|csv)$/i.test(e.filename) && !/(^|\/)(__MACOSX|\.)/.test(e.filename);
+          // Planilhas dentro do zip são lidas como planilhas (não como anexos)
+          const internas = todas.filter(ehPlanilha);
+          for (const e of internas) {
+            try {
+              const blob: Blob = await (e as any).getData(new BlobWriter());
+              const nomeInterno = e.filename.split("/").pop() || e.filename;
+              const ps = await lerPlanilha(new File([blob], nomeInterno));
+              setPlanilhas((p) => [...p, ...ps]);
+            } catch (err: any) {
+              toast.error(`Erro ao ler ${e.filename}: ${err?.message || err}`);
+            }
+          }
+          const entries = todas.filter((e) => !ehPlanilha(e));
+          if (entries.length) setZips((z) => [...z, { file: f, entries }]);
+          if (internas.length) toast.success(`${f.name}: ${internas.length} planilha(s) lida(s) de dentro do zip`);
         } else if (/\.(xlsx|xls|csv)$/.test(nome)) {
           const ps = await lerPlanilha(f);
           setPlanilhas((p) => [...p, ...ps]);
