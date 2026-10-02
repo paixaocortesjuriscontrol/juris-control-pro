@@ -557,7 +557,21 @@ export default function MigracaoProjuris() {
               {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <h4 className="mb-1 text-sm font-semibold">Planilhas ({planilhas.length} abas · {usadas.length} marcadas como tarefas)</h4>
+                  <div className="mb-2 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold">Planilhas ({planilhas.length} abas · {usadas.length} marcadas como tarefas)</h4>
+                    {planilhas.length > 0 && (
+                      <Button size="sm" variant="outline" className="ml-auto h-6 px-2 text-xs"
+                        onClick={() => setSelecionadas(new Set(planilhas.map((p) => chaveP(p))))}>
+                        Marcar todas
+                      </Button>
+                    )}
+                    {usadas.length > 0 && (
+                      <Button size="sm" variant="ghost" className="h-6 px-2 text-xs"
+                        onClick={() => setSelecionadas(new Set())}>
+                        Limpar
+                      </Button>
+                    )}
+                  </div>
                   <p className="mb-2 text-xs text-muted-foreground">Marque somente as planilhas que contêm as tarefas (ex.: tarefa.csv). As demais são ignoradas.</p>
                   <div className="max-h-[420px] overflow-auto pr-1">
                   {planilhas.map((p, i) => (
