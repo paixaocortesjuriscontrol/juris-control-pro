@@ -21,6 +21,8 @@ const TABELAS: Record<string, string[] | null> = {
   andamentovinculomodulo: ["cdandamento", "cdmodulo", "cdregistrovinculo"],
   workflowcontrole: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
   workflowexecucao: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
+  cacheintimacaotarefa: ["cdintimacao", "cdtarefa"],
+  intimacaonumeroprocesso: ["cdintimacao", "denumeroprocesso"],
   usuario: ["cdusuario", "flativo", "delogin", "cdpessoa"],
   pessoa: ["cdpessoa", "nmpessoa"],
   comentario: ["cdcomentario", "decomentario", "dtinclusao", "cdusuariocriador"],
