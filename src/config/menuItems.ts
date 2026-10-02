@@ -81,6 +81,7 @@ export const menuItemsAdmin: MenuItem[] = [
   { icon: History, label: "Auditoria de Itens", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Server, label: "Pool de Proxies DJEN", path: "/pool-proxy-djen", adminOnly: true },
   { icon: ArrowRightLeft, label: "Valida Kurier", path: "/valida-kurier", adminOnly: true },
+  { icon: ArrowRightLeft, label: "Migração Projuris", path: "/migracao-projuris", adminOnly: true },
 ];
 
 export const allMenuItems: MenuItem[] = [...menuItemsPublicos, ...menuItemsAdmin];

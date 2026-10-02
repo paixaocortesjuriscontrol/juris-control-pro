@@ -5905,6 +5905,94 @@ export type Database = {
           },
         ]
       }
+      migracoes_projuris: {
+        Row: {
+          contadores: Json
+          coordenacao_id: string
+          created_at: string
+          criado_por: string
+          id: string
+          mapeamento: Json | null
+          nome: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          contadores?: Json
+          coordenacao_id: string
+          created_at?: string
+          criado_por?: string
+          id?: string
+          mapeamento?: Json | null
+          nome: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          contadores?: Json
+          coordenacao_id?: string
+          created_at?: string
+          criado_por?: string
+          id?: string
+          mapeamento?: Json | null
+          nome?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migracoes_projuris_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      migracoes_projuris_itens: {
+        Row: {
+          chave_externa: string | null
+          created_at: string
+          dados: Json | null
+          id: string
+          migracao_id: string
+          motivo: string | null
+          registro_id: string | null
+          status: string
+          tipo: string
+        }
+        Insert: {
+          chave_externa?: string | null
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          migracao_id: string
+          motivo?: string | null
+          registro_id?: string | null
+          status: string
+          tipo: string
+        }
+        Update: {
+          chave_externa?: string | null
+          created_at?: string
+          dados?: Json | null
+          id?: string
+          migracao_id?: string
+          motivo?: string | null
+          registro_id?: string | null
+          status?: string
+          tipo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "migracoes_projuris_itens_migracao_id_fkey"
+            columns: ["migracao_id"]
+            isOneToOne: false
+            referencedRelation: "migracoes_projuris"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       modelos_titulo_coordenacao: {
         Row: {
           ativo: boolean
