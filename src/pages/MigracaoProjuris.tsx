@@ -138,6 +138,8 @@ export default function MigracaoProjuris() {
   };
 
   const irParaColunas = () => {
+    // Só anexos (sem planilha de tarefas): pula o mapeamento e vai direto à conferência
+    if (!usadas.length) { void preparar(); return; }
     setMapa(mapearAutomatico(headers));
     setEtapa(1);
   };
@@ -161,8 +163,10 @@ export default function MigracaoProjuris() {
   };
 
   const preparar = async () => {
-    const faltando = CAMPOS.filter((c) => c.obrigatorio && !mapa[c.campo]);
-    if (faltando.length) return toast.error(`Mapeie: ${faltando.map((c) => c.label).join(", ")}`);
+    if (usadas.length) {
+      const faltando = CAMPOS.filter((c) => c.obrigatorio && !mapa[c.campo]);
+      if (faltando.length) return toast.error(`Mapeie: ${faltando.map((c) => c.label).join(", ")}`);
+    }
     setPreparando(true);
     const ceder = () => new Promise((r) => setTimeout(r, 0));
     // Executa consultas em paralelo limitado (4 de cada vez)
@@ -217,6 +221,18 @@ export default function MigracaoProjuris() {
         ((data as any[]) || []).forEach((x) => ja.add(x.chave_externa));
       });
       brutas.forEach((l) => { if (ja.has(l.id_externo)) l.duplicada = true; });
+      // Tarefas já importadas em migrações anteriores desta coordenação (permite subir anexos depois)
+      const { data: mids } = await supabase.from("migracoes_projuris" as any).select("id").eq("coordenacao_id", coordId);
+      const listaMids = ((mids as any[]) || []).map((m) => m.id as string);
+      const chavesTarefas = new Set<string>();
+      if (listaMids.length) {
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa").eq("tipo", "tarefa").eq("status", "criado").not("chave_externa", "is", null).in("migracao_id", listaMids).range(from, from + 999);
+          if (error) throw error;
+          ((data as any[]) || []).forEach((x) => chavesTarefas.add(x.chave_externa));
+          if (!data || data.length < 1000) break;
+        }
+      }
       // processos existentes (qualquer coordenação)
       const procs = Array.from(new Set(brutas.map((l) => l.processo_dig).filter((d) => d.length === 20)));
       const achados = new Map<string, string>();
@@ -230,7 +246,7 @@ export default function MigracaoProjuris() {
       // anexos: chave = identificador da tarefa ou CNJ no caminho
       setAnaliseMsg("Ligando anexos às tarefas");
       await ceder();
-      const idSet = new Set(ids);
+      const idSet = new Set([...ids, ...chavesTarefas]);
       const procSet = new Set(procs);
       const lista: Anexo[] = [];
       let n = 0;
