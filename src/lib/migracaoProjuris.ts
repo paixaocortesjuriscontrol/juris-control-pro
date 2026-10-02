@@ -39,7 +39,9 @@ export async function lerPlanilha(file: File): Promise<Planilha[]> {
     const matriz = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: "", raw: true });
     if (!matriz.length) continue;
     let idx = 0, melhor = -1;
-    for (let i = 0; i < Math.min(15, matriz.length); i++) {
+    // CSV de exportação de banco: o cabeçalho é sempre a 1ª linha
+    const limite = /\.csv$/i.test(file.name) ? 1 : Math.min(15, matriz.length);
+    for (let i = 0; i < limite; i++) {
       const linha = matriz[i].map(norm);
       const pontos = CAMPOS.reduce((acc, c) => acc + (linha.some((h) => c.pistas.some((p) => h === p || h.includes(p))) ? 1 : 0), 0);
       if (pontos > melhor) { melhor = pontos; idx = i; }
