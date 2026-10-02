@@ -143,18 +143,20 @@ export default function MigracaoProjuris() {
 
   // ---------- Etapa 3: conferência ----------
   const casarResponsavel = (nome: string): string | null => {
-    if (usuarioAssume !== SEM) return usuarioAssume;
     const n = norm(nome);
-    if (!n) return null;
-    if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
-    const exato = membros.find((m) => norm(m.nome) === n);
-    if (exato) return exato.id;
-    const tok = n.split(" ");
-    const parcial = membros.filter((m) => {
-      const mt = norm(m.nome).split(" ");
-      return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
-    });
-    return parcial.length === 1 ? parcial[0].id : null;
+    if (n) {
+      if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
+      const exato = membros.find((m) => norm(m.nome) === n);
+      if (exato) return exato.id;
+      const tok = n.split(" ");
+      const parcial = membros.filter((m) => {
+        const mt = norm(m.nome).split(" ");
+        return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
+      });
+      if (parcial.length === 1) return parcial[0].id;
+    }
+    // Sem responsável na planilha ou não reconhecido: assume o usuário escolhido
+    return usuarioAssume !== SEM ? usuarioAssume : null;
   };
 
   const preparar = async () => {
@@ -489,7 +491,7 @@ export default function MigracaoProjuris() {
                 </Select>
               </div>
               <div className="grid gap-2 max-w-md">
-                <Label>Usuário que assume todas as tarefas</Label>
+                <Label>Usuário que assume as tarefas sem responsável</Label>
                 <Select value={usuarioAssume} onValueChange={setUsuarioAssume}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -497,7 +499,7 @@ export default function MigracaoProjuris() {
                     {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Se escolher alguém, todas as tarefas importadas ficam com esse usuário, ignorando o responsável da planilha.</p>
+                <p className="text-xs text-muted-foreground">Somente as tarefas sem responsável na planilha (ou com responsável não reconhecido) ficam com esse usuário. As demais mantêm o responsável da planilha.</p>
               </div>
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center hover:bg-muted/40"
                 onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); adicionarArquivos(e.dataTransfer.files); }}>
