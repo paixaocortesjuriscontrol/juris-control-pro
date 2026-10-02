@@ -26,7 +26,7 @@ const COORD_PADRAO = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Sa
 const SEM = "__nenhuma__";
 const LOTE = 200;
 
-type ZipInfo = { file: File; entries: Entry[] };
+type ZipInfo = { file: File; entries: Entry[]; planilhasInternas?: number };
 type Linha = {
   idx: number; id_externo: string; processo_dig: string; titulo: string; tipo: string;
   data: string | null; data_fatal: string | null; hora: string | null; responsavelNome: string;
@@ -62,6 +62,7 @@ export default function MigracaoProjuris() {
   const [pausa, setPausa] = useState(false);
   const [migracaoId, setMigracaoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
+  const [zipAberto, setZipAberto] = useState<number | null>(null);
 
   const chaveP = (p: Planilha) => `${p.arquivo}|${p.aba}`;
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -120,7 +121,7 @@ export default function MigracaoProjuris() {
             }
           }
           const entries = todas.filter((e) => !ehPlanilha(e));
-          if (entries.length) setZips((z) => [...z, { file: f, entries }]);
+          if (entries.length) setZips((z) => [...z, { file: f, entries, planilhasInternas: internas.length }]);
           if (internas.length) toast.success(`${f.name}: ${internas.length} planilha(s) lida(s) de dentro do zip`);
         } else if (/\.(xlsx|xls|csv)$/.test(nome)) {
           const ps = await lerPlanilha(f);
@@ -526,11 +527,33 @@ export default function MigracaoProjuris() {
                 </div>
                 <div>
                   <h4 className="mb-2 text-sm font-semibold">Zips de anexos ({totalEntradas} arquivos)</h4>
+                  {totalEntradas === 0 && (
+                    <p className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      Nenhum anexo detectado — serão importadas apenas as tarefas das planilhas. Para migrar anexos, envie também o zip com os arquivos.
+                    </p>
+                  )}
                   {zips.map((z, i) => (
-                    <div key={i} className="flex items-center gap-2 border-b py-1 text-sm">
-                      <FileArchive className="h-4 w-4 text-primary" /> <span className="truncate">{z.file.name}</span>
-                      <Badge variant="secondary" className="ml-auto">{z.entries.length} arquivos · {(z.file.size / 1048576).toFixed(0)} MB</Badge>
-                      <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setZips((zs) => zs.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
+                    <div key={i} className="border-b py-1 text-sm">
+                      <div className="flex items-center gap-2">
+                        <FileArchive className="h-4 w-4 text-primary" /> <span className="truncate">{z.file.name}</span>
+                        <Badge variant="secondary" className="ml-auto">{z.entries.length} anexos · {(z.file.size / 1048576).toFixed(0)} MB</Badge>
+                        <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => setZipAberto(zipAberto === i ? null : i)}>
+                          {zipAberto === i ? "ocultar" : "ver arquivos"}
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setZips((zs) => zs.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
+                      </div>
+                      {z.planilhasInternas ? (
+                        <p className="mt-1 flex items-center gap-1 text-xs text-amber-600">
+                          <AlertTriangle className="h-3 w-3" />
+                          {z.planilhasInternas} planilha(s) foram lidas deste zip como tarefas; os outros {z.entries.length} arquivos serão tratados como anexos.
+                        </p>
+                      ) : null}
+                      {zipAberto === i && (
+                        <div className="mt-1 max-h-48 overflow-auto rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+                          {z.entries.slice(0, 50).map((e, j) => <div key={j} className="truncate">{e.filename}</div>)}
+                          {z.entries.length > 50 && <div className="pt-1 font-medium">... e mais {z.entries.length - 50} arquivos</div>}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -590,6 +613,26 @@ export default function MigracaoProjuris() {
                 <Card key={l as string}><CardContent className="p-4"><div className="text-2xl font-bold">{v as number}</div><div className="text-xs text-muted-foreground">{l}</div></CardContent></Card>
               ))}
             </div>
+
+            {anexos.length > 0 && (
+              <Card>
+                <CardHeader><CardTitle className="text-base">Origem dos anexos</CardTitle></CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  {zips.map((z, zi) => {
+                    const doZip = anexos.filter((a) => a.zip === zi);
+                    if (!doZip.length) return null;
+                    const lig = doZip.filter((a) => a.destino).length;
+                    return (
+                      <div key={zi} className="flex items-center gap-2">
+                        <FileArchive className="h-4 w-4 text-primary" />
+                        <span className="truncate">{z.file.name}</span>
+                        <span className="ml-auto text-xs text-muted-foreground">{lig} ligados · {doZip.length - lig} sem vínculo</span>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            )}
 
             <Card>
               <CardHeader><CardTitle className="text-base">Tipos identificados pelo título</CardTitle></CardHeader>
