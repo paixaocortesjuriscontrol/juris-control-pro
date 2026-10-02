@@ -143,6 +143,7 @@ export default function MigracaoProjuris() {
 
   // ---------- Etapa 3: conferência ----------
   const casarResponsavel = (nome: string): string | null => {
+    if (usuarioAssume !== SEM) return usuarioAssume;
     const n = norm(nome);
     if (!n) return null;
     if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
