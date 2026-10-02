@@ -96,6 +96,12 @@ export default function MigracaoProjuris() {
     })();
   }, [coordId]);
 
+  const [todosUsuarios, setTodosUsuarios] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    supabase.from("profiles").select("id, nome").not("nome", "is", null).order("nome").limit(2000)
+      .then(({ data }) => setTodosUsuarios(((data as any[]) || []).filter((u) => u.nome)));
+  }, []);
+
 
   // ---------- Etapa 1: arquivos ----------
   const adicionarArquivos = async (files: FileList | null) => {
@@ -145,21 +151,53 @@ export default function MigracaoProjuris() {
   };
 
   // ---------- Etapa 3: conferência ----------
+  // Casa um nome (sem acento, minúsculo) com uma lista de usuários
+  const casarEm = (n: string, lista: { id: string; nome: string }[]): string | null => {
+    const exato = lista.find((m) => norm(m.nome) === n);
+    if (exato) return exato.id;
+    const tok = n.split(" ").filter(Boolean);
+    if (!tok.length) return null;
+    const parcial = lista.filter((m) => {
+      const mt = norm(m.nome).split(" ");
+      return mt[0] === tok[0] && (tok.length === 1 || tok.slice(1).every((t) => mt.includes(t)) || mt.includes(tok[tok.length - 1]));
+    });
+    return parcial.length === 1 ? parcial[0].id : null;
+  };
+  const partesNome = (n: string) => n.split(/\s*[|/;,]\s*|\s+e\s+/).map((s) => s.trim()).filter(Boolean);
+
   const casarResponsavel = (nome: string): string | null => {
     const n = norm(nome);
     if (n) {
       if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
-      const exato = membros.find((m) => norm(m.nome) === n);
-      if (exato) return exato.id;
-      const tok = n.split(" ");
-      const parcial = membros.filter((m) => {
-        const mt = norm(m.nome).split(" ");
-        return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
-      });
-      if (parcial.length === 1) return parcial[0].id;
+      for (const p of [n, ...partesNome(n)]) {
+        const id = casarEm(p, membros);
+        if (id) return id;
+      }
     }
     // Sem responsável na planilha ou não reconhecido: assume o usuário escolhido
     return usuarioAssume !== SEM ? usuarioAssume : null;
+  };
+
+  // Sugestões de usuários do sistema (fora da coordenação) para um nome não reconhecido
+  const sugestoesFora = (nome: string) => {
+    const ids = new Set(membros.map((m) => m.id));
+    const fora = todosUsuarios.filter((u) => !ids.has(u.id));
+    const out: { id: string; nome: string }[] = [];
+    for (const p of partesNome(nome)) {
+      const id = casarEm(p, fora);
+      const u = id && fora.find((x) => x.id === id);
+      if (u && !out.some((o) => o.id === u.id)) out.push(u);
+    }
+    return out;
+  };
+
+  const adicionarNaCoordenacao = async (usuarioId: string, nomeChave: string) => {
+    const { error } = await supabase.from("membros_coordenacao").insert({ coordenacao_id: coordId, usuario_id: usuarioId, cargo: "membro" } as any);
+    if (error && !String(error.message).includes("duplicate")) { toast.error("Não foi possível adicionar: " + error.message); return; }
+    const u = todosUsuarios.find((x) => x.id === usuarioId);
+    if (u) setMembros((ms) => ms.some((m) => m.id === u.id) ? ms : [...ms, u].sort((a, b) => a.nome.localeCompare(b.nome)));
+    setRespManual((m) => ({ ...m, [nomeChave]: usuarioId }));
+    toast.success(`${u?.nome || "Usuário"} adicionado(a) à coordenação`);
   };
 
   const preparar = async () => {
@@ -707,18 +745,34 @@ export default function MigracaoProjuris() {
                   <CardDescription>Escolha o usuário da coordenação. Sem escolha, o item fica com você e o nome original vai nas observações.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {respNaoReconhecidos.map(([nome, n]) => (
-                    <div key={nome} className="grid items-center gap-2 md:grid-cols-[1fr_320px]">
+                  {respNaoReconhecidos.map(([nome, n]) => {
+                    const sug = sugestoesFora(nome);
+                    const ids = new Set(membros.map((m) => m.id));
+                    const outros = todosUsuarios.filter((u) => !ids.has(u.id));
+                    return (
+                    <div key={nome} className="grid items-center gap-2 md:grid-cols-[1fr_auto_320px]">
                       <span className="text-sm">{nome} <span className="text-muted-foreground">({n})</span></span>
-                      <Select value={respManual[nome] || SEM} onValueChange={(v) => setRespManual((m) => ({ ...m, [nome]: v }))}>
+                      <div className="flex flex-wrap gap-1">
+                        {sug.map((u) => (
+                          <Button key={u.id} size="sm" variant="secondary" className="h-7 text-xs" onClick={() => adicionarNaCoordenacao(u.id, nome)}>
+                            + Adicionar {u.nome} à coordenação
+                          </Button>
+                        ))}
+                      </div>
+                      <Select value={respManual[nome] || SEM} onValueChange={(v) => {
+                        if (v.startsWith("add:")) { void adicionarNaCoordenacao(v.slice(4), nome); return; }
+                        setRespManual((m) => ({ ...m, [nome]: v }));
+                      }}>
                         <SelectTrigger><SelectValue placeholder="Escolher" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={SEM}>— deixar comigo —</SelectItem>
                           {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+                          {outros.length > 0 && <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">Criar membro na coordenação</div>}
+                          {outros.map((u) => <SelectItem key={"add" + u.id} value={"add:" + u.id}>+ {u.nome}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                  ))}
+                  );})}
                   <Button size="sm" variant="outline" onClick={reaplicarResponsaveis}>Aplicar escolhas</Button>
                 </CardContent>
               </Card>
