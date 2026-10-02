@@ -289,7 +289,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       const guTipoA = gu("andamentotipo");
       if (guTipoA && guTipoA.linhas.length) {
         const idCol = guTipoA.linhas.length ? (guTipoA.colunas.includes("cdandamentotipo") ? "cdandamentotipo" : guTipoA.colunas[0]) : "";
-        const nomeCol = guTipoA.colunas.includes("deandamentotipo") ? "deandamentotipo" : (guTipoA.colunas.find((c) => c.startsWith("de") && c !== idCol) || guTipoA.colunas[1] || "");
+        const nomeCol = guTipoA.colunas.includes("nmandamentotipo") ? "nmandamentotipo" : guTipoA.colunas.includes("deandamentotipo") ? "deandamentotipo" : (guTipoA.colunas.find((c) => c.startsWith("de") && c !== idCol) || guTipoA.colunas[1] || "");
         for (const r of guTipoA.linhas) andamentoTipoNome.set(String(guTipoA.g(r, idCol) || ""), String(guTipoA.g(r, nomeCol) || ""));
       }
       // --------- 4. vínculos de andamentos ---------
