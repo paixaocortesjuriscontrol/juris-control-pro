@@ -61,7 +61,17 @@ export default function MigracaoProjuris() {
   const [migracaoId, setMigracaoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
 
-  const headers = useMemo(() => Array.from(new Set(planilhas.flatMap((p) => p.headers))), [planilhas]);
+  const chaveP = (p: Planilha) => `${p.arquivo}|${p.aba}`;
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const usadas = useMemo(() => planilhas.filter((p) => selecionadas.has(chaveP(p))), [planilhas, selecionadas]);
+  const headers = useMemo(() => Array.from(new Set(usadas.flatMap((p) => p.headers))), [usadas]);
+  const adicionarPlanilhas = (ps: Planilha[]) => {
+    setPlanilhas((p) => [...p, ...ps]);
+    // Pré-seleciona como "tarefas" as planilhas cujo nome indica tarefas (ex.: tarefa.csv)
+    const auto = ps.filter((p) => /tarefa/i.test(p.arquivo) && !/cache|kanban|terceiro/i.test(p.arquivo));
+    if (auto.length) setSelecionadas((s) => { const n = new Set(s); auto.forEach((p) => n.add(chaveP(p))); return n; });
+  };
+  const alternar = (p: Planilha) => setSelecionadas((s) => { const n = new Set(s); const k = chaveP(p); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   const carregarHistorico = async () => {
     const { data } = await supabase.from("migracoes_projuris" as any).select("*").order("created_at", { ascending: false }).limit(30);
@@ -102,7 +112,7 @@ export default function MigracaoProjuris() {
               const blob: Blob = await (e as any).getData(new BlobWriter());
               const nomeInterno = e.filename.split("/").pop() || e.filename;
               const ps = await lerPlanilha(new File([blob], nomeInterno));
-              setPlanilhas((p) => [...p, ...ps]);
+              adicionarPlanilhas(ps);
             } catch (err: any) {
               toast.error(`Erro ao ler ${e.filename}: ${err?.message || err}`);
             }
@@ -112,7 +122,7 @@ export default function MigracaoProjuris() {
           if (internas.length) toast.success(`${f.name}: ${internas.length} planilha(s) lida(s) de dentro do zip`);
         } else if (/\.(xlsx|xls|csv)$/.test(nome)) {
           const ps = await lerPlanilha(f);
-          setPlanilhas((p) => [...p, ...ps]);
+          adicionarPlanilhas(ps);
         } else {
           toast.warning(`${f.name}: formato não suportado`);
         }
@@ -152,7 +162,7 @@ export default function MigracaoProjuris() {
       const get = (r: any, c: CampoMapa) => (mapa[c] ? r[mapa[c]!] : "");
       const brutas: Linha[] = [];
       let i = 0;
-      for (const p of planilhas) for (const r of p.linhas) {
+      for (const p of usadas) for (const r of p.linhas) {
         const id = String(get(r, "id_externo") ?? "").trim();
         const titulo = String(get(r, "titulo") ?? "").trim();
         const data = paraData(get(r, "data_vencimento"));
@@ -460,14 +470,18 @@ export default function MigracaoProjuris() {
               {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
-                  <h4 className="mb-2 text-sm font-semibold">Planilhas ({planilhas.length} abas)</h4>
+                  <h4 className="mb-1 text-sm font-semibold">Planilhas ({planilhas.length} abas · {usadas.length} marcadas como tarefas)</h4>
+                  <p className="mb-2 text-xs text-muted-foreground">Marque somente as planilhas que contêm as tarefas (ex.: tarefa.csv). As demais são ignoradas.</p>
+                  <div className="max-h-[420px] overflow-auto pr-1">
                   {planilhas.map((p, i) => (
                     <div key={i} className="flex items-center gap-2 border-b py-1 text-sm">
+                      <Checkbox checked={selecionadas.has(chaveP(p))} onCheckedChange={() => alternar(p)} />
                       <FileSpreadsheet className="h-4 w-4 text-primary" /> <span className="truncate">{p.arquivo} · {p.aba}</span>
                       <Badge variant="secondary" className="ml-auto">{p.linhas.length} linhas</Badge>
                       <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setPlanilhas((ps) => ps.filter((_, j) => j !== i))}><X className="h-3 w-3" /></Button>
                     </div>
                   ))}
+                  </div>
                 </div>
                 <div>
                   <h4 className="mb-2 text-sm font-semibold">Zips de anexos ({totalEntradas} arquivos)</h4>
@@ -480,8 +494,10 @@ export default function MigracaoProjuris() {
                   ))}
                 </div>
               </div>
-              <div className="flex justify-end">
-                <Button disabled={!planilhas.length || !!lendo} onClick={irParaColunas}>Continuar</Button>
+              <div className="flex items-center justify-end gap-3">
+                {lendo && <span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Ainda lendo {lendo}...</span>}
+                {!lendo && planilhas.length > 0 && !usadas.length && <span className="text-sm text-destructive">Marque ao menos uma planilha de tarefas para continuar.</span>}
+                <Button disabled={!usadas.length} onClick={irParaColunas}>Continuar</Button>
               </div>
             </CardContent>
           </Card>
