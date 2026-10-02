@@ -1610,6 +1610,7 @@ export type Database = {
         Row: {
           cpf_cnpj: string | null
           created_at: string
+          created_by: string | null
           email: string | null
           endereco: string | null
           id: string
@@ -1622,6 +1623,7 @@ export type Database = {
         Insert: {
           cpf_cnpj?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
@@ -1634,6 +1636,7 @@ export type Database = {
         Update: {
           cpf_cnpj?: string | null
           created_at?: string
+          created_by?: string | null
           email?: string | null
           endereco?: string | null
           id?: string
