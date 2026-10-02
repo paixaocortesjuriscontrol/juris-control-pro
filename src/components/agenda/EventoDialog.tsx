@@ -366,6 +366,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!titulo.trim()) return;
+    if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim && !(parseInt(recorrenciaOcorrencias) > 0)) {
+      window.alert("Para criar um item com repetição, é obrigatório informar a data fim (campo \"Ou até a data\") ou a quantidade de vezes que deve aparecer.\n\nAssim o item não se repete para sempre no calendário.");
+      return;
+    }
     if (!evento && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" com fim definido":", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     if (precisaSelecionar && !coordenacaoId) {
       toast.error("Selecione a coordenação");
@@ -1035,7 +1039,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               {recorrenciaTipo !== "nenhuma" && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <Label className="text-xs text-muted-foreground">Ou até a data</Label>
+                    <Label className="text-xs text-muted-foreground">Ou até a data <span className="text-destructive">*</span> (obrigatório com repetição)</Label>
                     <Input
                       type="date"
                       value={recorrenciaFim}
