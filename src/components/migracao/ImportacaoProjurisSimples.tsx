@@ -50,7 +50,7 @@ const CAMPOS: Record<ModuloSimples, Campo[]> = {
 
 const INFO: Record<ModuloSimples, { titulo: string; desc: string; tipoItem: string }> = {
   processos: { titulo: "Processos", tipoItem: "processo", desc: "Cadastra os processos do Projuris. Não duplica (número comparado em todas as coordenações); processos de outras coordenações recebem esta coordenação como responsável." },
-  comentarios: { titulo: "Comentários", tipoItem: "comentario", desc: "Liga cada comentário à tarefa já migrada pelo identificador do Projuris. Autor não reconhecido: fica com você e o nome original vai no texto." },
+  comentarios: { titulo: "Comentários", tipoItem: "comentario", desc: "Liga cada comentário à tarefa já migrada pelo identificador do Projuris. O comentário fica registrado em seu nome, com o autor e a data originais do Projuris." },
   andamentos: { titulo: "Andamentos", tipoItem: "andamento", desc: "Liga cada andamento ao processo pelo número, sem repetir o mesmo processo + data + descrição." },
 };
 
@@ -246,8 +246,8 @@ export function ImportacaoProjurisSimples({ modulo, coordId, nomeCoord, userId, 
           const { data, error: e } = await supabase.from("comentarios_tarefas").insert(parte.map((l) => {
             const hora = paraHora(l.hora) || "12:00";
             return {
-              tarefa_id: l.tarefaId, autor_id: l.autorId || userId,
-              conteudo: !l.autorId && l.autor ? `[Projuris – ${l.autor}] ${l.texto}` : l.texto,
+              tarefa_id: l.tarefaId, autor_id: userId,
+              conteudo: l.autor ? `[Projuris – ${l.autor}] ${l.texto}` : l.texto,
               ...(l.dataIso ? { created_at: `${l.dataIso}T${hora}:00-03:00` } : {}),
             };
           }) as any).select("id");
