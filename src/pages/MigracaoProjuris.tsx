@@ -745,18 +745,34 @@ export default function MigracaoProjuris() {
                   <CardDescription>Escolha o usuário da coordenação. Sem escolha, o item fica com você e o nome original vai nas observações.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {respNaoReconhecidos.map(([nome, n]) => (
-                    <div key={nome} className="grid items-center gap-2 md:grid-cols-[1fr_320px]">
+                  {respNaoReconhecidos.map(([nome, n]) => {
+                    const sug = sugestoesFora(nome);
+                    const ids = new Set(membros.map((m) => m.id));
+                    const outros = todosUsuarios.filter((u) => !ids.has(u.id));
+                    return (
+                    <div key={nome} className="grid items-center gap-2 md:grid-cols-[1fr_auto_320px]">
                       <span className="text-sm">{nome} <span className="text-muted-foreground">({n})</span></span>
-                      <Select value={respManual[nome] || SEM} onValueChange={(v) => setRespManual((m) => ({ ...m, [nome]: v }))}>
+                      <div className="flex flex-wrap gap-1">
+                        {sug.map((u) => (
+                          <Button key={u.id} size="sm" variant="secondary" className="h-7 text-xs" onClick={() => adicionarNaCoordenacao(u.id, nome)}>
+                            + Adicionar {u.nome} à coordenação
+                          </Button>
+                        ))}
+                      </div>
+                      <Select value={respManual[nome] || SEM} onValueChange={(v) => {
+                        if (v.startsWith("add:")) { void adicionarNaCoordenacao(v.slice(4), nome); return; }
+                        setRespManual((m) => ({ ...m, [nome]: v }));
+                      }}>
                         <SelectTrigger><SelectValue placeholder="Escolher" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value={SEM}>— deixar comigo —</SelectItem>
                           {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+                          {outros.length > 0 && <div className="px-2 py-1 text-xs font-semibold text-muted-foreground">Criar membro na coordenação</div>}
+                          {outros.map((u) => <SelectItem key={"add" + u.id} value={"add:" + u.id}>+ {u.nome}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
-                  ))}
+                  );})}
                   <Button size="sm" variant="outline" onClick={reaplicarResponsaveis}>Aplicar escolhas</Button>
                 </CardContent>
               </Card>
