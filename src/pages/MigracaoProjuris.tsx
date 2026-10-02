@@ -26,7 +26,7 @@ const COORD_PADRAO = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Sa
 const SEM = "__nenhuma__";
 const LOTE = 200;
 
-type ZipInfo = { file: File; entries: Entry[] };
+type ZipInfo = { file: File; entries: Entry[]; planilhasInternas?: number };
 type Linha = {
   idx: number; id_externo: string; processo_dig: string; titulo: string; tipo: string;
   data: string | null; data_fatal: string | null; hora: string | null; responsavelNome: string;
@@ -62,6 +62,7 @@ export default function MigracaoProjuris() {
   const [pausa, setPausa] = useState(false);
   const [migracaoId, setMigracaoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
+  const [zipAberto, setZipAberto] = useState<number | null>(null);
 
   const chaveP = (p: Planilha) => `${p.arquivo}|${p.aba}`;
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -120,7 +121,7 @@ export default function MigracaoProjuris() {
             }
           }
           const entries = todas.filter((e) => !ehPlanilha(e));
-          if (entries.length) setZips((z) => [...z, { file: f, entries }]);
+          if (entries.length) setZips((z) => [...z, { file: f, entries, planilhasInternas: internas.length }]);
           if (internas.length) toast.success(`${f.name}: ${internas.length} planilha(s) lida(s) de dentro do zip`);
         } else if (/\.(xlsx|xls|csv)$/.test(nome)) {
           const ps = await lerPlanilha(f);
