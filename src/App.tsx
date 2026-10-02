@@ -23,6 +23,7 @@ import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import PoolProxyDjen from "./pages/PoolProxyDjen";
 import ValidaKurier from "./pages/ValidaKurier";
+import MigracaoProjuris from "./pages/MigracaoProjuris";
 import ConsultaExterna from "./pages/ConsultaExterna";
 import ImportarProcessos from "./pages/ImportarProcessos";
 import ImportarHub from "./pages/ImportarHub";
@@ -186,6 +187,7 @@ function App() {
               <Route path="/auditoria-itens" element={<AdminOrCoordRoute><AuditoriaItens /></AdminOrCoordRoute>} />
               <Route path="/pool-proxy-djen" element={<AdminRoute><PoolProxyDjen /></AdminRoute>} />
               <Route path="/valida-kurier" element={<AdminRoute><ValidaKurier /></AdminRoute>} />
+              <Route path="/migracao-projuris" element={<AdminRoute><MigracaoProjuris /></AdminRoute>} />
               <Route path="/consulta-externa" element={<ProtectedRoute><ConsultaExterna /></ProtectedRoute>} />
               <Route path="/importar" element={<ProtectedRoute><ImportarHub /></ProtectedRoute>} />
               <Route path="/importar-processos" element={<ProtectedRoute><ImportarProcessos /></ProtectedRoute>} />

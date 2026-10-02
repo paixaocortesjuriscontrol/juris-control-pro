@@ -83,8 +83,6 @@ export default function MigracaoProjuris() {
     })();
   }, [coordId]);
 
-  if (roleLoading) return null;
-  if (!isAdmin) return <Navigate to="/" replace />;
 
   // ---------- Etapa 1: arquivos ----------
   const adicionarArquivos = async (files: FileList | null) => {
@@ -404,6 +402,8 @@ export default function MigracaoProjuris() {
   }, [validas]);
 
   const totalEntradas = zips.reduce((s, z) => s + z.entries.length, 0);
+  if (roleLoading) return null;
+  if (!isAdmin) return <Navigate to="/" replace />;
   const pct = progresso.total ? Math.round((progresso.feito / progresso.total) * 100) : 0;
 
   return (
