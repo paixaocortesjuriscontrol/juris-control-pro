@@ -100,3 +100,9 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 ## Coordenações — 28/09/2026
 - [x] Corrigir persistência da troca de cargo de membro
 - [x] Modernizar tela com grade compacta e painel lateral direito
+
+## Migração Projuris — Backup completo (retomar 05/10/2026)
+- [x] Tela pronta: Processos → Tarefas → Andamentos (ver docs/migracao-projuris-backup.md)
+- [ ] Tabelas de vínculo (tarefa, anexo, comentário, responsáveis, etiquetas) — aguardando equipe Projuris
+- [ ] Etapa Anexos (vínculo ou 3 regras) — aguarda arquivovinculomodulo
+- [ ] Etapa Comentários — aguarda tabela de vínculo
