@@ -1,0 +1,2 @@
+ALTER TABLE public.clientes ADD COLUMN IF NOT EXISTS created_by uuid DEFAULT auth.uid();
+CREATE POLICY clientes_select_own_created ON public.clientes FOR SELECT TO authenticated USING (created_by = auth.uid());
