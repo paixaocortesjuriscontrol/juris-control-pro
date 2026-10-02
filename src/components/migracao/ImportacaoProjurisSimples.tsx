@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,7 +81,6 @@ export function ImportacaoProjurisSimples({ modulo, coordId, nomeCoord, userId, 
   const [msg, setMsg] = useState("");
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [rodando, setRodando] = useState(false);
-  const [semTarefa, setSemTarefa] = useState(false);
 
   const usadas = planilhas.filter((_, i) => sel.has(i));
   const headers = useMemo(() => Array.from(new Set(usadas.flatMap((p) => p.headers))), [usadas]);
@@ -202,7 +200,7 @@ export function ImportacaoProjurisSimples({ modulo, coordId, nomeCoord, userId, 
     const mid = (mig as any).id;
     const log = async (it: any[]) => { for (let k = 0; k < it.length; k += 500) await supabase.from("migracoes_projuris_itens" as any).insert(it.slice(k, k + 500).map((x) => ({ migracao_id: mid, ...x }))); };
     const tipo = info.tipoItem;
-    const pular = conf.linhas.filter((l) => l.motivo && !(modulo === "comentarios" && semTarefa && l.motivo.startsWith("Tarefa não")));
+    const pular = conf.linhas.filter((l) => l.motivo);
     await log(pular.map((l) => ({ tipo, chave_externa: l.dig || l.id_tarefa || null, status: "pulado", motivo: l.motivo, dados: { titulo: (l.texto || l.autor || "").slice(0, 200) } })));
     const ok = conf.linhas.filter((l) => !l.motivo);
     const cont: Record<string, number> = { criados: 0, vinculados: 0, pulados: pular.length, erros: 0 };
@@ -305,7 +303,6 @@ export function ImportacaoProjurisSimples({ modulo, coordId, nomeCoord, userId, 
             <Button className="mt-2" disabled={!usadas.length} onClick={irConferir}>Conferir colunas</Button>
           </div>
         )}
-        {Object.keys(mapa).length > 0 || (usadas.length > 0 && headers.length && false) ? null : null}
         {usadas.length > 0 && Object.keys(mapa).length > 0 && (
           <div className="space-y-2 rounded-md border p-3">
             <h4 className="text-sm font-semibold">Colunas</h4>
@@ -347,4 +344,3 @@ export function ImportacaoProjurisSimples({ modulo, coordId, nomeCoord, userId, 
   );
 }
 
-export function exportarLinhasXlsx() { return XLSX; }
