@@ -464,6 +464,14 @@ export function AudienciaFormSimplificado({
         } as any)
         .eq("id", audienciaParaEditar.id);
       if (error) throw error;
+      if (existenteNaNovaData) {
+        await supabase
+          .from("audiencias_detectadas")
+          .update({ originada_de: audienciaParaEditar.id } as any)
+          .eq("id", existenteNaNovaData)
+          .is("originada_de", null);
+      }
+
 
       await supabase.from("audiencias_advogados").delete().eq("audiencia_id", audienciaParaEditar.id);
       if (advogados_ids && advogados_ids.length > 0) {
