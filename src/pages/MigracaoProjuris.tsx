@@ -53,6 +53,7 @@ export default function MigracaoProjuris() {
   const [respManual, setRespManual] = useState<Record<string, string>>({});
   const [criarProcessos, setCriarProcessos] = useState(true);
   const [preparando, setPreparando] = useState(false);
+  const [analiseMsg, setAnaliseMsg] = useState("");
   const [progresso, setProgresso] = useState({ fase: "", feito: 0, total: 0 });
   const [rodando, setRodando] = useState(false);
   const pausado = useRef(false);
@@ -158,9 +159,24 @@ export default function MigracaoProjuris() {
     const faltando = CAMPOS.filter((c) => c.obrigatorio && !mapa[c.campo]);
     if (faltando.length) return toast.error(`Mapeie: ${faltando.map((c) => c.label).join(", ")}`);
     setPreparando(true);
+    const ceder = () => new Promise((r) => setTimeout(r, 0));
+    // Executa consultas em paralelo limitado (4 de cada vez)
+    const emLotes = async <T,>(itens: T[], tam: number, fase: string, fn: (parte: T[]) => Promise<void>) => {
+      const partes: T[][] = [];
+      for (let k = 0; k < itens.length; k += tam) partes.push(itens.slice(k, k + tam));
+      let feitos = 0;
+      for (let k = 0; k < partes.length; k += 4) {
+        await Promise.all(partes.slice(k, k + 4).map(fn));
+        feitos += Math.min(4, partes.length - k);
+        setAnaliseMsg(`${fase}: ${feitos} de ${partes.length} lotes`);
+      }
+    };
     try {
       const get = (r: any, c: CampoMapa) => (mapa[c] ? r[mapa[c]!] : "");
+      const cacheResp = new Map<string, string | null>();
+      const resp = (n: string) => { if (!cacheResp.has(n)) cacheResp.set(n, casarResponsavel(n)); return cacheResp.get(n)!; };
       const brutas: Linha[] = [];
+      const total = usadas.reduce((s, p) => s + p.linhas.length, 0);
       let i = 0;
       for (const p of usadas) for (const r of p.linhas) {
         const id = String(get(r, "id_externo") ?? "").trim();
@@ -171,12 +187,13 @@ export default function MigracaoProjuris() {
           idx: i++, id_externo: id, processo_dig: digitos(get(r, "processo")), titulo,
           tipo: classificarTipo(titulo, String(get(r, "tipo") ?? "")),
           data, data_fatal: paraData(get(r, "data_fatal")), hora: paraHora(get(r, "hora")),
-          responsavelNome: respNome, responsavelId: casarResponsavel(respNome),
+          responsavelNome: respNome, responsavelId: resp(respNome),
           status: mapearSituacao(get(r, "situacao"), data),
           observacoes: String(get(r, "observacoes") ?? "").trim(),
           processoId: null, duplicada: false,
           erro: !id ? "Sem identificador" : !titulo ? "Sem título" : !data ? "Data inválida" : null,
         });
+        if (i % 3000 === 0) { setAnaliseMsg(`Lendo linhas: ${i} de ${total}`); await ceder(); }
       }
       // repetidas na própria planilha
       const vistos = new Set<string>();
@@ -187,28 +204,32 @@ export default function MigracaoProjuris() {
       }
       // já migradas antes
       const ids = Array.from(vistos);
-      for (let k = 0; k < ids.length; k += 500) {
-        const { data } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa")
-          .eq("tipo", "tarefa").eq("status", "criado").in("chave_externa", ids.slice(k, k + 500));
-        const ja = new Set(((data as any[]) || []).map((x) => x.chave_externa));
-        brutas.forEach((l) => { if (ja.has(l.id_externo)) l.duplicada = true; });
-      }
+      const ja = new Set<string>();
+      await emLotes(ids, 200, "Verificando tarefas já migradas", async (parte) => {
+        const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa")
+          .eq("tipo", "tarefa").eq("status", "criado").in("chave_externa", parte);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((x) => ja.add(x.chave_externa));
+      });
+      brutas.forEach((l) => { if (ja.has(l.id_externo)) l.duplicada = true; });
       // processos existentes (qualquer coordenação)
       const procs = Array.from(new Set(brutas.map((l) => l.processo_dig).filter((d) => d.length === 20)));
       const achados = new Map<string, string>();
-      for (let k = 0; k < procs.length; k += 150) {
-        const parte = procs.slice(k, k + 150);
-        const { data } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
+      await emLotes(procs, 100, "Procurando processos cadastrados", async (parte) => {
+        const { data, error } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
+        if (error) throw error;
         ((data as any[]) || []).forEach((p) => achados.set(digitos(p.numero), p.id));
-      }
+      });
       brutas.forEach((l) => { l.processoId = achados.get(l.processo_dig) || null; });
-      setLinhas(brutas);
 
       // anexos: chave = identificador da tarefa ou CNJ no caminho
+      setAnaliseMsg("Ligando anexos às tarefas");
+      await ceder();
       const idSet = new Set(ids);
       const procSet = new Set(procs);
       const lista: Anexo[] = [];
-      zips.forEach((z, zi) => z.entries.forEach((e) => {
+      let n = 0;
+      for (let zi = 0; zi < zips.length; zi++) for (const e of zips[zi].entries) {
         const caminho = e.filename;
         const partes = caminho.split(/[\\/]/);
         const nome = partes[partes.length - 1];
@@ -224,15 +245,20 @@ export default function MigracaoProjuris() {
           if (dd && (procSet.has(dd) || dd.length === 20)) { chave = dd; destino = "processo"; }
         }
         lista.push({ zip: zi, entry: e, nome, chave, destino });
-      }));
+        if (++n % 5000 === 0) await ceder();
+      }
+      setLinhas(brutas);
       setAnexos(lista);
       setEtapa(2);
+    } catch (e: any) {
+      toast.error(`Erro na análise: ${e?.message || e}`);
     } finally {
       setPreparando(false);
+      setAnaliseMsg("");
     }
   };
 
-  const validas = linhas.filter((l) => !l.erro && !l.duplicada);
+  const validas = useMemo(() => linhas.filter((l) => !l.erro && !l.duplicada), [linhas]);
   const respNaoReconhecidos = useMemo(() => {
     const m = new Map<string, number>();
     linhas.filter((l) => l.responsavelNome && !l.responsavelId).forEach((l) => m.set(norm(l.responsavelNome), (m.get(norm(l.responsavelNome)) || 0) + 1));
