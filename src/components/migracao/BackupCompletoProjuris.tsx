@@ -208,7 +208,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     if (!t || !t.linhas.length) return null;
     const idx = new Map<string, number>();
     t.colunas.forEach((c, i) => { if (!idx.has(c)) idx.set(c, i); });
-    return { linhas: t.linhas, g: (r: string[], c: string) => { const i = idx.get(c); return i === undefined || i >= r.length ? "" : r[i]; } };
+    return { linhas: t.linhas, colunas: t.colunas, g: (r: string[], c: string) => { const i = idx.get(c); return i === undefined || i >= r.length ? "" : r[i]; } };
   };
 
   const casarNome = (n: string) => {
@@ -460,6 +460,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     const ok = linhas.filter((l) => !l.motivo);
     const tipoItem = mod === "processos" ? "processo" : mod === "tarefas" ? "tarefa" : "andamento";
     const cont: Record<string, number> = { criados: 0, pulados: puladas.length, erros: 0 };
+    const contadores: Record<string, number> = { ...cont };
     try {
       await log(puladas.map((l) => ({
         tipo: tipoItem, chave_externa: l.chave || null, status: "pulado", motivo: l.motivo,
