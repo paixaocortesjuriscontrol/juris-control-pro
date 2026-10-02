@@ -369,8 +369,37 @@ export default function MigracaoProjuris() {
         setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validas.length), total: validas.length });
       }
 
+      // Tarefas importadas em migrações anteriores desta coordenação (anexos podem subir depois)
+      const tarefaMapAnter = new Map<string, { id: string; processo_id: string | null }>();
+      {
+        const { data: mids } = await supabase.from("migracoes_projuris" as any).select("id").eq("coordenacao_id", coordId);
+        const listaMids = ((mids as any[]) || []).map((m) => m.id as string);
+        if (listaMids.length) {
+          const itens: { chave: string; registro: string }[] = [];
+          for (let from = 0; ; from += 1000) {
+            const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa, registro_id").eq("tipo", "tarefa").eq("status", "criado").not("registro_id", "is", null).in("migracao_id", listaMids).range(from, from + 999);
+            if (error) throw error;
+            ((data as any[]) || []).forEach((x) => itens.push({ chave: x.chave_externa, registro: x.registro_id }));
+            if (!data || data.length < 1000) break;
+          }
+          const procById = new Map<string, string | null>();
+          const idsT = Array.from(new Set(itens.map((r) => r.registro)));
+          for (let k = 0; k < idsT.length; k += 200) {
+            const { data } = await supabase.from("tarefas").select("id, processo_id").in("id", idsT.slice(k, k + 200));
+            ((data as any[]) || []).forEach((t) => procById.set(t.id, (t as any).processo_id ?? null));
+          }
+          itens.forEach((r) => tarefaMapAnter.set(r.chave, { id: r.registro, processo_id: procById.get(r.registro) ?? null }));
+        }
+      }
       // 3) anexos
       setProgresso({ fase: "Anexos", feito: 0, total: anexos.length });
+      // Processos já cadastrados (qualquer migração): anexos podem apontar só pelo CNJ
+      const chavesProc = Array.from(new Set(anexos.filter((a) => a.destino === "processo" && a.chave && !procMap.has(a.chave)).map((a) => a.chave!)));
+      for (let k = 0; k < chavesProc.length; k += 100) {
+        const parte = chavesProc.slice(k, k + 100);
+        const { data } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
+        ((data as any[]) || []).forEach((p) => procMap.set(digitos((p as any).numero), (p as any).id));
+      }
       const base = import.meta.env.VITE_SUPABASE_URL;
       let feitos = 0;
       const fila = [...anexos];
@@ -378,7 +407,7 @@ export default function MigracaoProjuris() {
         while (fila.length && !cancelado.current) {
           await esperar();
           const a = fila.shift()!;
-          const tarefa = a.destino === "tarefa" && a.chave ? tarefaMap.get(a.chave) : undefined;
+          const tarefa = a.destino === "tarefa" && a.chave ? (tarefaMap.get(a.chave) || tarefaMapAnter.get(a.chave)) : undefined;
           const procId = tarefa?.processo_id || (a.destino === "processo" && a.chave ? procMap.get(a.chave) : null) || null;
           if (!tarefa && !procId) {
             cont.anexos_sem_vinculo++;
@@ -497,7 +526,7 @@ export default function MigracaoProjuris() {
           <Card>
             <CardHeader>
               <CardTitle>1. Arquivos do backup</CardTitle>
-              <CardDescription>Envie as planilhas de tarefas e os zips com os anexos. Os zips são lidos aqui mesmo, sem limite de tamanho.</CardDescription>
+              <CardDescription>Envie as planilhas de tarefas e os zips com os anexos. Os zips são lidos aqui mesmo, sem limite de tamanho. Pode importar as tarefas primeiro e subir os anexos depois — eles serão ligados às tarefas e processos já importados.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-2 max-w-md">
@@ -576,8 +605,8 @@ export default function MigracaoProjuris() {
               </div>
               <div className="flex items-center justify-end gap-3">
                 {lendo && <span className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Ainda lendo {lendo}...</span>}
-                {!lendo && planilhas.length > 0 && !usadas.length && <span className="text-sm text-destructive">Marque ao menos uma planilha de tarefas para continuar.</span>}
-                <Button disabled={!usadas.length} onClick={irParaColunas}>Continuar</Button>
+                {!lendo && planilhas.length > 0 && !usadas.length && !zips.length && <span className="text-sm text-destructive">Marque ao menos uma planilha de tarefas para continuar.</span>}
+                <Button disabled={!usadas.length && !zips.length} onClick={irParaColunas}>Continuar</Button>
               </div>
             </CardContent>
           </Card>
@@ -716,7 +745,7 @@ export default function MigracaoProjuris() {
               <Button variant="outline" onClick={() => setEtapa(1)}>Voltar</Button>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2 text-sm"><Checkbox checked={criarProcessos} onCheckedChange={(v) => setCriarProcessos(!!v)} /> Cadastrar processos que não existem</label>
-                <Button disabled={!validas.length} onClick={importar}>Importar {validas.length} tarefas e {anexos.filter((a) => a.destino).length} anexos</Button>
+                <Button disabled={!validas.length && !anexos.some((a) => a.destino)} onClick={importar}>Importar {validas.length} tarefas e {anexos.filter((a) => a.destino).length} anexos</Button>
               </div>
             </div>
           </div>
