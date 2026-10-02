@@ -69,7 +69,7 @@ export default function MigracaoProjuris() {
   };
 
   useEffect(() => {
-    supabase.from("coordenacoes").select("id, nome").eq("ativa", true).order("nome").then(({ data }) => setCoords((data as any) || []));
+    supabase.from("coordenacoes").select("id, nome").not("nome", "ilike", "INATIVA%").order("nome").then(({ data }) => setCoords((data as any) || []));
     carregarHistorico();
   }, []);
 
@@ -249,7 +249,7 @@ export default function MigracaoProjuris() {
           await esperar(); if (cancelado.current) break;
           const parte = novos.slice(k, k + LOTE);
           const { data, error: e } = await supabase.from("processos").insert(parte.map((d) => ({
-            numero: formatarCnj(d), area: "civil", status: "ativo", coordenacao_id: coordId, fonte_importacao: "projuris",
+            numero: formatarCnj(d), area: "civil", status: "ativo", coordenacao_id: coordId,
           }) as any)).select("id, numero");
           if (e) { cont.erros++; await logItens(parte.map((d) => ({ tipo: "processo", chave_externa: d, status: "erro", motivo: e.message }))); }
           ((data as any[]) || []).forEach((p) => procMap.set(digitos(p.numero), p.id));
@@ -276,11 +276,11 @@ export default function MigracaoProjuris() {
           const pid = procMap.get(l.processo_dig) || null;
           return {
             titulo: l.titulo.slice(0, 500), tipo_tarefa: l.tipo, tipo_registro: l.tipo === "PRAZO" ? "prazo" : "tarefa",
-            data_vencimento: l.data, data_prevista: l.data, data_fatal: l.data_fatal, hora: l.hora,
+            data_vencimento: l.data, data_prevista: l.data, data_fatal: l.data_fatal,
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.data}T12:00:00-03:00` : null,
             prioridade: "media", processo_id: pid, coordenacao_id: coordId,
             responsavel_id: l.responsavelId || user.id, criado_por: user.id, origem: "projuris",
-            observacoes: [l.observacoes, `Projuris #${l.id_externo}`, !l.responsavelId && l.responsavelNome ? `Responsável no Projuris: ${l.responsavelNome}` : ""].filter(Boolean).join("\n"),
+            observacoes: [l.observacoes, `Projuris #${l.id_externo}`, l.hora ? `Hora: ${l.hora}` : "", !l.responsavelId && l.responsavelNome ? `Responsável no Projuris: ${l.responsavelNome}` : ""].filter(Boolean).join("\n"),
           };
         });
         const { data, error: e } = await supabase.from("tarefas").insert(payload as any).select("id, processo_id");
