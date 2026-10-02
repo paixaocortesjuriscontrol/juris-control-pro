@@ -571,12 +571,33 @@ export default function MigracaoProjuris() {
     <MainLayout title="Migração Projuris" subtitle="Restaurar backup de tarefas e anexos do Projuris">
       <div className="space-y-6">
         <div className="flex flex-wrap gap-2">
-          {MODULOS.map(([k, rot], i) => (
+          <Button variant={modo === "backup" ? "default" : "outline"} onClick={() => setModo(modo === "backup" ? "importacoes" : "backup")}>
+            Backup completo do Projuris
+          </Button>
+          {modo === "importacoes" && MODULOS.map(([k, rot], i) => (
             <Button key={k} variant={modulo === k ? "default" : "outline"} onClick={() => setModulo(k)}>
               {i + 1}. {rot}{contMigrados[k] ? <Badge variant="secondary" className="ml-2">{contMigrados[k].toLocaleString("pt-BR")}</Badge> : null}
             </Button>
           ))}
         </div>
+        {modo === "backup" ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Tela para o zip completo do Projuris (as tabelas do backup). As abas 1 a 5 continuam disponíveis para os zips de planilhas e de anexos.</p>
+            {user && (
+              <>
+                <div className="grid max-w-md gap-2">
+                  <Label>Coordenação de destino</Label>
+                  <Select value={coordId} onValueChange={setCoordId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <BackupCompletoProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+              </>
+            )}
+          </div>
+        ) : (
+        <div className="space-y-4">
         <p className="text-xs text-muted-foreground">Ordem recomendada: Processos → Tarefas → Anexos → Comentários → Andamentos. Cada importação usa o que já foi migrado nas anteriores. Os números mostram o que já foi migrado para a coordenação selecionada.</p>
         {(modulo === "processos" || modulo === "comentarios" || modulo === "andamentos") && user && (
           <>
