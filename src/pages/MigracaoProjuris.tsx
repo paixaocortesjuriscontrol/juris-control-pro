@@ -499,7 +499,7 @@ export default function MigracaoProjuris() {
                     {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">Se escolher alguém, todas as tarefas importadas ficam com esse usuário, ignorando o responsável da planilha.</p>
+                <p className="text-xs text-muted-foreground">Somente as tarefas sem responsável na planilha (ou com responsável não reconhecido) ficam com esse usuário. As demais mantêm o responsável da planilha.</p>
               </div>
               <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-10 text-center hover:bg-muted/40"
                 onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); adicionarArquivos(e.dataTransfer.files); }}>
