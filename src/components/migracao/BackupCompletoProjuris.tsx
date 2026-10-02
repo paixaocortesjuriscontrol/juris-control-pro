@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao } from "@/lib/migracaoProjuris";
 
@@ -14,7 +15,7 @@ import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao }
 const TABELAS: Record<string, string[] | null> = {
   processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso"],
   processonumero: ["cdprocessonumero", "flativo", "denumeroprocesso", "flprocessoinstancia", "flprincipal", "flexclusaotipo", "cdprocesso"],
-  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado"],
+  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado"],
   tarefatipo: ["cdtarefatipo", "flativo", "detarefa"],
   andamento: ["cdandamento", "flativo", "dtandamento", "dthoraandamento", "deandamento", "cdandamentotipo", "flexclusaotipo"],
   andamentovinculomodulo: ["cdandamento", "cdmodulo", "cdregistrovinculo"],
@@ -111,6 +112,26 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const tabelasRef = useRef<Map<string, TabelaLida>>(new Map());
   const [info, setInfo] = useState<{ nome: string; linhas: number; arquivos: string[] }[]>([]);
   const [ignorados, setIgnorados] = useState(0);
+  // Relatório de Atividades do Projuris: Identificador (TAR.x) -> CNJ do processo vinculado
+  const vincTarefaRef = useRef<Map<string, string>>(new Map());
+  const [vincTarefas, setVincTarefas] = useState(0);
+  const lerRelatorio = async (buf: ArrayBuffer, nome: string) => {
+    const wb = XLSX.read(buf, { type: "array" });
+    let n = 0;
+    for (const aba of wb.SheetNames) {
+      const rows = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[aba], { header: 1, defval: "", raw: false });
+      const hi = rows.findIndex((x, i) => i < 15 && x.map(norm).includes("identificador") && x.map(norm).includes("processo vinculado"));
+      if (hi < 0) continue;
+      const h = rows[hi].map(norm); const ci = h.indexOf("identificador"), cp = h.indexOf("processo vinculado");
+      for (const x of rows.slice(hi + 1)) {
+        const id = String(x[ci] || "").trim().toUpperCase(); const d = digitos(x[cp]);
+        if (id && d.length === 20) { vincTarefaRef.current.set(id, d); n++; }
+      }
+    }
+    setVincTarefas(vincTarefaRef.current.size);
+    return n;
+  };
+  const ehRelatorio = (n: string) => /\.xlsx?$/i.test(n);
   const [lendo, setLendo] = useState<string | null>(null);
   const [conf, setConf] = useState<Conf | null>(null);
   const [analisando, setAnalisando] = useState(false);
@@ -174,6 +195,12 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const entries = (await reader.getEntries()).filter((e) => !e.directory);
           let usados = 0;
           for (const e of entries) {
+            if (ehRelatorio(e.filename)) {
+              setLendo(e.filename);
+              const b: Blob = await (e as any).getData(new BlobWriter());
+              if (await lerRelatorio(await b.arrayBuffer(), e.filename)) usados++; else setIgnorados((i) => i + 1);
+              continue;
+            }
             const base = baseNome(e.filename);
             if (!(base in TABELAS)) { setIgnorados((i) => i + 1); continue; }
             setLendo(`${e.filename}`);
@@ -183,6 +210,11 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             setInfo(Array.from(tabelasRef.current.entries()).map(([n, t]) => ({ nome: n, linhas: t.linhas.length, arquivos: t.arquivos })));
           }
           if (!usados) toast.warning(`${f.name}: nenhuma tabela do Projuris reconhecida dentro do zip`);
+        } else if (ehRelatorio(f.name)) {
+          setLendo(f.name);
+          const n = await lerRelatorio(await f.arrayBuffer(), f.name);
+          if (!n) toast.warning(`${f.name}: não encontrei as colunas "Identificador" e "Processo Vinculado"`);
+          else toast.success(`${f.name}: ${n} tarefas com processo vinculado`);
         } else {
           const base = baseNome(f.name);
           if (!(base in TABELAS)) { setIgnorados((i) => i + 1); continue; }
@@ -198,7 +230,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   };
 
   const zerar = () => {
-    tabelasRef.current = new Map();
+    tabelasRef.current = new Map(); vincTarefaRef.current = new Map(); setVincTarefas(0);
     setInfo([]); setIgnorados(0); setConf(null);
   };
 
@@ -361,8 +393,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const criador = usuarioNome.get(String(guTe.g(r, "cdusuariocriador") || ""))?.nome || "";
           let respId = respCache.get(criador);
           if (respId === undefined) { respId = casarNome(criador); respCache.set(criador, respId); }
+          const ident = String(guTe.g(r, "deidentificador") || "").trim().toUpperCase();
+          const procDig = vincTarefaRef.current.get(ident) || null;
           tarefasRows.push({
-            chave, motivo,
+            chave, motivo, ident, procDig,
             titulo: det || "(sem título)", tipo: classificarTipo(det, tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || ""),
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, criadorNome: criador,
@@ -507,6 +541,14 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
       } else if (mod === "tarefas") {
+        const procId = new Map<string, string>();
+        const dgs = Array.from(new Set(ok.map((l) => l.procDig).filter(Boolean))) as string[];
+        for (let k = 0; k < dgs.length; k += 100) {
+          const parte = dgs.slice(k, k + 100);
+          const { data, error: e } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
+          if (e) throw e;
+          ((data as any[]) || []).forEach((p) => procId.set(digitos(p.numero), p.id));
+        }
         for (let k = 0; k < ok.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;
           const parte = ok.slice(k, k + LOTE);
@@ -515,10 +557,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             tipo_registro: l.tipo === "PRAZO" ? "prazo" : "tarefa",
             data_vencimento: l.data, data_prevista: l.data, data_fatal: l.fatal,
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
-            prioridade: "media", processo_id: null, coordenacao_id: coordId,
+            prioridade: "media", processo_id: (l.procDig && procId.get(l.procDig)) || null, coordenacao_id: coordId,
             responsavel_id: l.responsavelId || userId, criado_por: userId, origem: "projuris",
             identificador_projuris: String(l.chave),
-            observacoes: [`Sem processo vinculado (tarefa solta do backup do Projuris)`, l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : ""].filter(Boolean).join("\n") || null,
+            observacoes: [l.procDig && procId.get(l.procDig) ? "" : l.procDig ? `Processo ${formatarCnj(l.procDig)} não cadastrado no Juris Control (importe os processos antes)` : `Sem processo vinculado no Relatório de Atividades`, l.ident ? `Identificador Projuris: ${l.ident}` : "", l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : ""].filter(Boolean).join("\n") || null,
           }) as any)).select("id");
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: e.message, dados: { titulo: String(l.titulo).slice(0, 200) } }))); }
           else {
@@ -665,7 +707,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               <Secao titulo="1. Processos" ls={conf.processos} mod="processos" tipo="processos"
                 desc="Cadastra os processos pelo número CNJ. Não duplica; processos já cadastrados recebem a coordenação de destino como responsável." />
               <Secao titulo="2. Tarefas" ls={conf.tarefas} mod="tarefas" tipo="tarefas"
-                desc="O backup não traz a ligação tarefa → processo (o Projuris guarda isso em outra tabela que não veio). As tarefas entram soltas, com aviso, e o criador original vai nas observações." />
+                desc={`A ligação tarefa → processo vem do Relatório de Atividades do Projuris (colunas Identificador e Processo Vinculado). ${vincTarefas.toLocaleString("pt-BR")} tarefas com processo carregadas; ${conf.tarefas.filter((l) => l.procDig).length.toLocaleString("pt-BR")} do backup foram ligadas. Envie o relatório completo junto com o zip antes de analisar.`} />
               <Secao titulo="3. Andamentos" ls={conf.andamentos} mod="andamentos" tipo="andamentos"
                 desc="Vinculados ao processo pelo arquivo andamentovinculomodulo. Sem repetir processo + data + descrição." />
             </CardContent>
