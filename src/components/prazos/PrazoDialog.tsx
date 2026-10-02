@@ -494,6 +494,7 @@ export function PrazoDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tituloFinal = titulo.trim();
+    if (!prazo && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" até "+String(recorrenciaFim).split("-").reverse().join("/"):", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     if (!tituloFinal) {
       toast.error("Informe o título do prazo");
       return;
