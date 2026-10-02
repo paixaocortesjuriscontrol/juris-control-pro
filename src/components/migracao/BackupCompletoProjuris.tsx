@@ -307,7 +307,6 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       setMsg("Cruzando tarefas...");
       await ceder();
       const migradas = new Set<string>();
-      const chavesTe = Array.from(new Set((tabelasRef.current.get("tarefaevento")?.linhas || []).map((_, i) => "")));
       const guTe = gu("tarefaevento");
       const idsTe: string[] = [];
       if (guTe) for (const r of guTe.linhas) { const k = String(guTe.g(r, "cdtarefaevento") || ""); if (k) idsTe.push(k); }
