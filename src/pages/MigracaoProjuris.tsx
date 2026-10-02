@@ -143,18 +143,20 @@ export default function MigracaoProjuris() {
 
   // ---------- Etapa 3: conferência ----------
   const casarResponsavel = (nome: string): string | null => {
-    if (usuarioAssume !== SEM) return usuarioAssume;
     const n = norm(nome);
-    if (!n) return null;
-    if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
-    const exato = membros.find((m) => norm(m.nome) === n);
-    if (exato) return exato.id;
-    const tok = n.split(" ");
-    const parcial = membros.filter((m) => {
-      const mt = norm(m.nome).split(" ");
-      return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
-    });
-    return parcial.length === 1 ? parcial[0].id : null;
+    if (n) {
+      if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
+      const exato = membros.find((m) => norm(m.nome) === n);
+      if (exato) return exato.id;
+      const tok = n.split(" ");
+      const parcial = membros.filter((m) => {
+        const mt = norm(m.nome).split(" ");
+        return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
+      });
+      if (parcial.length === 1) return parcial[0].id;
+    }
+    // Sem responsável na planilha ou não reconhecido: assume o usuário escolhido
+    return usuarioAssume !== SEM ? usuarioAssume : null;
   };
 
   const preparar = async () => {
