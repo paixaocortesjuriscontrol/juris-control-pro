@@ -247,7 +247,7 @@ export function NovaTarefaDialog({
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
-  const { podeUsarSituacao, situacaoAtiva } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
+  const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
   // Envolvidos fixos configurados na coordenação para este tipo
   const { data: envolvidosFixosIds = [] } = useEnvolvidosFixosDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   // Reaplica os fixos sempre que faltar algum (o reset do formulário pode
@@ -583,6 +583,16 @@ export function NovaTarefaDialog({
       window.alert("Para criar um item com repetição, é obrigatório informar a data fim (campo \"Ou até a data\") ou a quantidade de vezes que deve aparecer.\n\nAssim o item não se repete para sempre no calendário.");
       return;
     }
+    let comentarioSituacaoTxt = "";
+    const situacaoAnterior = (tarefaParaEditar?.status as string) || null;
+    if (tarefaParaEditar && !ocultarSituacao && situacaoAnterior && situacao !== situacaoAnterior && comentarioObrigatorio) {
+      const r = window.prompt("Comentário obrigatório para mudar a situação desta tarefa.\n\nExplique o motivo da mudança:");
+      if (!r || !r.trim()) {
+        window.alert("A situação não foi alterada: o comentário é obrigatório.");
+        return;
+      }
+      comentarioSituacaoTxt = r.trim();
+    }
     if (!tarefaParaEditar && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" até "+String(recorrenciaFim).split("-").reverse().join("/"):", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     // Trava anti-duplo-envio: o `disabled={loading}` só vale após o commit do
     // estado, então dois cliques rápidos (ou header + rodapé) criavam 2 registros.
@@ -671,6 +681,17 @@ export function NovaTarefaDialog({
           .update(updatePayload)
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
+        if (comentarioSituacaoTxt) {
+          const autorId = userData?.id || (await supabase.auth.getUser()).data.user?.id;
+          if (autorId) {
+            const { error: comErr } = await supabase.from("comentarios_tarefas").insert({
+              tarefa_id: tarefaParaEditar.id,
+              autor_id: autorId,
+              conteudo: `[Situação: ${situacaoAnterior} → ${situacao}] ${comentarioSituacaoTxt}`,
+            });
+            if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+          }
+        }
         await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaParaEditar.id);
         if (responsaveisParaSalvar.length > 0) {
           await supabase.from("tarefa_responsaveis").insert(
