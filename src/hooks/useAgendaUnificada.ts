@@ -538,7 +538,27 @@ export async function fetchAgendaPage(
               `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
             );
           }
-          const [{ data: vinculos }, { data: vinculosRecorrentes }] = await Promise.all([
+          // Envolvidos (tarefa_envolvidos) no mesmo período: sem isso, quem só
+          // estava envolvida no prazo não aparecia ao filtrar pela pessoa.
+          let envolvidosQuery = supabase
+            .from("tarefa_envolvidos")
+            .select("tarefa_id, tarefas!inner(data_vencimento)")
+            .in("usuario_id", targetTaskUserIds);
+          if (filters.dataInicio) {
+            const di = filters.dataInicio;
+            envolvidosQuery = envolvidosQuery.gte(
+              "tarefas.data_vencimento",
+              `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`,
+            );
+          }
+          if (filters.dataFim) {
+            const df = filters.dataFim;
+            envolvidosQuery = envolvidosQuery.lte(
+              "tarefas.data_vencimento",
+              `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
+            );
+          }
+          const [{ data: vinculos }, { data: vinculosRecorrentes }, { data: vinculosEnv }] = await Promise.all([
             vinculosQuery.limit(2000),
             supabase
               .from("tarefa_responsaveis")
@@ -546,9 +566,14 @@ export async function fetchAgendaPage(
               .in("usuario_id", targetTaskUserIds)
               .not("tarefas.recorrencia_tipo", "is", null)
               .limit(2000),
+            envolvidosQuery.limit(2000),
           ]);
           tarefaIdsPorResponsavel = Array.from(
-            new Set([...(vinculos || []), ...(vinculosRecorrentes || [])].map((v: any) => v.tarefa_id).filter(Boolean))
+            new Set(
+              [...(vinculos || []), ...(vinculosRecorrentes || []), ...(vinculosEnv || [])]
+                .map((v: any) => v.tarefa_id)
+                .filter(Boolean),
+            )
           ).slice(0, 400);
         }
         const buildTarefasOr = (ids: string) => {
@@ -712,17 +737,27 @@ export async function fetchAgendaPage(
 
             // Buscar todos os responsáveis (multi-responsáveis) das tarefas exibidas
             const respMap: Record<string, string[]> = {};
+            const envMap: Record<string, string[]> = {};
             const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
             if (tarefaIdsExibidas.length > 0) {
               // Em lotes: listas grandes de ids estouram o tamanho da URL e a consulta falha.
               const chunks: string[][] = [];
               for (let i = 0; i < tarefaIdsExibidas.length; i += 150) chunks.push(tarefaIdsExibidas.slice(i, i + 150));
-              const results = await Promise.all(
-                chunks.map((c) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", c)),
-              );
+              const [results, envResults] = await Promise.all([
+                Promise.all(
+                  chunks.map((c) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", c)),
+                ),
+                Promise.all(
+                  chunks.map((c) => supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", c)),
+                ),
+              ]);
               results.flatMap((r) => r.data || []).forEach((r: any) => {
                 if (!r?.tarefa_id || !r?.usuario_id) return;
                 (respMap[r.tarefa_id] ||= []).push(r.usuario_id);
+              });
+              envResults.flatMap((r) => r.data || []).forEach((r: any) => {
+                if (!r?.tarefa_id || !r?.usuario_id) return;
+                (envMap[r.tarefa_id] ||= []).push(r.usuario_id);
               });
             }
             let criadoresMap: Record<string, { id: string; nome: string }> = {};
@@ -833,6 +868,7 @@ export async function fetchAgendaPage(
                     new Set([...(respMap[tarefa.id] || []), ...(tarefa.responsavel_id ? [tarefa.responsavel_id] : [])])
                   ),
                   responsavel: tarefa.responsavel,
+                  participantes: (envMap[tarefa.id] || []).map((uid) => ({ usuario_id: uid })),
                   criado_por: tarefa.criado_por,
                   criador: tarefa.criado_por ? criadoresMap[tarefa.criado_por] || null : null,
                   dias_restantes: diasRestantes,
