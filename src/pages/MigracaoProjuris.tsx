@@ -922,6 +922,8 @@ export default function MigracaoProjuris() {
           </Card>
         )}
         </>)}
+        </div>
+        )}
 
         <Card>
           <CardHeader><CardTitle className="text-base">Histórico de migrações</CardTitle></CardHeader>
