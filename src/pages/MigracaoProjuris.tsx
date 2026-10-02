@@ -22,6 +22,11 @@ import {
 } from "@/lib/migracaoProjuris";
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { DiagnosticoProjuris } from "@/components/migracao/DiagnosticoProjuris";
+import { ImportacaoProjurisSimples } from "@/components/migracao/ImportacaoProjurisSimples";
+
+type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
+const MODULOS: [Modulo, string][] = [["processos", "Processos"], ["tarefas", "Tarefas"], ["anexos", "Anexos"], ["comentarios", "Comentários"], ["andamentos", "Andamentos"]];
+const TIPO_ITEM: Record<Modulo, string> = { processos: "processo", tarefas: "tarefa", anexos: "anexo", comentarios: "comentario", andamentos: "andamento" };
 
 const COORD_PADRAO = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Santander Cível
 const SEM = "__nenhuma__";
@@ -65,6 +70,19 @@ export default function MigracaoProjuris() {
   const [historico, setHistorico] = useState<any[]>([]);
   const [zipAberto, setZipAberto] = useState<number | null>(null);
   const [diagnostico, setDiagnostico] = useState(false);
+  const [modulo, setModulo] = useState<Modulo>("processos");
+  const [contMigrados, setContMigrados] = useState<Partial<Record<Modulo, number>>>({});
+  const contarMigrados = async () => {
+    const { data: ms } = await supabase.from("migracoes_projuris" as any).select("id").eq("coordenacao_id", coordId).neq("status", "desfeito");
+    const ids = ((ms as any[]) || []).map((m) => m.id);
+    const out: Partial<Record<Modulo, number>> = {};
+    if (ids.length) for (const [k] of MODULOS) {
+      const { count } = await supabase.from("migracoes_projuris_itens" as any).select("id", { count: "exact", head: true }).in("migracao_id", ids).eq("tipo", TIPO_ITEM[k]).eq("status", "criado");
+      out[k] = count || 0;
+    }
+    setContMigrados(out);
+  };
+  useEffect(() => { void contarMigrados(); }, [coordId]);
 
   const chaveP = (p: Planilha) => `${p.arquivo}|${p.aba}`;
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -496,19 +514,19 @@ export default function MigracaoProjuris() {
       if (!data || data.length < 1000) break;
     }
     const wb = XLSX.utils.book_new();
-    for (const tipo of ["tarefa", "processo", "anexo"]) {
+    for (const tipo of ["tarefa", "processo", "anexo", "comentario", "andamento"]) {
       const rows = todos.filter((t) => t.tipo === tipo).map((t) => ({
         "Identificação Projuris / arquivo": t.chave_externa, "Situação": t.status, "Motivo": t.motivo || "",
         "Título": t.dados?.titulo || "", "Tipo": t.dados?.tipo || "",
         "Data": t.dados?.data ? t.dados.data.split("-").reverse().join("/") : "", "ID no Juris Control": t.registro_id || "",
       }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), tipo === "tarefa" ? "Tarefas" : tipo === "processo" ? "Processos" : "Anexos");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), ({ tarefa: "Tarefas", processo: "Processos", anexo: "Anexos", comentario: "Comentarios", andamento: "Andamentos" } as Record<string, string>)[tipo]);
     }
     XLSX.writeFile(wb, `Relatorio_Migracao_Projuris_${mid.slice(0, 8)}.xlsx`);
   };
 
   const desfazer = async (mid: string) => {
-    if (!window.confirm("Desfazer este lote? Tarefas, anexos e processos criados por ele serão removidos.")) return;
+    if (!window.confirm("Desfazer este lote? Processos, tarefas, anexos, comentários e andamentos criados por ele serão removidos.")) return;
     const ids = async (tipo: string) => {
       const out: string[] = [];
       for (let from = 0; ; from += 1000) {
@@ -520,7 +538,7 @@ export default function MigracaoProjuris() {
     };
     const t = toast.loading("Desfazendo lote...");
     try {
-      for (const [tipo, tabela] of [["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
+      for (const [tipo, tabela] of [["comentario", "comentarios_tarefas"], ["andamento", "movimentacoes"], ["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
         const lista = await ids(tipo);
         for (let k = 0; k < lista.length; k += 200) {
           const { error } = await supabase.from(tabela as any).delete().in("id", lista.slice(k, k + 200));
@@ -550,6 +568,31 @@ export default function MigracaoProjuris() {
   return (
     <MainLayout title="Migração Projuris" subtitle="Restaurar backup de tarefas e anexos do Projuris">
       <div className="space-y-6">
+        <div className="flex flex-wrap gap-2">
+          {MODULOS.map(([k, rot], i) => (
+            <Button key={k} variant={modulo === k ? "default" : "outline"} onClick={() => setModulo(k)}>
+              {i + 1}. {rot}{contMigrados[k] ? <Badge variant="secondary" className="ml-2">{contMigrados[k].toLocaleString("pt-BR")}</Badge> : null}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Ordem recomendada: Processos → Tarefas → Anexos → Comentários → Andamentos. Cada importação usa o que já foi migrado nas anteriores. Os números mostram o que já foi migrado para a coordenação selecionada.</p>
+        {(modulo === "processos" || modulo === "comentarios" || modulo === "andamentos") && user && (
+          <>
+            <div className="grid max-w-md gap-2">
+              <Label>Coordenação de destino</Label>
+              <Select value={coordId} onValueChange={setCoordId}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <ImportacaoProjurisSimples key={modulo + coordId} modulo={modulo} coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""}
+              userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+          </>
+        )}
+        {(modulo === "tarefas" || modulo === "anexos") && (<>
+        {modulo === "anexos" && etapa === 0 && (
+          <p className="rounded-md border border-primary/30 bg-primary/5 p-3 text-sm">Anexos: envie só os zips (sem planilhas). Cada arquivo é ligado à tarefa ou ao processo já migrados; os demais ficam "sem vínculo" no relatório.</p>
+        )}
         {/* Etapas */}
         <div className="flex flex-wrap items-center gap-2">
           {etapas.map((e, i) => (
@@ -855,31 +898,33 @@ export default function MigracaoProjuris() {
             </CardContent>
           </Card>
         )}
+        </>)}
 
         <Card>
           <CardHeader><CardTitle className="text-base">Histórico de migrações</CardTitle></CardHeader>
           <CardContent className="p-0">
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Lote</TableHead><TableHead>Situação</TableHead><TableHead>Processos</TableHead><TableHead>Tarefas</TableHead><TableHead>Anexos</TableHead><TableHead>Sem vínculo</TableHead><TableHead>Erros</TableHead><TableHead />
+                <TableHead>Lote</TableHead><TableHead>Situação</TableHead><TableHead>Processos</TableHead><TableHead>Tarefas</TableHead><TableHead>Anexos</TableHead><TableHead>Sem vínculo</TableHead><TableHead>Erros</TableHead><TableHead>Comentários / andamentos</TableHead><TableHead />
               </TableRow></TableHeader>
               <TableBody>
                 {historico.map((h) => (
                   <TableRow key={h.id}>
                     <TableCell className="text-sm">{h.nome}</TableCell>
                     <TableCell><Badge variant="outline">{h.status}</Badge></TableCell>
-                    <TableCell>{h.contadores?.processos_criados ?? 0}</TableCell>
+                    <TableCell>{h.contadores?.processos_criados ?? (h.mapeamento?.modulo === "processos" ? h.contadores?.criados : 0) ?? 0}</TableCell>
                     <TableCell>{h.contadores?.tarefas_criadas ?? 0}</TableCell>
                     <TableCell>{h.contadores?.anexos_enviados ?? 0}</TableCell>
                     <TableCell>{h.contadores?.anexos_sem_vinculo ?? 0}</TableCell>
                     <TableCell>{h.contadores?.erros ?? 0}</TableCell>
+                    <TableCell>{h.mapeamento?.modulo === "comentarios" || h.mapeamento?.modulo === "andamentos" ? `${h.contadores?.criados ?? 0} ${h.mapeamento.modulo}` : ""}</TableCell>
                     <TableCell className="flex gap-1">
                       <Button size="sm" variant="ghost" onClick={() => baixarRelatorio(h.id)}><Download className="h-4 w-4" /></Button>
                       {h.status !== "desfeito" && <Button size="sm" variant="ghost" onClick={() => desfazer(h.id)}><Undo2 className="h-4 w-4" /></Button>}
                     </TableCell>
                   </TableRow>
                 ))}
-                {!historico.length && <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground">Nenhuma migração ainda</TableCell></TableRow>}
+                {!historico.length && <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground">Nenhuma migração ainda</TableCell></TableRow>}
               </TableBody>
             </Table>
           </CardContent>
