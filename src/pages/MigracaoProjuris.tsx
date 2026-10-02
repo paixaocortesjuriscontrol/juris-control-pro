@@ -21,6 +21,7 @@ import {
   paraData, paraHora, classificarTipo, mapearSituacao, sanitizarNome,
 } from "@/lib/migracaoProjuris";
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
+import { DiagnosticoProjuris } from "@/components/migracao/DiagnosticoProjuris";
 
 const COORD_PADRAO = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Santander Cível
 const SEM = "__nenhuma__";
@@ -63,6 +64,7 @@ export default function MigracaoProjuris() {
   const [migracaoId, setMigracaoId] = useState<string | null>(null);
   const [historico, setHistorico] = useState<any[]>([]);
   const [zipAberto, setZipAberto] = useState<number | null>(null);
+  const [diagnostico, setDiagnostico] = useState(false);
 
   const chaveP = (p: Planilha) => `${p.arquivo}|${p.aba}`;
   const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
@@ -593,6 +595,15 @@ export default function MigracaoProjuris() {
                 <input type="file" multiple className="hidden" accept=".xlsx,.xls,.csv,.zip" onChange={(e) => adicionarArquivos(e.target.files)} />
               </label>
               {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
+              {(planilhas.length > 0 || zips.length > 0) && (
+                <Button size="sm" variant={diagnostico ? "secondary" : "default"} onClick={() => setDiagnostico((d) => !d)}>
+                  {diagnostico ? "Ocultar diagnóstico" : "Analisar arquivos enviados (diagnóstico)"}
+                </Button>
+              )}
+              {diagnostico && (
+                <DiagnosticoProjuris planilhas={planilhas} zips={zips as any} selecionadas={selecionadas} chave={chaveP}
+                  marcar={(cs, v) => setSelecionadas((s) => { const n = new Set(s); cs.forEach((c) => v ? n.add(c) : n.delete(c)); return n; })} />
+              )}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <div className="mb-2 flex items-center gap-2">
