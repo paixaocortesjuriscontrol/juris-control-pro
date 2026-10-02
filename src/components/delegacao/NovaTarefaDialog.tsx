@@ -579,6 +579,7 @@ export function NovaTarefaDialog({
   };
 
   async function onSubmit(values: FormValues) {
+    if (!tarefaParaEditar && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" até "+String(recorrenciaFim).split("-").reverse().join("/"):", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     // Trava anti-duplo-envio: o `disabled={loading}` só vale após o commit do
     // estado, então dois cliques rápidos (ou header + rodapé) criavam 2 registros.
     if (submitInFlightRef.current) return;
