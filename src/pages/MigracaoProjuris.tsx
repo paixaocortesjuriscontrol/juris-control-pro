@@ -550,7 +550,10 @@ export default function MigracaoProjuris() {
               ))}
               <div className="flex justify-between pt-2">
                 <Button variant="outline" onClick={() => setEtapa(0)}>Voltar</Button>
-                <Button onClick={preparar} disabled={preparando}>{preparando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Analisar</Button>
+                <div className="flex items-center gap-3">
+                  {preparando && analiseMsg && <span className="text-sm text-muted-foreground">{analiseMsg}</span>}
+                  <Button onClick={preparar} disabled={preparando}>{preparando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Analisar</Button>
+                </div>
               </div>
             </CardContent>
           </Card>
