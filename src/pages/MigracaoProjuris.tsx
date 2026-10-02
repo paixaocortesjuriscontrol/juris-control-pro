@@ -96,6 +96,12 @@ export default function MigracaoProjuris() {
     })();
   }, [coordId]);
 
+  const [todosUsuarios, setTodosUsuarios] = useState<{ id: string; nome: string }[]>([]);
+  useEffect(() => {
+    supabase.from("profiles").select("id, nome").not("nome", "is", null).order("nome").limit(2000)
+      .then(({ data }) => setTodosUsuarios(((data as any[]) || []).filter((u) => u.nome)));
+  }, []);
+
 
   // ---------- Etapa 1: arquivos ----------
   const adicionarArquivos = async (files: FileList | null) => {
@@ -145,21 +151,53 @@ export default function MigracaoProjuris() {
   };
 
   // ---------- Etapa 3: conferência ----------
+  // Casa um nome (sem acento, minúsculo) com uma lista de usuários
+  const casarEm = (n: string, lista: { id: string; nome: string }[]): string | null => {
+    const exato = lista.find((m) => norm(m.nome) === n);
+    if (exato) return exato.id;
+    const tok = n.split(" ").filter(Boolean);
+    if (!tok.length) return null;
+    const parcial = lista.filter((m) => {
+      const mt = norm(m.nome).split(" ");
+      return mt[0] === tok[0] && (tok.length === 1 || tok.slice(1).every((t) => mt.includes(t)) || mt.includes(tok[tok.length - 1]));
+    });
+    return parcial.length === 1 ? parcial[0].id : null;
+  };
+  const partesNome = (n: string) => n.split(/\s*[|/;,]\s*|\s+e\s+/).map((s) => s.trim()).filter(Boolean);
+
   const casarResponsavel = (nome: string): string | null => {
     const n = norm(nome);
     if (n) {
       if (respManual[n]) return respManual[n] === SEM ? null : respManual[n];
-      const exato = membros.find((m) => norm(m.nome) === n);
-      if (exato) return exato.id;
-      const tok = n.split(" ");
-      const parcial = membros.filter((m) => {
-        const mt = norm(m.nome).split(" ");
-        return mt[0] === tok[0] && (tok.length === 1 || mt.includes(tok[tok.length - 1]));
-      });
-      if (parcial.length === 1) return parcial[0].id;
+      for (const p of [n, ...partesNome(n)]) {
+        const id = casarEm(p, membros);
+        if (id) return id;
+      }
     }
     // Sem responsável na planilha ou não reconhecido: assume o usuário escolhido
     return usuarioAssume !== SEM ? usuarioAssume : null;
+  };
+
+  // Sugestões de usuários do sistema (fora da coordenação) para um nome não reconhecido
+  const sugestoesFora = (nome: string) => {
+    const ids = new Set(membros.map((m) => m.id));
+    const fora = todosUsuarios.filter((u) => !ids.has(u.id));
+    const out: { id: string; nome: string }[] = [];
+    for (const p of partesNome(nome)) {
+      const id = casarEm(p, fora);
+      const u = id && fora.find((x) => x.id === id);
+      if (u && !out.some((o) => o.id === u.id)) out.push(u);
+    }
+    return out;
+  };
+
+  const adicionarNaCoordenacao = async (usuarioId: string, nomeChave: string) => {
+    const { error } = await supabase.from("membros_coordenacao").insert({ coordenacao_id: coordId, usuario_id: usuarioId, cargo: "membro" } as any);
+    if (error && !String(error.message).includes("duplicate")) { toast.error("Não foi possível adicionar: " + error.message); return; }
+    const u = todosUsuarios.find((x) => x.id === usuarioId);
+    if (u) setMembros((ms) => ms.some((m) => m.id === u.id) ? ms : [...ms, u].sort((a, b) => a.nome.localeCompare(b.nome)));
+    setRespManual((m) => ({ ...m, [nomeChave]: usuarioId }));
+    toast.success(`${u?.nome || "Usuário"} adicionado(a) à coordenação`);
   };
 
   const preparar = async () => {
