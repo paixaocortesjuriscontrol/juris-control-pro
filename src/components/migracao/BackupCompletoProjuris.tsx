@@ -665,7 +665,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             <Upload className="h-8 w-8 text-muted-foreground" />
             <span className="font-medium">Arraste o backup aqui ou clique para escolher</span>
             <span className="text-xs text-muted-foreground">.zip com os CSVs do Projuris (também aceita .csv avulsos)</span>
-            <input type="file" multiple className="hidden" accept=".zip,.csv,.txt" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
+            <input type="file" multiple className="hidden" accept=".zip,.csv,.txt,.xlsx,.xls" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
           </label>
           {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
           {info.length > 0 && (
