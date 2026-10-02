@@ -51,6 +51,7 @@ export default function MigracaoProjuris() {
   const [anexos, setAnexos] = useState<Anexo[]>([]);
   const [membros, setMembros] = useState<{ id: string; nome: string }[]>([]);
   const [respManual, setRespManual] = useState<Record<string, string>>({});
+  const [usuarioAssume, setUsuarioAssume] = useState<string>(SEM);
   const [criarProcessos, setCriarProcessos] = useState(true);
   const [preparando, setPreparando] = useState(false);
   const [analiseMsg, setAnaliseMsg] = useState("");
