@@ -23,6 +23,7 @@ import {
 import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { DiagnosticoProjuris } from "@/components/migracao/DiagnosticoProjuris";
 import { ImportacaoProjurisSimples } from "@/components/migracao/ImportacaoProjurisSimples";
+import { BackupCompletoProjuris } from "@/components/migracao/BackupCompletoProjuris";
 
 type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
 const MODULOS: [Modulo, string][] = [["processos", "Processos"], ["tarefas", "Tarefas"], ["anexos", "Anexos"], ["comentarios", "Comentários"], ["andamentos", "Andamentos"]];
@@ -71,6 +72,7 @@ export default function MigracaoProjuris() {
   const [zipAberto, setZipAberto] = useState<number | null>(null);
   const [diagnostico, setDiagnostico] = useState(false);
   const [modulo, setModulo] = useState<Modulo>("processos");
+  const [modo, setModo] = useState<"importacoes" | "backup">("importacoes");
   const [contMigrados, setContMigrados] = useState<Partial<Record<Modulo, number>>>({});
   const contarMigrados = async () => {
     const { data: ms } = await supabase.from("migracoes_projuris" as any).select("id").eq("coordenacao_id", coordId).neq("status", "desfeito");
