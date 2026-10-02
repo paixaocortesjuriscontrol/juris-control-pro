@@ -19,6 +19,8 @@ const TABELAS: Record<string, string[] | null> = {
   tarefatipo: ["cdtarefatipo", "flativo", "detarefa"],
   andamento: ["cdandamento", "flativo", "dtandamento", "dthoraandamento", "deandamento", "cdandamentotipo", "flexclusaotipo"],
   andamentovinculomodulo: ["cdandamento", "cdmodulo", "cdregistrovinculo"],
+  workflowcontrole: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
+  workflowexecucao: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
   usuario: ["cdusuario", "flativo", "delogin", "cdpessoa"],
   pessoa: ["cdpessoa", "nmpessoa"],
   comentario: ["cdcomentario", "decomentario", "dtinclusao", "cdusuariocriador"],
@@ -296,6 +298,16 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       const vincMap = new Map<string, string>();
       const guVinc = gu("andamentovinculomodulo");
       if (guVinc) for (const r of guVinc.linhas) if (norm(guVinc.g(r, "cdmodulo")) === "3") vincMap.set(String(guVinc.g(r, "cdandamento") || ""), String(guVinc.g(r, "cdregistrovinculo") || ""));
+      // --------- 4b. tarefas criadas por fluxo: workflowexecucao (módulo 4) → workflowcontrole (módulo 3 = processo) ---------
+      const controleProc = new Map<string, string>();
+      const guWc = gu("workflowcontrole");
+      if (guWc) for (const r of guWc.linhas) if (norm(guWc.g(r, "cdmodulo")) === "3") controleProc.set(String(guWc.g(r, "cdworkflowcontrole") || ""), String(guWc.g(r, "cdregistrovinculo") || ""));
+      const tarefaProc = new Map<string, string>();
+      const guWe = gu("workflowexecucao");
+      if (guWe) for (const r of guWe.linhas) if (norm(guWe.g(r, "cdmodulo")) === "4") {
+        const p = controleProc.get(String(guWe.g(r, "cdworkflowcontrole") || ""));
+        if (p) tarefaProc.set(String(guWe.g(r, "cdregistrovinculo") || ""), p);
+      }
 
       // --------- 5. processos (linhas do módulo) ---------
       const procRows: LinhaConf[] = [];
@@ -394,7 +406,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           let respId = respCache.get(criador);
           if (respId === undefined) { respId = casarNome(criador); respCache.set(criador, respId); }
           const ident = String(guTe.g(r, "deidentificador") || "").trim().toUpperCase();
-          const procDig = vincTarefaRef.current.get(ident) || null;
+          const procDig = vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
             chave, motivo, ident, procDig,
             titulo: det || "(sem título)", tipo: classificarTipo(det, tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || ""),
