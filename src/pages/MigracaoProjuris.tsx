@@ -491,7 +491,7 @@ export default function MigracaoProjuris() {
                 </Select>
               </div>
               <div className="grid gap-2 max-w-md">
-                <Label>Usuário que assume todas as tarefas</Label>
+                <Label>Usuário que assume as tarefas sem responsável</Label>
                 <Select value={usuarioAssume} onValueChange={setUsuarioAssume}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
