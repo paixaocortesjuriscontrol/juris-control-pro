@@ -712,17 +712,27 @@ export async function fetchAgendaPage(
 
             // Buscar todos os responsáveis (multi-responsáveis) das tarefas exibidas
             const respMap: Record<string, string[]> = {};
+            const envMap: Record<string, string[]> = {};
             const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
             if (tarefaIdsExibidas.length > 0) {
               // Em lotes: listas grandes de ids estouram o tamanho da URL e a consulta falha.
               const chunks: string[][] = [];
               for (let i = 0; i < tarefaIdsExibidas.length; i += 150) chunks.push(tarefaIdsExibidas.slice(i, i + 150));
-              const results = await Promise.all(
-                chunks.map((c) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", c)),
-              );
+              const [results, envResults] = await Promise.all([
+                Promise.all(
+                  chunks.map((c) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", c)),
+                ),
+                Promise.all(
+                  chunks.map((c) => supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", c)),
+                ),
+              ]);
               results.flatMap((r) => r.data || []).forEach((r: any) => {
                 if (!r?.tarefa_id || !r?.usuario_id) return;
                 (respMap[r.tarefa_id] ||= []).push(r.usuario_id);
+              });
+              envResults.flatMap((r) => r.data || []).forEach((r: any) => {
+                if (!r?.tarefa_id || !r?.usuario_id) return;
+                (envMap[r.tarefa_id] ||= []).push(r.usuario_id);
               });
             }
             let criadoresMap: Record<string, { id: string; nome: string }> = {};
@@ -833,6 +843,7 @@ export async function fetchAgendaPage(
                     new Set([...(respMap[tarefa.id] || []), ...(tarefa.responsavel_id ? [tarefa.responsavel_id] : [])])
                   ),
                   responsavel: tarefa.responsavel,
+                  participantes: (envMap[tarefa.id] || []).map((uid) => ({ usuario_id: uid })),
                   criado_por: tarefa.criado_por,
                   criador: tarefa.criado_por ? criadoresMap[tarefa.criado_por] || null : null,
                   dias_restantes: diasRestantes,
