@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.apagar_subatividades_do_item() FROM PUBLIC, anon, authenticated;
