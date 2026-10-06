@@ -39,6 +39,9 @@ Para cada pessoa, os processos (como responsável) e os itens em aberto do Paine
 ## 5. Conferência final
 Lista dos membros e cargos de cada coordenação e contagem de processos e itens transferidos.
 
+## 6. Decisão confirmada (06/10/2026)
+Alice Campos, Sarah Campos, Suelen Rocha, Luis Souza, Lavínia Rodrigues e Gabrielly Garcias foram retirados da Coordenação GOL e permanecem apenas na Execução GOL - Dra B. Anjos, com os mesmos cargos.
+
 ## Detalhes técnicos
 - Coordenação GOL: f5a0ac48-…; Execução GOL: 408d691a-…; Norte e Nordeste: b7aba3d4-….
 - Atualizações de dados: `membros_coordenacao.cargo`, troca de `usuario_id` em `processos_responsaveis` e `tarefa_responsaveis` (sem duplicar quando quem recebe já está no item), ajuste de `tarefas.responsavel_id` nos itens em aberto, e exclusão das linhas de `membros_coordenacao`.
