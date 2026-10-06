@@ -2559,7 +2559,7 @@ export default function DistribuicaoTst() {
         {/* Filters */}
         {mostrarFiltros && (
         <div className="border border-border rounded-lg p-4 space-y-3 bg-muted/30">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 items-end">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 items-end">
             <div className="space-y-1">
               <Label className="text-[10px] font-semibold text-muted-foreground">Responsáveis</Label>
               <ResponsaveisSelector
@@ -2570,14 +2570,14 @@ export default function DistribuicaoTst() {
                 includeUnassignedOption
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-2 lg:col-span-2 xl:col-span-2">
               <div className="space-y-0.5">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Data inicial</Label>
-                <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 text-xs w-full" title="Data início" />
+                <Input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} className="h-8 min-w-[9.5rem] w-full text-xs" title="Data início" />
               </div>
               <div className="space-y-0.5">
                 <Label className="text-[10px] font-semibold text-muted-foreground">Data final</Label>
-                <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 text-xs w-full" title="Data fim" />
+                <Input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} className="h-8 min-w-[9.5rem] w-full text-xs" title="Data fim" />
               </div>
             </div>
             {hasFilters && (
