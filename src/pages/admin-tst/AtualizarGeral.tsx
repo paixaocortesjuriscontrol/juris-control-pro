@@ -17,7 +17,42 @@ import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLot
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
 type LinhaPlanilha = Record<string, any> & { _digits: string; _processo: string; _dossie: string };
-type BaseRow = { id: string; processo: string; dossie: string | null; equipe: string | null; coordenacao_id: string | null };
+type BaseRow = {
+  id: string; processo: string; dossie: string | null; equipe: string | null; coordenacao_id: string | null;
+  turma: string | null; relator: string | null; recorrente: string | null; status: string | null;
+  situacao_envio_carga_id: string | null; benner_atualizado: boolean | null;
+  pronto_em: string | null; pronto_por: string | null;
+  data_distribuicao_real: string | null; reclamante: string | null; reclamada: string | null;
+  situacao_envio?: string; responsaveis?: string; pronto_por_nome?: string;
+};
+
+const fmtData = (v: string | null) => {
+  if (!v) return "";
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
+};
+
+function linhaArquivar(a: BaseRow) {
+  return {
+    Processo: a.processo,
+    "Dossiê": a.dossie || "",
+    Equipe: a.equipe || "",
+    Turma: a.turma || "",
+    Relator: a.relator || "",
+    Recorrente: a.recorrente || "",
+    "Pronto para distribuir": a.pronto_em ? "SIM" : "NÃO",
+    "Marcado pronto em": fmtData(a.pronto_em),
+    "Marcado pronto por": a.pronto_por_nome || "",
+    "Benner atualizado": a.benner_atualizado ? "SIM" : "NÃO",
+    "Situação de envio": a.situacao_envio || "",
+    Status: a.status || "",
+    "Data de distribuição": fmtData(a.data_distribuicao_real),
+    Reclamante: a.reclamante || "",
+    Reclamada: a.reclamada || "",
+    "Responsável(is)": a.responsaveis || "",
+    "Coordenação": a.coordenacao_id ? "Dra. Renata Oficial" : "Sem coordenação",
+  };
+}
 
 const digitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 const txt = (v: unknown) => String(v ?? "").replace(/^'/, "").trim();
@@ -92,7 +127,7 @@ export default function AtualizarGeral() {
       const base: BaseRow[] = [];
       for (let from = 0; ; from += 1000) {
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, dossie, equipe, coordenacao_id")
+          .select("id, processo, dossie, equipe, coordenacao_id, turma, relator, recorrente, status, situacao_envio_carga_id, benner_atualizado, pronto_em, pronto_por, data_distribuicao_real, reclamante, reclamada")
           .not("aba_origem", "is", null)
           .order("id")
           .range(from, from + 999);
@@ -102,6 +137,38 @@ export default function AtualizarGeral() {
         if (!data || data.length < 1000) break;
       }
       setTotalBase(base.length);
+
+      setEtapa("Carregando responsáveis e situações...");
+      const nomesPorId = new Map<string, string>();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await (supabase.from("dados_benner_responsaveis") as any)
+          .select("dados_benner_id, profiles:responsavel_id(full_name)")
+          .range(from, from + 999);
+        if (error) break;
+        for (const r of data || []) {
+          const nome = (r as any).profiles?.full_name;
+          if (!nome) continue;
+          const k = (r as any).dados_benner_id;
+          nomesPorId.set(k, nomesPorId.has(k) ? `${nomesPorId.get(k)}, ${nome}` : nome);
+        }
+        if (!data || data.length < 1000) break;
+      }
+      const cargasMap = new Map<string, string>();
+      const { data: cargas } = await (supabase.from("situacoes_envio_carga") as any).select("id, nome");
+      for (const c of cargas || []) cargasMap.set(c.id, c.nome);
+      const prontoPorIds = [...new Set(base.map((b) => b.pronto_por).filter(Boolean))] as string[];
+      const prontoPorNomes = new Map<string, string>();
+      for (let i = 0; i < prontoPorIds.length; i += 200) {
+        const { data: profs } = await (supabase.from("profiles") as any)
+          .select("id, full_name")
+          .in("id", prontoPorIds.slice(i, i + 200));
+        for (const p of profs || []) prontoPorNomes.set(p.id, p.full_name);
+      }
+      for (const b of base) {
+        b.responsaveis = nomesPorId.get(b.id) || "";
+        b.situacao_envio = b.situacao_envio_carga_id ? cargasMap.get(b.situacao_envio_carga_id) || "" : "";
+        b.pronto_por_nome = b.pronto_por ? prontoPorNomes.get(b.pronto_por) || "" : "";
+      }
 
       const chavesPlanilha = new Set(linhas.map((l) => `${l._digits}|${l._dossie}`));
       const digitsPlanilha = new Set(linhas.map((l) => l._digits));
@@ -275,7 +342,7 @@ export default function AtualizarGeral() {
                 <div className="rounded-md border border-destructive/40 p-3">
                   <div className="text-sm text-muted-foreground">Arquivar (fora da planilha)</div>
                   <div className="text-2xl font-semibold text-destructive">{arquivar.length}</div>
-                  <Button variant="outline" size="sm" className="mt-2" onClick={() => baixar("Arquivar_Atualizar_Geral.xlsx", arquivar.map((a) => ({ Processo: a.processo, Dossiê: a.dossie, Equipe: a.equipe, Coordenação: a.coordenacao_id ? "Dra. Renata Oficial" : "Sem coordenação" })))}>
+                  <Button variant="outline" size="sm" className="mt-2" onClick={() => baixar("Arquivar_Atualizar_Geral.xlsx", arquivar.map(linhaArquivar))}>
                     <Download className="w-4 h-4 mr-1" /> Excel
                   </Button>
                 </div>
@@ -306,7 +373,7 @@ export default function AtualizarGeral() {
             <CardContent>
               <Button variant="outline" onClick={() => baixar("Relatorio_Atualizar_Geral.xlsx", [
                 ...novos.map((n) => ({ Ação: "Cadastrado", Processo: n._processo, Dossiê: n._dossie, Erro: "" })),
-                ...arquivar.map((a) => ({ Ação: "Arquivado", Processo: a.processo, Dossiê: a.dossie, Erro: "" })),
+                ...arquivar.map((a) => ({ Ação: "Arquivado", ...linhaArquivar(a), Erro: "" })),
                 ...resultado.erros.map((e) => ({ Ação: "Erro", Processo: e.processo, Dossiê: "", Erro: e.erro })),
               ])}>
                 <Download className="w-4 h-4 mr-2" /> Baixar relatório
