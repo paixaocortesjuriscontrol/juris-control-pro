@@ -45,6 +45,7 @@ import DjenServidor from "./pages/DjenServidor";
 import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
+import CredenciaisPje from "./pages/CredenciaisPje";
 import AnaliseDjenServidor from "./pages/AnaliseDjenServidor";
 import ComparaDocsTst from "./pages/ComparaDocsTst";
 import TermosDjen from "./pages/TermosDjen";
@@ -195,6 +196,7 @@ function App() {
               <Route path="/importar-tarefas" element={<ProtectedRoute><ImportarTarefas /></ProtectedRoute>} />
               <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
               <Route path="/analise-djen" element={<ProtectedRoute><AnaliseDjen /></ProtectedRoute>} />
+              <Route path="/credenciais-pje" element={<ProtectedRoute><CredenciaisPje /></ProtectedRoute>} />
               <Route path="/analise-djen-servidor" element={<AdminRoute><AnaliseDjenServidor /></AdminRoute>} />
               <Route path="/termos-djen" element={<ProtectedRoute><TermosDjen /></ProtectedRoute>} />
               <Route path="/manual-sistema" element={<ProtectedRoute><ManualSistema /></ProtectedRoute>} />

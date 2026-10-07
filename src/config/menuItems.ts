@@ -45,6 +45,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Radar, label: "Monitoramento", path: "/monitoramento", highlight: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
+  { icon: ShieldCheck, label: "Minhas credenciais PJe", path: "/credenciais-pje" },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
   { icon: Brain, label: "Inteligência Jurídica", path: "/inteligencia-juridica", adminOrCoordOnly: true },
   { icon: Trophy, label: "Ranking Atendimento", path: "/ranking-atendimento" },
