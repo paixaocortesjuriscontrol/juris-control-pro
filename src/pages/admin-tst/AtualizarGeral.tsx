@@ -20,9 +20,10 @@ type LinhaPlanilha = Record<string, any> & { _digits: string; _processo: string;
 type BaseRow = {
   id: string; processo: string; dossie: string | null; equipe: string | null; coordenacao_id: string | null;
   turma: string | null; relator: string | null; recorrente: string | null; status: string | null;
-  situacao_envio: string | null; benner_atualizado: boolean | null; pronto: boolean | null;
+  situacao_envio_carga_id: string | null; benner_atualizado: boolean | null;
+  pronto_em: string | null; pronto_por: string | null;
   data_distribuicao_real: string | null; reclamante: string | null; reclamada: string | null;
-  responsaveis?: string;
+  situacao_envio?: string; responsaveis?: string; pronto_por_nome?: string;
 };
 
 const fmtData = (v: string | null) => {
