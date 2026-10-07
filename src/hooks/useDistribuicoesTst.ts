@@ -750,6 +750,15 @@ function applySituacaoProcessoFilter<T>(query: T, valor?: string | string[] | nu
 }
 
 /**
+ * Arquivados ficam FORA das listas e contagens por padrão; voltam apenas
+ * quando a opção "arquivado" está ativa (card "Arquivados" / filtro de situação).
+ */
+function applyExclusaoArquivadosPadrao<T>(query: T, valor?: string | string[] | null): T {
+  if (normalizarSituacoesProcesso(valor).includes("arquivado")) return query;
+  return (query as any).or("situacao_processo.is.null,situacao_processo.not.ilike.arquivado*") as T;
+}
+
+/**
  * Condição de EXCLUSÃO de cada marcação (negada). São aplicadas uma a uma para
  * que somem em AND — "não mostrar CEJUSC" + "não mostrar Acordo" etc.
  */
