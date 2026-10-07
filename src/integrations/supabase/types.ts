@@ -7329,6 +7329,21 @@ export type Database = {
           },
         ]
       }
+      pje_direto_cron_token: {
+        Row: {
+          id: number
+          token: string
+        }
+        Insert: {
+          id?: number
+          token?: string
+        }
+        Update: {
+          id?: number
+          token?: string
+        }
+        Relationships: []
+      }
       processo_tags_catalogo: {
         Row: {
           ativo: boolean
