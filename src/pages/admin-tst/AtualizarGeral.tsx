@@ -142,7 +142,7 @@ export default function AtualizarGeral() {
       const nomesPorId = new Map<string, string>();
       for (let from = 0; ; from += 1000) {
         const { data, error } = await (supabase.from("dados_benner_responsaveis") as any)
-          .select("dados_benner_id, profiles:responsavel_id(full_name)")
+          .select("dados_benner_id, profiles:usuario_id(full_name)")
           .range(from, from + 999);
         if (error) break;
         for (const r of data || []) {
