@@ -127,7 +127,7 @@ export default function AtualizarGeral() {
       const base: BaseRow[] = [];
       for (let from = 0; ; from += 1000) {
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, dossie, equipe, coordenacao_id, turma, relator, recorrente, status, situacao_envio, benner_atualizado, pronto, data_distribuicao_real, reclamante, reclamada")
+          .select("id, processo, dossie, equipe, coordenacao_id, turma, relator, recorrente, status, situacao_envio_carga_id, benner_atualizado, pronto_em, pronto_por, data_distribuicao_real, reclamante, reclamada")
           .not("aba_origem", "is", null)
           .order("id")
           .range(from, from + 999);
