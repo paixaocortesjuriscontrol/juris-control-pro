@@ -330,14 +330,14 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
         const cardNode = (
           <Card
             key={c.key}
-            onClick={clickable ? () => onCardClick?.(c.key) : undefined}
+            onClick={c.key === "arquivados" && onArquivadosClick ? onArquivadosClick : clickable ? () => onCardClick?.(c.key) : undefined}
             className={cn(
               "bg-gradient-to-br transition-all",
               c.className,
               clickable && "cursor-pointer hover:shadow-md hover:scale-[1.02]",
               isActive && "ring-2 ring-primary ring-offset-1"
             )}
-            title={c.hint ? (clickable ? `${c.hint} — clique para filtrar` : c.hint) : clickable ? "Clique para filtrar" : undefined}
+            title={c.key === "arquivados" ? c.hint : c.hint ? (clickable ? `${c.hint} — clique para filtrar` : c.hint) : clickable ? "Clique para filtrar" : undefined}
           >
             <CardContent className="p-2">
               <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.hint || c.label}>{c.label}</p>
@@ -349,7 +349,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
             </CardContent>
           </Card>
         );
-        if (c.key === "total" && responsavelCard) {
+        if (c.key === "arquivados" && responsavelCard) {
           return (
             <div key="__total_plus_resp__" className="contents">
               {cardNode}
