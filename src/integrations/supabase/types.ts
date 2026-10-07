@@ -11065,6 +11065,10 @@ export type Database = {
         }
         Returns: string
       }
+      envolvido_com_permissao_situacao: {
+        Args: { _status: string; _tarefa: string; _user: string }
+        Returns: boolean
+      }
       escopo_acompanhamento_especial: {
         Args: { _uid: string }
         Returns: string[]
@@ -11830,10 +11834,12 @@ export type Database = {
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       merge_processos_duplicados: { Args: never; Returns: Json }
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
-      pode_alterar_situacao_item: {
-        Args: { _tarefa: string; _user: string }
-        Returns: boolean
-      }
+      pode_alterar_situacao_item:
+        | { Args: { _tarefa: string; _user: string }; Returns: boolean }
+        | {
+            Args: { _status: string; _tarefa: string; _user: string }
+            Returns: boolean
+          }
       pode_gerenciar_etiquetas: {
         Args: { _coordenacao_id: string }
         Returns: boolean
@@ -11892,6 +11898,7 @@ export type Database = {
         Args: { db: Database["public"]["Tables"]["dados_benner"]["Row"] }
         Returns: boolean
       }
+      tipo_permissao_da_tarefa: { Args: { _tipo: string }; Returns: string }
       try_uuid: { Args: { _txt: string }; Returns: string }
       tst_pendencias_count: {
         Args: { r: Database["public"]["Tables"]["dados_benner"]["Row"] }
