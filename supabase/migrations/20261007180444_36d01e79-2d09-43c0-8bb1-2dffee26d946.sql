@@ -1,0 +1,2 @@
+DROP POLICY IF EXISTS "Usuarios logados veem auditoria da distribuicao TST" ON public.auditoria_distribuicao_tst;
+CREATE POLICY "Usuarios logados veem auditoria da distribuicao TST" ON public.auditoria_distribuicao_tst FOR SELECT TO authenticated USING (auth.uid() IS NOT NULL);
