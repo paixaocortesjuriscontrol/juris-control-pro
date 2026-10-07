@@ -87,7 +87,7 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
 
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
-    { key: "total", label: "Total Geral", value: stats.total, hint: "Não inclui os arquivados", className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
+    { key: "total", label: "Não arquivados", value: stats.total, hint: "Total de fichas não arquivadas", className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
     { key: "arquivados", label: "Arquivados", value: stats.arquivados + arquivadosMovidos, hint: `${arquivadosMovidos.toLocaleString("pt-BR")} na área de Arquivados + ${stats.arquivados.toLocaleString("pt-BR")} com situação "Arquivado" — fora do Total Geral. Clique para abrir os arquivados`, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-300 dark:border-zinc-700", textClass: "text-zinc-700 dark:text-zinc-300" },
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
