@@ -488,6 +488,19 @@ export default function DistribuicaoTst() {
   // respeitar também os filtros vindos dos cliques nos outros cards)
 
 
+  // Fichas já movidas para a área de Arquivados (fora da base ativa).
+  const { data: arquivadosMovidosCount = 0 } = useQuery({
+    queryKey: ["dados-benner-arquivados-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("dados_benner_arquivados")
+        .select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+    staleTime: 60_000,
+  });
+
   // IDs de processos com mais de um responsável, respeitando os demais filtros
   // (ignora filtro de responsável para que a contagem não se anule a si mesma).
   const multiRespFiltersKey = JSON.stringify({ ...debouncedFilters, responsavelIds: undefined });
@@ -2078,6 +2091,8 @@ export default function DistribuicaoTst() {
             activeKey={activeCardKey}
             activeKeys={activeCardKeys}
             onCardClick={handleCardClick}
+            arquivadosMovidos={arquivadosMovidosCount}
+            onArquivadosClick={() => navigate("/distribuicao-tst/arquivados")}
             prontoSemPendencia={{
               count: prontoSemPendenciaCount,
               loading: prontoSemPendenciaLoading,
