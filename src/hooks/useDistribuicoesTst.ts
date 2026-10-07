@@ -717,8 +717,9 @@ function applySemNenhumaMateriaDossieFilter<T>(query: T, filters: DistribuicaoTs
 const SITUACAO_PROCESSO_COND: Record<string, string> = {
   ativo: "and(situacao_processo.ilike.ativo,or(transito_julgado.is.null,transito_julgado.eq.false))",
   transito: "transito_julgado.eq.true",
+  arquivado: "situacao_processo.ilike.arquivado*",
   outros:
-    "and(or(situacao_processo.is.null,situacao_processo.not.ilike.ativo),or(transito_julgado.is.null,transito_julgado.eq.false))",
+    "and(or(situacao_processo.is.null,situacao_processo.not.ilike.ativo),or(situacao_processo.is.null,situacao_processo.not.ilike.arquivado*),or(transito_julgado.is.null,transito_julgado.eq.false))",
   outro_escritorio: "processo_outro_escritorio.eq.true",
   segredo_justica: "segredo_justica.eq.true",
   cejusc: "cejusc.eq.true",
