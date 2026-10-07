@@ -591,6 +591,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, filters.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
@@ -716,8 +717,9 @@ function applySemNenhumaMateriaDossieFilter<T>(query: T, filters: DistribuicaoTs
 const SITUACAO_PROCESSO_COND: Record<string, string> = {
   ativo: "and(situacao_processo.ilike.ativo,or(transito_julgado.is.null,transito_julgado.eq.false))",
   transito: "transito_julgado.eq.true",
+  arquivado: "situacao_processo.ilike.arquivado*",
   outros:
-    "and(or(situacao_processo.is.null,situacao_processo.not.ilike.ativo),or(transito_julgado.is.null,transito_julgado.eq.false))",
+    "and(or(situacao_processo.is.null,situacao_processo.not.ilike.ativo),or(situacao_processo.is.null,situacao_processo.not.ilike.arquivado*),or(transito_julgado.is.null,transito_julgado.eq.false))",
   outro_escritorio: "processo_outro_escritorio.eq.true",
   segredo_justica: "segredo_justica.eq.true",
   cejusc: "cejusc.eq.true",
@@ -745,6 +747,15 @@ function applySituacaoProcessoFilter<T>(query: T, valor?: string | string[] | nu
   if (opcoes.length === 0) return query;
   const cond = opcoes.map((o) => SITUACAO_PROCESSO_COND[o]).join(",");
   return (query as any).or(cond) as T;
+}
+
+/**
+ * Arquivados ficam FORA das listas e contagens por padrão; voltam apenas
+ * quando a opção "arquivado" está ativa (card "Arquivados" / filtro de situação).
+ */
+function applyExclusaoArquivadosPadrao<T>(query: T, valor?: string | string[] | null): T {
+  if (normalizarSituacoesProcesso(valor).includes("arquivado")) return query;
+  return (query as any).or("situacao_processo.is.null,situacao_processo.not.ilike.arquivado*") as T;
 }
 
 /**
@@ -928,6 +939,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, filters.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
@@ -1339,6 +1351,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, f.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, f.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, f.excluirSituacoes);
 
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);

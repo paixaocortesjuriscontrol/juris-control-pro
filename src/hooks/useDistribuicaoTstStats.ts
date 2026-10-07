@@ -53,6 +53,7 @@ export interface DistribuicaoTstStats {
   semEquipe: number;
   aFazer: number;
   naoPrecisaFazer: number;
+  arquivados: number;
 }
 
 const ZERO: DistribuicaoTstStats = {
@@ -85,6 +86,7 @@ const ZERO: DistribuicaoTstStats = {
   semEquipe: 0,
   aFazer: 0,
   naoPrecisaFazer: 0,
+  arquivados: 0,
 };
 
 const CNJ_RE = /^[0-9]{7}-[0-9]{2}\.[0-9]{4}\.[0-9]\.[0-9]{2}\.[0-9]{4}$/;
@@ -136,6 +138,11 @@ async function computeStatsForLargeIdFilter(filters: DistribuicaoTstFilters): Pr
     const processo = String(row.processo || "").trim();
     const dossie = String(row.dossie || "").trim();
     const situacao = String(row.situacao_processo || "").trim().toLowerCase();
+    // Arquivados ficam fora do Total Geral e das demais contagens.
+    if (situacao === "arquivado") {
+      stats.arquivados += 1;
+      continue;
+    }
     // Data efetiva: real quando preenchida, senão a da planilha
     const dataEfetiva = String(row.data_distribuicao_real || row.data_distribuicao_planilha || "");
     const equipe = String(row.equipe || "").trim();
@@ -261,6 +268,7 @@ export function useDistribuicaoTstStats(filters: DistribuicaoTstFilters) {
         semEquipe: Number(row.sem_equipe) || 0,
         aFazer: Number(row.a_fazer) || 0,
         naoPrecisaFazer: Number(row.nao_precisa_fazer) || 0,
+        arquivados: Number(row.arquivados) || 0,
       });
       setLoadedOnce(true);
     } catch (err) {

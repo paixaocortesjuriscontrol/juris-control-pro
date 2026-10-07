@@ -34,6 +34,7 @@ export function filtersFromCards(keys: StatsCardKey[]): DistribuicaoTstFilters {
       case "transitoJulgado": f.situacaoProcesso = "transito"; break;
       case "aFazer": f.situacaoProcesso = "a_fazer"; break;
       case "naoPrecisaFazer": f.situacaoProcesso = "nao_precisa_fazer"; break;
+      case "arquivados": f.situacaoProcesso = "arquivado"; break;
       case "comMateria": f.pedidosDossie = "com"; break;
       case "semMateria": f.pedidosDossie = "sem"; break;
       case "problemaJudit": f.problemaJudit = "sim"; break;
