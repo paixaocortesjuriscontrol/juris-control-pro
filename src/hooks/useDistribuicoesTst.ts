@@ -591,6 +591,7 @@ async function fetchAllDistribuicaoTstIdsUncached(
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, filters.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
@@ -928,6 +929,7 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
     if (filters.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (filters.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, filters.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, filters.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, filters.excluirSituacoes);
 
     if (filters.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
@@ -1339,6 +1341,7 @@ export async function fetchMesesDataRealFiltered(
     if (f.erroJudit === "sim") query = query.eq("erro_judit", true);
     else if (f.erroJudit === "nao") query = query.or("erro_judit.is.null,erro_judit.eq.false");
     query = applySituacaoProcessoFilter(query, f.situacaoProcesso);
+    query = applyExclusaoArquivadosPadrao(query, f.situacaoProcesso);
     query = applyExclusaoSituacaoFilter(query, f.excluirSituacoes);
 
     if (f.subidaMassa === "sim") query = query.eq("subida_em_massa", true);
