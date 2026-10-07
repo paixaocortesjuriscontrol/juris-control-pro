@@ -138,7 +138,7 @@ export default function AtualizarGeral() {
       }
       setTotalBase(base.length);
 
-      setEtapa("Carregando responsáveis...");
+      setEtapa("Carregando responsáveis e situações...");
       const nomesPorId = new Map<string, string>();
       for (let from = 0; ; from += 1000) {
         const { data, error } = await (supabase.from("dados_benner_responsaveis") as any)
@@ -153,7 +153,22 @@ export default function AtualizarGeral() {
         }
         if (!data || data.length < 1000) break;
       }
-      for (const b of base) b.responsaveis = nomesPorId.get(b.id) || "";
+      const cargasMap = new Map<string, string>();
+      const { data: cargas } = await (supabase.from("situacoes_envio_carga") as any).select("id, nome");
+      for (const c of cargas || []) cargasMap.set(c.id, c.nome);
+      const prontoPorIds = [...new Set(base.map((b) => b.pronto_por).filter(Boolean))] as string[];
+      const prontoPorNomes = new Map<string, string>();
+      for (let i = 0; i < prontoPorIds.length; i += 200) {
+        const { data: profs } = await (supabase.from("profiles") as any)
+          .select("id, full_name")
+          .in("id", prontoPorIds.slice(i, i + 200));
+        for (const p of profs || []) prontoPorNomes.set(p.id, p.full_name);
+      }
+      for (const b of base) {
+        b.responsaveis = nomesPorId.get(b.id) || "";
+        b.situacao_envio = b.situacao_envio_carga_id ? cargasMap.get(b.situacao_envio_carga_id) || "" : "";
+        b.pronto_por_nome = b.pronto_por ? prontoPorNomes.get(b.pronto_por) || "" : "";
+      }
 
       const chavesPlanilha = new Set(linhas.map((l) => `${l._digits}|${l._dossie}`));
       const digitsPlanilha = new Set(linhas.map((l) => l._digits));
