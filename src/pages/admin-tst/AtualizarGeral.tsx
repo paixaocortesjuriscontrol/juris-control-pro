@@ -355,7 +355,7 @@ export default function AtualizarGeral() {
             <CardContent>
               <Button variant="outline" onClick={() => baixar("Relatorio_Atualizar_Geral.xlsx", [
                 ...novos.map((n) => ({ Ação: "Cadastrado", Processo: n._processo, Dossiê: n._dossie, Erro: "" })),
-                ...arquivar.map((a) => ({ Ação: "Arquivado", Processo: a.processo, Dossiê: a.dossie, Erro: "" })),
+                ...arquivar.map((a) => ({ Ação: "Arquivado", ...linhaArquivar(a), Erro: "" })),
                 ...resultado.erros.map((e) => ({ Ação: "Erro", Processo: e.processo, Dossiê: "", Erro: e.erro })),
               ])}>
                 <Download className="w-4 h-4 mr-2" /> Baixar relatório
