@@ -324,7 +324,7 @@ export default function AtualizarGeral() {
                 <div className="rounded-md border border-destructive/40 p-3">
                   <div className="text-sm text-muted-foreground">Arquivar (fora da planilha)</div>
                   <div className="text-2xl font-semibold text-destructive">{arquivar.length}</div>
-                  <Button variant="outline" size="sm" className="mt-2" onClick={() => baixar("Arquivar_Atualizar_Geral.xlsx", arquivar.map((a) => ({ Processo: a.processo, Dossiê: a.dossie, Equipe: a.equipe, Coordenação: a.coordenacao_id ? "Dra. Renata Oficial" : "Sem coordenação" })))}>
+                  <Button variant="outline" size="sm" className="mt-2" onClick={() => baixar("Arquivar_Atualizar_Geral.xlsx", arquivar.map(linhaArquivar))}>
                     <Download className="w-4 h-4 mr-1" /> Excel
                   </Button>
                 </div>
