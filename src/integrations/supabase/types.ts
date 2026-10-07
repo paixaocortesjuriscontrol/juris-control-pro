@@ -11139,6 +11139,7 @@ export type Database = {
         Args: { filters?: Json }
         Returns: {
           a_fazer: number
+          arquivados: number
           ate_2025: number
           benner_nao: number
           benner_sim: number
