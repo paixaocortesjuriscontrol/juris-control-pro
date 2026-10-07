@@ -2634,6 +2634,48 @@ export type Database = {
           },
         ]
       }
+      credenciais_pje_usuario: {
+        Row: {
+          ativo: boolean
+          cpf: string
+          created_at: string
+          id: string
+          senha_cifrada: string
+          tribunais: string[]
+          ultima_execucao: string | null
+          ultima_mensagem: string | null
+          ultimo_status: string | null
+          updated_at: string
+          usuario_id: string
+        }
+        Insert: {
+          ativo?: boolean
+          cpf: string
+          created_at?: string
+          id?: string
+          senha_cifrada: string
+          tribunais?: string[]
+          ultima_execucao?: string | null
+          ultima_mensagem?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+          usuario_id: string
+        }
+        Update: {
+          ativo?: boolean
+          cpf?: string
+          created_at?: string
+          id?: string
+          senha_cifrada?: string
+          tribunais?: string[]
+          ultima_execucao?: string | null
+          ultima_mensagem?: string | null
+          ultimo_status?: string | null
+          updated_at?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       custas_processuais: {
         Row: {
           created_at: string
@@ -4896,6 +4938,45 @@ export type Database = {
           tipo?: string
           total_lotes?: number | null
           ultimo_erro?: string | null
+        }
+        Relationships: []
+      }
+      execucoes_pje_direto: {
+        Row: {
+          avisos_encontrados: number
+          avisos_filtrados: number
+          coordenacao_id: string | null
+          created_at: string
+          erro: string | null
+          id: string
+          novos: number
+          origem: string
+          tribunal: string
+          usuario_id: string
+        }
+        Insert: {
+          avisos_encontrados?: number
+          avisos_filtrados?: number
+          coordenacao_id?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          novos?: number
+          origem?: string
+          tribunal: string
+          usuario_id: string
+        }
+        Update: {
+          avisos_encontrados?: number
+          avisos_filtrados?: number
+          coordenacao_id?: string | null
+          created_at?: string
+          erro?: string | null
+          id?: string
+          novos?: number
+          origem?: string
+          tribunal?: string
+          usuario_id?: string
         }
         Relationships: []
       }
