@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.6.1";
+export const APP_VERSION = "7.7.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -80,4 +80,5 @@ export const VERSION_HISTORY = [
   { version: "7.6.0", date: "2026-10-07", notes: "Busca direta no PJe (Minhas credenciais PJe); Atualizar Geral no Admin. TST; cards Não arquivados/Arquivados na Distribuição TST" },
   { version: "7.6.1", date: "2026-10-07", notes: "Minhas credenciais PJe no menu para todos; ajuste de segurança na Auditoria da Distribuição TST" },
   { version: "7.5.0", date: "2026-10-01", notes: "Análise DJEN com filtro por Tribunal (sempre visível, inclusive em Todas as coordenações); download de anexos do Painel corrigido (nome clicável e link renovado no clique); Doc Resumo Intimação (corrigido) mantendo as pautas do Cejusc; busca de matérias da Distribuição TST por processo ou dossiê; Auditoria da Distribuição TST visível a todos os perfis; risquinho em cancelados, protocolados e baixados no Painel; 'Minutado - Revisão' deixa de contar como prazo perdido no Ranking; importação da coordenação Santander Trabalhista" },
+  { version: "7.7.0", date: "2026-10-07", notes: "Restaurar em lote na tela Arquivados da Distribuição TST (planilha de dossiês/processos e tag existente ou nova); envolvida marcada em 'Quem pode mudar cada situação' pode aplicar aquela situação ao item" },
 ];
