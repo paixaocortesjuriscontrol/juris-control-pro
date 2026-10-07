@@ -8,6 +8,7 @@ import { Loader2, RotateCcw, Trash2, Search, ArrowLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { RestaurarLoteArquivadosDialog } from "@/components/distribuicao-tst/RestaurarLoteArquivadosDialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -31,6 +32,7 @@ export default function DistribuicaoTstArquivados() {
   const [busca, setBusca] = useState("");
   const [acao, setAcao] = useState<{ tipo: "restaurar" | "excluir"; id: string } | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [loteOpen, setLoteOpen] = useState(false);
 
   const fetchDados = async () => {
     setLoading(true);
@@ -82,10 +84,12 @@ export default function DistribuicaoTstArquivados() {
             <p className="text-sm text-muted-foreground">Apenas administradores e coordenadores podem consultar e restaurar registros arquivados.</p>
           </div>
           <div className="flex gap-2">
+            <Button onClick={() => setLoteOpen(true)}><RotateCcw className="w-4 h-4 mr-2" /> Restaurar em lote</Button>
             <Link to="/distribuicao-tst">
               <Button variant="outline"><ArrowLeft className="w-4 h-4 mr-2" /> Voltar</Button>
             </Link>
           </div>
+          <RestaurarLoteArquivadosDialog open={loteOpen} onOpenChange={setLoteOpen} onDone={fetchDados} />
         </div>
 
         <div className="flex gap-2">
