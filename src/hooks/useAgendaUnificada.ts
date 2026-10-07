@@ -1406,7 +1406,7 @@ export function useUpdateItemAgenda() {
         if (status !== undefined) {
           const { data: auth } = await supabase.auth.getUser();
           if (auth?.user) {
-            const { data: pode } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: auth.user.id, _tarefa: tarefaId });
+            const { data: pode } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: auth.user.id, _tarefa: tarefaId, _status: tarefaStatus });
             if (pode === false) throw new Error("Somente o responsável pode alterar a situação deste item.");
           }
         }

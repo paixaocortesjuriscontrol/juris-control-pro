@@ -16,7 +16,8 @@ export function usePodeAlterarItem(tarefaId?: string | null, enabled = true) {
     enabled: enabled && !!user?.id && !!tarefaId,
     staleTime: 60000,
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: user!.id, _tarefa: tarefaId });
+      // _status null: libera também a envolvida marcada em alguma situação do tipo do item
+      const { data, error } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: user!.id, _tarefa: tarefaId, _status: null });
       if (error) return true;
       return data !== false;
     },
