@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_distribuicao_tst_stats(jsonb), public.get_distribuicao_tst_situacao_totais(jsonb) FROM PUBLIC, anon;
