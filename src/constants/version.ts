@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "7.5.1";
+export const APP_VERSION = "7.6.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -77,5 +77,6 @@ export const VERSION_HISTORY = [
   { version: "7.4.1", date: "2026-09-29", notes: "Painel de Controle destravado após importação em lote da Coordenação GOL (buscas quebradas em partes); Kanban do Painel usa o prazo interno como a agenda; Ranking de Atendimento liberado para todos os perfis; coluna Coordenações na lista de usuários da Administração" },
   { version: "7.4.3", date: "2026-09-29", notes: "Índices no banco para acelerar o modo Lista, o calendário e a pesquisa do Painel de Controle; aviso de ocorrências fora do mês na pesquisa em modo Calendário com atalho para o modo Lista" },
   { version: "7.5.1", date: "2026-10-01", notes: "Doc Resumo Intimação sem repetição passa a manter as publicações do Cejusc; concluídos com sucesso no Painel em verde mais escuro" },
+  { version: "7.6.0", date: "2026-10-07", notes: "Busca direta no PJe (Minhas credenciais PJe); Atualizar Geral no Admin. TST; cards Não arquivados/Arquivados na Distribuição TST" },
   { version: "7.5.0", date: "2026-10-01", notes: "Análise DJEN com filtro por Tribunal (sempre visível, inclusive em Todas as coordenações); download de anexos do Painel corrigido (nome clicável e link renovado no clique); Doc Resumo Intimação (corrigido) mantendo as pautas do Cejusc; busca de matérias da Distribuição TST por processo ou dossiê; Auditoria da Distribuição TST visível a todos os perfis; risquinho em cancelados, protocolados e baixados no Painel; 'Minutado - Revisão' deixa de contar como prazo perdido no Ranking; importação da coordenação Santander Trabalhista" },
 ];
