@@ -124,7 +124,7 @@ export default function AtualizarGeral() {
       const base: BaseRow[] = [];
       for (let from = 0; ; from += 1000) {
         const { data, error } = await (supabase.from("dados_benner") as any)
-          .select("id, processo, dossie, equipe, coordenacao_id")
+          .select("id, processo, dossie, equipe, coordenacao_id, turma, relator, recorrente, status, situacao_envio, benner_atualizado, pronto, data_distribuicao_real, reclamante, reclamada")
           .not("aba_origem", "is", null)
           .order("id")
           .range(from, from + 999);
@@ -134,6 +134,23 @@ export default function AtualizarGeral() {
         if (!data || data.length < 1000) break;
       }
       setTotalBase(base.length);
+
+      setEtapa("Carregando responsáveis...");
+      const nomesPorId = new Map<string, string>();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await (supabase.from("dados_benner_responsaveis") as any)
+          .select("dados_benner_id, profiles:responsavel_id(full_name)")
+          .range(from, from + 999);
+        if (error) break;
+        for (const r of data || []) {
+          const nome = (r as any).profiles?.full_name;
+          if (!nome) continue;
+          const k = (r as any).dados_benner_id;
+          nomesPorId.set(k, nomesPorId.has(k) ? `${nomesPorId.get(k)}, ${nome}` : nome);
+        }
+        if (!data || data.length < 1000) break;
+      }
+      for (const b of base) b.responsaveis = nomesPorId.get(b.id) || "";
 
       const chavesPlanilha = new Set(linhas.map((l) => `${l._digits}|${l._dossie}`));
       const digitsPlanilha = new Set(linhas.map((l) => l._digits));
