@@ -17,7 +17,39 @@ import { iniciarAuditoriaLote, finalizarAuditoriaLote } from "@/lib/auditoriaLot
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 
 type LinhaPlanilha = Record<string, any> & { _digits: string; _processo: string; _dossie: string };
-type BaseRow = { id: string; processo: string; dossie: string | null; equipe: string | null; coordenacao_id: string | null };
+type BaseRow = {
+  id: string; processo: string; dossie: string | null; equipe: string | null; coordenacao_id: string | null;
+  turma: string | null; relator: string | null; recorrente: string | null; status: string | null;
+  situacao_envio: string | null; benner_atualizado: boolean | null; pronto: boolean | null;
+  data_distribuicao_real: string | null; reclamante: string | null; reclamada: string | null;
+  responsaveis?: string;
+};
+
+const fmtData = (v: string | null) => {
+  if (!v) return "";
+  const m = v.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : v;
+};
+
+function linhaArquivar(a: BaseRow) {
+  return {
+    Processo: a.processo,
+    "Dossiê": a.dossie || "",
+    Equipe: a.equipe || "",
+    Turma: a.turma || "",
+    Relator: a.relator || "",
+    Recorrente: a.recorrente || "",
+    "Pronto para distribuir": a.pronto ? "SIM" : "NÃO",
+    "Benner atualizado": a.benner_atualizado ? "SIM" : "NÃO",
+    "Situação de envio": a.situacao_envio || "",
+    Status: a.status || "",
+    "Data de distribuição": fmtData(a.data_distribuicao_real),
+    Reclamante: a.reclamante || "",
+    Reclamada: a.reclamada || "",
+    "Responsável(is)": a.responsaveis || "",
+    "Coordenação": a.coordenacao_id ? "Dra. Renata Oficial" : "Sem coordenação",
+  };
+}
 
 const digitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 const txt = (v: unknown) => String(v ?? "").replace(/^'/, "").trim();
