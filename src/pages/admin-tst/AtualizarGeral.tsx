@@ -47,7 +47,7 @@ function baixar(nome: string, linhas: Record<string, any>[]) {
 
 export default function AtualizarGeral() {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole() as any;
+  const { isAdmin, loading: carregandoPerfil } = useUserRole();
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [analisando, setAnalisando] = useState(false);
   const [gravando, setGravando] = useState(false);
@@ -61,7 +61,7 @@ export default function AtualizarGeral() {
   const [analisado, setAnalisado] = useState(false);
   const [resultado, setResultado] = useState<{ cadastrados: number; arquivados: number; erros: { processo: string; erro: string }[] } | null>(null);
 
-  if (isAdmin === false) {
+  if (!carregandoPerfil && !isAdmin) {
     return (
       <MainLayout title="Atualizar Geral">
         <div className="p-6">Somente administradores podem usar esta tela.</div>
