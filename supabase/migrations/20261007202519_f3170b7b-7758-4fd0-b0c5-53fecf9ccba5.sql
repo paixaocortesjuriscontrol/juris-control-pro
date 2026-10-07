@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.envolvido_com_permissao_situacao(uuid,uuid,text) FROM PUBLIC, anon, authenticated;

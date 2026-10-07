@@ -137,7 +137,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
       if (info.origem === "tarefa") {
         const { data: auth } = await supabase.auth.getUser();
         if (auth?.user) {
-          const { data: pode } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: auth.user.id, _tarefa: info.itemId });
+          const { data: pode } = await (supabase.rpc as any)("pode_alterar_situacao_item", { _user: auth.user.id, _tarefa: info.itemId, _status: situacao });
           if (pode === false) throw new Error("Somente o responsável pode alterar a situação deste item.");
         }
       }
