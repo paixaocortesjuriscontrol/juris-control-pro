@@ -111,6 +111,7 @@ const SITUACOES_PROCESSO_OPCOES: { value: string; label: string; className?: str
   { value: "outros", label: "Outros" },
   { value: "a_fazer", label: "A fazer" },
   { value: "nao_precisa_fazer", label: "Não precisa fazer" },
+  { value: "arquivado", label: "Arquivados", className: "text-zinc-700 dark:text-zinc-300" },
   { value: "pronto_enviar", label: "Pronto para Enviar" },
   { value: "problema_judit", label: "Problema Judit", className: "text-amber-700 dark:text-amber-400" },
   { value: "transito", label: "Trânsito em Julgado", className: "text-orange-700 dark:text-orange-400" },
@@ -854,6 +855,7 @@ export default function DistribuicaoTst() {
     if (filtroSituacaoProcesso === "transito") keys.push("transitoJulgado");
     if (filtroSituacaoProcesso === "a_fazer") keys.push("aFazer");
     if (filtroSituacaoProcesso === "nao_precisa_fazer") keys.push("naoPrecisaFazer");
+    if (filtroSituacaoProcesso === "arquivado") keys.push("arquivados");
     if (filtroPedidosDossie === "com") keys.push("comMateria");
     if (filtroPedidosDossie === "sem") keys.push("semMateria");
     if (filtroProblemaJudit === "sim") keys.push("problemaJudit");
@@ -927,6 +929,7 @@ export default function DistribuicaoTst() {
       case "transitoJulgado": setFiltroSituacaoProcesso(off ? "todos" : "transito"); break;
       case "aFazer": setFiltroSituacaoProcesso(off ? "todos" : "a_fazer"); break;
       case "naoPrecisaFazer": setFiltroSituacaoProcesso(off ? "todos" : "nao_precisa_fazer"); break;
+      case "arquivados": setFiltroSituacaoProcesso(off ? "todos" : "arquivado"); break;
       case "comMateria": setFiltroPedidosDossie(off ? "todos" : "com"); break;
       case "semMateria": setFiltroPedidosDossie(off ? "todos" : "sem"); break;
       case "problemaJudit": setFiltroProblemaJudit(off ? "todos" : "sim"); break;

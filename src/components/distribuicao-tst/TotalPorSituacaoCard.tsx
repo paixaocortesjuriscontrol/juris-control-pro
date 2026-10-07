@@ -61,10 +61,11 @@ async function calcularResultadoChunked(filters: DistribuicaoTstFilters): Promis
     const batch = ids.slice(i, i + PAGE);
     const { data, error } = await supabase
       .from("dados_benner" as any)
-      .select("id, transito_julgado, processo_outro_escritorio, segredo_justica, status, acordo, cejusc, midia_negativa, recurso_terceiro, data_distribuicao_real, data_distribuicao_planilha")
+      .select("id, situacao_processo, transito_julgado, processo_outro_escritorio, segredo_justica, status, acordo, cejusc, midia_negativa, recurso_terceiro, data_distribuicao_real, data_distribuicao_planilha")
       .in("id", batch);
     if (error) throw error;
     for (const row of (data as any[]) || []) {
+      if (String(row.situacao_processo || "").trim().toLowerCase() === "arquivado") continue;
       total += 1;
       const status = String(row.status || "");
       const dataBase = row.data_distribuicao_real || row.data_distribuicao_planilha || null;
