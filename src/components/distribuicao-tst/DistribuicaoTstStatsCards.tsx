@@ -63,6 +63,10 @@ interface Props {
   somenteOutraMateria?: { count: number; loading: boolean } | null;
   /** Fichas duplicadas (mesmo número de processo) dentro dos filtros atuais. */
   duplicados?: { count: number; loading: boolean } | null;
+  /** Fichas já movidas para a área de Arquivados (fora da base ativa). */
+  arquivadosMovidos?: number;
+  /** Clique no card "Arquivados" — abre a área de arquivados. */
+  onArquivadosClick?: () => void;
 }
 
 
@@ -76,19 +80,19 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria, duplicados }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria, duplicados, arquivadosMovidos = 0, onArquivadosClick }: Props) {
   const isKeyActive = (k: StatsCardKey) =>
     activeKeys ? activeKeys.includes(k) : activeKey === k;
 
 
   const cards: CardDef[] = [
     // Azuis / Ciano / Teal / Sky
-    { key: "total", label: "Total Geral", value: stats.total, className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
+    { key: "total", label: "Total Geral", value: stats.total, hint: "Não inclui os arquivados", className: "from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 border-blue-200 dark:border-blue-800", textClass: "text-blue-600 dark:text-blue-400" },
+    { key: "arquivados", label: "Arquivados", value: stats.arquivados + arquivadosMovidos, hint: `${arquivadosMovidos.toLocaleString("pt-BR")} na área de Arquivados + ${stats.arquivados.toLocaleString("pt-BR")} com situação "Arquivado" — fora do Total Geral. Clique para abrir os arquivados`, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-300 dark:border-zinc-700", textClass: "text-zinc-700 dark:text-zinc-300" },
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
     { key: "aFazer", label: "A fazer", value: stats.aFazer, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-300 dark:border-indigo-700", textClass: "text-indigo-700 dark:text-indigo-300" },
     { key: "naoPrecisaFazer", label: "Não precisa fazer", value: stats.naoPrecisaFazer, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-300 dark:border-slate-700", textClass: "text-slate-700 dark:text-slate-300" },
-    { key: "arquivados", label: "Arquivados", value: stats.arquivados, hint: "Processos com situação \"Arquivado\" — fora do Total Geral", className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-300 dark:border-zinc-700", textClass: "text-zinc-700 dark:text-zinc-300" },
     { key: "bennerSim", label: "Benner Enviado / Não", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
     { key: "prontoEnvio", label: "Concluídos (prontos/planilhados)", value: stats.prontoEnvio, hint: `${stats.prontoEnvioPuro.toLocaleString("pt-BR")} prontos, ${stats.planilhado.toLocaleString("pt-BR")} planilhados, ${stats.enviado.toLocaleString("pt-BR")} enviados`, className: "from-teal-50 to-teal-100 dark:from-teal-950/50 dark:to-teal-900/30 border-teal-200 dark:border-teal-800", textClass: "text-teal-600 dark:text-teal-400" },
     ...(prontoSemPendencia
