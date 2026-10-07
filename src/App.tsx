@@ -108,6 +108,7 @@ import AtualizarEquipe from "./pages/admin-tst/AtualizarEquipe";
 import AtualizarSituacaoEnvio from "./pages/admin-tst/AtualizarSituacaoEnvio";
 import RespostaSantander from "./pages/admin-tst/RespostaSantander";
 import BennerSim from "./pages/admin-tst/BennerSim";
+import AtualizarGeral from "./pages/admin-tst/AtualizarGeral";
 import PedidosPorDossie from "./pages/admin-tst/PedidosPorDossie";
 import AuditoriaDistribuicaoTst from "./pages/admin-tst/AuditoriaDistribuicaoTst";
 import AuditoriaLotesAdminTst from "./pages/admin-tst/AuditoriaLotesAdminTst";
@@ -248,6 +249,7 @@ function App() {
               <Route path="/admin-tst/atualizar-situacao-envio" element={<AdminOrCoordRoute><AtualizarSituacaoEnvio /></AdminOrCoordRoute>} />
               <Route path="/admin-tst/resposta-santander" element={<AdminOrCoordRoute><RespostaSantander /></AdminOrCoordRoute>} />
               <Route path="/admin-tst/benner-sim" element={<ProtectedRoute><BennerSim /></ProtectedRoute>} />
+              <Route path="/admin-tst/atualizar-geral" element={<ProtectedRoute><AtualizarGeral /></ProtectedRoute>} />
               <Route path="/admin-tst/pedidos-por-dossie" element={<ProtectedRoute><PedidosPorDossie /></ProtectedRoute>} />
               <Route path="/admin-tst/outro-escritorio" element={<AdminOrCoordRoute><AdminTstOutroEscritorio /></AdminOrCoordRoute>} />
               <Route path="/admin-tst/busca-publicacao" element={<AdminOrCoordRoute><BuscaPublicacao /></AdminOrCoordRoute>} />
