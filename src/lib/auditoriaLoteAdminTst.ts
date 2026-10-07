@@ -17,6 +17,7 @@ export const TIPOS_LOTE_ADMIN_TST = [
   { value: "atualizar_situacao_envio", label: "Atualizar Situação de Envio" },
   { value: "resposta_santander", label: "Resposta Santander" },
   { value: "benner_sim", label: "Benner SIM (conferência)" },
+  { value: "atualizar_geral", label: "Atualizar Geral" },
   { value: "outro_escritorio", label: "Verificar Outro Escritório" },
   { value: "base_pca_distribuicoes", label: "Base PCA - TST - Distribuições" },
   { value: "aplicar_tag_lote", label: "Aplicar TAG em lote" },
