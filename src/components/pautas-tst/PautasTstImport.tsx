@@ -177,8 +177,13 @@ export function PautasTstImport({ onImported }: Props) {
       }
       const totalLinhas = totalPassos / 2;
 
-      setFeito(Math.max(1, totalLinhas * 2));
-      setFase("Concluído");
+      if (cancelRef.current) {
+        setCancelado(true);
+        setFase("Cancelado pelo usuário");
+      } else {
+        setFeito(Math.max(1, totalLinhas * 2));
+        setFase("Concluído");
+      }
       setResultado({ abas, ignoradas });
       if (totalInserted > 0) onImported();
     } catch (err: any) {
@@ -243,7 +248,16 @@ export function PautasTstImport({ onImported }: Props) {
               </div>
             );
           })()}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {importing && (
+              <Button
+                variant="destructive"
+                onClick={() => { cancelRef.current = true; setFase("Cancelando..."); }}
+                disabled={cancelRef.current}
+              >
+                {cancelRef.current ? "Cancelando..." : "Cancelar importação"}
+              </Button>
+            )}
             <Button onClick={() => setOpen(false)} disabled={importing}>{importing ? "Aguarde..." : "Fechar"}</Button>
           </DialogFooter>
         </DialogContent>
