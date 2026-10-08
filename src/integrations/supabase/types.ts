@@ -6924,7 +6924,9 @@ export type Database = {
           chance_exito_banco: string | null
           chance_exito_reclamante: string | null
           comentarios_advogado: string | null
+          coordenacao_id: string | null
           created_at: string
+          dados_benner_id: string | null
           data_julgamento: string | null
           decisao: string | null
           desistencia_recurso: string | null
@@ -6941,6 +6943,7 @@ export type Database = {
           modalidade: string | null
           orgao: string | null
           parte_recorrente: string | null
+          processo_digits: string | null
           processo_id: string | null
           processo_numero: string | null
           reclamada: string | null
@@ -6948,6 +6951,7 @@ export type Database = {
           relator: string | null
           resultado_proxima_sessao: string | null
           retorno_esclarecimentos: string | null
+          semana_inicio: string | null
           solicitacao_providencias_banco: string | null
           solicitacao_rosa_oliveira: string | null
           sustentacao_oral: string | null
@@ -6962,7 +6966,9 @@ export type Database = {
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
           comentarios_advogado?: string | null
+          coordenacao_id?: string | null
           created_at?: string
+          dados_benner_id?: string | null
           data_julgamento?: string | null
           decisao?: string | null
           desistencia_recurso?: string | null
@@ -6979,6 +6985,7 @@ export type Database = {
           modalidade?: string | null
           orgao?: string | null
           parte_recorrente?: string | null
+          processo_digits?: string | null
           processo_id?: string | null
           processo_numero?: string | null
           reclamada?: string | null
@@ -6986,6 +6993,7 @@ export type Database = {
           relator?: string | null
           resultado_proxima_sessao?: string | null
           retorno_esclarecimentos?: string | null
+          semana_inicio?: string | null
           solicitacao_providencias_banco?: string | null
           solicitacao_rosa_oliveira?: string | null
           sustentacao_oral?: string | null
@@ -7000,7 +7008,9 @@ export type Database = {
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
           comentarios_advogado?: string | null
+          coordenacao_id?: string | null
           created_at?: string
+          dados_benner_id?: string | null
           data_julgamento?: string | null
           decisao?: string | null
           desistencia_recurso?: string | null
@@ -7017,6 +7027,7 @@ export type Database = {
           modalidade?: string | null
           orgao?: string | null
           parte_recorrente?: string | null
+          processo_digits?: string | null
           processo_id?: string | null
           processo_numero?: string | null
           reclamada?: string | null
@@ -7024,6 +7035,7 @@ export type Database = {
           relator?: string | null
           resultado_proxima_sessao?: string | null
           retorno_esclarecimentos?: string | null
+          semana_inicio?: string | null
           solicitacao_providencias_banco?: string | null
           solicitacao_rosa_oliveira?: string | null
           sustentacao_oral?: string | null
