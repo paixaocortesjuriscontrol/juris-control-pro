@@ -81,6 +81,7 @@ export default function CredenciaisPje() {
         extra.remover_certificado = true;
       } else if (certFile) {
         if (certFile.size > 3 * 1024 * 1024) throw new Error("Arquivo do certificado muito grande (máx. 3 MB)");
+        if (!certSenha) throw new Error("Informe a senha do certificado");
         extra.certificado_base64 = await lerArquivoBase64(certFile);
         extra.certificado_nome = certFile.name;
         extra.certificado_senha = certSenha;
@@ -115,7 +116,7 @@ export default function CredenciaisPje() {
             <CardTitle className="text-base">Acesso ao PJe</CardTitle>
             <CardDescription className="flex gap-2 items-start">
               <Info className="h-4 w-4 mt-0.5 shrink-0" />
-              A senha fica criptografada e ninguém consegue vê-la. Os avisos não são marcados como lidos no PJe, então o prazo não começa a contar por causa desta busca.
+              A senha e o certificado ficam criptografados e ninguém consegue vê-los. Os avisos não são marcados como lidos no PJe, então o prazo não começa a contar por causa desta busca.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
