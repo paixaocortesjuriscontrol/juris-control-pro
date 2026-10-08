@@ -125,13 +125,14 @@ serve(async (req) => {
       return lista.map((i) => profileCache.get(i) ?? "").filter(Boolean).join(", ");
     }
 
+    let curCoord: string | null = null;
     const porUsuario = new Map<string, Item[]>();
     const relevantes = new Set(alvos.map((a: any) => a.usuario_id));
     const push = (uids: Iterable<string>, item: Item) => {
       for (const uid of uids) {
         if (!uid || !relevantes.has(uid)) continue;
         if (!porUsuario.has(uid)) porUsuario.set(uid, []);
-        porUsuario.get(uid)!.push(item);
+        porUsuario.get(uid)!.push({ ...item, coordenacao_id: (item as any).coordenacao_id ?? curCoord } as any);
       }
     };
 
@@ -151,11 +152,12 @@ serve(async (req) => {
     const { data: tarefas } = await supabase
       .from("tarefas")
       .select(
-        `id, titulo, descricao, observacoes, tipo_tarefa, status, prioridade, hora_fatal, data_fatal, data_vencimento, link_local, orgao, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(${procSelect})`,
+        `id, coordenacao_id, titulo, descricao, observacoes, tipo_tarefa, status, prioridade, hora_fatal, data_fatal, data_vencimento, link_local, orgao, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(${procSelect})`,
       )
       .or(`data_fatal.eq.${hoje},and(data_fatal.is.null,data_vencimento.eq.${hoje})`)
       .limit(2000);
     for (const t of (tarefas ?? []) as any[]) {
+      curCoord = t.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (t.responsavel_id) resp.add(t.responsavel_id);
@@ -189,12 +191,13 @@ serve(async (req) => {
     const { data: audiencias } = await supabase
       .from("audiencias_detectadas")
       .select(
-        "id, titulo, tipo_audiencia, processo_numero, cliente, polo_ativo, polo_passivo, data_audiencia, hora, hora_fim, status, modalidade, local_audiencia, forum, sala_forum, observacoes, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)",
+        "id, coordenacao_id, titulo, tipo_audiencia, processo_numero, cliente, polo_ativo, polo_passivo, data_audiencia, hora, hora_fim, status, modalidade, local_audiencia, forum, sala_forum, observacoes, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)",
       )
       .gte("data_audiencia", `${hoje}T00:00:00`)
       .lte("data_audiencia", `${hoje}T23:59:59`)
       .limit(2000);
     for (const a of (audiencias ?? []) as any[]) {
+      curCoord = a.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (a.criado_por) resp.add(a.criado_por);
@@ -233,6 +236,7 @@ serve(async (req) => {
       .lte("data_inicio", `${hoje}T23:59:59`)
       .limit(2000);
     for (const e of (eventos ?? []) as any[]) {
+      curCoord = e.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (e.criado_por) resp.add(e.criado_por);
@@ -262,12 +266,13 @@ serve(async (req) => {
     const { data: parcelas } = await supabase
       .from("parcelas_evento")
       .select(
-        `id, numero, valor, data_vencimento, status, observacoes, pago_em, evento:eventos_agenda(id, titulo, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect}))`,
+        `id, numero, valor, data_vencimento, status, observacoes, pago_em, evento:eventos_agenda(id, coordenacao_id, titulo, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect}))`,
       )
       .eq("data_vencimento", hoje)
       .limit(2000);
     for (const p of (parcelas ?? []) as any[]) {
       const ev = p.evento ?? {};
+      curCoord = ev.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (ev.criado_por) resp.add(ev.criado_por);
