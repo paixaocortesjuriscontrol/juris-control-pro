@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
+import { DadosBennerDistribuicaoTab } from "@/components/benner/DadosBennerDistribuicaoTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { GerarPecaTab } from "./GerarPecaTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
