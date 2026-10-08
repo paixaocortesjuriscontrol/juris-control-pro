@@ -140,6 +140,7 @@ export function PautasTstImport({ onImported }: Props) {
       setFase("Localizando processos...");
       const mapa = new Map<string, string>();
       for (let i = 0; i < chunks.length; i += 4) {
+        if (cancelRef.current) break;
         const grupo = chunks.slice(i, i + 4);
         const res = await Promise.all(grupo.map(c => supabase.from("processos").select("id, numero").in("numero", c)));
         for (const { data } of res) for (const p of (data as any[]) ?? []) if (!mapa.has(p.numero)) mapa.set(p.numero, p.id);
@@ -149,6 +150,7 @@ export function PautasTstImport({ onImported }: Props) {
 
       // 3) Gravar por aba
       for (const { aba, records } of porAba) {
+        if (cancelRef.current) break;
         for (const rec of records) {
           const id = rec.processo_numero ? mapa.get(rec.processo_numero) : undefined;
           if (id) { rec.processo_id = id; aba.vinculadas++; }
@@ -158,6 +160,7 @@ export function PautasTstImport({ onImported }: Props) {
           await supabase.from("pautas_tst" as any).delete().eq("aba_origem", aba.nome);
         }
         for (let i = 0; i < records.length; i += 200) {
+          if (cancelRef.current) break;
           const batch = records.slice(i, i + 200);
           const { error, data } = await supabase.from("pautas_tst" as any).insert(batch as any).select("id");
           if (error) {
