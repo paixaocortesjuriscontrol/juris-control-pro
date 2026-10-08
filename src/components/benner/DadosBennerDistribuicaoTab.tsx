@@ -12,6 +12,7 @@ const bennerRowToDist = (b: any): DistribuicaoTst => bennerToDistribuicao(b);
 
 export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
   const [dados, setDados] = useState<DistribuicaoTst[]>([]);
+  const [raws, setRaws] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
@@ -25,6 +26,7 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
         .ilike("processo", `%${processoNumero}%`)
         .not("aba_origem", "is", null)
         .order("created_at", { ascending: false });
+      setRaws((data as any[]) || []);
       const results = ((data as any[]) || []).map(bennerRowToDist);
       setDados(results);
       if (results.length === 1) setSelectedIndex(0);
@@ -60,6 +62,7 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
       .ilike("processo", `%${processoNumero}%`)
       .not("aba_origem", "is", null)
       .order("created_at", { ascending: false });
+    setRaws((data as any[]) || []);
     setDados(((data as any[]) || []).map(bennerRowToDist));
     return true;
   };
@@ -75,6 +78,20 @@ export function DadosBennerDistribuicaoTab({ processoNumero }: Props) {
       <DistribuicaoTstForm
         dado={dados[selectedIndex]}
         onSave={handleSave}
+        bennerDado={raws.find((r) => r.id === dados[selectedIndex]?.id) || null}
+        onSaveBennerExtra={async (patch: any, id?: string) => {
+          const targetId = id || dados[selectedIndex]?.id;
+          if (!targetId) return false;
+          const { data: upd, error } = await supabase
+            .from("dados_benner" as any)
+            .update(patch)
+            .eq("id", targetId)
+            .select("*");
+          if (error || !upd || (upd as any[]).length === 0) return false;
+          const row = (upd as any[])[0];
+          setRaws((prev) => prev.map((r) => (r.id === row.id ? row : r)));
+          return true;
+        }}
         onCancel={() => {
           if (dados.length === 1) {
             // Only one, no list to go back to
