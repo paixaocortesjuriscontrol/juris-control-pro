@@ -731,7 +731,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         // linhas já retornadas pela RPC. Rodar em paralelo reduz a latência
         // percebida na lista (que era 3 round-trips sequenciais).
         const termoSemId = filteredByType.filter(
-          (p) => p.tipo_origem === 'termo' && !p.processo_id && !!p.processo_numero
+          (p) => !p.processo_id && !!p.processo_numero
         );
 
         const resolveProcessoIdsPromise: Promise<void> = (async () => {
@@ -746,18 +746,15 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
             })
           )];
           if (candidateNumeros.length === 0) return;
-          // Existência do processo é GLOBAL: um contrato pode estar cadastrado
-          // com coordenacao_id de outra equipe (base normalizada multi-coordenação).
-          // Filtrar por coordenação aqui fazia o mesmo processo aparecer como
-          // "cadastrado" (origem processo) e "não cadastrado" (origem termo).
-          const qProcessos = supabase.from('processos').select('id, numero');
-          const { data: processosExistentes } = await qProcessos.in('numero', candidateNumeros).abortSignal(signal);
+          // Existência do processo é GLOBAL (qualquer coordenação).
+          // Consulta em lotes para não estourar o tamanho da URL.
+          const processosExistentes = await buscarProcessosPorNumerosEmLotes(candidateNumeros, signal);
           const processosDigitsMap: Record<string, string> = {};
-          (processosExistentes || []).forEach((p: any) => {
+          processosExistentes.forEach((p: any) => {
             processosDigitsMap[toDigits(p.numero)] = p.id;
           });
           filteredByType.forEach((p) => {
-            if (p.tipo_origem === 'termo' && !p.processo_id && p.processo_numero) {
+            if (!p.processo_id && p.processo_numero) {
               const digits = toDigits(p.processo_numero);
               p.processo_id = processosDigitsMap[digits] || null;
             }
@@ -993,13 +990,8 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
               return [raw, digits, formatted].filter(Boolean) as string[];
             })
           )];
-          const { data: processosExistentes } = await supabase
-            .from('processos')
-            .select('id, numero')
-            .in('numero', uniqueNumeros)
-            .abortSignal(signal);
-          
-          (processosExistentes || []).forEach((p: any) => {
+          const processosExistentes = await buscarProcessosPorNumerosEmLotes(uniqueNumeros, signal);
+          processosExistentes.forEach((p: any) => {
             processosExistentesMap[toDigitsFb(p.numero)] = p.id;
           });
         }
