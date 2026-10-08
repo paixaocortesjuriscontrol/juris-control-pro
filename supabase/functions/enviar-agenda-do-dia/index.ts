@@ -367,9 +367,15 @@ serve(async (req) => {
         if ((ja ?? []).length > 0) continue;
       }
 
-      const itens = (porUsuario.get(uid) ?? []).sort((a, b) =>
-        String(a.hora ?? "99:99").localeCompare(String(b.hora ?? "99:99")),
-      );
+      const cfgsU = await carregarConfigsUsuarios(supabase, [uid]);
+      const itens = (porUsuario.get(uid) ?? [])
+        .filter((i: any) => {
+          if (!i.coordenacao_id) return true;
+          const r = resolverConfig(cfgsU, uid, i.coordenacao_id);
+          if (r === null) return false;
+          return !r || r.resumo_diario_ativo !== false;
+        })
+        .sort((a, b) => String(a.hora ?? "99:99").localeCompare(String(b.hora ?? "99:99")));
       if (itens.length === 0) continue;
 
       const html = renderEmail(profile.nome ?? "", dataBR(hoje), itens);
