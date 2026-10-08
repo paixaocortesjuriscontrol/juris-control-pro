@@ -39,7 +39,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
 
   useEffect(() => {
     if (dado) {
-      const { id, created_at, updated_at, ...rest } = dado;
+      const { id, created_at, updated_at, processo_digits, ...rest } = dado as any;
       setForm(rest);
     }
   }, [dado]);
