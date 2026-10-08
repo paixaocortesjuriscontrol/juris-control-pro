@@ -86,6 +86,33 @@ function ehErroDeCertificado(motivo: string | null) {
   return !!motivo && /certificate|cert_|tls|ssl|self.signed|expired|unknown issuer/i.test(motivo);
 }
 
+/** Erros passageiros de rede (vale repetir antes de acusar queda). */
+function ehErroDeConexao(motivo: string | null) {
+  return !!motivo && /reset|refused|timed? ?out|timeout|connect|abort|network|dns|HTTP 5\d\d/i.test(motivo);
+}
+
+function traduzirMotivo(motivo: string | null, tentativas: number): string | null {
+  if (!motivo) return null;
+  let t = motivo;
+  if (/reset by peer|os error 104|ECONNRESET/i.test(motivo)) t = "conexão recusada pela VPS (reset)";
+  else if (/refused|os error 111|ECONNREFUSED/i.test(motivo)) t = "porta fechada — proxy parado na VPS";
+  else if (/timed? ?out|timeout|abort/i.test(motivo)) t = "VPS não respondeu em 15s";
+  else if (/dns|lookup|resolve/i.test(motivo)) t = "domínio não encontrado (DNS)";
+  return tentativas > 1 ? `${t} — ${tentativas} tentativas` : t;
+}
+
+/** Repete a checagem em falhas de conexão para não acusar oscilação momentânea. */
+async function checarHealthComRetry(baseUrl: string, intervaloMs: number, tentativas = 3) {
+  let ultimo = await checarHealth(baseUrl);
+  let feitas = 1;
+  while (!ultimo.ok && feitas < tentativas && ehErroDeConexao(ultimo.motivo) && !ehErroDeCertificado(ultimo.motivo)) {
+    await new Promise((r) => setTimeout(r, intervaloMs));
+    ultimo = await checarHealth(baseUrl);
+    feitas++;
+  }
+  return { ...ultimo, motivo: ultimo.ok ? null : traduzirMotivo(ultimo.motivo, feitas) };
+}
+
 function diasAte(iso: string | null): number | null {
   if (!iso) return null;
   const ms = new Date(iso).getTime() - Date.now();
@@ -231,7 +258,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const health = await checarHealth(s.base_url);
+      const health = await checarHealthComRetry(s.base_url, somenteChecar ? 3_000 : 20_000);
 
       // Handshake TLS separado (aceita certificado inválido) só para ler notAfter.
       let certExpiraEm: string | null = null;
@@ -346,7 +373,9 @@ Deno.serve(async (req) => {
               ? "—"
               : r.cert_dias_restantes < 0
                 ? `vencido em ${fmtData(r.cert_expira_em)}`
-                : `${r.cert_dias_restantes} dia(s) — ${fmtData(r.cert_expira_em)}`
+                : r.cert_dias_restantes > 15
+                  ? `Certificado OK (vence em ${fmtData(r.cert_expira_em)})`
+                  : `${r.cert_dias_restantes} dia(s) — ${fmtData(r.cert_expira_em)}`
           }</td>
           <td style="padding:6px 10px;border-bottom:1px solid #eee">${r.motivo || "—"}</td>
         </tr>`;
