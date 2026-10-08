@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 
 const corsHeaders = {
@@ -101,7 +102,8 @@ serve(async (req) => {
     let q = supabase
       .from("config_notificacoes_usuario")
       .select("usuario_id, canal_email, resumo_diario_ativo, resumo_diario_hora")
-      .eq("resumo_diario_ativo", true);
+      .eq("resumo_diario_ativo", true)
+      .is("coordenacao_id", null);
     if (forcarUsuario) q = q.eq("usuario_id", forcarUsuario);
     else q = q.eq("resumo_diario_hora", horaAtual);
     const { data: configs, error: cfgErr } = await q;
@@ -125,13 +127,14 @@ serve(async (req) => {
       return lista.map((i) => profileCache.get(i) ?? "").filter(Boolean).join(", ");
     }
 
+    let curCoord: string | null = null;
     const porUsuario = new Map<string, Item[]>();
     const relevantes = new Set(alvos.map((a: any) => a.usuario_id));
     const push = (uids: Iterable<string>, item: Item) => {
       for (const uid of uids) {
         if (!uid || !relevantes.has(uid)) continue;
         if (!porUsuario.has(uid)) porUsuario.set(uid, []);
-        porUsuario.get(uid)!.push(item);
+        porUsuario.get(uid)!.push({ ...item, coordenacao_id: (item as any).coordenacao_id ?? curCoord } as any);
       }
     };
 
@@ -151,11 +154,12 @@ serve(async (req) => {
     const { data: tarefas } = await supabase
       .from("tarefas")
       .select(
-        `id, titulo, descricao, observacoes, tipo_tarefa, status, prioridade, hora_fatal, data_fatal, data_vencimento, link_local, orgao, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(${procSelect})`,
+        `id, coordenacao_id, titulo, descricao, observacoes, tipo_tarefa, status, prioridade, hora_fatal, data_fatal, data_vencimento, link_local, orgao, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(${procSelect})`,
       )
       .or(`data_fatal.eq.${hoje},and(data_fatal.is.null,data_vencimento.eq.${hoje})`)
       .limit(2000);
     for (const t of (tarefas ?? []) as any[]) {
+      curCoord = t.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (t.responsavel_id) resp.add(t.responsavel_id);
@@ -189,12 +193,13 @@ serve(async (req) => {
     const { data: audiencias } = await supabase
       .from("audiencias_detectadas")
       .select(
-        "id, titulo, tipo_audiencia, processo_numero, cliente, polo_ativo, polo_passivo, data_audiencia, hora, hora_fim, status, modalidade, local_audiencia, forum, sala_forum, observacoes, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)",
+        "id, coordenacao_id, titulo, tipo_audiencia, processo_numero, cliente, polo_ativo, polo_passivo, data_audiencia, hora, hora_fim, status, modalidade, local_audiencia, forum, sala_forum, observacoes, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)",
       )
       .gte("data_audiencia", `${hoje}T00:00:00`)
       .lte("data_audiencia", `${hoje}T23:59:59`)
       .limit(2000);
     for (const a of (audiencias ?? []) as any[]) {
+      curCoord = a.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (a.criado_por) resp.add(a.criado_por);
@@ -227,12 +232,13 @@ serve(async (req) => {
     const { data: eventos } = await supabase
       .from("eventos_agenda")
       .select(
-        `id, titulo, descricao, tipo_evento, status, data_inicio, data_fim, local, link, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect})`,
+        `id, coordenacao_id, titulo, descricao, tipo_evento, status, data_inicio, data_fim, local, link, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect})`,
       )
       .gte("data_inicio", `${hoje}T00:00:00`)
       .lte("data_inicio", `${hoje}T23:59:59`)
       .limit(2000);
     for (const e of (eventos ?? []) as any[]) {
+      curCoord = e.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (e.criado_por) resp.add(e.criado_por);
@@ -262,12 +268,13 @@ serve(async (req) => {
     const { data: parcelas } = await supabase
       .from("parcelas_evento")
       .select(
-        `id, numero, valor, data_vencimento, status, observacoes, pago_em, evento:eventos_agenda(id, titulo, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect}))`,
+        `id, numero, valor, data_vencimento, status, observacoes, pago_em, evento:eventos_agenda(id, coordenacao_id, titulo, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect}))`,
       )
       .eq("data_vencimento", hoje)
       .limit(2000);
     for (const p of (parcelas ?? []) as any[]) {
       const ev = p.evento ?? {};
+      curCoord = ev.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
       if (ev.criado_por) resp.add(ev.criado_por);
@@ -319,6 +326,7 @@ serve(async (req) => {
       cancelada: "Cancelada",
       aguardando: "Aguardando",
     };
+    curCoord = null;
     for (const a of (atividades ?? []) as any[]) {
       const dest = new Set<string>();
       if (a.responsavel_id) dest.add(a.responsavel_id);
@@ -359,9 +367,15 @@ serve(async (req) => {
         if ((ja ?? []).length > 0) continue;
       }
 
-      const itens = (porUsuario.get(uid) ?? []).sort((a, b) =>
-        String(a.hora ?? "99:99").localeCompare(String(b.hora ?? "99:99")),
-      );
+      const cfgsU = await carregarConfigsUsuarios(supabase, [uid]);
+      const itens = (porUsuario.get(uid) ?? [])
+        .filter((i: any) => {
+          if (!i.coordenacao_id) return true;
+          const r = resolverConfig(cfgsU, uid, i.coordenacao_id);
+          if (r === null) return false;
+          return !r || r.resumo_diario_ativo !== false;
+        })
+        .sort((a, b) => String(a.hora ?? "99:99").localeCompare(String(b.hora ?? "99:99")));
       if (itens.length === 0) continue;
 
       const html = renderEmail(profile.nome ?? "", dataBR(hoje), itens);

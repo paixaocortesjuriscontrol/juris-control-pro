@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 import {
   ENCERRADAS_AUDIENCIA,
@@ -59,12 +60,13 @@ serve(async (req) => {
       reclamante?: string | null;
       reclamada?: string | null;
     };
+    let curCoord: string | null = null;
     const porUsuario = new Map<string, Item[]>();
     const push = (uids: Iterable<string>, item: Item) => {
       for (const uid of uids) {
         if (!uid) continue;
         if (!porUsuario.has(uid)) porUsuario.set(uid, []);
-        porUsuario.get(uid)!.push(item);
+        porUsuario.get(uid)!.push({ ...item, coordenacao_id: (item as any).coordenacao_id ?? curCoord } as any);
       }
     };
 
@@ -100,11 +102,12 @@ serve(async (req) => {
     // 1) Tarefas: COALESCE(data_fatal, data_vencimento) < hoje
     const { data: tarefas } = await supabase
       .from("tarefas")
-      .select("id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
+      .select("id, coordenacao_id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .or(`and(data_fatal.lt.${hoje}),and(data_fatal.is.null,data_vencimento.lt.${hoje})`)
       .not("status", "in", pgIn(ENCERRADAS_TAREFA))
       .limit(1000);
     for (const t of (tarefas ?? []) as any[]) {
+      curCoord = t.coordenacao_id ?? null;
       if (estaEncerrado(t.status, ENCERRADAS_TAREFA)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
@@ -132,11 +135,12 @@ serve(async (req) => {
     // 2) Eventos: data_inicio < hoje
     const { data: eventos } = await supabase
       .from("eventos_agenda")
-      .select("id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
+      .select("id, coordenacao_id, titulo, data_inicio, descricao, status, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .lt("data_inicio", `${hoje}T00:00:00Z`)
       .not("status", "in", pgIn(ENCERRADAS_EVENTO))
       .limit(1000);
     for (const e of (eventos ?? []) as any[]) {
+      curCoord = e.coordenacao_id ?? null;
       if (estaEncerrado(e.status, ENCERRADAS_EVENTO)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
@@ -164,11 +168,12 @@ serve(async (req) => {
     // 3) Audiências: data_audiencia < hoje
     const { data: audiencias } = await supabase
       .from("audiencias_detectadas")
-      .select("id, processo_numero, cliente, polo_ativo, observacoes, data_audiencia, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
+      .select("id, coordenacao_id, processo_numero, cliente, polo_ativo, observacoes, data_audiencia, status, criado_por, audiencias_advogados(advogado_id), audiencia_envolvidos(usuario_id)")
       .lt("data_audiencia", `${hoje}T00:00:00Z`)
       .not("status", "in", pgIn(ENCERRADAS_AUDIENCIA))
       .limit(1000);
     for (const a of (audiencias ?? []) as any[]) {
+      curCoord = a.coordenacao_id ?? null;
       if (estaEncerrado(a.status, ENCERRADAS_AUDIENCIA)) continue;
       const ids = new Set<string>();
       const respIds = new Set<string>();
@@ -194,13 +199,14 @@ serve(async (req) => {
     // 4) Parcelas: data_vencimento < hoje e não pagas
     const { data: parcelas } = await supabase
       .from("parcelas_evento")
-      .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda(id, titulo, status, descricao, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome)))")
+      .select("id, numero, valor, data_vencimento, observacoes, status, pago_em, evento:eventos_agenda(id, coordenacao_id, titulo, status, descricao, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome)))")
       .lt("data_vencimento", hoje)
       .is("pago_em", null)
       .not("status", "in", "(pago,paga,cancelado,cancelada)")
       .limit(1000);
     for (const p of (parcelas ?? []) as any[]) {
       const ev = p.evento ?? {};
+      curCoord = ev.coordenacao_id ?? null;
       // Ignora parcelas cujo evento (parcelamento) foi cancelado/concluído
       if (estaEncerrado(ev.status, ENCERRADAS_EVENTO)) continue;
       const ids = new Set<string>();
@@ -227,7 +233,7 @@ serve(async (req) => {
     }
 
     let enviados = 0;
-    for (const [uid, itens] of porUsuario) {
+    for (let [uid, itens] of porUsuario) {
       const { data: profile } = await supabase
         .from("profiles").select("id, nome, email, telefone").eq("id", uid).maybeSingle();
       if (!profile) continue;
@@ -245,10 +251,15 @@ serve(async (req) => {
 
       const coordenacaoId = await coordenacaoDoUsuario(supabase, uid);
 
-      const { data: cfg } = await supabase
-        .from("config_notificacoes_usuario").select("*").eq("usuario_id", uid).maybeSingle();
-      const c = cfg ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
-      if (c.evento_prazo_perdido === false) continue;
+      const cfgsU = await carregarConfigsUsuarios(supabase, [uid]);
+      const c = resolverConfig(cfgsU, uid, null) ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
+      // Mantém só os itens das coordenações em que o usuário quer o lembrete
+      itens = itens.filter((i: any) => {
+        const r = resolverConfig(cfgsU, uid, i.coordenacao_id);
+        if (r === null) return false;
+        return (r ?? c).evento_prazo_perdido !== false;
+      });
+      if (itens.length === 0) continue;
 
       const linhas = itens.slice(0, 30).map((i) => formatarItem(i)).join("\n\n");
       const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 30 ? `\n... e mais ${itens.length - 30}` : ""}\n\n${linhaPainelAlertasTexto(null)}`;
