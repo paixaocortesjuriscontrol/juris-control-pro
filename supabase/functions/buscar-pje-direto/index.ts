@@ -132,6 +132,7 @@ function casaTermo(m: any, textoNorm: string, tribunal: string): boolean {
 // deno-lint-ignore no-explicit-any
 async function executar(admin: any, c: any, origem: string, apenasTribunal?: string) {
   const senha = await decrypt(c.senha_cifrada);
+  const pfx = await carregarPfx(admin, c);
   const { data: membros } = await admin.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", c.usuario_id);
   const coords = [...new Set((membros ?? []).map((x: { coordenacao_id: string }) => x.coordenacao_id))];
   const { data: termos } = coords.length
