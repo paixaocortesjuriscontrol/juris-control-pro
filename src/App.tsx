@@ -235,6 +235,7 @@ function App() {
               <Route path="/etiquetas" element={<Etiquetas />} />
               <Route path="/materias-benner" element={<ProtectedRoute><MateriasBenner /></ProtectedRoute>} />
               <Route path="/pautas-tst" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
+              <Route path="/pautas-julgamento" element={<ProtectedRoute><PautasTst /></ProtectedRoute>} />
               <Route path="/classificacao-tst" element={<ProtectedRoute><ClassificacaoTst /></ProtectedRoute>} />
               <Route path="/comparar-dj-santander" element={<ProtectedRoute><CompararDjSantander /></ProtectedRoute>} />
               <Route path="/errata-djen" element={<ProtectedRoute><ErrataDjen /></ProtectedRoute>} />
