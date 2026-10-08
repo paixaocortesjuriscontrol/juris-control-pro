@@ -2637,6 +2637,9 @@ export type Database = {
       credenciais_pje_usuario: {
         Row: {
           ativo: boolean
+          certificado_nome: string | null
+          certificado_path: string | null
+          certificado_senha_cifrada: string | null
           cpf: string
           created_at: string
           id: string
@@ -2650,6 +2653,9 @@ export type Database = {
         }
         Insert: {
           ativo?: boolean
+          certificado_nome?: string | null
+          certificado_path?: string | null
+          certificado_senha_cifrada?: string | null
           cpf: string
           created_at?: string
           id?: string
@@ -2663,6 +2669,9 @@ export type Database = {
         }
         Update: {
           ativo?: boolean
+          certificado_nome?: string | null
+          certificado_path?: string | null
+          certificado_senha_cifrada?: string | null
           cpf?: string
           created_at?: string
           id?: string
