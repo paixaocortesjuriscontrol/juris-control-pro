@@ -380,6 +380,7 @@ export default function PautasTstPage() {
           </Table>
         </div>
       </div>
+      )}
 
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>
