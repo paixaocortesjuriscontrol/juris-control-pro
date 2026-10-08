@@ -94,6 +94,26 @@ function formatarCnjPorDigitos(digits: string): string | null {
   return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16, 20)}`;
 }
 
+/** Busca processos por número em lotes (evita URL longa demais que falhava em silêncio). */
+async function buscarProcessosPorNumerosEmLotes(
+  numeros: string[],
+  signal?: AbortSignal
+): Promise<Array<{ id: string; numero: string }>> {
+  const LOTE = 100;
+  const lotes: string[][] = [];
+  for (let i = 0; i < numeros.length; i += LOTE) lotes.push(numeros.slice(i, i + LOTE));
+  const resultados = await Promise.all(
+    lotes.map(async (lote) => {
+      let q = supabase.from('processos').select('id, numero').in('numero', lote);
+      if (signal) q = q.abortSignal(signal);
+      const { data, error } = await q;
+      if (error) console.error('[AnaliseDJEN] erro ao localizar processos cadastrados:', error.message);
+      return (data || []) as Array<{ id: string; numero: string }>;
+    })
+  );
+  return resultados.flat();
+}
+
 function parseTermosOr(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.map((v) => normalizarTermo(String(v))).filter(Boolean);
