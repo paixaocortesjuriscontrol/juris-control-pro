@@ -37,7 +37,22 @@ async function decrypt(v: string) {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const NS = "http://www.cnj.jus.br/servico-intercomunicacao-2.2.2";
 
-async function soap(tribunal: string, action: string, inner: string): Promise<string> {
+interface PfxOpts { pfx_base64: string | null; pfx_password: string | null }
+const SEM_PFX: PfxOpts = { pfx_base64: null, pfx_password: null };
+
+// deno-lint-ignore no-explicit-any
+async function carregarPfx(admin: any, c: any): Promise<PfxOpts> {
+  if (!c.certificado_path) return SEM_PFX;
+  const { data, error } = await admin.storage.from("certificados-a1").download(c.certificado_path);
+  if (error || !data) throw new Error("Não consegui ler o certificado digital salvo");
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  const senhaCert = c.certificado_senha_cifrada ? await decrypt(c.certificado_senha_cifrada) : null;
+  return { pfx_base64: btoa(bin), pfx_password: senhaCert };
+}
+
+async function soap(tribunal: string, action: string, inner: string, pfx: PfxOpts = SEM_PFX): Promise<string> {
   if (!PROXY_URL || !PROXY_TOKEN) throw new Error("Proxy PJe não configurado");
   const body = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="${NS}"><soapenv:Header/><soapenv:Body><ser:${action}>${inner}</ser:${action}></soapenv:Body></soapenv:Envelope>`;
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 35000);
@@ -45,7 +60,7 @@ async function soap(tribunal: string, action: string, inner: string): Promise<st
     const r = await fetch(PROXY_URL, {
       method: "POST", signal: ctl.signal,
       headers: { "Content-Type": "application/json", "X-Proxy-Token": PROXY_TOKEN },
-      body: JSON.stringify({ endpoint: endpoint(tribunal), soap_action: action, soap_body: body, pfx_base64: null, pfx_password: null, timeout_ms: 30000 }),
+      body: JSON.stringify({ endpoint: endpoint(tribunal), soap_action: action, soap_body: body, pfx_base64: pfx.pfx_base64, pfx_password: pfx.pfx_password, timeout_ms: 30000 }),
     });
     if (!r.ok) throw new Error(`Proxy HTTP ${r.status}`);
     const j = await r.json();
