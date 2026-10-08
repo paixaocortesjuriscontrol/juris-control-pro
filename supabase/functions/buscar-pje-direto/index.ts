@@ -268,7 +268,7 @@ Deno.serve(async (req) => {
     if (acao === "testar") {
       const tribunal = String(body.tribunal ?? c.tribunais[0]);
       try {
-        const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, await decrypt(c.senha_cifrada))));
+        const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, await decrypt(c.senha_cifrada)), await carregarPfx(admin, c)));
         await admin.from("credenciais_pje_usuario").update({ ultimo_status: "ok", ultima_mensagem: null }).eq("id", c.id);
         return json({ success: true, tribunal, avisos: avisos.length });
       } catch (e) {
