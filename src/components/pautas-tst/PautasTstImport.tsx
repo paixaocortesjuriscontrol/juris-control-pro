@@ -225,9 +225,12 @@ export function PautasTstImport({ onImported }: Props) {
                   <div className="rounded-md border p-2"><div className="text-muted-foreground text-xs">Gravadas</div><div className="text-lg font-semibold text-primary">{tot.i}</div></div>
                   <div className="rounded-md border p-2"><div className="text-muted-foreground text-xs">Ligadas a processo</div><div className="text-lg font-semibold">{tot.v}</div></div>
                 </div>
+                {cancelado && (
+                  <div className="flex items-start gap-2 text-amber-600"><AlertTriangle className="w-4 h-4 mt-0.5" /><span>Importação cancelada. As pautas gravadas até o momento foram mantidas.</span></div>
+                )}
                 {resultado.erroGeral || comErro.length > 0 ? (
                   <div className="flex items-start gap-2 text-destructive"><AlertTriangle className="w-4 h-4 mt-0.5" /><span>{resultado.erroGeral ?? `${comErro.length} aba(s) com erro na gravação.`}</span></div>
-                ) : (
+                ) : !cancelado && (
                   <div className="flex items-center gap-2 text-primary"><CheckCircle2 className="w-4 h-4" />Importação concluída sem erros.</div>
                 )}
                 {resultado.abas.length > 0 && (
