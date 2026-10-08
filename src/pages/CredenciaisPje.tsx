@@ -123,6 +123,51 @@ export default function CredenciaisPje() {
               <div><Label>CPF</Label><Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" /></div>
               <div><Label>Senha do PJe</Label><Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder={cred ? "Deixe em branco para manter" : ""} /></div>
             </div>
+            <div className="rounded-md border p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileKey className="h-4 w-4 text-muted-foreground" />
+                <Label className="mb-0">Certificado digital A1 (opcional)</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se você entra no PJe com certificado digital em arquivo (.pfx ou .p12), envie aqui. Quem usa token USB/cartão (A3) deve manter CPF e senha.
+              </p>
+              {cred?.certificado_nome && !removerCert && !certFile && (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">Certificado salvo: <strong>{cred.certificado_nome}</strong></span>
+                  <Button size="sm" variant="ghost" onClick={() => setRemoverCert(true)}>
+                    <X className="h-4 w-4 mr-1" />Remover
+                  </Button>
+                </div>
+              )}
+              {removerCert && (
+                <div className="flex items-center justify-between gap-2 text-sm text-destructive">
+                  <span>O certificado será removido ao salvar.</span>
+                  <Button size="sm" variant="ghost" onClick={() => setRemoverCert(false)}>Desfazer</Button>
+                </div>
+              )}
+              {!removerCert && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Arquivo do certificado (.pfx/.p12)</Label>
+                    <Input
+                      type="file"
+                      accept=".pfx,.p12,application/x-pkcs12"
+                      onChange={(e) => setCertFile(e.target.files?.[0] ?? null)}
+                    />
+                    {certFile && <p className="text-xs text-muted-foreground mt-1">{certFile.name}</p>}
+                  </div>
+                  <div>
+                    <Label>Senha do certificado</Label>
+                    <Input
+                      type="password"
+                      value={certSenha}
+                      onChange={(e) => setCertSenha(e.target.value)}
+                      placeholder={cred?.certificado_nome ? "Deixe em branco para manter" : ""}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>Tribunais</Label>
