@@ -1,5 +1,4 @@
 import {
-  Gavel,
   Trophy,
   LayoutDashboard,
   Scale,
