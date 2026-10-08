@@ -228,10 +228,33 @@ Deno.serve(async (req) => {
       if (cpf.length !== 11) return json({ error: "CPF inválido" }, 400);
       if (!tribunais.length) return json({ error: "Escolha ao menos um tribunal" }, 400);
       const senha = String(body.senha ?? "");
-      const { data: atual } = await admin.from("credenciais_pje_usuario").select("id").eq("usuario_id", user.id).maybeSingle();
+      const { data: atual } = await admin.from("credenciais_pje_usuario").select("id, certificado_path").eq("usuario_id", user.id).maybeSingle();
       if (!atual && senha.length < 4) return json({ error: "Informe a senha do PJe" }, 400);
       const reg: Record<string, unknown> = { usuario_id: user.id, cpf, tribunais, ativo: body.ativo !== false };
       if (senha) reg.senha_cifrada = await encrypt(senha);
+
+      // Certificado digital A1 (.pfx/.p12) — opcional, usado no handshake mTLS do proxy
+      const certB64 = String(body.certificado_base64 ?? "");
+      if (body.remover_certificado === true) {
+        reg.certificado_path = null; reg.certificado_nome = null; reg.certificado_senha_cifrada = null;
+        if (atual?.certificado_path) await admin.storage.from("certificados-a1").remove([atual.certificado_path]);
+      } else if (certB64) {
+        if (certB64.length > 4_000_000) return json({ error: "Arquivo do certificado muito grande" }, 400);
+        let bytes: Uint8Array;
+        try { bytes = Uint8Array.from(atob(certB64), (ch) => ch.charCodeAt(0)); }
+        catch { return json({ error: "Arquivo do certificado inválido" }, 400); }
+        const path = `pje-direto/${user.id}.pfx`;
+        const up = await admin.storage.from("certificados-a1").upload(path, bytes, { contentType: "application/x-pkcs12", upsert: true });
+        if (up.error) return json({ error: `Falha ao guardar o certificado: ${up.error.message}` }, 400);
+        reg.certificado_path = path;
+        reg.certificado_nome = String(body.certificado_nome ?? "certificado.pfx").slice(0, 200);
+        const senhaCert = String(body.certificado_senha ?? "");
+        if (!senhaCert) return json({ error: "Informe a senha do certificado" }, 400);
+        reg.certificado_senha_cifrada = await encrypt(senhaCert);
+      } else if (String(body.certificado_senha ?? "") && atual?.certificado_path) {
+        reg.certificado_senha_cifrada = await encrypt(String(body.certificado_senha));
+      }
+
       const { error } = atual
         ? await admin.from("credenciais_pje_usuario").update(reg).eq("id", atual.id)
         : await admin.from("credenciais_pje_usuario").insert(reg);
