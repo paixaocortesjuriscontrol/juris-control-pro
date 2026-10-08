@@ -38,6 +38,8 @@ interface Props {
 export function PautasTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+  const [cancelado, setCancelado] = useState(false);
   const [open, setOpen] = useState(false);
   const [fase, setFase] = useState("");
   const [feito, setFeito] = useState(0);
@@ -57,6 +59,8 @@ export function PautasTstImport({ onImported }: Props) {
     setResultado(null);
     setFeito(0);
     setTotal(1);
+    setCancelado(false);
+    cancelRef.current = false;
     setFase("Lendo a planilha...");
     const abas: { nome: string; linhas: number; importadas: number; vinculadas: number; erro?: string }[] = [];
     const ignoradas: string[] = [];
