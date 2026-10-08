@@ -66,8 +66,31 @@ export default function CredenciaisPje() {
     }
   };
 
+  const lerArquivoBase64 = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+      r.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+      r.readAsDataURL(f);
+    });
+
   const salvar = async () => {
-    try { await chamar("salvar", { cpf, senha, tribunais: tribs, ativo }); setSenha(""); toast.success("Credencial salva"); }
+    try {
+      const extra: Record<string, unknown> = {};
+      if (removerCert) {
+        extra.remover_certificado = true;
+      } else if (certFile) {
+        if (certFile.size > 3 * 1024 * 1024) throw new Error("Arquivo do certificado muito grande (máx. 3 MB)");
+        extra.certificado_base64 = await lerArquivoBase64(certFile);
+        extra.certificado_nome = certFile.name;
+        extra.certificado_senha = certSenha;
+      } else if (certSenha && cred?.certificado_nome) {
+        extra.certificado_senha = certSenha;
+      }
+      await chamar("salvar", { cpf, senha, tribunais: tribs, ativo, ...extra });
+      setSenha(""); setCertFile(null); setCertSenha(""); setRemoverCert(false);
+      toast.success("Credencial salva");
+    }
     catch (e: any) { toast.error(e.message); }
   };
   const testar = async () => {
