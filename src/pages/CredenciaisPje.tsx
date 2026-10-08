@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Play, PlugZap, Loader2, Info } from "lucide-react";
+import { Play, PlugZap, Loader2, Info, FileKey, X } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIBUNAIS = ["TST", ...Array.from({ length: 24 }, (_, i) => `TRT${i + 1}`)];
@@ -24,13 +24,16 @@ export default function CredenciaisPje() {
   const [tribs, setTribs] = useState<string[]>([]);
   const [ativo, setAtivo] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certSenha, setCertSenha] = useState("");
+  const [removerCert, setRemoverCert] = useState(false);
 
   const { data: cred } = useQuery({
     queryKey: ["cred-pje", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await (supabase as any).from("credenciais_pje_usuario")
-        .select("id, cpf, tribunais, ativo, ultimo_status, ultima_mensagem, ultima_execucao")
+        .select("id, cpf, tribunais, ativo, ultimo_status, ultima_mensagem, ultima_execucao, certificado_nome")
         .eq("usuario_id", user!.id).maybeSingle();
       return data;
     },
@@ -63,8 +66,32 @@ export default function CredenciaisPje() {
     }
   };
 
+  const lerArquivoBase64 = (f: File) =>
+    new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result).split(",")[1] ?? "");
+      r.onerror = () => reject(new Error("Falha ao ler o arquivo"));
+      r.readAsDataURL(f);
+    });
+
   const salvar = async () => {
-    try { await chamar("salvar", { cpf, senha, tribunais: tribs, ativo }); setSenha(""); toast.success("Credencial salva"); }
+    try {
+      const extra: Record<string, unknown> = {};
+      if (removerCert) {
+        extra.remover_certificado = true;
+      } else if (certFile) {
+        if (certFile.size > 3 * 1024 * 1024) throw new Error("Arquivo do certificado muito grande (máx. 3 MB)");
+        if (!certSenha) throw new Error("Informe a senha do certificado");
+        extra.certificado_base64 = await lerArquivoBase64(certFile);
+        extra.certificado_nome = certFile.name;
+        extra.certificado_senha = certSenha;
+      } else if (certSenha && cred?.certificado_nome) {
+        extra.certificado_senha = certSenha;
+      }
+      await chamar("salvar", { cpf, senha, tribunais: tribs, ativo, ...extra });
+      setSenha(""); setCertFile(null); setCertSenha(""); setRemoverCert(false);
+      toast.success("Credencial salva");
+    }
     catch (e: any) { toast.error(e.message); }
   };
   const testar = async () => {
@@ -89,13 +116,58 @@ export default function CredenciaisPje() {
             <CardTitle className="text-base">Acesso ao PJe</CardTitle>
             <CardDescription className="flex gap-2 items-start">
               <Info className="h-4 w-4 mt-0.5 shrink-0" />
-              A senha fica criptografada e ninguém consegue vê-la. Os avisos não são marcados como lidos no PJe, então o prazo não começa a contar por causa desta busca.
+              A senha e o certificado ficam criptografados e ninguém consegue vê-los. Os avisos não são marcados como lidos no PJe, então o prazo não começa a contar por causa desta busca.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid sm:grid-cols-2 gap-3">
               <div><Label>CPF</Label><Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" /></div>
               <div><Label>Senha do PJe</Label><Input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder={cred ? "Deixe em branco para manter" : ""} /></div>
+            </div>
+            <div className="rounded-md border p-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <FileKey className="h-4 w-4 text-muted-foreground" />
+                <Label className="mb-0">Certificado digital A1 (opcional)</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Se você entra no PJe com certificado digital em arquivo (.pfx ou .p12), envie aqui. Quem usa token USB/cartão (A3) deve manter CPF e senha.
+              </p>
+              {cred?.certificado_nome && !removerCert && !certFile && (
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span className="truncate">Certificado salvo: <strong>{cred.certificado_nome}</strong></span>
+                  <Button size="sm" variant="ghost" onClick={() => setRemoverCert(true)}>
+                    <X className="h-4 w-4 mr-1" />Remover
+                  </Button>
+                </div>
+              )}
+              {removerCert && (
+                <div className="flex items-center justify-between gap-2 text-sm text-destructive">
+                  <span>O certificado será removido ao salvar.</span>
+                  <Button size="sm" variant="ghost" onClick={() => setRemoverCert(false)}>Desfazer</Button>
+                </div>
+              )}
+              {!removerCert && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div>
+                    <Label>Arquivo do certificado (.pfx/.p12)</Label>
+                    <Input
+                      type="file"
+                      accept=".pfx,.p12,application/x-pkcs12"
+                      onChange={(e) => setCertFile(e.target.files?.[0] ?? null)}
+                    />
+                    {certFile && <p className="text-xs text-muted-foreground mt-1">{certFile.name}</p>}
+                  </div>
+                  <div>
+                    <Label>Senha do certificado</Label>
+                    <Input
+                      type="password"
+                      value={certSenha}
+                      onChange={(e) => setCertSenha(e.target.value)}
+                      placeholder={cred?.certificado_nome ? "Deixe em branco para manter" : ""}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">

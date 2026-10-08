@@ -37,7 +37,22 @@ async function decrypt(v: string) {
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const NS = "http://www.cnj.jus.br/servico-intercomunicacao-2.2.2";
 
-async function soap(tribunal: string, action: string, inner: string): Promise<string> {
+interface PfxOpts { pfx_base64: string | null; pfx_password: string | null }
+const SEM_PFX: PfxOpts = { pfx_base64: null, pfx_password: null };
+
+// deno-lint-ignore no-explicit-any
+async function carregarPfx(admin: any, c: any): Promise<PfxOpts> {
+  if (!c.certificado_path) return SEM_PFX;
+  const { data, error } = await admin.storage.from("certificados-a1").download(c.certificado_path);
+  if (error || !data) throw new Error("Não consegui ler o certificado digital salvo");
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 8192) bin += String.fromCharCode(...bytes.subarray(i, i + 8192));
+  const senhaCert = c.certificado_senha_cifrada ? await decrypt(c.certificado_senha_cifrada) : null;
+  return { pfx_base64: btoa(bin), pfx_password: senhaCert };
+}
+
+async function soap(tribunal: string, action: string, inner: string, pfx: PfxOpts = SEM_PFX): Promise<string> {
   if (!PROXY_URL || !PROXY_TOKEN) throw new Error("Proxy PJe não configurado");
   const body = `<?xml version="1.0" encoding="UTF-8"?><soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:ser="${NS}"><soapenv:Header/><soapenv:Body><ser:${action}>${inner}</ser:${action}></soapenv:Body></soapenv:Envelope>`;
   const ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 35000);
@@ -45,7 +60,7 @@ async function soap(tribunal: string, action: string, inner: string): Promise<st
     const r = await fetch(PROXY_URL, {
       method: "POST", signal: ctl.signal,
       headers: { "Content-Type": "application/json", "X-Proxy-Token": PROXY_TOKEN },
-      body: JSON.stringify({ endpoint: endpoint(tribunal), soap_action: action, soap_body: body, pfx_base64: null, pfx_password: null, timeout_ms: 30000 }),
+      body: JSON.stringify({ endpoint: endpoint(tribunal), soap_action: action, soap_body: body, pfx_base64: pfx.pfx_base64, pfx_password: pfx.pfx_password, timeout_ms: 30000 }),
     });
     if (!r.ok) throw new Error(`Proxy HTTP ${r.status}`);
     const j = await r.json();
@@ -117,6 +132,7 @@ function casaTermo(m: any, textoNorm: string, tribunal: string): boolean {
 // deno-lint-ignore no-explicit-any
 async function executar(admin: any, c: any, origem: string, apenasTribunal?: string) {
   const senha = await decrypt(c.senha_cifrada);
+  const pfx = await carregarPfx(admin, c);
   const { data: membros } = await admin.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", c.usuario_id);
   const coords = [...new Set((membros ?? []).map((x: { coordenacao_id: string }) => x.coordenacao_id))];
   const { data: termos } = coords.length
@@ -127,12 +143,12 @@ async function executar(admin: any, c: any, origem: string, apenasTribunal?: str
   for (const tribunal of (apenasTribunal ? [apenasTribunal] : c.tribunais)) {
     const r = { tribunal, encontrados: 0, filtrados: 0, novos: 0, erro: null as string | null };
     try {
-      const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, senha)));
+      const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, senha), pfx));
       r.encontrados = avisos.length;
       for (const a of avisos) {
         let teor = "";
         try {
-          teor = teorTexto(await soap(tribunal, "consultarTeorComunicacao", cred(c.cpf, senha) + `<ser:identificadorAviso>${esc(a.id)}</ser:identificadorAviso>`));
+          teor = teorTexto(await soap(tribunal, "consultarTeorComunicacao", cred(c.cpf, senha) + `<ser:identificadorAviso>${esc(a.id)}</ser:identificadorAviso>`, pfx));
         } catch { /* sem teor */ }
         const texto = `${a.processo ?? ""} ${a.orgao ?? ""} ${teor}`;
         const norm = normalizar(texto);
@@ -212,10 +228,33 @@ Deno.serve(async (req) => {
       if (cpf.length !== 11) return json({ error: "CPF inválido" }, 400);
       if (!tribunais.length) return json({ error: "Escolha ao menos um tribunal" }, 400);
       const senha = String(body.senha ?? "");
-      const { data: atual } = await admin.from("credenciais_pje_usuario").select("id").eq("usuario_id", user.id).maybeSingle();
+      const { data: atual } = await admin.from("credenciais_pje_usuario").select("id, certificado_path").eq("usuario_id", user.id).maybeSingle();
       if (!atual && senha.length < 4) return json({ error: "Informe a senha do PJe" }, 400);
       const reg: Record<string, unknown> = { usuario_id: user.id, cpf, tribunais, ativo: body.ativo !== false };
       if (senha) reg.senha_cifrada = await encrypt(senha);
+
+      // Certificado digital A1 (.pfx/.p12) — opcional, usado no handshake mTLS do proxy
+      const certB64 = String(body.certificado_base64 ?? "");
+      if (body.remover_certificado === true) {
+        reg.certificado_path = null; reg.certificado_nome = null; reg.certificado_senha_cifrada = null;
+        if (atual?.certificado_path) await admin.storage.from("certificados-a1").remove([atual.certificado_path]);
+      } else if (certB64) {
+        if (certB64.length > 4_000_000) return json({ error: "Arquivo do certificado muito grande" }, 400);
+        let bytes: Uint8Array;
+        try { bytes = Uint8Array.from(atob(certB64), (ch) => ch.charCodeAt(0)); }
+        catch { return json({ error: "Arquivo do certificado inválido" }, 400); }
+        const path = `pje-direto/${user.id}.pfx`;
+        const up = await admin.storage.from("certificados-a1").upload(path, bytes, { contentType: "application/x-pkcs12", upsert: true });
+        if (up.error) return json({ error: `Falha ao guardar o certificado: ${up.error.message}` }, 400);
+        reg.certificado_path = path;
+        reg.certificado_nome = String(body.certificado_nome ?? "certificado.pfx").slice(0, 200);
+        const senhaCert = String(body.certificado_senha ?? "");
+        if (!senhaCert) return json({ error: "Informe a senha do certificado" }, 400);
+        reg.certificado_senha_cifrada = await encrypt(senhaCert);
+      } else if (String(body.certificado_senha ?? "") && atual?.certificado_path) {
+        reg.certificado_senha_cifrada = await encrypt(String(body.certificado_senha));
+      }
+
       const { error } = atual
         ? await admin.from("credenciais_pje_usuario").update(reg).eq("id", atual.id)
         : await admin.from("credenciais_pje_usuario").insert(reg);
@@ -229,7 +268,7 @@ Deno.serve(async (req) => {
     if (acao === "testar") {
       const tribunal = String(body.tribunal ?? c.tribunais[0]);
       try {
-        const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, await decrypt(c.senha_cifrada))));
+        const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, await decrypt(c.senha_cifrada)), await carregarPfx(admin, c)));
         await admin.from("credenciais_pje_usuario").update({ ultimo_status: "ok", ultima_mensagem: null }).eq("id", c.id);
         return json({ success: true, tribunal, avisos: avisos.length });
       } catch (e) {
