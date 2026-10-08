@@ -216,6 +216,3 @@ verify_jwt = false
 
 [functions.importar-tese-peca]
 verify_jwt = true
-
-[functions.tmp-importar-pautas]
-verify_jwt = false
