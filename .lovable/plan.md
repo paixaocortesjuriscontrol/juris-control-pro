@@ -16,6 +16,9 @@ O sistema já tem a tela **Pautas TST** (Admin. TST), com as mesmas 31 colunas d
    - No alto fica a escolha da semana, que abre na semana atual, e cards com o total, o virtual, o presencial e as pautas sem decisão.
    - A tabela tem filtros por relator, órgão, advogado e decisão, mostra todas as pautas da semana sem o limite de 500 e permite editar direto na linha.
    - O botão **Nova pauta** preenche sozinho dossiê, equipe, partes, relator, matérias, aparelhamento e chance de êxito, puxando da Distribuição TST pelo número do processo.
+   - **Menu próprio "Pautas de Julgamento"** no menu lateral, fora do Admin. TST. O endereço antigo continua funcionando.
+   - **Visual mais profissional:** cabeçalho com o título e a semana, cards de resumo, tabela com cabeçalho fixo e cores por decisão e por modalidade.
+   - **Formulário em tela cheia:** abrir ou criar uma pauta mostra o formulário ocupando a tela inteira. Os campos ficam em seções (Processo, Julgamento, Recurso do Reclamante, Recurso do Banco, Providências e Retorno), e os botões Salvar e Voltar ficam sempre visíveis no rodapé.
 
 3. **Gerar a planilha semanal para o Santander**
    - O botão **Exportar semana** gera o Excel no mesmo layout e na mesma ordem de colunas da planilha atual, com o nome da aba no padrão "N. dd.mm a dd.mm".
