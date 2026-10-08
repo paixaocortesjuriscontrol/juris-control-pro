@@ -9,3 +9,4 @@
 - [Análise por matéria sem órfãs](mem://logic/distribuicao-tst/analise-materias-orfas) — Matérias removidas não podem gerar aviso/pendência nem exportar
 - [Arquivados fora do total](mem://features/distribuicao-tst/arquivados-fora-do-total) — Situação 'arquivado' fora de todas as contagens/listas; card Arquivados clicável
 - [Índice DEJT informativo](mem://logic/dejt/indice-html-nao-e-porteiro) — dejt.html só loga; validar edição pela data interna do PDF Judiciário
+- [PJe direto com certificado A1](mem://features/cofre-senhas/pje-direto-certificado-a1) — Credenciais PJe aceita A1 (.pfx no bucket certificados-a1) além de CPF+senha; A3 não é automatizável
