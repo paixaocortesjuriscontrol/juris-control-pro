@@ -61,7 +61,6 @@ export function PautasTstImport({ onImported }: Props) {
     const abas: { nome: string; linhas: number; importadas: number; vinculadas: number; erro?: string }[] = [];
     const ignoradas: string[] = [];
     try {
-    try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
       let totalInserted = 0;
