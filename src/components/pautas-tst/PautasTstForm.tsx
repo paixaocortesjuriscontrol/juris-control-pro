@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Save, ArrowLeft, Loader2 } from "lucide-react";
 import { PautaTst, PautaTstInsert } from "@/hooks/usePautasTst";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface Props {
   dado?: PautaTst | null;
@@ -44,6 +46,26 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
 
   const set = (field: keyof PautaTstInsert, value: any) => setForm(prev => ({ ...prev, [field]: value || null }));
 
+  const preencherDaDistribuicao = async () => {
+    const d = String(form.processo_numero || "").replace(/\D/g, "");
+    if (d.length !== 20) return;
+    const fmt = `${d.slice(0,7)}-${d.slice(7,9)}.${d.slice(9,13)}.${d.slice(13,14)}.${d.slice(14,16)}.${d.slice(16)}`;
+    const { data } = await supabase.from("dados_benner" as any).select("*").eq("processo", fmt).not("aba_origem", "is", null).limit(1);
+    const b: any = (data as any[])?.[0];
+    if (!b) return;
+    const fill = (k: keyof PautaTstInsert, v: any) => (prev: any) => (prev[k] ? prev : { ...prev, [k]: v ?? null });
+    const map: [keyof PautaTstInsert, any][] = [
+      ["dossie", b.dossie], ["equipe", b.equipe], ["reclamante", b.reclamante], ["reclamada", b.reclamada],
+      ["parte_recorrente", b.recorrente], ["tipo_recurso", b.tipo_recurso], ["relator", b.relator], ["orgao", b.turma],
+      ["materia_recurso_reclamante", b.materias_recurso_reclamante], ["aparelhamento_reclamante", b.aparelhamento_reclamante],
+      ["chance_exito_reclamante", b.chance_exito_reclamante], ["materia_recurso_banco", b.materias_recurso_banco],
+      ["aparelhamento_banco", b.aparelhamento_banco], ["chance_exito_banco", b.chance_exito_banco], ["honra", b.honra],
+      ["midia_negativa", b.midia_negativa],
+    ];
+    setForm((prev) => map.reduce((acc, [k, v]) => fill(k, v)(acc), { ...prev, dados_benner_id: b.id } as any));
+    toast.success("Campos em branco preenchidos com a Distribuição TST");
+  };
+
   const handleSave = async () => {
     setSaving(true);
     const ok = await onSave(form, dado?.id);
@@ -61,11 +83,11 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       {/* Dados Básicos - Rosa */}
       <div className={sectionStyle("border-l-pink-600 bg-pink-50/30")}>
         <h3 className="font-semibold text-pink-700">Dados Básicos</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div><Label>Equipe</Label><Input value={form.equipe || ""} onChange={e => set("equipe", e.target.value)} /></div>
           <div><Label>Advogado Interno</Label><Input value={form.advogado_interno || ""} onChange={e => set("advogado_interno", e.target.value)} /></div>
           <div><Label>Dossiê</Label><Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} /></div>
-          <div><Label>Nº Processo</Label><Input value={form.processo_numero || ""} onChange={e => set("processo_numero", e.target.value)} /></div>
+          <div><Label>Nº Processo</Label><Input value={form.processo_numero || ""} onChange={e => set("processo_numero", e.target.value)} onBlur={preencherDaDistribuicao} /></div>
           <div><Label>Reclamante</Label><Input value={form.reclamante || ""} onChange={e => set("reclamante", e.target.value)} /></div>
           <div><Label>Reclamada</Label><Input value={form.reclamada || ""} onChange={e => set("reclamada", e.target.value)} /></div>
           <div><Label>Parte Recorrente</Label><Input value={form.parte_recorrente || ""} onChange={e => set("parte_recorrente", e.target.value)} /></div>
@@ -76,7 +98,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       {/* Julgamento - Azul */}
       <div className={sectionStyle("border-l-blue-500 bg-blue-50/30")}>
         <h3 className="font-semibold text-blue-700">Julgamento</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div><Label>Data do Julgamento</Label><Input type="date" value={form.data_julgamento || ""} onChange={e => set("data_julgamento", e.target.value)} /></div>
           <div><Label>Horário</Label><Input value={form.horario || ""} onChange={e => set("horario", e.target.value)} /></div>
           <div><Label>Modalidade</Label><Input value={form.modalidade || ""} onChange={e => set("modalidade", e.target.value)} placeholder="Virtual / Telepresencial / Híbrido" /></div>
@@ -89,7 +111,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       {/* Recurso Reclamante - Laranja */}
       <div className={sectionStyle("border-l-orange-400 bg-orange-50/30")}>
         <h3 className="font-semibold text-orange-700">Recurso do Reclamante</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div className="md:col-span-3"><Label>Matéria</Label><Textarea value={form.materia_recurso_reclamante || ""} onChange={e => set("materia_recurso_reclamante", e.target.value)} rows={2} /></div>
           <div><Label>Aparelhamento</Label><Input value={form.aparelhamento_reclamante || ""} onChange={e => set("aparelhamento_reclamante", e.target.value)} /></div>
           <div><Label>Chance de Êxito</Label><Input value={form.chance_exito_reclamante || ""} onChange={e => set("chance_exito_reclamante", e.target.value)} /></div>
@@ -99,7 +121,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       {/* Recurso Banco - Verde */}
       <div className={sectionStyle("border-l-green-500 bg-green-50/30")}>
         <h3 className="font-semibold text-green-700">Recurso do Banco</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div className="md:col-span-3"><Label>Matéria</Label><Textarea value={form.materia_recurso_banco || ""} onChange={e => set("materia_recurso_banco", e.target.value)} rows={2} /></div>
           <div><Label>Aparelhamento</Label><Input value={form.aparelhamento_banco || ""} onChange={e => set("aparelhamento_banco", e.target.value)} /></div>
           <div><Label>Chance de Êxito</Label><Input value={form.chance_exito_banco || ""} onChange={e => set("chance_exito_banco", e.target.value)} /></div>
@@ -109,7 +131,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       {/* Análise / Decisão - Azul Escuro */}
       <div className={sectionStyle("border-l-indigo-600 bg-indigo-50/30")}>
         <h3 className="font-semibold text-indigo-700">Análise e Decisão</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
           <div><Label>Honra</Label><Input value={form.honra || ""} onChange={e => set("honra", e.target.value)} /></div>
           <div><Label>Decisão</Label><Input value={form.decisao || ""} onChange={e => set("decisao", e.target.value)} /></div>
           <div><Label>Sustentação Oral</Label><Input value={form.sustentacao_oral || ""} onChange={e => set("sustentacao_oral", e.target.value)} /></div>
@@ -136,7 +158,7 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
         <div><Label>Resultado / Próxima Sessão</Label><Textarea value={form.resultado_proxima_sessao || ""} onChange={e => set("resultado_proxima_sessao", e.target.value)} rows={3} /></div>
       </div>
 
-      <div className="flex justify-end gap-2 pt-4">
+      <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
         <Button variant="outline" onClick={onCancel}>Cancelar</Button>
         <Button onClick={handleSave} disabled={saving}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
