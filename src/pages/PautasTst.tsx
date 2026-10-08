@@ -233,24 +233,23 @@ export default function PautasTstPage() {
   return (
     <MainLayout title="Pautas de Julgamento">
       {formAberto && (
-        <div className="fixed inset-0 z-50 bg-background overflow-auto">
-          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur border-b border-border px-6 py-3 flex items-center gap-3">
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 border-b border-border pb-3">
             <Gavel className="w-5 h-5 text-primary" />
             <div>
               <div className="font-semibold text-foreground">{editando ? "Editar pauta" : "Nova pauta"}</div>
               <div className="text-xs text-muted-foreground">{abaAtual}</div>
             </div>
           </div>
-          <div className="px-6 py-4">
-            <PautasTstForm
-              dado={(editando || (novo as PautaTst)) ?? null}
-              onSave={(d) => salvar(d, editando?.id)}
-              onCancel={() => { setEditando(null); setNovo(null); }}
-            />
-          </div>
+          <PautasTstForm
+            dado={(editando || (novo as PautaTst)) ?? null}
+            onSave={(d) => salvar(d, editando?.id)}
+            onCancel={() => { setEditando(null); setNovo(null); }}
+          />
         </div>
       )}
 
+      {!formAberto && (
       <div className="space-y-5">
         <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
@@ -381,6 +380,7 @@ export default function PautasTstPage() {
           </Table>
         </div>
       </div>
+      )}
 
       <Dialog open={exportOpen} onOpenChange={setExportOpen}>
         <DialogContent>
