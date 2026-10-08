@@ -38,6 +38,8 @@ interface Props {
 export function PautasTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
+  const [cancelado, setCancelado] = useState(false);
   const [open, setOpen] = useState(false);
   const [fase, setFase] = useState("");
   const [feito, setFeito] = useState(0);
@@ -57,6 +59,8 @@ export function PautasTstImport({ onImported }: Props) {
     setResultado(null);
     setFeito(0);
     setTotal(1);
+    setCancelado(false);
+    cancelRef.current = false;
     setFase("Lendo a planilha...");
     const abas: { nome: string; linhas: number; importadas: number; vinculadas: number; erro?: string }[] = [];
     const ignoradas: string[] = [];
@@ -136,6 +140,7 @@ export function PautasTstImport({ onImported }: Props) {
       setFase("Localizando processos...");
       const mapa = new Map<string, string>();
       for (let i = 0; i < chunks.length; i += 4) {
+        if (cancelRef.current) break;
         const grupo = chunks.slice(i, i + 4);
         const res = await Promise.all(grupo.map(c => supabase.from("processos").select("id, numero").in("numero", c)));
         for (const { data } of res) for (const p of (data as any[]) ?? []) if (!mapa.has(p.numero)) mapa.set(p.numero, p.id);
@@ -145,6 +150,7 @@ export function PautasTstImport({ onImported }: Props) {
 
       // 3) Gravar por aba
       for (const { aba, records } of porAba) {
+        if (cancelRef.current) break;
         for (const rec of records) {
           const id = rec.processo_numero ? mapa.get(rec.processo_numero) : undefined;
           if (id) { rec.processo_id = id; aba.vinculadas++; }
@@ -154,6 +160,7 @@ export function PautasTstImport({ onImported }: Props) {
           await supabase.from("pautas_tst" as any).delete().eq("aba_origem", aba.nome);
         }
         for (let i = 0; i < records.length; i += 200) {
+          if (cancelRef.current) break;
           const batch = records.slice(i, i + 200);
           const { error, data } = await supabase.from("pautas_tst" as any).insert(batch as any).select("id");
           if (error) {
@@ -170,8 +177,13 @@ export function PautasTstImport({ onImported }: Props) {
       }
       const totalLinhas = totalPassos / 2;
 
-      setFeito(Math.max(1, totalLinhas * 2));
-      setFase("Concluído");
+      if (cancelRef.current) {
+        setCancelado(true);
+        setFase("Cancelado pelo usuário");
+      } else {
+        setFeito(Math.max(1, totalLinhas * 2));
+        setFase("Concluído");
+      }
       setResultado({ abas, ignoradas });
       if (totalInserted > 0) onImported();
     } catch (err: any) {
@@ -213,9 +225,12 @@ export function PautasTstImport({ onImported }: Props) {
                   <div className="rounded-md border p-2"><div className="text-muted-foreground text-xs">Gravadas</div><div className="text-lg font-semibold text-primary">{tot.i}</div></div>
                   <div className="rounded-md border p-2"><div className="text-muted-foreground text-xs">Ligadas a processo</div><div className="text-lg font-semibold">{tot.v}</div></div>
                 </div>
+                {cancelado && (
+                  <div className="flex items-start gap-2 text-amber-600"><AlertTriangle className="w-4 h-4 mt-0.5" /><span>Importação cancelada. As pautas gravadas até o momento foram mantidas.</span></div>
+                )}
                 {resultado.erroGeral || comErro.length > 0 ? (
                   <div className="flex items-start gap-2 text-destructive"><AlertTriangle className="w-4 h-4 mt-0.5" /><span>{resultado.erroGeral ?? `${comErro.length} aba(s) com erro na gravação.`}</span></div>
-                ) : (
+                ) : !cancelado && (
                   <div className="flex items-center gap-2 text-primary"><CheckCircle2 className="w-4 h-4" />Importação concluída sem erros.</div>
                 )}
                 {resultado.abas.length > 0 && (
@@ -236,7 +251,16 @@ export function PautasTstImport({ onImported }: Props) {
               </div>
             );
           })()}
-          <DialogFooter>
+          <DialogFooter className="gap-2">
+            {importing && (
+              <Button
+                variant="destructive"
+                onClick={() => { cancelRef.current = true; setFase("Cancelando..."); }}
+                disabled={cancelRef.current}
+              >
+                {cancelRef.current ? "Cancelando..." : "Cancelar importação"}
+              </Button>
+            )}
             <Button onClick={() => setOpen(false)} disabled={importing}>{importing ? "Aguarde..." : "Fechar"}</Button>
           </DialogFooter>
         </DialogContent>
