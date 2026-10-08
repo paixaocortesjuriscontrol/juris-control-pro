@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import JSZip from "jszip";
 import { ProcessoTstTab } from "./ProcessoTstTab";
+import { DadosBennerDistribuicaoTab } from "@/components/benner/DadosBennerDistribuicaoTab";
 import { ProcessoDistribuicoesTab } from "./ProcessoDistribuicoesTab";
 import { GerarPecaTab } from "./GerarPecaTab";
 import { ProcessoJuditTab } from "./ProcessoJuditTab";
@@ -1093,6 +1094,7 @@ export function ProcessoDetalhesCompletos({
       label: "Visão geral",
       items: [
         { id: "resumo", label: "Visão Geral", icon: Home },
+        { id: "tst-distribuicao", label: "TST Distribuição", icon: Gavel, iconColor: "text-indigo-500" },
         { id: "auditoria", label: "Auditoria", icon: ShieldCheck, iconColor: "text-slate-500" },
       ],
     },
@@ -1728,6 +1730,15 @@ export function ProcessoDetalhesCompletos({
               {/* TST Section */}
               {activeSection === "tst" && (
                 <ProcessoTstTab processo={processo} />
+              )}
+
+              {activeSection === "tst-distribuicao" && (
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <Gavel className="w-5 h-5" /> TST Distribuição
+                  </h2>
+                  <DadosBennerDistribuicaoTab processoNumero={processo.numero || ""} />
+                </div>
               )}
 
               {/* Distribuições TST Section */}
