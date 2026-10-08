@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
 
 const corsHeaders = {

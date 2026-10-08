@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 
 const corsHeaders = {
@@ -101,7 +102,8 @@ serve(async (req) => {
     let q = supabase
       .from("config_notificacoes_usuario")
       .select("usuario_id, canal_email, resumo_diario_ativo, resumo_diario_hora")
-      .eq("resumo_diario_ativo", true);
+      .eq("resumo_diario_ativo", true)
+      .is("coordenacao_id", null);
     if (forcarUsuario) q = q.eq("usuario_id", forcarUsuario);
     else q = q.eq("resumo_diario_hora", horaAtual);
     const { data: configs, error: cfgErr } = await q;
@@ -324,6 +326,7 @@ serve(async (req) => {
       cancelada: "Cancelada",
       aguardando: "Aguardando",
     };
+    curCoord = null;
     for (const a of (atividades ?? []) as any[]) {
       const dest = new Set<string>();
       if (a.responsavel_id) dest.add(a.responsavel_id);

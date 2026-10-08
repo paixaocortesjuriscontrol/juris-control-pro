@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
 import {
   ENCERRADAS_AUDIENCIA,
@@ -232,7 +233,7 @@ serve(async (req) => {
     }
 
     let enviados = 0;
-    for (const [uid, itens] of porUsuario) {
+    for (let [uid, itens] of porUsuario) {
       const { data: profile } = await supabase
         .from("profiles").select("id, nome, email, telefone").eq("id", uid).maybeSingle();
       if (!profile) continue;
@@ -250,10 +251,15 @@ serve(async (req) => {
 
       const coordenacaoId = await coordenacaoDoUsuario(supabase, uid);
 
-      const { data: cfg } = await supabase
-        .from("config_notificacoes_usuario").select("*").eq("usuario_id", uid).maybeSingle();
-      const c = cfg ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
-      if (c.evento_prazo_perdido === false) continue;
+      const cfgsU = await carregarConfigsUsuarios(supabase, [uid]);
+      const c = resolverConfig(cfgsU, uid, null) ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
+      // Mantém só os itens das coordenações em que o usuário quer o lembrete
+      itens = itens.filter((i: any) => {
+        const r = resolverConfig(cfgsU, uid, i.coordenacao_id);
+        if (r === null) return false;
+        return (r ?? c).evento_prazo_perdido !== false;
+      });
+      if (itens.length === 0) continue;
 
       const linhas = itens.slice(0, 30).map((i) => formatarItem(i)).join("\n\n");
       const corpo = `Olá ${profile.nome ?? ""},\n\nVocê tem ${itens.length} pendência(s) com prazo vencido:\n\n${linhas}${itens.length > 30 ? `\n... e mais ${itens.length - 30}` : ""}\n\n${linhaPainelAlertasTexto(null)}`;
