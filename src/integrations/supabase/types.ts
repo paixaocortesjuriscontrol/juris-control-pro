@@ -2330,9 +2330,11 @@ export type Database = {
       }
       config_notificacoes_usuario: {
         Row: {
+          ativo: boolean
           canal_email: boolean
           canal_in_app: boolean
           canal_whatsapp: boolean
+          coordenacao_id: string | null
           created_at: string
           evento_comentario: boolean
           evento_mudanca_situacao: boolean
@@ -2348,9 +2350,11 @@ export type Database = {
           usuario_id: string
         }
         Insert: {
+          ativo?: boolean
           canal_email?: boolean
           canal_in_app?: boolean
           canal_whatsapp?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           evento_comentario?: boolean
           evento_mudanca_situacao?: boolean
@@ -2366,9 +2370,11 @@ export type Database = {
           usuario_id: string
         }
         Update: {
+          ativo?: boolean
           canal_email?: boolean
           canal_in_app?: boolean
           canal_whatsapp?: boolean
+          coordenacao_id?: string | null
           created_at?: string
           evento_comentario?: boolean
           evento_mudanca_situacao?: boolean
@@ -2383,7 +2389,15 @@ export type Database = {
           updated_at?: string
           usuario_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "config_notificacoes_usuario_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       configuracoes_carga_benner: {
         Row: {
