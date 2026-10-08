@@ -143,12 +143,12 @@ async function executar(admin: any, c: any, origem: string, apenasTribunal?: str
   for (const tribunal of (apenasTribunal ? [apenasTribunal] : c.tribunais)) {
     const r = { tribunal, encontrados: 0, filtrados: 0, novos: 0, erro: null as string | null };
     try {
-      const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, senha)));
+      const avisos = parseAvisos(await soap(tribunal, "consultarAvisosPendentes", cred(c.cpf, senha), pfx));
       r.encontrados = avisos.length;
       for (const a of avisos) {
         let teor = "";
         try {
-          teor = teorTexto(await soap(tribunal, "consultarTeorComunicacao", cred(c.cpf, senha) + `<ser:identificadorAviso>${esc(a.id)}</ser:identificadorAviso>`));
+          teor = teorTexto(await soap(tribunal, "consultarTeorComunicacao", cred(c.cpf, senha) + `<ser:identificadorAviso>${esc(a.id)}</ser:identificadorAviso>`, pfx));
         } catch { /* sem teor */ }
         const texto = `${a.processo ?? ""} ${a.orgao ?? ""} ${teor}`;
         const norm = normalizar(texto);
