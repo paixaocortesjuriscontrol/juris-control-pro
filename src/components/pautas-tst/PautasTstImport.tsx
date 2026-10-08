@@ -61,66 +61,33 @@ export function PautasTstImport({ onImported }: Props) {
     const abas: { nome: string; linhas: number; importadas: number; vinculadas: number; erro?: string }[] = [];
     const ignoradas: string[] = [];
     try {
+    try {
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(new Uint8Array(buffer), { type: "array", cellDates: false });
-
       let totalInserted = 0;
-      // Conta linhas para a barra de progresso (leitura + gravação)
-      let totalLinhas = 0;
-      for (const sn of wb.SheetNames) {
-        const ref = wb.Sheets[sn]["!ref"];
-        if (ref) totalLinhas += XLSX.utils.decode_range(ref).e.r + 1;
-      }
-      setTotal(Math.max(1, totalLinhas * 2));
-      let progresso = 0;
 
+      // 1) Leitura de todas as abas (sem consultas ao banco)
+      const porAba: { aba: (typeof abas)[number]; records: any[] }[] = [];
+      const numeros = new Set<string>();
       for (const sheetName of wb.SheetNames) {
-        const ws = wb.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }) as string[][];
-
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, raw: false, defval: "" }) as string[][];
         let headerIdx = -1;
         for (let i = 0; i < Math.min(json.length, 10); i++) {
-          const row = json[i];
-          if (row?.some(c => /equipe/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) {
-            headerIdx = i;
-            break;
-          }
+          if (json[i]?.some(c => /equipe/i.test(String(c ?? "")) || /dossi[eê]/i.test(String(c ?? "")))) { headerIdx = i; break; }
         }
-        if (headerIdx === -1) {
-          ignoradas.push(sheetName);
-          progresso += json.length * 2;
-          setFeito(progresso);
-          continue;
-        }
-        setFase(`Lendo aba "${sheetName}"...`);
+        if (headerIdx === -1) { ignoradas.push(sheetName); continue; }
         const aba = { nome: sheetName, linhas: 0, importadas: 0, vinculadas: 0 } as (typeof abas)[number];
         abas.push(aba);
-        progresso += (headerIdx + 1) * 2;
-
         const records: any[] = [];
         for (let i = headerIdx + 1; i < json.length; i++) {
           const r = json[i];
-          progresso++;
-          if (i % 20 === 0) setFeito(progresso);
           if (!r || r.every(c => !String(c ?? "").trim())) continue;
-
           const processoNumero = norm(r[3]);
           const dossie = norm(r[2]);
           if (!processoNumero && !dossie) continue;
-
-          let processoId: string | null = null;
-          if (processoNumero && processoNumero.length >= 7) {
-            const { data: existingProc } = await supabase
-              .from("processos")
-              .select("id")
-              .eq("numero", processoNumero)
-              .maybeSingle();
-            processoId = existingProc?.id || null;
-            if (processoId) aba.vinculadas++;
-          }
-
+          if (processoNumero && processoNumero.length >= 7) numeros.add(processoNumero);
           records.push({
-            processo_id: processoId,
+            processo_id: null,
             processo_numero: processoNumero || null,
             aba_origem: sheetName,
             equipe: cleanVal(r[0]),
@@ -155,21 +122,40 @@ export function PautasTstImport({ onImported }: Props) {
             resultado_proxima_sessao: cleanVal(r[30]),
           });
         }
-
         aba.linhas = records.length;
-        progresso += (json.length - headerIdx - 1) - records.length; // linhas vazias contam como gravadas
-        setFeito(progresso);
-        setFase(`Gravando aba "${sheetName}"...`);
-        // Delete existing records from this sheet, then insert
-        if (records.length > 0) {
-          await supabase
-            .from("pautas_tst" as any)
-            .delete()
-            .eq("aba_origem", sheetName);
-        }
+        porAba.push({ aba, records });
+      }
 
-        for (let i = 0; i < records.length; i += 50) {
-          const batch = records.slice(i, i + 50);
+      // 2) Localizar processos em blocos
+      const lista = Array.from(numeros);
+      const chunks: string[][] = [];
+      for (let i = 0; i < lista.length; i += 500) chunks.push(lista.slice(i, i + 500));
+      const totalRegs = porAba.reduce((a, b) => a + b.records.length, 0);
+      const totalPassos = Math.max(1, chunks.length + totalRegs);
+      setTotal(totalPassos);
+      let progresso = 0;
+      setFase("Localizando processos...");
+      const mapa = new Map<string, string>();
+      for (let i = 0; i < chunks.length; i += 4) {
+        const grupo = chunks.slice(i, i + 4);
+        const res = await Promise.all(grupo.map(c => supabase.from("processos").select("id, numero").in("numero", c)));
+        for (const { data } of res) for (const p of (data as any[]) ?? []) if (!mapa.has(p.numero)) mapa.set(p.numero, p.id);
+        progresso += grupo.length;
+        setFeito(progresso);
+      }
+
+      // 3) Gravar por aba
+      for (const { aba, records } of porAba) {
+        for (const rec of records) {
+          const id = rec.processo_numero ? mapa.get(rec.processo_numero) : undefined;
+          if (id) { rec.processo_id = id; aba.vinculadas++; }
+        }
+        setFase(`Gravando aba "${aba.nome}"...`);
+        if (records.length > 0) {
+          await supabase.from("pautas_tst" as any).delete().eq("aba_origem", aba.nome);
+        }
+        for (let i = 0; i < records.length; i += 200) {
+          const batch = records.slice(i, i + 200);
           const { error, data } = await supabase.from("pautas_tst" as any).insert(batch as any).select("id");
           if (error) {
             console.error(`Erro ao importar lote:`, error);
@@ -183,6 +169,7 @@ export function PautasTstImport({ onImported }: Props) {
           setFeito(progresso);
         }
       }
+      const totalLinhas = totalPassos / 2;
 
       setFeito(Math.max(1, totalLinhas * 2));
       setFase("Concluído");
