@@ -32,7 +32,8 @@ export function DadosBennerPautasTab({ processoNumero }: Props) {
 
   const handleSave = async (dado: any, id?: string) => {
     if (id) {
-      const { error } = await supabase.from("pautas_tst" as any).update(dado as any).eq("id", id);
+      const { processo_digits: _pd, ...limpo } = dado as any;
+      const { error } = await supabase.from("pautas_tst" as any).update(limpo).eq("id", id);
       if (error) return false;
     }
     const { data } = await supabase

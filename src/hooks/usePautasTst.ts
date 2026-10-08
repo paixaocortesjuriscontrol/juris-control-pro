@@ -37,11 +37,15 @@ export interface PautaTst {
   comentarios_advogado: string | null;
   retorno_esclarecimentos: string | null;
   resultado_proxima_sessao: string | null;
+  semana_inicio?: string | null;
+  dados_benner_id?: string | null;
+  coordenacao_id?: string | null;
+  processo_digits?: string;
   created_at: string;
   updated_at: string;
 }
 
-export type PautaTstInsert = Omit<PautaTst, "id" | "created_at" | "updated_at">;
+export type PautaTstInsert = Omit<PautaTst, "id" | "created_at" | "updated_at" | "processo_digits">;
 
 export function usePautasTst() {
   const [dados, setDados] = useState<PautaTst[]>([]);
