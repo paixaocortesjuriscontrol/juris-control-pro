@@ -317,11 +317,18 @@ serve(async (req) => {
           .from("profiles")
           .select("id, nome, email, telefone")
           .in("id", responsaveis);
-        const { data: configs } = await supabase
-          .from("config_notificacoes_usuario")
-          .select("*")
-          .in("usuario_id", responsaveis);
-        const cfgMap = new Map((configs ?? []).map((c: any) => [c.usuario_id, c]));
+        // Preferências por coordenação do item (cai na padrão do usuário)
+        const cfgsUsuarios = await carregarConfigsUsuarios(supabase, responsaveis);
+        const DESLIGADO = {
+          canal_in_app: false, canal_email: false, canal_whatsapp: false,
+          evento_mudanca_situacao: false, evento_comentario: false,
+        };
+        const cfgMap = new Map<string, any>();
+        for (const uid of responsaveis) {
+          const r = resolverConfig(cfgsUsuarios, uid, item.coordenacao_id);
+          if (r === null) cfgMap.set(uid, DESLIGADO);
+          else if (r) cfgMap.set(uid, r);
+        }
 
         // Ator (quem alterou)
         const ctx = (item.contexto ?? {}) as Record<string, any>;
