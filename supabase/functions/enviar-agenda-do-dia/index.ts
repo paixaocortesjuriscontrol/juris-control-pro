@@ -230,7 +230,7 @@ serve(async (req) => {
     const { data: eventos } = await supabase
       .from("eventos_agenda")
       .select(
-        `id, titulo, descricao, tipo_evento, status, data_inicio, data_fim, local, link, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect})`,
+        `id, coordenacao_id, titulo, descricao, tipo_evento, status, data_inicio, data_fim, local, link, criado_por, evento_responsaveis(usuario_id), evento_envolvidos(usuario_id), participantes_evento(usuario_id), processo:processos(${procSelect})`,
       )
       .gte("data_inicio", `${hoje}T00:00:00`)
       .lte("data_inicio", `${hoje}T23:59:59`)
