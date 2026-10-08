@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Play, PlugZap, Loader2, Info } from "lucide-react";
+import { Play, PlugZap, Loader2, Info, FileKey, X } from "lucide-react";
 import { format } from "date-fns";
 
 const TRIBUNAIS = ["TST", ...Array.from({ length: 24 }, (_, i) => `TRT${i + 1}`)];
@@ -24,13 +24,16 @@ export default function CredenciaisPje() {
   const [tribs, setTribs] = useState<string[]>([]);
   const [ativo, setAtivo] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [certFile, setCertFile] = useState<File | null>(null);
+  const [certSenha, setCertSenha] = useState("");
+  const [removerCert, setRemoverCert] = useState(false);
 
   const { data: cred } = useQuery({
     queryKey: ["cred-pje", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data } = await (supabase as any).from("credenciais_pje_usuario")
-        .select("id, cpf, tribunais, ativo, ultimo_status, ultima_mensagem, ultima_execucao")
+        .select("id, cpf, tribunais, ativo, ultimo_status, ultima_mensagem, ultima_execucao, certificado_nome")
         .eq("usuario_id", user!.id).maybeSingle();
       return data;
     },
