@@ -1347,7 +1347,20 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         )}
       </div>
     );
-  }
+   }
+
+  const tipoProcessoField = (
+    <FormField label="Tipo de Processo">
+      <Select value={form.tipo_processo || "judicial"} onValueChange={(v) => update("tipo_processo", v)}>
+        <SelectTrigger className={cn(inputCls, jcls("tipo_processo"))}><SelectValue /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="judicial">Judicial</SelectItem>
+          <SelectItem value="administrativo">Administrativo</SelectItem>
+          <SelectItem value="outro">Outro</SelectItem>
+        </SelectContent>
+      </Select>
+    </FormField>
+  );
 
   return (
     <div className="space-y-4">
@@ -1584,33 +1597,32 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <SectionHeader icon={FileText} title="Identificação" />
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {isNovo && (
-                    <FormField
-                      label="Número do Processo (opcional)"
-                      className="md:col-span-2"
-                    >
-                      <Input
-                        className={inputCls}
-                        placeholder={
-                          (form.tipo_processo || "judicial") === "administrativo"
-                            ? "14152.127256/2023-39"
-                            : (form.tipo_processo || "judicial") === "outro"
-                              ? "Digite o número em qualquer formato"
-                              : "0000000-00.0000.0.00.0000"
-                        }
-
-                        value={form.numero || ""}
-                        maxLength={60}
-                        onChange={(e) => {
-                          const tipo = form.tipo_processo || "judicial";
-                          const valor = tipo === "administrativo" || tipo === "outro"
-                            ? e.target.value
-                            : mascararCnjDigitacao(e.target.value);
-                          update("numero", valor);
-                          onNumeroChange?.(valor);
-                        }}
-                        onBlur={(e) => onNumeroChange?.(e.target.value)}
-                      />
-                    </FormField>
+                    <>
+                      {tipoProcessoField}
+                      <FormField label="Número do Processo (opcional)">
+                        <Input
+                          className={inputCls}
+                          placeholder={
+                            (form.tipo_processo || "judicial") === "administrativo"
+                              ? "14152.127256/2023-39"
+                              : (form.tipo_processo || "judicial") === "outro"
+                                ? "Digite o número em qualquer formato"
+                                : "0000000-00.0000.0.00.0000"
+                          }
+                          value={form.numero || ""}
+                          maxLength={60}
+                          onChange={(e) => {
+                            const tipo = form.tipo_processo || "judicial";
+                            const valor = tipo === "administrativo" || tipo === "outro"
+                              ? e.target.value
+                              : mascararCnjDigitacao(e.target.value);
+                            update("numero", valor);
+                            onNumeroChange?.(valor);
+                          }}
+                          onBlur={(e) => onNumeroChange?.(e.target.value)}
+                        />
+                      </FormField>
+                    </>
                   )}
                   <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
                     <Textarea
@@ -1643,16 +1655,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       onChange={setResponsaveis}
                     />
                   </FormField>
-                  <FormField label="Tipo de Processo">
-                    <Select value={form.tipo_processo || "judicial"} onValueChange={(v) => update("tipo_processo", v)}>
-                      <SelectTrigger className={cn(inputCls, jcls("tipo_processo"))}><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="judicial">Judicial</SelectItem>
-                        <SelectItem value="administrativo">Administrativo</SelectItem>
-                        <SelectItem value="outro">Outro</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </FormField>
+                  {!isNovo && tipoProcessoField}
                   <FormField label="Situação">
                     <Select value={form.status || "ativo"} onValueChange={(v) => update("status", v)}>
                       <SelectTrigger className={cn(inputCls, jcls("status"))}><SelectValue /></SelectTrigger>
