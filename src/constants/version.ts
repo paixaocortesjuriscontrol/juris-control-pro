@@ -83,4 +83,5 @@ export const VERSION_HISTORY = [
   { version: "7.7.0", date: "2026-10-07", notes: "Restaurar em lote na tela Arquivados da Distribuição TST (planilha de dossiês/processos e tag existente ou nova); envolvida marcada em 'Quem pode mudar cada situação' pode aplicar aquela situação ao item" },
   { version: "8.0.0", date: "2026-10-08", notes: "Marco 8.0.0: Pautas de Julgamento com importação em barra de progresso e sugestões do DEJT; certificado digital A1 nas Minhas credenciais PJe; Análise DJEN reconhece processos já cadastrados; notificações configuráveis por coordenação" },
   { version: "8.0.1", date: "2026-10-09", notes: "Processos e Casos: ao criar um novo, Tipo de Processo aparece antes do Número do Processo e os dois na mesma linha" },
+  { version: "8.0.2", date: "2026-10-09", notes: "Assistente coordenador passa a ver Análise DJEN e Documentos no menu, como o coordenador" },
 ];
