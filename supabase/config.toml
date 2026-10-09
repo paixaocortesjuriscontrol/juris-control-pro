@@ -216,6 +216,3 @@ verify_jwt = false
 
 [functions.importar-tese-peca]
 verify_jwt = true
-
-[functions.importar-relatorio-gol-tmp]
-verify_jwt = true
