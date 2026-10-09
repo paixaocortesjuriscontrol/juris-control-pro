@@ -1977,13 +1977,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       onInput={(e) => { const el = e.currentTarget; el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }}
                     />
                   </FormField>
-                  <FormField label="Responsáveis" className="md:col-span-2">
-                    <SelecionarResponsaveisProcesso
-                      processoId={processo.id}
-                      value={responsaveis}
-                      onChange={setResponsaveis}
-                    />
-                  </FormField>
                   <FormField label="Empresa Terceirizada">
                     <Input className={cn(inputCls, jcls("empresa_terceirizada"))} value={form.empresa_terceirizada || ""} onChange={(e) => update("empresa_terceirizada", e.target.value)} />
                   </FormField>
