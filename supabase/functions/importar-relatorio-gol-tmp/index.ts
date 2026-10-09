@@ -7,6 +7,13 @@ Deno.serve(async (req) => {
   const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const dados = await (await fetch(URL_DADOS)).json();
   const fatia = dados.slice(inicio, fim);
+  for (const r of fatia) for (const k of Object.keys(r.b)) {
+    const v = r.b[k];
+    if (k.startsWith("data_") && typeof v === "string") {
+      const d = new Date(v + "T12:00:00Z");
+      if (isNaN(+d) || d.toISOString().slice(0, 10) !== v) delete r.b[k];
+    }
+  }
   const tot = { novos: 0, atualizados: 0, gol_adicional: 0, erros: [] as string[] };
   for (let i = 0; i < fatia.length; i += 250) {
     const { data, error } = await sb.rpc("_importar_relatorio_gol" as any, { _recs: fatia.slice(i, i + 250) });
