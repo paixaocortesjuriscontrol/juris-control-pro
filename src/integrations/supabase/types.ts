@@ -7450,6 +7450,7 @@ export type Database = {
           created_at: string
           criado_por_tst: string | null
           custo_encerramento: number | null
+          dados_relatorio_cliente: Json
           data_arquivamento: string | null
           data_citacao: string | null
           data_consulta: string | null
@@ -7571,6 +7572,7 @@ export type Database = {
           relator: string | null
           relator_favorabilidade: string | null
           relator_tst: string | null
+          relatorio_origem: string | null
           requerido: string | null
           responsabilidade_antes_data: number | null
           responsabilidade_apos_data: number | null
@@ -7656,6 +7658,7 @@ export type Database = {
           created_at?: string
           criado_por_tst?: string | null
           custo_encerramento?: number | null
+          dados_relatorio_cliente?: Json
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_consulta?: string | null
@@ -7777,6 +7780,7 @@ export type Database = {
           relator?: string | null
           relator_favorabilidade?: string | null
           relator_tst?: string | null
+          relatorio_origem?: string | null
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
@@ -7862,6 +7866,7 @@ export type Database = {
           created_at?: string
           criado_por_tst?: string | null
           custo_encerramento?: number | null
+          dados_relatorio_cliente?: Json
           data_arquivamento?: string | null
           data_citacao?: string | null
           data_consulta?: string | null
@@ -7983,6 +7988,7 @@ export type Database = {
           relator?: string | null
           relator_favorabilidade?: string | null
           relator_tst?: string | null
+          relatorio_origem?: string | null
           requerido?: string | null
           responsabilidade_antes_data?: number | null
           responsabilidade_apos_data?: number | null
