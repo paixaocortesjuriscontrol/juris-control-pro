@@ -10833,6 +10833,7 @@ export type Database = {
       }
     }
     Functions: {
+      _importar_relatorio_gol: { Args: { _recs: Json }; Returns: Json }
       acquire_kurier_execution_lease: {
         Args: {
           _exec_id: string
