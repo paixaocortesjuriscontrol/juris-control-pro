@@ -1,0 +1,2 @@
+ALTER TABLE public.processos ADD COLUMN IF NOT EXISTS dados_relatorio_cliente jsonb NOT NULL DEFAULT '{}'::jsonb, ADD COLUMN IF NOT EXISTS relatorio_origem text;
+CREATE INDEX IF NOT EXISTS idx_processos_relatorio_origem ON public.processos(relatorio_origem);
