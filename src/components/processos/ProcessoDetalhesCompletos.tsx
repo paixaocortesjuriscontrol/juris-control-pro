@@ -1094,6 +1094,7 @@ export function ProcessoDetalhesCompletos({
       label: "Visão geral",
       items: [
         { id: "resumo", label: "Visão Geral", icon: Home },
+        { id: "relatorio-cliente", label: "Relatório do cliente", icon: FileSpreadsheet, iconColor: "text-emerald-600" },
         { id: "tst-distribuicao", label: "TST Distribuição", icon: Gavel, iconColor: "text-indigo-500" },
         { id: "auditoria", label: "Auditoria", icon: ShieldCheck, iconColor: "text-slate-500" },
       ],
@@ -1730,6 +1731,15 @@ export function ProcessoDetalhesCompletos({
               {/* TST Section */}
               {activeSection === "tst" && (
                 <ProcessoTstTab processo={processo} />
+              )}
+
+              {activeSection === "relatorio-cliente" && (
+                <div className="rounded-lg border border-border bg-card p-4">
+                  <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+                    <FileSpreadsheet className="w-5 h-5" /> Relatório do cliente
+                  </h2>
+                  <RelatorioClienteTab processoId={processo.id} />
+                </div>
               )}
 
               {activeSection === "tst-distribuicao" && (
