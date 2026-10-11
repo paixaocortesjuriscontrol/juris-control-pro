@@ -3,16 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Save, ArrowLeft, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Save, ArrowLeft, Loader2, Gavel, FolderInput, CheckCircle2, Users, ExternalLink } from "lucide-react";
 import { PautaTst, PautaTstInsert } from "@/hooks/usePautasTst";
-import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
 
 interface Props {
   dado?: PautaTst | null;
   onSave: (dado: PautaTstInsert, id?: string) => Promise<boolean>;
   onCancel: () => void;
+  /** Salva um único campo (pautas existentes). Quando ausente, usa onSave completo. */
+  onSaveField?: (id: string, campo: string, valor: any) => Promise<boolean>;
+  subtitulo?: string;
 }
 
 const emptyForm: PautaTstInsert = {
@@ -31,20 +37,74 @@ const emptyForm: PautaTstInsert = {
   retorno_esclarecimentos: null, resultado_proxima_sessao: null,
 };
 
-const sectionStyle = (color: string) => cn("space-y-4 p-4 rounded-lg border-l-4", color);
+type Campo = { k: keyof PautaTstInsert; l: string; area?: boolean; type?: string; span?: string };
 
-export function PautasTstForm({ dado, onSave, onCancel }: Props) {
+const SECOES: { titulo: string; campos: Campo[] }[] = [
+  { titulo: "Processo", campos: [
+    { k: "processo_numero", l: "Nº do processo" }, { k: "dossie", l: "Dossiê" }, { k: "equipe", l: "Equipe" },
+    { k: "advogado_interno", l: "Advogado interno" }, { k: "reclamante", l: "Reclamante" }, { k: "reclamada", l: "Reclamada" },
+    { k: "parte_recorrente", l: "Parte recorrente" }, { k: "tipo_recurso", l: "Tipo de recurso" },
+  ]},
+  { titulo: "Julgamento", campos: [
+    { k: "data_julgamento", l: "Data do julgamento", type: "date" }, { k: "horario", l: "Horário" },
+    { k: "modalidade", l: "Modalidade" }, { k: "orgao", l: "Órgão" }, { k: "relator", l: "Relator", span: "md:col-span-2" },
+    { k: "link_acesso", l: "Link de acesso", span: "md:col-span-2" },
+  ]},
+  { titulo: "Recurso do reclamante", campos: [
+    { k: "materia_recurso_reclamante", l: "Matéria", area: true, span: "md:col-span-2" },
+    { k: "aparelhamento_reclamante", l: "Aparelhamento" }, { k: "chance_exito_reclamante", l: "Chance de êxito" },
+  ]},
+  { titulo: "Recurso do banco", campos: [
+    { k: "materia_recurso_banco", l: "Matéria", area: true, span: "md:col-span-2" },
+    { k: "aparelhamento_banco", l: "Aparelhamento" }, { k: "chance_exito_banco", l: "Chance de êxito" },
+  ]},
+  { titulo: "Análise e decisão", campos: [
+    { k: "honra", l: "Honra" }, { k: "decisao", l: "Decisão" }, { k: "sustentacao_oral", l: "Sustentação oral" },
+    { k: "desistencia_recurso", l: "Desistência do recurso" }, { k: "midia_negativa", l: "Mídia negativa" },
+    { k: "entrega_memoriais", l: "Entrega de memoriais" },
+  ]},
+  { titulo: "Providências e retorno", campos: [
+    { k: "solicitacao_providencias_banco", l: "Solicitação de providências ao banco", area: true, span: "md:col-span-2" },
+    { k: "solicitacao_rosa_oliveira", l: "Solicitação – Rosa Oliveira", area: true, span: "md:col-span-2" },
+    { k: "comentarios_advogado", l: "Comentários do advogado interno", area: true, span: "md:col-span-2" },
+    { k: "retorno_esclarecimentos", l: "Retorno / esclarecimentos", area: true, span: "md:col-span-2" },
+    { k: "resultado_proxima_sessao", l: "Resultado / próxima sessão", area: true, span: "md:col-span-4" },
+  ]},
+];
+
+export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }: Props) {
   const [form, setForm] = useState<PautaTstInsert>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [membros, setMembros] = useState<{ id: string; nome: string }[]>([]);
+  const [resp, setResp] = useState<string[]>([]);
+  const [importando, setImportando] = useState(false);
+  const existente = !!dado?.id;
 
   useEffect(() => {
     if (dado) {
       const { id, created_at, updated_at, processo_digits, ...rest } = dado as any;
-      setForm(rest);
-    }
+      setForm({ ...emptyForm, ...rest });
+    } else setForm(emptyForm);
   }, [dado]);
 
-  const set = (field: keyof PautaTstInsert, value: any) => setForm(prev => ({ ...prev, [field]: value || null }));
+  useEffect(() => {
+    carregarMembrosRenata().then(setMembros);
+    if (dado?.id) {
+      supabase.from("pautas_tst_responsaveis" as any).select("user_id").eq("pauta_id", dado.id)
+        .then(({ data }) => setResp(((data as any[]) || []).map((r) => r.user_id)));
+    }
+  }, [dado?.id]);
+
+  const set = (field: keyof PautaTstInsert, value: any) => setForm((prev) => ({ ...prev, [field]: value || null }));
+
+  const salvarCampo = async (k: keyof PautaTstInsert) => {
+    if (!existente || !dado) return;
+    const atual = (form as any)[k] ?? null;
+    if ((dado as any)[k] === atual) return;
+    if (onSaveField) await onSaveField(dado.id, k as string, atual);
+    else await onSave({ ...form }, dado.id);
+    (dado as any)[k] = atual;
+  };
 
   const preencherDaDistribuicao = async () => {
     const d = String(form.processo_numero || "").replace(/\D/g, "");
@@ -53,7 +113,6 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
     const { data } = await supabase.from("dados_benner" as any).select("*").eq("processo", fmt).not("aba_origem", "is", null).limit(1);
     const b: any = (data as any[])?.[0];
     if (!b) return;
-    const fill = (k: keyof PautaTstInsert, v: any) => (prev: any) => (prev[k] ? prev : { ...prev, [k]: v ?? null });
     const map: [keyof PautaTstInsert, any][] = [
       ["dossie", b.dossie], ["equipe", b.equipe], ["reclamante", b.reclamante], ["reclamada", b.reclamada],
       ["parte_recorrente", b.recorrente], ["tipo_recurso", b.tipo_recurso], ["relator", b.relator], ["orgao", b.turma],
@@ -62,8 +121,36 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
       ["aparelhamento_banco", b.aparelhamento_banco], ["chance_exito_banco", b.chance_exito_banco], ["honra", b.honra],
       ["midia_negativa", b.midia_negativa],
     ];
-    setForm((prev) => map.reduce((acc, [k, v]) => fill(k, v)(acc), { ...prev, dados_benner_id: b.id } as any));
+    setForm((prev) => map.reduce((acc: any, [k, v]) => (acc[k] ? acc : { ...acc, [k]: v ?? null }), { ...prev, dados_benner_id: b.id } as any));
     toast.success("Campos em branco preenchidos com a Distribuição TST");
+  };
+
+  const toggleResp = async (uid: string) => {
+    if (!dado?.id) return;
+    if (resp.includes(uid)) {
+      const { error } = await supabase.from("pautas_tst_responsaveis" as any).delete().eq("pauta_id", dado.id).eq("user_id", uid);
+      if (error) return toast.error(error.message);
+      setResp(resp.filter((x) => x !== uid));
+    } else {
+      const { error } = await supabase.from("pautas_tst_responsaveis" as any).insert({ pauta_id: dado.id, user_id: uid });
+      if (error) return toast.error(error.message);
+      setResp([...resp, uid]);
+    }
+  };
+
+  const importar = async () => {
+    if (!dado) return;
+    setImportando(true);
+    try {
+      const r = await importarProcessoDaPauta(dado);
+      (dado as any).processo_id = r.processoId;
+      setForm((p) => ({ ...p, processo_id: r.processoId }));
+      toast.success(r.novo ? (r.judit ? "Processo cadastrado e preenchido com a Judit" : "Processo cadastrado (Judit não respondeu)") : "Pauta ligada à ficha já existente");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setImportando(false);
+    }
   };
 
   const handleSave = async () => {
@@ -73,98 +160,97 @@ export function PautasTstForm({ dado, onSave, onCancel }: Props) {
     if (ok) onCancel();
   };
 
+  const aAvaliar = (form as any).status_avaliacao === "a_avaliar";
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={onCancel}><ArrowLeft className="w-4 h-4 mr-2" /> Voltar</Button>
-        <h2 className="text-xl font-bold text-foreground">{dado ? "Editar Pauta" : "Nova Pauta"}</h2>
-      </div>
-
-      {/* Dados Básicos - Rosa */}
-      <div className={sectionStyle("border-l-pink-600 bg-pink-50/30")}>
-        <h3 className="font-semibold text-pink-700">Dados Básicos</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div><Label>Equipe</Label><Input value={form.equipe || ""} onChange={e => set("equipe", e.target.value)} /></div>
-          <div><Label>Advogado Interno</Label><Input value={form.advogado_interno || ""} onChange={e => set("advogado_interno", e.target.value)} /></div>
-          <div><Label>Dossiê</Label><Input value={form.dossie || ""} onChange={e => set("dossie", e.target.value)} /></div>
-          <div><Label>Nº Processo</Label><Input value={form.processo_numero || ""} onChange={e => set("processo_numero", e.target.value)} onBlur={preencherDaDistribuicao} /></div>
-          <div><Label>Reclamante</Label><Input value={form.reclamante || ""} onChange={e => set("reclamante", e.target.value)} /></div>
-          <div><Label>Reclamada</Label><Input value={form.reclamada || ""} onChange={e => set("reclamada", e.target.value)} /></div>
-          <div><Label>Parte Recorrente</Label><Input value={form.parte_recorrente || ""} onChange={e => set("parte_recorrente", e.target.value)} /></div>
-          <div><Label>Tipo de Recurso</Label><Input value={form.tipo_recurso || ""} onChange={e => set("tipo_recurso", e.target.value)} /></div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3 border-b border-border pb-3">
+        <Button variant="outline" size="sm" onClick={onCancel}><ArrowLeft className="w-4 h-4 mr-1" /> Voltar</Button>
+        <Gavel className="w-5 h-5 text-primary" />
+        <div className="min-w-0">
+          <div className="font-semibold text-foreground font-mono">{form.processo_numero || (existente ? "Pauta" : "Nova pauta")}</div>
+          {subtitulo && <div className="text-xs text-muted-foreground">{subtitulo}</div>}
+        </div>
+        {existente && (
+          <Badge variant={aAvaliar ? "destructive" : "secondary"}>{aAvaliar ? "A avaliar" : "Avaliada"}</Badge>
+        )}
+        <div className="ml-auto flex flex-wrap gap-2">
+          {existente && (
+            <Button variant="outline" size="sm" onClick={async () => {
+              const v = aAvaliar ? "avaliada" : "a_avaliar";
+              setForm((p: any) => ({ ...p, status_avaliacao: v }));
+              if (onSaveField && dado) await onSaveField(dado.id, "status_avaliacao", v);
+            }}>
+              <CheckCircle2 className="w-4 h-4 mr-1" /> {aAvaliar ? "Marcar como avaliada" : "Voltar para a avaliar"}
+            </Button>
+          )}
+          {existente && (form.processo_id ? (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/processos/${form.processo_id}`} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 mr-1" /> Abrir ficha</a>
+            </Button>
+          ) : (
+            <Button variant="outline" size="sm" onClick={importar} disabled={importando}>
+              {importando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />} Importar processo
+            </Button>
+          ))}
         </div>
       </div>
 
-      {/* Julgamento - Azul */}
-      <div className={sectionStyle("border-l-blue-500 bg-blue-50/30")}>
-        <h3 className="font-semibold text-blue-700">Julgamento</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div><Label>Data do Julgamento</Label><Input type="date" value={form.data_julgamento || ""} onChange={e => set("data_julgamento", e.target.value)} /></div>
-          <div><Label>Horário</Label><Input value={form.horario || ""} onChange={e => set("horario", e.target.value)} /></div>
-          <div><Label>Modalidade</Label><Input value={form.modalidade || ""} onChange={e => set("modalidade", e.target.value)} placeholder="Virtual / Telepresencial / Híbrido" /></div>
-          <div><Label>Link de Acesso</Label><Input value={form.link_acesso || ""} onChange={e => set("link_acesso", e.target.value)} /></div>
-          <div><Label>Órgão</Label><Input value={form.orgao || ""} onChange={e => set("orgao", e.target.value)} /></div>
-          <div><Label>Relator</Label><Input value={form.relator || ""} onChange={e => set("relator", e.target.value)} /></div>
+      {existente && (
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Responsáveis</h3>
+          <div className="flex flex-wrap items-center gap-2">
+            {resp.map((id) => (
+              <Badge key={id} variant="secondary">{membros.find((m) => m.id === id)?.nome || "…"}</Badge>
+            ))}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm"><Users className="w-4 h-4 mr-1" /> Selecionar responsáveis…</Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72 max-h-80 overflow-auto p-2">
+                {membros.map((m) => (
+                  <label key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer text-sm">
+                    <Checkbox checked={resp.includes(m.id)} onCheckedChange={() => toggleResp(m.id)} /> {m.nome}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Recurso Reclamante - Laranja */}
-      <div className={sectionStyle("border-l-orange-400 bg-orange-50/30")}>
-        <h3 className="font-semibold text-orange-700">Recurso do Reclamante</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div className="md:col-span-3"><Label>Matéria</Label><Textarea value={form.materia_recurso_reclamante || ""} onChange={e => set("materia_recurso_reclamante", e.target.value)} rows={2} /></div>
-          <div><Label>Aparelhamento</Label><Input value={form.aparelhamento_reclamante || ""} onChange={e => set("aparelhamento_reclamante", e.target.value)} /></div>
-          <div><Label>Chance de Êxito</Label><Input value={form.chance_exito_reclamante || ""} onChange={e => set("chance_exito_reclamante", e.target.value)} /></div>
+      {SECOES.map((s) => (
+        <div key={s.titulo} className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">{s.titulo}</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {s.campos.map((c) => (
+              <div key={c.k as string} className={c.span}>
+                <Label className="text-xs uppercase text-muted-foreground">{c.l}</Label>
+                {c.area ? (
+                  <Textarea rows={2} value={(form as any)[c.k] || ""} onChange={(e) => set(c.k, e.target.value)} onBlur={() => salvarCampo(c.k)} />
+                ) : (
+                  <Input
+                    type={c.type || "text"}
+                    value={(form as any)[c.k] || ""}
+                    onChange={(e) => set(c.k, e.target.value)}
+                    onBlur={() => { if (c.k === "processo_numero") preencherDaDistribuicao(); salvarCampo(c.k); }}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
-      {/* Recurso Banco - Verde */}
-      <div className={sectionStyle("border-l-green-500 bg-green-50/30")}>
-        <h3 className="font-semibold text-green-700">Recurso do Banco</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div className="md:col-span-3"><Label>Matéria</Label><Textarea value={form.materia_recurso_banco || ""} onChange={e => set("materia_recurso_banco", e.target.value)} rows={2} /></div>
-          <div><Label>Aparelhamento</Label><Input value={form.aparelhamento_banco || ""} onChange={e => set("aparelhamento_banco", e.target.value)} /></div>
-          <div><Label>Chance de Êxito</Label><Input value={form.chance_exito_banco || ""} onChange={e => set("chance_exito_banco", e.target.value)} /></div>
+      {!existente && (
+        <div className="sticky bottom-0 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+            Criar pauta
+          </Button>
         </div>
-      </div>
-
-      {/* Análise / Decisão - Azul Escuro */}
-      <div className={sectionStyle("border-l-indigo-600 bg-indigo-50/30")}>
-        <h3 className="font-semibold text-indigo-700">Análise e Decisão</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          <div><Label>Honra</Label><Input value={form.honra || ""} onChange={e => set("honra", e.target.value)} /></div>
-          <div><Label>Decisão</Label><Input value={form.decisao || ""} onChange={e => set("decisao", e.target.value)} /></div>
-          <div><Label>Sustentação Oral</Label><Input value={form.sustentacao_oral || ""} onChange={e => set("sustentacao_oral", e.target.value)} /></div>
-          <div><Label>Desistência do Recurso</Label><Input value={form.desistencia_recurso || ""} onChange={e => set("desistencia_recurso", e.target.value)} /></div>
-          <div><Label>Mídia Negativa</Label><Input value={form.midia_negativa || ""} onChange={e => set("midia_negativa", e.target.value)} /></div>
-          <div><Label>Entrega de Memoriais</Label><Input value={form.entrega_memoriais || ""} onChange={e => set("entrega_memoriais", e.target.value)} /></div>
-        </div>
-      </div>
-
-      {/* Solicitações - Lilás */}
-      <div className={sectionStyle("border-l-purple-400 bg-purple-50/30")}>
-        <h3 className="font-semibold text-purple-700">Solicitações e Comentários</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><Label>Solicitação Providências Banco</Label><Textarea value={form.solicitacao_providencias_banco || ""} onChange={e => set("solicitacao_providencias_banco", e.target.value)} rows={2} /></div>
-          <div><Label>Solicitação - Rosa Oliveira</Label><Textarea value={form.solicitacao_rosa_oliveira || ""} onChange={e => set("solicitacao_rosa_oliveira", e.target.value)} rows={2} /></div>
-          <div><Label>Comentários Advogado Interno</Label><Textarea value={form.comentarios_advogado || ""} onChange={e => set("comentarios_advogado", e.target.value)} rows={2} /></div>
-          <div><Label>Retorno / Esclarecimentos</Label><Textarea value={form.retorno_esclarecimentos || ""} onChange={e => set("retorno_esclarecimentos", e.target.value)} rows={2} /></div>
-        </div>
-      </div>
-
-      {/* Resultado - Vermelho */}
-      <div className={sectionStyle("border-l-red-500 bg-red-50/30")}>
-        <h3 className="font-semibold text-red-700">Resultado</h3>
-        <div><Label>Resultado / Próxima Sessão</Label><Textarea value={form.resultado_proxima_sessao || ""} onChange={e => set("resultado_proxima_sessao", e.target.value)} rows={3} /></div>
-      </div>
-
-      <div className="sticky bottom-0 -mx-6 px-6 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-          Salvar
-        </Button>
-      </div>
+      )}
     </div>
   );
 }

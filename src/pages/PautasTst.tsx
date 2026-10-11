@@ -16,8 +16,19 @@ import { PautasTstForm } from "@/components/pautas-tst/PautasTstForm";
 import { PautasTstImport } from "@/components/pautas-tst/PautasTstImport";
 import { exportarPautas, nomeAbaSemana, segundaDaSemana } from "@/lib/pautasSemanaExport";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserRole } from "@/hooks/useUserRole";
+import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
+import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus } from "lucide-react";
 
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
+const PRIMEIRA_SEMANA = "2026-02-02";
+const numSemana = (ini: string) => {
+  const base = new Date(PRIMEIRA_SEMANA + "T12:00:00").getTime();
+  const n = Math.round((new Date(ini + "T12:00:00").getTime() - base) / (7 * 864e5)) + 1;
+  return n > 0 ? n : 1;
+};
 const hojeIso = () => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 const br = (iso?: string | null) => (iso ? iso.split("-").reverse().join("/") : "—");
 const addDias = (iso: string, n: number) => {
@@ -64,6 +75,29 @@ export default function PautasTstPage() {
   const [expIni, setExpIni] = useState("");
   const [expFim, setExpFim] = useState("");
   const [exportando, setExportando] = useState(false);
+  const [fModal, setFModal] = useState("__all__");
+  const [fResp, setFResp] = useState("__all__");
+  const [fSit, setFSit] = useState("__all__");
+  const [fCad, setFCad] = useState("__all__");
+  const [dIni, setDIni] = useState("");
+  const [dFim, setDFim] = useState("");
+  const [membros, setMembros] = useState<{ id: string; nome: string }[]>([]);
+  const [respMap, setRespMap] = useState<Record<string, string[]>>({});
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [buscandoAuto, setBuscandoAuto] = useState(false);
+  const [emLote, setEmLote] = useState(false);
+  const [acesso, setAcesso] = useState<boolean | null>(null);
+  const { user } = useAuth();
+  const { isAdmin, loading: roleLoading } = useUserRole() as any;
+
+  useEffect(() => {
+    if (!user?.id || roleLoading) return;
+    if (isAdmin) { setAcesso(true); return; }
+    const sb: any = supabase;
+    sb.from("membros_coordenacao").select("id").eq("user_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
+      .then(({ data }: any) => setAcesso(!!data?.length));
+  }, [user?.id, isAdmin, roleLoading]);
+  useEffect(() => { carregarMembrosRenata().then(setMembros); }, []);
 
   const carregarSemanas = useCallback(async () => {
     const rows = await fetchAll<{ semana_inicio: string | null; aba_origem: string | null }>((a, b) =>
@@ -73,7 +107,10 @@ export default function PautasTstPage() {
     rows.forEach((r) => r.semana_inicio && !map.has(r.semana_inicio) && map.set(r.semana_inicio, r.aba_origem));
     const atual = segundaDaSemana(hojeIso());
     if (!map.has(atual)) map.set(atual, null);
-    setSemanas([...map.entries()].map(([ini, aba]) => ({ ini, aba })).sort((x, y) => y.ini.localeCompare(x.ini)));
+    setSemanas([...map.entries()].map(([ini, aba]) => ({
+      ini,
+      aba: aba && /^\d+\. \d{2}\.\d{2} a \d{2}\.\d{2}/.test(aba) ? aba : nomeAbaSemana(ini, numSemana(ini)),
+    })).sort((x, y) => y.ini.localeCompare(x.ini)));
   }, []);
 
   const carregarSemana = useCallback(async () => {
@@ -90,6 +127,14 @@ export default function PautasTstPage() {
           .range(a, b),
       );
       setDados(rows);
+      setSel(new Set());
+      const rm: Record<string, string[]> = {};
+      const ids = rows.map((r) => r.id);
+      for (let i = 0; i < ids.length; i += 300) {
+        const { data: rr } = await supabase.from("pautas_tst_responsaveis" as any).select("pauta_id, user_id").in("pauta_id", ids.slice(i, i + 300));
+        ((rr as any[]) || []).forEach((x) => { (rm[x.pauta_id] ||= []).push(x.user_id); });
+      }
+      setRespMap(rm);
       // Sugestões: pautas do DEJT publicadas para processos da Distribuição TST e ainda sem pauta cadastrada
       const { data: dejt } = await supabase
         .from("publicacoes_djen" as any)
@@ -137,9 +182,58 @@ export default function PautasTstPage() {
       (fOrgao === "__all__" || d.orgao === fOrgao) &&
       (fAdv === "__all__" || d.advogado_interno === fAdv) &&
       (fDecisao === "__all__" || (fDecisao === "__sem__" ? !d.decisao : d.decisao === fDecisao)) &&
-      (!q || [d.processo_numero, d.dossie, d.reclamante, d.relator].some((v) => String(v || "").toLowerCase().includes(q))),
+      (fModal === "__all__" || d.modalidade === fModal) &&
+      (fResp === "__all__" || (fResp === "__sem__" ? !(respMap[d.id]?.length) : respMap[d.id]?.includes(fResp))) &&
+      (fSit === "__all__" || ((d as any).status_avaliacao || "avaliada") === fSit) &&
+      (fCad === "__all__" || (fCad === "sim" ? !!d.processo_id : !d.processo_id)) &&
+      (!dIni || (d.data_julgamento || "") >= dIni) &&
+      (!dFim || (d.data_julgamento || "9999") <= dFim) &&
+      (!q || [d.processo_numero, d.dossie, d.reclamante, d.reclamada, d.relator].some((v) => String(v || "").toLowerCase().includes(q))),
     );
-  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao]);
+  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fResp, fSit, fCad, dIni, dFim, respMap]);
+
+  const limparFiltros = () => {
+    setBusca(""); setFRelator("__all__"); setFOrgao("__all__"); setFAdv("__all__"); setFDecisao("__all__");
+    setFModal("__all__"); setFResp("__all__"); setFSit("__all__"); setFCad("__all__"); setDIni(""); setDFim("");
+  };
+
+  const salvarCampo = async (id: string, campo: string, valor: any) => {
+    const { data, error } = await supabase.from("pautas_tst" as any).update({ [campo]: valor }).eq("id", id).select("id");
+    if (error || !data?.length) { toast.error("Erro ao salvar: " + (error?.message || "sem permissão")); return false; }
+    setDados((prev) => prev.map((p) => (p.id === id ? ({ ...p, [campo]: valor } as any) : p)));
+    return true;
+  };
+
+  const buscarAgora = async () => {
+    setBuscandoAuto(true);
+    const { data, error } = await supabase.rpc("buscar_pautas_tst_agora" as any);
+    setBuscandoAuto(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${data || 0} pauta(s) nova(s) separada(s) das publicações`);
+    await Promise.all([carregarSemanas(), carregarSemana()]);
+  };
+
+  const atribuirLote = async (uid: string) => {
+    const ids = [...sel].filter((id) => !respMap[id]?.includes(uid));
+    if (!ids.length) return toast.info("Já atribuído");
+    const { error } = await supabase.from("pautas_tst_responsaveis" as any).insert(ids.map((pauta_id) => ({ pauta_id, user_id: uid })));
+    if (error) return toast.error(error.message);
+    toast.success(`Responsável atribuído a ${ids.length} pauta(s)`);
+    await carregarSemana();
+  };
+
+  const importarLote = async () => {
+    const alvo = dados.filter((d) => sel.has(d.id) && !d.processo_id);
+    if (!alvo.length) return toast.info("Todas as selecionadas já estão em Processos e Casos");
+    setEmLote(true);
+    let novos = 0, ligados = 0, falhas = 0;
+    for (const p of alvo) {
+      try { const r = await importarProcessoDaPauta(p); r.novo ? novos++ : ligados++; } catch { falhas++; }
+    }
+    setEmLote(false);
+    toast.success(`${novos} cadastrado(s) com Judit, ${ligados} ligado(s) a fichas existentes${falhas ? `, ${falhas} com erro` : ""}`);
+    await carregarSemana();
+  };
 
   const stats = useMemo(() => {
     const m = (s: string | null) => (s || "").toUpperCase();
@@ -148,10 +242,11 @@ export default function PautasTstPage() {
       virtual: dados.filter((d) => /VIRTUAL/.test(m(d.modalidade))).length,
       presencial: dados.filter((d) => /TELE|PRESENC|HIBRID|HÍBRID/.test(m(d.modalidade))).length,
       semDecisao: dados.filter((d) => !d.decisao).length,
+      aAvaliar: dados.filter((d) => (d as any).status_avaliacao === "a_avaliar").length,
     };
   }, [dados]);
 
-  const abaAtual = semanas.find((s) => s.ini === semana)?.aba || nomeAbaSemana(semana, semanas.filter((s) => s.ini <= semana).length);
+  const abaAtual = semanas.find((s) => s.ini === semana)?.aba || nomeAbaSemana(semana, numSemana(semana));
   const idx = semanas.findIndex((s) => s.ini === semana);
 
   const salvar = async (dado: PautaTstInsert, id?: string) => {
@@ -232,24 +327,24 @@ export default function PautasTstPage() {
 
   return (
     <MainLayout title="Pautas de Julgamento">
-      {formAberto && (
-        <div className="space-y-4">
-          <div className="flex items-center gap-3 border-b border-border pb-3">
-            <Gavel className="w-5 h-5 text-primary" />
-            <div>
-              <div className="font-semibold text-foreground">{editando ? "Editar pauta" : "Nova pauta"}</div>
-              <div className="text-xs text-muted-foreground">{abaAtual}</div>
-            </div>
-          </div>
+      {acesso && formAberto && (
           <PautasTstForm
             dado={(editando || (novo as PautaTst)) ?? null}
+            subtitulo={abaAtual}
             onSave={(d) => salvar(d, editando?.id)}
-            onCancel={() => { setEditando(null); setNovo(null); }}
+            onSaveField={salvarCampo}
+            onCancel={() => { setEditando(null); setNovo(null); carregarSemana(); }}
           />
-        </div>
       )}
 
-      {!formAberto && (
+      {acesso === false && (
+        <div className="py-20 text-center text-muted-foreground space-y-2">
+          <ShieldAlert className="w-10 h-10 mx-auto" />
+          <div className="font-medium text-foreground">Sem acesso</div>
+          <div className="text-sm">Esta tela é exclusiva da Coordenação Dra. Renata Oficial.</div>
+        </div>
+      )}
+      {acesso && !formAberto && (
       <div className="space-y-5">
         <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
@@ -269,19 +364,23 @@ export default function PautasTstPage() {
             <Button variant="outline" size="icon" disabled={idx <= 0} onClick={() => setSemana(semanas[idx - 1].ini)}><ChevronRight className="w-4 h-4" /></Button>
             <Button variant="outline" onClick={exportarSemana}><Download className="w-4 h-4 mr-2" /> Exportar semana</Button>
             <Button variant="outline" onClick={() => setExportOpen(true)}><Download className="w-4 h-4 mr-2" /> Exportar período</Button>
+            <Button variant="outline" onClick={buscarAgora} disabled={buscandoAuto}>
+              {buscandoAuto ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Buscar pautas agora
+            </Button>
             <PautasTstImport onImported={() => { carregarSemana(); carregarSemanas(); }} />
             <Button onClick={() => setNovo({ data_julgamento: null })}><Plus className="w-4 h-4 mr-2" /> Nova pauta</Button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
             { l: "Pautas na semana", v: stats.total, i: Gavel, f: "__all__" },
             { l: "Virtual", v: stats.virtual, i: Monitor },
             { l: "Telepresencial / híbrido", v: stats.presencial, i: Users },
             { l: "Sem decisão", v: stats.semDecisao, i: AlertCircle, f: "__sem__" },
-          ].map((c) => (
-            <Card key={c.l} className={cn("transition-colors", c.f && "cursor-pointer hover:border-primary")} onClick={() => c.f && setFDecisao(c.f)}>
+            { l: "A avaliar", v: stats.aAvaliar, i: Lightbulb, s: "a_avaliar" },
+          ].map((c: any) => (
+            <Card key={c.l} className={cn("transition-colors", (c.f || c.s) && "cursor-pointer hover:border-primary")} onClick={() => { if (c.f) setFDecisao(c.f); if (c.s) setFSit(c.s); }}>
               <CardContent className="p-4 flex items-center justify-between">
                 <div>
                   <div className="text-xs text-muted-foreground">{c.l}</div>
@@ -334,13 +433,69 @@ export default function PautasTstPage() {
               {opcoes("decisao").map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={fModal} onValueChange={setFModal}>
+            <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Modalidade: todas</SelectItem>
+              {opcoes("modalidade").map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={fResp} onValueChange={setFResp}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent className="max-h-80">
+              <SelectItem value="__all__">Responsável: todos</SelectItem>
+              <SelectItem value="__sem__">Sem responsável</SelectItem>
+              {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={fSit} onValueChange={setFSit}>
+            <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Situação: todas</SelectItem>
+              <SelectItem value="a_avaliar">A avaliar</SelectItem>
+              <SelectItem value="avaliada">Avaliada</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={fCad} onValueChange={setFCad}>
+            <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Processos e Casos: todos</SelectItem>
+              <SelectItem value="sim">Já cadastrado</SelectItem>
+              <SelectItem value="nao">Não cadastrado</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="flex items-center gap-1 text-sm text-muted-foreground">
+            Julgamento <Input type="date" className="w-36" value={dIni} onChange={(e) => setDIni(e.target.value)} /> a
+            <Input type="date" className="w-36" value={dFim} onChange={(e) => setDFim(e.target.value)} />
+          </div>
+          <Button variant="ghost" size="sm" onClick={limparFiltros}><X className="w-4 h-4 mr-1" /> Limpar filtros</Button>
           <span className="text-sm text-muted-foreground ml-auto">{filtrados.length} de {dados.length}</span>
         </div>
+
+        {sel.size > 0 && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2">
+            <span className="text-sm font-medium">{sel.size} selecionada(s)</span>
+            <Select value="" onValueChange={atribuirLote}>
+              <SelectTrigger className="w-56 h-8"><UserPlus className="w-4 h-4 mr-1" /><SelectValue placeholder="Atribuir responsável" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Button size="sm" variant="outline" onClick={importarLote} disabled={emLote}>
+              {emLote ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />} Importar processos (Judit)
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Limpar seleção</Button>
+          </div>
+        )}
 
         <div className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-22rem)] bg-card">
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>
+                <TableHead className="w-8">
+                  <Checkbox checked={filtrados.length > 0 && filtrados.every((d) => sel.has(d.id))}
+                    onCheckedChange={(v) => setSel(v ? new Set(filtrados.map((d) => d.id)) : new Set())} />
+                </TableHead>
                 <TableHead>Data</TableHead>
                 <TableHead>Hora</TableHead>
                 <TableHead>Processo</TableHead>
@@ -351,19 +506,31 @@ export default function PautasTstPage() {
                 <TableHead>Relator</TableHead>
                 <TableHead>Modalidade</TableHead>
                 <TableHead>Decisão</TableHead>
+                <TableHead>Responsáveis</TableHead>
                 <TableHead className="w-12" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : filtrados.length === 0 ? (
-                <TableRow><TableCell colSpan={11} className="text-center py-10 text-muted-foreground">Nenhuma pauta nesta semana</TableCell></TableRow>
+                <TableRow><TableCell colSpan={13} className="text-center py-10 text-muted-foreground">Nenhuma pauta nesta semana</TableCell></TableRow>
               ) : filtrados.map((d) => (
-                <TableRow key={d.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setEditando(d)}>
-                  <TableCell className="text-sm whitespace-nowrap">{br(d.data_julgamento)}</TableCell>
+                <TableRow key={d.id} className={cn("cursor-pointer hover:bg-muted/50", (d as any).status_avaliacao === "a_avaliar" && "bg-primary/5")} onClick={() => setEditando(d)}>
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={sel.has(d.id)} onCheckedChange={(v) => { const n = new Set(sel); v ? n.add(d.id) : n.delete(d.id); setSel(n); }} />
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {br(d.data_julgamento)}
+                    {(d as any).status_avaliacao === "a_avaliar" && <Badge variant="destructive" className="ml-1 text-[10px] px-1">Nova</Badge>}
+                  </TableCell>
                   <TableCell className="text-sm">{d.horario || "—"}</TableCell>
-                  <TableCell className="font-mono text-xs whitespace-nowrap">{d.processo_numero || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs whitespace-nowrap">
+                    <span className="inline-flex items-center gap-1">
+                      {d.processo_id ? <FolderCheck className="w-3.5 h-3.5 text-primary" aria-label="Cadastrado em Processos e Casos" /> : <FolderInput className="w-3.5 h-3.5 text-muted-foreground" aria-label="Não cadastrado" />}
+                      {d.processo_numero || "—"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
                   <TableCell className="text-sm max-w-[200px] truncate">{d.reclamante || "—"}</TableCell>
                   <TableCell className="text-sm max-w-[160px] truncate">{d.advogado_interno || "—"}</TableCell>
@@ -371,6 +538,7 @@ export default function PautasTstPage() {
                   <TableCell className="text-sm max-w-[200px] truncate">{d.relator || "—"}</TableCell>
                   <TableCell>{d.modalidade ? <Badge variant="outline" className="text-xs">{d.modalidade}</Badge> : "—"}</TableCell>
                   <TableCell><span className={cn("text-xs px-2 py-0.5 rounded-md inline-block max-w-[180px] truncate", corDecisao(d.decisao))}>{d.decisao || "Sem decisão"}</span></TableCell>
+                  <TableCell className="text-xs max-w-[180px] truncate">{(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "—"}</TableCell>
                   <TableCell onClick={(e) => e.stopPropagation()}>
                     <Button variant="ghost" size="icon" onClick={() => excluir(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                   </TableCell>
