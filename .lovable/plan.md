@@ -14,12 +14,14 @@ A planilha enviada agora tem 34 abas (02/02 a 06/11/2026), ou seja, é a versão
 1. **Apagar todas as pautas** da tela (as 2.453 da planilha antiga e as 110 automáticas), junto com os responsáveis vinculados a elas.
 2. **Reimportar a planilha enviada** (`Pautas_de_julgamento_2026_2_Coordenação_Dra._Renata-2.xlsx`), todas as 34 abas, exatamente como está: equipe, advogado interno, dossiê, número do processo, partes, tipo de recurso, data do julgamento etc.
 3. **Semana pela data do julgamento:** as advogadas colocam cada pauta na aba da semana em que cai a data do julgamento. Na reimportação, cada pauta entra na semana da sua data de julgamento (que corresponde ao intervalo da aba onde ela está). A busca automática do DJEN já segue o mesmo critério: encaixa a pauta na semana da data do julgamento — nada muda nessa rotina.
-4. As pautas importadas ficam marcadas como **avaliadas** (origem "planilha"), como antes.
-5. **Manter a rotina automática do DJEN** funcionando: as próximas semanas (a partir de 09/11) continuarão entrando sozinhas como "A avaliar". Nenhuma pauta automática futura será apagada por esta limpeza.
-6. Gerar uma **planilha de conferência** com o total importado por aba.
+4. **Complementar pela Distribuição TST:** após a importação, rodar a ligação automática que preenche dossiê, equipe, relator e partes a partir da tela Distribuição TST — somente nos campos vazios, sem sobrescrever o que veio da planilha.
+5. As pautas importadas ficam marcadas como **avaliadas** (origem "planilha"), como antes.
+6. **Manter a rotina automática do DJEN** funcionando: as próximas semanas (a partir de 09/11) continuarão entrando sozinhas como "A avaliar". Nenhuma pauta automática futura será apagada por esta limpeza. Sem rodada de teste — a conferência será na próxima execução do DJEN Termos.
+7. Gerar uma **planilha de conferência** com o total importado por aba.
 
 ## Detalhes técnicos
 
 - Apagar registros de `pautas_tst_responsaveis` e `pautas_tst` (todos), depois inserir os dados lidos das 34 abas via script, em lotes, com `semana_inicio` = segunda-feira da semana da data do julgamento (mesmo critério das abas da planilha e da rotina automática do DJEN).
+- Em seguida, executar `vincular_pautas_distribuicao(NULL)` para preencher dossiê/equipe/relator/partes a partir de `dados_benner`, apenas em campos vazios.
 - Linhas vazias da planilha são ignoradas; dossiês "não localizados" são mantidos como texto, como na planilha.
 - Nada muda em telas, menus ou na rotina automática — apenas os dados.
