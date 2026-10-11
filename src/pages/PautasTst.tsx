@@ -62,6 +62,7 @@ export default function PautasTstPage() {
   const [semanas, setSemanas] = useState<{ ini: string; aba: string | null }[]>([]);
   const [semana, setSemana] = useState<string>(segundaDaSemana(hojeIso()));
   const [dados, setDados] = useState<PautaTst[]>([]);
+  const [distMap, setDistMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<PautaTst | null>(null);
   const [novo, setNovo] = useState<Partial<PautaTst> | null>(null);
@@ -135,6 +136,13 @@ export default function PautasTstPage() {
         ((rr as any[]) || []).forEach((x) => { (rm[x.pauta_id] ||= []).push(x.user_id); });
       }
       setRespMap(rm);
+      const bm: Record<string, string> = {};
+      const bids = Array.from(new Set(rows.map((r: any) => r.dados_benner_id).filter(Boolean)));
+      for (let i = 0; i < bids.length; i += 300) {
+        const { data: bb } = await supabase.from("dados_benner" as any).select("id, status").in("id", bids.slice(i, i + 300));
+        ((bb as any[]) || []).forEach((x) => { bm[x.id] = x.status || ""; });
+      }
+      setDistMap(bm);
       // Sugestões: pautas do DEJT publicadas para processos da Distribuição TST e ainda sem pauta cadastrada
       const { data: dejt } = await supabase
         .from("publicacoes_djen" as any)
