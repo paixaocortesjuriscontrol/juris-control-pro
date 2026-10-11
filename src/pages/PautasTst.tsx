@@ -224,6 +224,28 @@ export default function PautasTstPage() {
     await Promise.all([carregarSemanas(), carregarSemana()]);
   };
 
+  const reorganizarFora = async () => {
+    if (!foraIntervalo.length) return;
+    setReorganizando(true);
+    try {
+      const alvos = dados.filter((d) => foraIntervalo.includes(d.id) && d.data_julgamento);
+      for (const p of alvos) {
+        const { data, error } = await supabase
+          .from("pautas_tst" as any)
+          .update({ semana_inicio: segundaDaSemana(p.data_julgamento as string) })
+          .eq("id", p.id)
+          .select("id");
+        if (error || !data?.length) throw new Error(error?.message || "sem permissão para reorganizar");
+      }
+      toast.success(`${alvos.length} pauta(s) movida(s) para a semana correta`);
+      setForaIntervalo([]);
+      await Promise.all([carregarSemanas(), carregarSemana()]);
+    } catch (e: any) {
+      toast.error("Erro ao reorganizar: " + e.message);
+    }
+    setReorganizando(false);
+  };
+
   const atribuirLote = async (uid: string) => {
     const ids = [...sel].filter((id) => !respMap[id]?.includes(uid));
     if (!ids.length) return toast.info("Já atribuído");
@@ -382,6 +404,19 @@ export default function PautasTstPage() {
             <Button onClick={() => setNovo({ data_julgamento: null })}><Plus className="w-4 h-4 mr-2" /> Nova pauta</Button>
           </div>
         </div>
+
+        {foraIntervalo.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3">
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0" />
+              <span><strong>{foraIntervalo.length}</strong> pauta(s) desta semana têm data de julgamento fora do intervalo da semana.</span>
+            </div>
+            <Button size="sm" variant="outline" onClick={reorganizarFora} disabled={reorganizando}>
+              {reorganizando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />}
+              Reorganizar para a semana correta
+            </Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {[
