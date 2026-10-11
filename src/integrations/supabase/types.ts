@@ -11990,6 +11990,10 @@ export type Database = {
         Args: { _publicacao_id: string; _user_id: string }
         Returns: boolean
       }
+      vincular_pautas_distribuicao: {
+        Args: { _somente_ids?: string[] }
+        Returns: number
+      }
     }
     Enums: {
       app_role:
