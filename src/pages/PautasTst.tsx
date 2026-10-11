@@ -555,6 +555,12 @@ export default function PautasTstPage() {
             <Button size="sm" variant="outline" onClick={importarLote} disabled={emLote}>
               {emLote ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />} Importar processos (Judit)
             </Button>
+            <Select value="" onValueChange={removerLote}>
+              <SelectTrigger className="w-56 h-8"><UserMinus className="w-4 h-4 mr-1" /><SelectValue placeholder="Retirar responsável" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Limpar seleção</Button>
           </div>
         )}
