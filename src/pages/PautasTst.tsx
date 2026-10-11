@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -20,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
-import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus } from "lucide-react";
+import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus, UserMinus } from "lucide-react";
 
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 const PRIMEIRA_SEMANA = "2026-02-02";
@@ -253,6 +254,30 @@ export default function PautasTstPage() {
     if (error) return toast.error(error.message);
     toast.success(`Responsável atribuído a ${ids.length} pauta(s)`);
     await carregarSemana();
+  };
+
+  const removerLote = async (uid: string) => {
+    const ids = [...sel].filter((id) => respMap[id]?.includes(uid));
+    if (!ids.length) return toast.info("Nenhuma das selecionadas tem esse responsável");
+    const { data, error } = await supabase
+      .from("pautas_tst_responsaveis" as any).delete().in("pauta_id", ids).eq("user_id", uid).select("id");
+    if (error || !data?.length) return toast.error("Erro ao retirar: " + (error?.message || "sem permissão"));
+    toast.success(`Responsável retirado de ${data.length} pauta(s)`);
+    await carregarSemana();
+  };
+
+  const alternarResponsavel = async (pautaId: string, uid: string, atribuido: boolean) => {
+    const atual = respMap[pautaId] || [];
+    const novo = atribuido ? atual.filter((x) => x !== uid) : [...atual, uid];
+    setRespMap((p) => ({ ...p, [pautaId]: novo }));
+    const q = atribuido
+      ? supabase.from("pautas_tst_responsaveis" as any).delete().eq("pauta_id", pautaId).eq("user_id", uid).select("id")
+      : supabase.from("pautas_tst_responsaveis" as any).insert({ pauta_id: pautaId, user_id: uid }).select("id");
+    const { data, error } = await q;
+    if (error || !data?.length) {
+      setRespMap((p) => ({ ...p, [pautaId]: atual }));
+      toast.error("Erro ao atualizar responsável: " + ((error as any)?.message || "sem permissão"));
+    }
   };
 
   const importarLote = async () => {
@@ -530,6 +555,12 @@ export default function PautasTstPage() {
             <Button size="sm" variant="outline" onClick={importarLote} disabled={emLote}>
               {emLote ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FolderInput className="w-4 h-4 mr-1" />} Importar processos (Judit)
             </Button>
+            <Select value="" onValueChange={removerLote}>
+              <SelectTrigger className="w-56 h-8"><UserMinus className="w-4 h-4 mr-1" /><SelectValue placeholder="Retirar responsável" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                {membros.map((m) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Button size="sm" variant="ghost" onClick={() => setSel(new Set())}>Limpar seleção</Button>
           </div>
         )}
@@ -595,7 +626,36 @@ export default function PautasTstPage() {
                     <div>{d.modalidade ? <Badge variant="outline" className="text-xs">{d.modalidade}</Badge> : "—"}</div>
                     <span title={d.decisao || ""} className={cn("mt-1 text-xs px-2 py-0.5 rounded-md inline-block max-w-full truncate", corDecisao(d.decisao))}>{d.decisao || "Sem decisão"}</span>
                   </TableCell>
-                  <TableCell className="text-xs py-2 break-words">{(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell className="text-xs py-2" onClick={(e) => e.stopPropagation()}>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          title="Clique para colocar ou retirar responsáveis"
+                          className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-border px-1.5 py-0.5 text-left hover:bg-muted"
+                        >
+                          <UserPlus className="w-3 h-3 shrink-0 text-muted-foreground" />
+                          <span className="truncate">
+                            {(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "Definir"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="start">
+                        <div className="px-1 pb-1 text-xs font-medium text-muted-foreground">Responsáveis</div>
+                        <div className="max-h-64 space-y-0.5 overflow-auto">
+                          {membros.map((m) => {
+                            const on = (respMap[d.id] || []).includes(m.id);
+                            return (
+                              <label key={m.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
+                                <Checkbox checked={on} onCheckedChange={() => alternarResponsavel(d.id, m.id, on)} />
+                                <span className="truncate">{m.nome}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </TableCell>
                   <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-wrap gap-0.5">
                       {(d as any).dados_benner_id && (
