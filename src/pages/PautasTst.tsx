@@ -18,10 +18,20 @@ import { PautasTstImport } from "@/components/pautas-tst/PautasTstImport";
 import { exportarPautas, nomeAbaSemana, segundaDaSemana } from "@/lib/pautasSemanaExport";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
-import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus, UserMinus } from "lucide-react";
+import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus, UserMinus, AlertTriangle } from "lucide-react";
 
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 const PRIMEIRA_SEMANA = "2026-02-02";
@@ -89,6 +99,8 @@ export default function PautasTstPage() {
   const [buscandoAuto, setBuscandoAuto] = useState(false);
   const [foraIntervalo, setForaIntervalo] = useState<string[]>([]);
   const [reorganizando, setReorganizando] = useState(false);
+  const [pautaParaExcluir, setPautaParaExcluir] = useState<PautaTst | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
   const [emLote, setEmLote] = useState(false);
   const [acesso, setAcesso] = useState<boolean | null>(null);
   const { user } = useAuth();
@@ -327,10 +339,14 @@ export default function PautasTstPage() {
     return true;
   };
 
-  const excluir = async (id: string) => {
-    if (!confirm("Excluir esta pauta?")) return;
-    const { error } = await supabase.from("pautas_tst" as any).delete().eq("id", id);
+  const confirmarExclusao = async () => {
+    const pauta = pautaParaExcluir;
+    if (!pauta) return;
+    setExcluindo(true);
+    const { error } = await supabase.from("pautas_tst" as any).delete().eq("id", pauta.id);
+    setExcluindo(false);
     if (error) return toast.error(error.message);
+    setPautaParaExcluir(null);
     toast.success("Pauta excluída");
     await carregarSemana();
   };
@@ -668,7 +684,7 @@ export default function PautasTstPage() {
                           <a href={`/processos/${d.processo_id}`} target="_blank" rel="noreferrer"><FolderCheck className="w-4 h-4" /></a>
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir" onClick={() => excluir(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir" onClick={() => setPautaParaExcluir(d)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -691,6 +707,45 @@ export default function PautasTstPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!pautaParaExcluir} onOpenChange={(o) => { if (!o && !excluindo) setPautaParaExcluir(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" /> Excluir pauta
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <p>Tem certeza de que deseja excluir esta pauta? Esta ação não pode ser desfeita.</p>
+                {pautaParaExcluir && (
+                  <div className="rounded-md border border-border bg-muted/40 p-3 text-sm text-foreground space-y-1">
+                    <p className="font-medium">{pautaParaExcluir.processo_numero || "Processo não informado"}</p>
+                    <p>
+                      {pautaParaExcluir.reclamante || "—"}
+                      {pautaParaExcluir.reclamada ? ` × ${pautaParaExcluir.reclamada}` : ""}
+                    </p>
+                    <p className="text-muted-foreground">
+                      Julgamento: {br(pautaParaExcluir.data_julgamento)}
+                      {pautaParaExcluir.horario ? ` às ${pautaParaExcluir.horario}` : ""}
+                      {pautaParaExcluir.dossie ? ` · Dossiê ${pautaParaExcluir.dossie}` : ""}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindo}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmarExclusao}
+              disabled={excluindo}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {excluindo && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Excluir pauta
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }
