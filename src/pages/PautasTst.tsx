@@ -497,45 +497,40 @@ export default function PautasTstPage() {
         )}
 
         <div className="border border-border rounded-lg overflow-auto max-h-[calc(100vh-22rem)] bg-card">
-          <Table>
+          <Table className="table-fixed w-full">
             <TableHeader className="sticky top-0 z-10 bg-muted">
               <TableRow>
                 <TableHead className="w-8">
                   <Checkbox checked={filtrados.length > 0 && filtrados.every((d) => sel.has(d.id))}
                     onCheckedChange={(v) => setSel(v ? new Set(filtrados.map((d) => d.id)) : new Set())} />
                 </TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Hora</TableHead>
-                <TableHead>Processo</TableHead>
-                <TableHead>Dossiê</TableHead>
-                <TableHead>Reclamante</TableHead>
-                <TableHead>Advogado</TableHead>
-                <TableHead>Órgão</TableHead>
-                <TableHead>Relator</TableHead>
-                <TableHead>Modalidade</TableHead>
-                <TableHead>Decisão</TableHead>
-                <TableHead>Responsáveis</TableHead>
-                <TableHead className="w-12" />
+                <TableHead className="w-[110px]">Data / Hora</TableHead>
+                <TableHead className="w-[26%]">Processo / Dossiê</TableHead>
+                <TableHead>Reclamante / Advogado</TableHead>
+                <TableHead>Órgão / Relator</TableHead>
+                <TableHead className="w-[150px]">Modalidade / Decisão</TableHead>
+                <TableHead className="w-[120px]">Responsáveis</TableHead>
+                <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-10"><Loader2 className="w-6 h-6 animate-spin mx-auto" /></TableCell></TableRow>
               ) : filtrados.length === 0 ? (
-                <TableRow><TableCell colSpan={13} className="text-center py-10 text-muted-foreground">Nenhuma pauta nesta semana</TableCell></TableRow>
+                <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Nenhuma pauta nesta semana</TableCell></TableRow>
               ) : filtrados.map((d) => (
-                <TableRow key={d.id} className={cn("cursor-pointer hover:bg-muted/50", (d as any).status_avaliacao === "a_avaliar" && "bg-primary/5")} onClick={() => setEditando(d)}>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
+                <TableRow key={d.id} className={cn("cursor-pointer hover:bg-muted/50 align-top", (d as any).status_avaliacao === "a_avaliar" && "bg-primary/5")} onClick={() => setEditando(d)}>
+                  <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={sel.has(d.id)} onCheckedChange={(v) => { const n = new Set(sel); v ? n.add(d.id) : n.delete(d.id); setSel(n); }} />
                   </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {br(d.data_julgamento)}
-                    {(d as any).status_avaliacao === "a_avaliar" && <Badge variant="destructive" className="ml-1 text-[10px] px-1">Nova</Badge>}
+                  <TableCell className="text-sm py-2">
+                    <div className="whitespace-nowrap">{br(d.data_julgamento)}</div>
+                    <div className="text-xs text-muted-foreground">{d.horario || "—"}
+                      {(d as any).status_avaliacao === "a_avaliar" && <Badge variant="destructive" className="ml-1 text-[10px] px-1">Nova</Badge>}</div>
                   </TableCell>
-                  <TableCell className="text-sm">{d.horario || "—"}</TableCell>
-                  <TableCell className="font-mono text-xs whitespace-nowrap">
-                    <span className="inline-flex items-center gap-1">
-                      {d.processo_id ? <FolderCheck className="w-3.5 h-3.5 text-primary" aria-label="Cadastrado em Processos e Casos" /> : <FolderInput className="w-3.5 h-3.5 text-muted-foreground" aria-label="Não cadastrado" />}
+                  <TableCell className="py-2 min-w-0">
+                    <div className="font-mono text-xs flex flex-wrap items-center gap-1 break-all">
+                      {d.processo_id ? <FolderCheck className="w-3.5 h-3.5 text-primary shrink-0" aria-label="Cadastrado em Processos e Casos" /> : <FolderInput className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-label="Não cadastrado" />}
                       {(d as any).dados_benner_id && (() => {
                         const st = distMap[(d as any).dados_benner_id] || "";
                         const rot = ({ rascunho: "Rascunho", planilhado: "Planilhado", pronto_envio: "Pronto para envio" } as Record<string, string>)[st] || st || "Sem situação";
@@ -545,19 +540,37 @@ export default function PautasTstPage() {
                           </span>
                         );
                       })()}
-                      {d.processo_numero || "—"}
-                    </span>
+                      <span>{d.processo_numero || "—"}</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground truncate">{d.dossie || "—"}</div>
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap">{d.dossie || "—"}</TableCell>
-                  <TableCell className="text-sm max-w-[200px] truncate">{d.reclamante || "—"}</TableCell>
-                  <TableCell className="text-sm max-w-[160px] truncate">{d.advogado_interno || "—"}</TableCell>
-                  <TableCell className="text-sm max-w-[140px] truncate">{d.orgao || "—"}</TableCell>
-                  <TableCell className="text-sm max-w-[200px] truncate">{d.relator || "—"}</TableCell>
-                  <TableCell>{d.modalidade ? <Badge variant="outline" className="text-xs">{d.modalidade}</Badge> : "—"}</TableCell>
-                  <TableCell><span className={cn("text-xs px-2 py-0.5 rounded-md inline-block max-w-[180px] truncate", corDecisao(d.decisao))}>{d.decisao || "Sem decisão"}</span></TableCell>
-                  <TableCell className="text-xs max-w-[180px] truncate">{(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "—"}</TableCell>
-                  <TableCell onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" onClick={() => excluir(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                  <TableCell className="py-2 min-w-0">
+                    <div className="text-sm truncate" title={d.reclamante || ""}>{d.reclamante || "—"}</div>
+                    <div className="text-xs text-muted-foreground truncate" title={d.advogado_interno || ""}>{d.advogado_interno || "—"}</div>
+                  </TableCell>
+                  <TableCell className="py-2 min-w-0">
+                    <div className="text-sm truncate">{d.orgao || "—"}</div>
+                    <div className="text-xs text-muted-foreground truncate" title={d.relator || ""}>{d.relator || "—"}</div>
+                  </TableCell>
+                  <TableCell className="py-2 min-w-0">
+                    <div>{d.modalidade ? <Badge variant="outline" className="text-xs">{d.modalidade}</Badge> : "—"}</div>
+                    <span title={d.decisao || ""} className={cn("mt-1 text-xs px-2 py-0.5 rounded-md inline-block max-w-full truncate", corDecisao(d.decisao))}>{d.decisao || "Sem decisão"}</span>
+                  </TableCell>
+                  <TableCell className="text-xs py-2 break-words">{(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex flex-wrap gap-0.5">
+                      {(d as any).dados_benner_id && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Abrir na Distribuição TST" asChild>
+                          <a href={`/distribuicao-tst?editId=${(d as any).dados_benner_id}`} target="_blank" rel="noreferrer"><Gavel className="w-4 h-4" /></a>
+                        </Button>
+                      )}
+                      {d.processo_id && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver processo completo (Processos e Casos)" asChild>
+                          <a href={`/processos/${d.processo_id}`} target="_blank" rel="noreferrer"><FolderCheck className="w-4 h-4" /></a>
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" className="h-7 w-7" title="Excluir" onClick={() => excluir(d.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
