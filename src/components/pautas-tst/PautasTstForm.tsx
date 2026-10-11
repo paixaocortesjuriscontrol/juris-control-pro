@@ -102,6 +102,7 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
     const atual = (form as any)[k] ?? null;
     if ((dado as any)[k] === atual) return;
     if (onSaveField) await onSaveField(dado.id, k as string, atual);
+    else await onSave({ ...form }, dado.id);
     (dado as any)[k] = atual;
   };
 
