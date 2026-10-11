@@ -536,6 +536,15 @@ export default function PautasTstPage() {
                   <TableCell className="font-mono text-xs whitespace-nowrap">
                     <span className="inline-flex items-center gap-1">
                       {d.processo_id ? <FolderCheck className="w-3.5 h-3.5 text-primary" aria-label="Cadastrado em Processos e Casos" /> : <FolderInput className="w-3.5 h-3.5 text-muted-foreground" aria-label="Não cadastrado" />}
+                      {(d as any).dados_benner_id && (() => {
+                        const st = distMap[(d as any).dados_benner_id] || "";
+                        const rot = ({ rascunho: "Rascunho", planilhado: "Planilhado", pronto_envio: "Pronto para envio" } as Record<string, string>)[st] || st || "Sem situação";
+                        return (
+                          <span title={`Já está na Distribuição TST — situação: ${rot}`} className="inline-flex items-center gap-0.5 rounded bg-accent px-1 text-[10px] font-sans text-accent-foreground">
+                            <ShieldAlert className="w-3 h-3" />TST · {rot}
+                          </span>
+                        );
+                      })()}
                       {d.processo_numero || "—"}
                     </span>
                   </TableCell>
