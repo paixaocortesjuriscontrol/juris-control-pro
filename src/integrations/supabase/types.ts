@@ -6965,10 +6965,12 @@ export type Database = {
           midia_negativa: string | null
           modalidade: string | null
           orgao: string | null
+          origem: string
           parte_recorrente: string | null
           processo_digits: string | null
           processo_id: string | null
           processo_numero: string | null
+          publicacao_djen_id: string | null
           reclamada: string | null
           reclamante: string | null
           relator: string | null
@@ -6977,6 +6979,7 @@ export type Database = {
           semana_inicio: string | null
           solicitacao_providencias_banco: string | null
           solicitacao_rosa_oliveira: string | null
+          status_avaliacao: string
           sustentacao_oral: string | null
           tipo_recurso: string | null
           updated_at: string
@@ -7007,10 +7010,12 @@ export type Database = {
           midia_negativa?: string | null
           modalidade?: string | null
           orgao?: string | null
+          origem?: string
           parte_recorrente?: string | null
           processo_digits?: string | null
           processo_id?: string | null
           processo_numero?: string | null
+          publicacao_djen_id?: string | null
           reclamada?: string | null
           reclamante?: string | null
           relator?: string | null
@@ -7019,6 +7024,7 @@ export type Database = {
           semana_inicio?: string | null
           solicitacao_providencias_banco?: string | null
           solicitacao_rosa_oliveira?: string | null
+          status_avaliacao?: string
           sustentacao_oral?: string | null
           tipo_recurso?: string | null
           updated_at?: string
@@ -7049,10 +7055,12 @@ export type Database = {
           midia_negativa?: string | null
           modalidade?: string | null
           orgao?: string | null
+          origem?: string
           parte_recorrente?: string | null
           processo_digits?: string | null
           processo_id?: string | null
           processo_numero?: string | null
+          publicacao_djen_id?: string | null
           reclamada?: string | null
           reclamante?: string | null
           relator?: string | null
@@ -7061,6 +7069,7 @@ export type Database = {
           semana_inicio?: string | null
           solicitacao_providencias_banco?: string | null
           solicitacao_rosa_oliveira?: string | null
+          status_avaliacao?: string
           sustentacao_oral?: string | null
           tipo_recurso?: string | null
           updated_at?: string
@@ -7071,6 +7080,35 @@ export type Database = {
             columns: ["processo_id"]
             isOneToOne: false
             referencedRelation: "processos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pautas_tst_responsaveis: {
+        Row: {
+          created_at: string
+          id: string
+          pauta_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pauta_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pauta_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pautas_tst_responsaveis_pauta_id_fkey"
+            columns: ["pauta_id"]
+            isOneToOne: false
+            referencedRelation: "pautas_tst"
             referencedColumns: ["id"]
           },
         ]
@@ -11129,6 +11167,7 @@ export type Database = {
       }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
+      gerar_pautas_tst_auto: { Args: { _dias?: number }; Returns: number }
       get_acomp_especial_divergencias: {
         Args: {
           _ate?: string
