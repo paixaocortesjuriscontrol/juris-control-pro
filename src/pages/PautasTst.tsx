@@ -256,6 +256,30 @@ export default function PautasTstPage() {
     await carregarSemana();
   };
 
+  const removerLote = async (uid: string) => {
+    const ids = [...sel].filter((id) => respMap[id]?.includes(uid));
+    if (!ids.length) return toast.info("Nenhuma das selecionadas tem esse responsável");
+    const { data, error } = await supabase
+      .from("pautas_tst_responsaveis" as any).delete().in("pauta_id", ids).eq("user_id", uid).select("id");
+    if (error || !data?.length) return toast.error("Erro ao retirar: " + (error?.message || "sem permissão"));
+    toast.success(`Responsável retirado de ${data.length} pauta(s)`);
+    await carregarSemana();
+  };
+
+  const alternarResponsavel = async (pautaId: string, uid: string, atribuido: boolean) => {
+    const atual = respMap[pautaId] || [];
+    const novo = atribuido ? atual.filter((x) => x !== uid) : [...atual, uid];
+    setRespMap((p) => ({ ...p, [pautaId]: novo }));
+    const q = atribuido
+      ? supabase.from("pautas_tst_responsaveis" as any).delete().eq("pauta_id", pautaId).eq("user_id", uid).select("id")
+      : supabase.from("pautas_tst_responsaveis" as any).insert({ pauta_id: pautaId, user_id: uid }).select("id");
+    const { data, error } = await q;
+    if (error || !data?.length) {
+      setRespMap((p) => ({ ...p, [pautaId]: atual }));
+      toast.error("Erro ao atualizar responsável: " + ((error as any)?.message || "sem permissão"));
+    }
+  };
+
   const importarLote = async () => {
     const alvo = dados.filter((d) => sel.has(d.id) && !d.processo_id);
     if (!alvo.length) return toast.info("Todas as selecionadas já estão em Processos e Casos");
