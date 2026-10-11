@@ -21,7 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
-import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus } from "lucide-react";
+import { RefreshCw, FolderInput, FolderCheck, X, ShieldAlert, UserPlus, UserMinus } from "lucide-react";
 
 const COORD_RENATA = "b0f690ad-68da-43d7-af5f-9adafeab3fd5";
 const PRIMEIRA_SEMANA = "2026-02-02";
