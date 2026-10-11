@@ -110,7 +110,7 @@ export default function PautasTstPage() {
     if (!map.has(atual)) map.set(atual, null);
     setSemanas([...map.entries()].map(([ini, aba]) => ({
       ini,
-      aba: aba && /^\d+\. \d{2}\.\d{2} a \d{2}\.\d{2}/.test(aba) ? aba : nomeAbaSemana(ini, numSemana(ini)),
+      aba: nomeAbaSemana(ini, numSemana(ini)),
     })).sort((x, y) => y.ini.localeCompare(x.ini)));
   }, []);
 
