@@ -86,6 +86,8 @@ export default function PautasTstPage() {
   const [respMap, setRespMap] = useState<Record<string, string[]>>({});
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [buscandoAuto, setBuscandoAuto] = useState(false);
+  const [foraIntervalo, setForaIntervalo] = useState<string[]>([]);
+  const [reorganizando, setReorganizando] = useState(false);
   const [emLote, setEmLote] = useState(false);
   const [acesso, setAcesso] = useState<boolean | null>(null);
   const { user } = useAuth();
@@ -129,6 +131,7 @@ export default function PautasTstPage() {
       );
       setDados(rows);
       setSel(new Set());
+      setForaIntervalo(rows.filter((r) => r.data_julgamento && (r.data_julgamento < semana || r.data_julgamento > fim)).map((r) => r.id));
       const rm: Record<string, string[]> = {};
       const ids = rows.map((r) => r.id);
       for (let i = 0; i < ids.length; i += 300) {
