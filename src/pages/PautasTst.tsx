@@ -620,8 +620,12 @@ export default function PautasTstPage() {
                       {(d as any).dados_benner_id && (() => {
                         const st = distMap[(d as any).dados_benner_id] || "";
                         const rot = ({ rascunho: "Rascunho", planilhado: "Planilhado", pronto_envio: "Pronto para envio" } as Record<string, string>)[st] || st || "Sem situação";
+                        const pronto = st === "pronto_envio";
                         return (
-                          <span title={`Já está na Distribuição TST — situação: ${rot}`} className="inline-flex items-center gap-0.5 rounded bg-accent px-1 text-[10px] font-sans text-accent-foreground">
+                          <span title={`Já está na Distribuição TST — situação: ${rot}`} className={cn(
+                            "inline-flex items-center gap-0.5 rounded px-1 text-[10px] font-sans",
+                            pronto ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300" : "bg-accent text-accent-foreground",
+                          )}>
                             <ShieldAlert className="w-3 h-3" />TST · {rot}
                           </span>
                         );
