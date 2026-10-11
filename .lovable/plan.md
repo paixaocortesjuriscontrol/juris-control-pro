@@ -14,12 +14,12 @@ A planilha enviada agora tem 34 abas (02/02 a 06/11/2026), ou seja, é a versão
 1. **Apagar todas as pautas** da tela (as 2.453 da planilha antiga e as 110 automáticas), junto com os responsáveis vinculados a elas.
 2. **Reimportar a planilha enviada** (`Pautas_de_julgamento_2026_2_Coordenação_Dra._Renata-2.xlsx`), todas as 34 abas, exatamente como está: equipe, advogado interno, dossiê, número do processo, partes, tipo de recurso, data do julgamento etc.
 3. **Semana fiel à aba:** cada pauta fica no intervalo exato da aba em que está na planilha (ex.: aba "02/02 a 06/02" → semana de 02/02/2026). A semana **não** será recalculada pela data do julgamento — vale o intervalo da aba.
-3. As pautas importadas ficam marcadas como **avaliadas** (origem "planilha"), como antes.
-4. **Manter a rotina automática do DJEN** funcionando: as próximas semanas (a partir de 09/11) continuarão entrando sozinhas como "A avaliar". Nenhuma pauta automática futura será apagada por esta limpeza.
-5. Gerar uma **planilha de conferência** com o total importado por aba.
+4. As pautas importadas ficam marcadas como **avaliadas** (origem "planilha"), como antes.
+5. **Manter a rotina automática do DJEN** funcionando: as próximas semanas (a partir de 09/11) continuarão entrando sozinhas como "A avaliar". Nenhuma pauta automática futura será apagada por esta limpeza.
+6. Gerar uma **planilha de conferência** com o total importado por aba.
 
 ## Detalhes técnicos
 
-- Apagar registros de `pautas_tst_responsaveis` e `pautas_tst` (todos), depois inserir os dados lidos das 34 abas via script, em lotes, com `semana_inicio` calculada pela data do julgamento.
+- Apagar registros de `pautas_tst_responsaveis` e `pautas_tst` (todos), depois inserir os dados lidos das 34 abas via script, em lotes, com `semana_inicio` igual à segunda-feira do intervalo indicado no nome da aba (nunca recalculada pela data do julgamento).
 - Linhas vazias da planilha são ignoradas; dossiês "não localizados" são mantidos como texto, como na planilha.
 - Nada muda em telas, menus ou na rotina automática — apenas os dados.
