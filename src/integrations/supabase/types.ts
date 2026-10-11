@@ -10936,6 +10936,7 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: number
       }
+      buscar_pautas_tst_agora: { Args: never; Returns: number }
       buscar_processos_global: {
         Args: { _limite?: number; _termo: string }
         Returns: {
