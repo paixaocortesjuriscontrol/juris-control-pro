@@ -557,13 +557,14 @@ export default function PautasTstPage() {
               ) : filtrados.length === 0 ? (
                 <TableRow><TableCell colSpan={8} className="text-center py-10 text-muted-foreground">Nenhuma pauta nesta semana</TableCell></TableRow>
               ) : filtrados.map((d) => (
-                <TableRow key={d.id} className={cn("cursor-pointer hover:bg-muted/50 align-top", (d as any).status_avaliacao === "a_avaliar" && "bg-primary/5")} onClick={() => setEditando(d)}>
+                <TableRow key={d.id} title={foraIntervalo.includes(d.id) ? "Data de julgamento fora do intervalo desta semana" : undefined} className={cn("cursor-pointer align-top hover:bg-muted/50", foraIntervalo.includes(d.id) ? "bg-amber-500/15 hover:bg-amber-500/25 border-l-2 border-l-amber-500" : (d as any).status_avaliacao === "a_avaliar" && "bg-primary/5")} onClick={() => setEditando(d)}>
                   <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                     <Checkbox checked={sel.has(d.id)} onCheckedChange={(v) => { const n = new Set(sel); v ? n.add(d.id) : n.delete(d.id); setSel(n); }} />
                   </TableCell>
                   <TableCell className="text-sm py-2">
                     <div className="whitespace-nowrap">{br(d.data_julgamento)}</div>
                     <div className="text-xs text-muted-foreground">{d.horario || "—"}
+                      {foraIntervalo.includes(d.id) && <Badge className="ml-1 text-[10px] px-1 bg-amber-500/25 text-amber-700 dark:text-amber-300">Fora</Badge>}
                       {(d as any).status_avaliacao === "a_avaliar" && <Badge variant="destructive" className="ml-1 text-[10px] px-1">Nova</Badge>}</div>
                   </TableCell>
                   <TableCell className="py-2 min-w-0">
