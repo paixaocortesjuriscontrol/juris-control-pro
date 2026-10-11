@@ -564,6 +564,7 @@ export default function PautasTstPage() {
                   <TableCell className="text-sm py-2">
                     <div className="whitespace-nowrap">{br(d.data_julgamento)}</div>
                     <div className="text-xs text-muted-foreground">{d.horario || "—"}
+                      {foraIntervalo.includes(d.id) && <Badge className="ml-1 text-[10px] px-1 bg-amber-500/25 text-amber-700 dark:text-amber-300">Fora</Badge>}
                       {(d as any).status_avaliacao === "a_avaliar" && <Badge variant="destructive" className="ml-1 text-[10px] px-1">Nova</Badge>}</div>
                   </TableCell>
                   <TableCell className="py-2 min-w-0">
