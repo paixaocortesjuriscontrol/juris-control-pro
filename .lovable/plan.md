@@ -22,5 +22,6 @@ A planilha enviada agora tem 34 abas (02/02 a 06/11/2026), ou seja, é a versão
 ## Detalhes técnicos
 
 - Apagar registros de `pautas_tst_responsaveis` e `pautas_tst` (todos), depois inserir os dados lidos das 34 abas via script, em lotes, com `semana_inicio` = segunda-feira da semana da data do julgamento (mesmo critério das abas da planilha e da rotina automática do DJEN).
+- Em seguida, executar `vincular_pautas_distribuicao(NULL)` para preencher dossiê/equipe/relator/partes a partir de `dados_benner`, apenas em campos vazios.
 - Linhas vazias da planilha são ignoradas; dossiês "não localizados" são mantidos como texto, como na planilha.
 - Nada muda em telas, menus ou na rotina automática — apenas os dados.
