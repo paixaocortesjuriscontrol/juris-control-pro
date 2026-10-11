@@ -184,9 +184,14 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
               <CheckCircle2 className="w-4 h-4 mr-1" /> {aAvaliar ? "Marcar como avaliada" : "Voltar para a avaliar"}
             </Button>
           )}
+          {existente && (form as any).dados_benner_id && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/distribuicao-tst?editId=${(form as any).dados_benner_id}`} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 mr-1" /> Distribuição TST</a>
+            </Button>
+          )}
           {existente && (form.processo_id ? (
             <Button variant="outline" size="sm" asChild>
-              <a href={`/processos/${form.processo_id}`} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 mr-1" /> Abrir ficha</a>
+              <a href={`/processos/${form.processo_id}`} target="_blank" rel="noreferrer"><ExternalLink className="w-4 h-4 mr-1" /> Ver processo completo</a>
             </Button>
           ) : (
             <Button variant="outline" size="sm" onClick={importar} disabled={importando}>
@@ -227,7 +232,7 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
               <div key={c.k as string} className={c.span}>
                 <Label className="text-xs uppercase text-muted-foreground">{c.l}</Label>
                 {c.area ? (
-                  <Textarea rows={2} value={(form as any)[c.k] || ""} onChange={(e) => set(c.k, e.target.value)} onBlur={() => salvarCampo(c.k)} />
+                  <Textarea rows={c.k === "resultado_proxima_sessao" ? 10 : 2} className={c.k === "resultado_proxima_sessao" ? "min-h-[220px]" : undefined} value={(form as any)[c.k] || ""} onChange={(e) => set(c.k, e.target.value)} onBlur={() => salvarCampo(c.k)} />
                 ) : (
                   <Input
                     type={c.type || "text"}
