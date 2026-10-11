@@ -626,7 +626,36 @@ export default function PautasTstPage() {
                     <div>{d.modalidade ? <Badge variant="outline" className="text-xs">{d.modalidade}</Badge> : "—"}</div>
                     <span title={d.decisao || ""} className={cn("mt-1 text-xs px-2 py-0.5 rounded-md inline-block max-w-full truncate", corDecisao(d.decisao))}>{d.decisao || "Sem decisão"}</span>
                   </TableCell>
-                  <TableCell className="text-xs py-2 break-words">{(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell className="text-xs py-2" onClick={(e) => e.stopPropagation()}>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          title="Clique para colocar ou retirar responsáveis"
+                          className="inline-flex max-w-full items-center gap-1 rounded border border-dashed border-border px-1.5 py-0.5 text-left hover:bg-muted"
+                        >
+                          <UserPlus className="w-3 h-3 shrink-0 text-muted-foreground" />
+                          <span className="truncate">
+                            {(respMap[d.id] || []).map((u) => membros.find((m) => m.id === u)?.nome?.split(" ")[0]).filter(Boolean).join(", ") || "Definir"}
+                          </span>
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-56 p-2" align="start">
+                        <div className="px-1 pb-1 text-xs font-medium text-muted-foreground">Responsáveis</div>
+                        <div className="max-h-64 space-y-0.5 overflow-auto">
+                          {membros.map((m) => {
+                            const on = (respMap[d.id] || []).includes(m.id);
+                            return (
+                              <label key={m.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted">
+                                <Checkbox checked={on} onCheckedChange={() => alternarResponsavel(d.id, m.id, on)} />
+                                <span className="truncate">{m.nome}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </PopoverContent>
+                    </Popover>
+                  </TableCell>
                   <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex flex-wrap gap-0.5">
                       {(d as any).dados_benner_id && (
