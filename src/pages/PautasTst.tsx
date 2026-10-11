@@ -93,8 +93,8 @@ export default function PautasTstPage() {
   useEffect(() => {
     if (!user?.id || roleLoading) return;
     if (isAdmin) { setAcesso(true); return; }
-    supabase.from("membros_coordenacao").select("id").eq("user_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
-      .then(({ data }) => setAcesso(!!data?.length));
+    (supabase.from("membros_coordenacao" as any) as any).select("id").eq("user_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
+      .then(({ data }: any) => setAcesso(!!data?.length));
   }, [user?.id, isAdmin, roleLoading]);
   useEffect(() => { carregarMembrosRenata().then(setMembros); }, []);
 
