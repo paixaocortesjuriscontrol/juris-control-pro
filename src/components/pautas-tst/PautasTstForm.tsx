@@ -11,6 +11,13 @@ import { PautaTst, PautaTstInsert } from "@/hooks/usePautasTst";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DadosBennerDistribuicaoTab } from "@/components/benner/DadosBennerDistribuicaoTab";
+
+const fmtProc = (n: string) => {
+  const d = String(n || "").replace(/\D/g, "");
+  return d.length === 20 ? `${d.slice(0,7)}-${d.slice(7,9)}.${d.slice(9,13)}.${d.slice(13,14)}.${d.slice(14,16)}.${d.slice(16)}` : n;
+};
 
 interface Props {
   dado?: PautaTst | null;
@@ -224,6 +231,14 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
         </div>
       )}
 
+      <Tabs defaultValue="pauta">
+        {existente && form.processo_numero && (
+          <TabsList>
+            <TabsTrigger value="pauta">Pauta</TabsTrigger>
+            <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
+          </TabsList>
+        )}
+        <TabsContent value="pauta" className="space-y-4">
       {SECOES.map((s) => (
         <div key={s.titulo} className="rounded-lg border border-border bg-card p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-3">{s.titulo}</h3>
@@ -246,6 +261,15 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
           </div>
         </div>
       ))}
+        </TabsContent>
+        {existente && form.processo_numero && (
+          <TabsContent value="distribuicao">
+            <div className="rounded-lg border border-border bg-card p-4">
+              <DadosBennerDistribuicaoTab processoNumero={fmtProc(form.processo_numero)} />
+            </div>
+          </TabsContent>
+        )}
+      </Tabs>
 
       {!existente && (
         <div className="sticky bottom-0 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
