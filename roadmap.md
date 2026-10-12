@@ -2,6 +2,7 @@
 
 ## Abas no detalhe das pautas
 - [x] Incluir Processo com o formulário existente e Judit com as consultas já armazenadas, sem pesquisa automática ao abrir.
+- [x] Completar Judit da pauta com análise, movimentações, capa/partes, anexos e log usando os painéis existentes.
 
 ## Manuais do sistema — 28/09/2026
 - [x] Atualizar o Manual Completo para a versão 7.4.0 com os módulos atuais

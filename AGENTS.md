@@ -1,6 +1,6 @@
 # Regras de arquitetura
 
-- Pauta detail tabs reuse the existing Processos e Casos overview and Judit components, loading the linked process by ID or CNJ variants only when opened, to keep shared edits and cached research consistent.
+- Pauta detail tabs reuse the existing Processos e Casos overview and the Judit analysis, cover, attachments and log panels; load the linked process by ID or CNJ variants only when opened, and allow cached Judit panels by CNJ without a linked process, to keep shared edits and research consistent without automatic paid queries.
 
 - As ações Tarefa, Prazo, Evento e Audiência do botão Adicionar na ficha do processo usam `NovoItemPanel` dentro de um painel lateral direito sobreposto, mantendo o conteúdo da ficha visível ao fundo.
 - Os manuais oficiais ficam como PDFs versionados em `public/manuais`; a central e os atalhos dos módulos devem abrir esses mesmos arquivos para evitar versões divergentes.
