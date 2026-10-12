@@ -16,6 +16,9 @@ import { DadosBennerDistribuicaoTab } from "@/components/benner/DadosBennerDistr
 import { useQuery } from "@tanstack/react-query";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { ProcessoJuditTab } from "@/components/processos/ProcessoJuditTab";
+import { ProcessoAnexosJuditTab } from "@/components/processos/ProcessoAnexosJuditTab";
+import { AnaliseJuditTab } from "@/components/distribuicao-tst/AnaliseJuditTab";
+import { LogJuditTab } from "@/components/distribuicao-tst/LogJuditTab";
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 const fmtProc = (n: string) => {
@@ -291,7 +294,41 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
         )}
         {existente && form.processo_numero && ["processo", "judit"].map((valor) => (
           <TabsContent key={valor} value={valor} className="space-y-4">
-            {carregandoProcesso ? (
+            {valor === "judit" ? (
+              <Tabs defaultValue="analise" className="w-full min-w-0">
+                <TabsList className="h-auto flex flex-wrap justify-start">
+                  <TabsTrigger value="analise">Análise e movimentações</TabsTrigger>
+                  <TabsTrigger value="capa">Capa e partes</TabsTrigger>
+                  <TabsTrigger value="anexos">Anexos</TabsTrigger>
+                  <TabsTrigger value="log">Log</TabsTrigger>
+                </TabsList>
+                <TabsContent value="analise">
+                  <AnaliseJuditTab processoNumero={form.processo_numero} />
+                </TabsContent>
+                <TabsContent value="capa">
+                  {carregandoProcesso ? (
+                    <div role="status" className="flex items-center gap-2 py-6 text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Carregando processo…
+                    </div>
+                  ) : processo ? (
+                    <ProcessoJuditTab processoId={processo.id} processoNumero={processo.numero} />
+                  ) : (
+                    <div className="space-y-3 py-6">
+                      <p className="text-muted-foreground">{erroProcesso ? "Não foi possível carregar o processo." : "Nenhum processo cadastrado foi encontrado para esta pauta."}</p>
+                      <Button variant="outline" onClick={() => erroProcesso ? recarregarProcesso() : importar()} disabled={importando}>
+                        {erroProcesso ? "Tentar novamente" : "Importar processo"}
+                      </Button>
+                    </div>
+                  )}
+                </TabsContent>
+                <TabsContent value="anexos">
+                  <ProcessoAnexosJuditTab processoNumero={form.processo_numero} processoId={processo?.id} />
+                </TabsContent>
+                <TabsContent value="log">
+                  <LogJuditTab processoNumero={form.processo_numero} />
+                </TabsContent>
+              </Tabs>
+            ) : carregandoProcesso ? (
               <div role="status" className="flex items-center gap-2 py-6 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" /> Carregando processo…
               </div>
@@ -301,11 +338,7 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
                 <Button variant="outline" onClick={() => recarregarProcesso()}>Tentar novamente</Button>
               </div>
             ) : processo ? (
-              valor === "processo" ? (
-                <ProcessoVisaoGeralForm processo={processo} hideJuditButtons />
-              ) : (
-                <ProcessoJuditTab processoId={processo.id} processoNumero={processo.numero} />
-              )
+              <ProcessoVisaoGeralForm processo={processo} hideJuditButtons />
             ) : (
               <div className="space-y-3 py-6">
                 <p className="text-muted-foreground">Nenhum processo cadastrado foi encontrado para esta pauta.</p>
