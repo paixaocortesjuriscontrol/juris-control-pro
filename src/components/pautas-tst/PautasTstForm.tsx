@@ -13,6 +13,10 @@ import { toast } from "sonner";
 import { carregarMembrosRenata, importarProcessoDaPauta } from "@/lib/pautasAcoes";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DadosBennerDistribuicaoTab } from "@/components/benner/DadosBennerDistribuicaoTab";
+import { useQuery } from "@tanstack/react-query";
+import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
+import { ProcessoJuditTab } from "@/components/processos/ProcessoJuditTab";
+import { obterVariantesCnjBusca } from "@/utils/cnjMask";
 
 const fmtProc = (n: string) => {
   const d = String(n || "").replace(/\D/g, "");
@@ -85,7 +89,21 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
   const [membros, setMembros] = useState<{ id: string; nome: string }[]>([]);
   const [resp, setResp] = useState<string[]>([]);
   const [importando, setImportando] = useState(false);
+  const [aba, setAba] = useState("pauta");
   const existente = !!dado?.id;
+
+  const { data: processo, isLoading: carregandoProcesso, isError: erroProcesso, refetch: recarregarProcesso } = useQuery({
+    queryKey: form.processo_id ? ["processo", form.processo_id] : ["processo", "pauta", form.processo_numero],
+    enabled: existente && (aba === "processo" || aba === "judit") && !!(form.processo_id || form.processo_numero),
+    queryFn: async () => {
+      let consulta = supabase.from("processos").select("*");
+      if (form.processo_id) consulta = consulta.eq("id", form.processo_id);
+      else consulta = consulta.in("numero", obterVariantesCnjBusca(form.processo_numero));
+      const { data, error } = await consulta.limit(1).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
 
   useEffect(() => {
     if (dado) {
@@ -231,11 +249,13 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
         </div>
       )}
 
-      <Tabs defaultValue="pauta">
+      <Tabs value={aba} onValueChange={setAba}>
         {existente && form.processo_numero && (
-          <TabsList>
+          <TabsList className="h-auto flex flex-wrap justify-start">
             <TabsTrigger value="pauta">Pauta</TabsTrigger>
             <TabsTrigger value="distribuicao">Distribuição TST</TabsTrigger>
+            <TabsTrigger value="processo">Processo</TabsTrigger>
+            <TabsTrigger value="judit">Judit</TabsTrigger>
           </TabsList>
         )}
         <TabsContent value="pauta" className="space-y-4">
@@ -269,6 +289,34 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
             </div>
           </TabsContent>
         )}
+        {existente && form.processo_numero && ["processo", "judit"].map((valor) => (
+          <TabsContent key={valor} value={valor} className="space-y-4">
+            {carregandoProcesso ? (
+              <div role="status" className="flex items-center gap-2 py-6 text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" /> Carregando processo…
+              </div>
+            ) : erroProcesso ? (
+              <div className="space-y-3 py-6">
+                <p className="text-muted-foreground">Não foi possível carregar o processo.</p>
+                <Button variant="outline" onClick={() => recarregarProcesso()}>Tentar novamente</Button>
+              </div>
+            ) : processo ? (
+              valor === "processo" ? (
+                <ProcessoVisaoGeralForm processo={processo} hideJuditButtons />
+              ) : (
+                <ProcessoJuditTab processoId={processo.id} processoNumero={processo.numero} />
+              )
+            ) : (
+              <div className="space-y-3 py-6">
+                <p className="text-muted-foreground">Nenhum processo cadastrado foi encontrado para esta pauta.</p>
+                <Button variant="outline" onClick={importar} disabled={importando}>
+                  {importando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FolderInput className="h-4 w-4 mr-2" />}
+                  Importar processo
+                </Button>
+              </div>
+            )}
+          </TabsContent>
+        ))}
       </Tabs>
 
       {!existente && (
