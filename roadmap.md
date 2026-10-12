@@ -1,5 +1,8 @@
 # Roadmap — Considerações 02/09
 
+## Abas no detalhe das pautas
+- [x] Incluir Processo com o formulário existente e Judit com as consultas já armazenadas, sem pesquisa automática ao abrir.
+
 ## Manuais do sistema — 28/09/2026
 - [x] Atualizar o Manual Completo para a versão 7.4.0 com os módulos atuais
 - [x] Criar manual separado do Painel de Controle
