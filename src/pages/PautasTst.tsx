@@ -110,7 +110,7 @@ export default function PautasTstPage() {
     if (!user?.id || roleLoading) return;
     if (isAdmin) { setAcesso(true); return; }
     const sb: any = supabase;
-    sb.from("membros_coordenacao").select("id").eq("user_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
+    sb.from("membros_coordenacao").select("id").eq("usuario_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
       .then(({ data }: any) => setAcesso(!!data?.length));
   }, [user?.id, isAdmin, roleLoading]);
   useEffect(() => { carregarMembrosRenata().then(setMembros); }, []);

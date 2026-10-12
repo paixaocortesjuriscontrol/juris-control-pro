@@ -42,8 +42,8 @@ export async function importarProcessoDaPauta(p: PautaTst): Promise<{ processoId
 }
 
 export async function carregarMembrosRenata(): Promise<{ id: string; nome: string }[]> {
-  const { data: m } = await supabase.from("membros_coordenacao").select("user_id").eq("coordenacao_id", COORD_RENATA);
-  const ids = [...new Set(((m as any[]) || []).map((x) => x.user_id))];
+  const { data: m } = await supabase.from("membros_coordenacao").select("usuario_id").eq("coordenacao_id", COORD_RENATA);
+  const ids = [...new Set(((m as any[]) || []).map((x) => x.usuario_id))];
   if (!ids.length) return [];
   const { data } = await supabase.from("profiles_basic" as any).select("id, nome").in("id", ids);
   return ((data as any[]) || []).filter((x) => x.nome).sort((a, b) => a.nome.localeCompare(b.nome));
