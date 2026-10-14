@@ -90,6 +90,7 @@ export default function PautasTstPage() {
   const [expFim, setExpFim] = useState("");
   const [exportando, setExportando] = useState(false);
   const [fModal, setFModal] = useState("__all__");
+  const [fCardModal, setFCardModal] = useState("__all__");
   const [fGrupo, setFGrupo] = useState("__all__");
   const [fResp, setFResp] = useState("__all__");
   const [fSit, setFSit] = useState("__all__");
@@ -213,12 +214,14 @@ export default function PautasTstPage() {
   useEffect(() => { carregarSemana(); }, [carregarSemana]);
 
   const opcoes = (k: keyof PautaTst) => [...new Set(dados.map((d) => (d[k] as string) || "").filter(Boolean))].sort();
+  const mMod = (s: string | null) => (s || "").toUpperCase();
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return dados.filter((d) =>
       (fRelator === "__all__" || d.relator === fRelator) &&
       (fOrgao === "__all__" || d.orgao === fOrgao) &&
+      (fCardModal === "__all__" || (fCardModal === "virtual" ? /VIRTUAL/.test(mMod(d.modalidade)) : /TELE|PRESENC|HIBRID|HÍBRID/.test(mMod(d.modalidade)))) &&
       (fAdv === "__all__" || d.advogado_interno === fAdv) &&
       (fDecisao === "__all__" || (fDecisao === "__sem__" ? !d.decisao : d.decisao === fDecisao)) &&
       (fModal === "__all__" || d.modalidade === fModal) &&
@@ -230,7 +233,7 @@ export default function PautasTstPage() {
       (!dFim || (d.data_julgamento || "9999") <= dFim) &&
       (!q || [d.processo_numero, d.dossie, d.reclamante, d.reclamada, d.relator].some((v) => String(v || "").toLowerCase().includes(q))),
     );
-  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fGrupo, fResp, fSit, fCad, dIni, dFim, respMap]);
+  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fCardModal, fGrupo, fResp, fSit, fCad, dIni, dFim, respMap]);
 
   const limparFiltros = () => {
     setBusca(""); setFRelator("__all__"); setFOrgao("__all__"); setFAdv("__all__"); setFDecisao("__all__"); setFGrupo("__all__");
@@ -487,23 +490,32 @@ export default function PautasTstPage() {
         )}
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-          {[
-            { l: "Pautas na semana", v: stats.total, i: Gavel, f: "__all__" },
-            { l: "Virtual", v: stats.virtual, i: Monitor },
-            { l: "Telepresencial / híbrido", v: stats.presencial, i: Users },
-            { l: "Sem decisão", v: stats.semDecisao, i: AlertCircle, f: "__sem__" },
-            { l: "A avaliar", v: stats.aAvaliar, i: Lightbulb, s: "a_avaliar" },
-          ].map((c: any) => (
-            <Card key={c.l} className={cn("transition-colors", (c.f || c.s) && "cursor-pointer hover:border-primary")} onClick={() => { if (c.f) setFDecisao(c.f); if (c.s) setFSit(c.s); }}>
-              <CardContent className="p-4 flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-muted-foreground">{c.l}</div>
-                  <div className="text-2xl font-bold text-foreground">{c.v}</div>
-                </div>
-                <c.i className="w-6 h-6 text-primary/70" />
-              </CardContent>
-            </Card>
-          ))}
+          {(() => {
+            const cards = [
+              { l: "Pautas na semana", v: stats.total, i: Gavel, ativo: fCardModal === "__all__" && fDecisao === "__all__" && fSit === "__all__", acao: () => { setFCardModal("__all__"); setFDecisao("__all__"); setFSit("__all__"); } },
+              { l: "Virtual", v: stats.virtual, i: Monitor, ativo: fCardModal === "virtual", acao: () => setFCardModal(fCardModal === "virtual" ? "__all__" : "virtual") },
+              { l: "Telepresencial / híbrido", v: stats.presencial, i: Users, ativo: fCardModal === "tele", acao: () => setFCardModal(fCardModal === "tele" ? "__all__" : "tele") },
+              { l: "Sem decisão", v: stats.semDecisao, i: AlertCircle, ativo: fDecisao === "__sem__", acao: () => setFDecisao(fDecisao === "__sem__" ? "__all__" : "__sem__") },
+              { l: "A avaliar", v: stats.aAvaliar, i: Lightbulb, ativo: fSit === "a_avaliar", acao: () => setFSit(fSit === "a_avaliar" ? "__all__" : "a_avaliar") },
+            ];
+            return cards.map((c) => (
+              <Card
+                key={c.l}
+                role="button"
+                title={c.ativo ? "Clique para remover este filtro" : "Clique para filtrar a lista"}
+                className={cn("cursor-pointer transition-colors select-none", c.ativo ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/60")}
+                onClick={c.acao}
+              >
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <div className="text-xs text-muted-foreground">{c.l}</div>
+                    <div className="text-2xl font-bold text-foreground">{c.v}</div>
+                  </div>
+                  <c.i className={cn("w-6 h-6", c.ativo ? "text-primary" : "text-primary/70")} />
+                </CardContent>
+              </Card>
+            ));
+          })()}
         </div>
 
         {sugestoes.length > 0 && (
