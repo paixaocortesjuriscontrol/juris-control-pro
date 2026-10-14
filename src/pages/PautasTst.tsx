@@ -219,6 +219,7 @@ export default function PautasTstPage() {
     return dados.filter((d) =>
       (fRelator === "__all__" || d.relator === fRelator) &&
       (fOrgao === "__all__" || d.orgao === fOrgao) &&
+      (fCardModal === "__all__" || (fCardModal === "virtual" ? /VIRTUAL/.test(m(d.modalidade)) : /TELE|PRESENC|HIBRID|HÍBRID/.test(m(d.modalidade)))) &&
       (fAdv === "__all__" || d.advogado_interno === fAdv) &&
       (fDecisao === "__all__" || (fDecisao === "__sem__" ? !d.decisao : d.decisao === fDecisao)) &&
       (fModal === "__all__" || d.modalidade === fModal) &&
