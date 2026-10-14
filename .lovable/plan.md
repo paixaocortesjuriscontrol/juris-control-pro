@@ -1,16 +1,16 @@
-# Pautas da Coordenação Dra. Renata Oficial — conferência e recuperação
+# Aviso de pautas encontradas automaticamente
 
 ## O que a conferência mostrou
-- **13/10/2026 (busca de 04:30–05:01 BRT):** 229 publicações. Nenhuma é pauta de julgamento. As 16 que citam "pauta" são despachos de CEJUSC/conciliação ("pauta desta unidade", "pauta de conciliação"), acórdãos que mandam publicar "nova pauta de julgamento" ou citações a "Sessão Virtual" do STF dentro de decisões. Os documentos da Análise DJEN acertaram ao não colocar essas publicações em PAUTA.
-- **10 a 12/10:** a coordenação não recebeu publicações (fim de semana e feriado).
-- **09/10/2026:** 668 publicações, sendo 131 de pauta de julgamento (89 processos). **106 delas não estão na tela Pautas de Julgamento.** Elas tinham sido separadas pela rotina, mas foram apagadas na limpeza total antes da reimportação da planilha, que só ia até 06/11. É bem provável que o estranhamento dos advogados venha daí: as pautas da semana passada sumiram da tela.
+- O DJEN Termos Servidor terminou em 14/10/2026 às 05:00 (Brasília) e a rotina rodou em seguida.
+- Existem **21 pautas "Auto DJEN · a avaliar"** na tela Pautas de Julgamento; a mais recente foi criada em 14/10/2026 às 05:00, logo após essa execução.
 
 ## O que será feito
-1. Rodar de novo a separação automática das publicações de 09/10/2026 (e de qualquer outro dia depois da limpeza). Só entram pautas que ainda não existem (mesmo processo e mesma data de julgamento), marcadas como "Auto DJEN · Nova".
-2. Ligar essas pautas à Distribuição TST, completando dossiê, equipe e situação.
-3. Entregar um relatório Excel com cada publicação de pauta de 09/10 e 13/10 e o que aconteceu com ela: entrou, já existia, ou ficou fora (e o motivo: acórdão, CEJUSC, sem número de processo).
-4. Se os advogados apontarem um documento específico da Análise DJEN que pareceu estranho, conferir esse caso no relatório.
+1. Na tela Pautas de Julgamento, um aviso azul no topo: "X pautas encontradas automaticamente pelo DJEN aguardando avaliação (última busca em dd/mm/aaaa hh:mm)".
+2. Botão no aviso **Ver pautas novas**, que filtra a lista só nas pautas automáticas a avaliar (em qualquer semana).
+3. O aviso some quando todas forem avaliadas; botão "Dispensar" esconde até chegar uma pauta nova.
+4. Um pequeno contador no item "Pautas de Julgamento" do menu, só para a Coordenação Dra. Renata Oficial.
 
 ## Detalhes técnicos
-- Executar `gerar_pautas_tst_auto(7)` e depois `vincular_pautas_distribuicao(NULL)`. Ambas já existem, deduplicam por `processo_digits + data_julgamento` e não mexem nas pautas da planilha.
-- O relatório sai de uma consulta em `publicacoes_djen` filtrada por `coordenacao_id`, com `ILIKE '%pauta de julgamento%'`, cruzada com `pautas_tst`.
+- Contagem: `pautas_tst` com `origem='djen_auto'` e `status_avaliacao='a_avaliar'`, mais `max(created_at)`.
+- Dispensa guardada por usuário no navegador com a data da última pauta vista.
+- Sem mudança no banco.
