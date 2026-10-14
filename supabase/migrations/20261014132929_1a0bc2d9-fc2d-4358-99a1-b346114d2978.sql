@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.registrar_reativacao_processo() FROM PUBLIC, anon, authenticated;

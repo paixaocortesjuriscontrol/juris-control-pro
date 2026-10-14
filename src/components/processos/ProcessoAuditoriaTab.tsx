@@ -65,6 +65,7 @@ const TIPO_LABEL: Record<string, string> = {
 const ACAO_META: Record<string, { label: string; icon: any; className: string }> = {
   criar: { label: "Criação", icon: PlusCircle, className: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },
   atualizar: { label: "Alteração", icon: Pencil, className: "bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300" },
+  processo_reativado: { label: "Reativação", icon: PlusCircle, className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" },
   deletar: { label: "Exclusão", icon: Trash2, className: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
 };
 const acaoMeta = (a: string) =>
@@ -102,6 +103,11 @@ const resumoAlteracao = (r: AuditRow): string => {
   }
   if (r.acao === "criar") return "Registro criado";
   if (r.acao === "deletar") return "Registro excluído";
+  if (r.acao === "processo_reativado") {
+    const e: any = r.dados_entrada || {};
+    const data = e.data_hora_encerramento || e.data_encerramento || e.data_arquivamento;
+    return `Reativado (antes: ${String(e.status_anterior || "").replace(/_/g, " ")}${data ? ` em ${formatValor(data)}` : ""})${e.motivo_encerramento ? ` — Motivo: ${e.motivo_encerramento}` : ""}`;
+  }
   return r.erro_mensagem || "—";
 };
 
