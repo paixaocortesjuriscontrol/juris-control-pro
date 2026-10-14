@@ -88,13 +88,30 @@ export function ConfigNotificacoesUsuarioCard() {
     const coordenacao_id = sel === PADRAO ? null : sel;
     const existente = sel === PADRAO ? padraoRow : especifica;
     const payload: any = { usuario_id: user.id, coordenacao_id, ...cfg };
-    const { error } = existente
-      ? await supabase.from("config_notificacoes_usuario").update(payload).eq("id", existente.id)
-      : await supabase.from("config_notificacoes_usuario").insert(payload);
-    setSaving(false);
-    if (error) return toast.error("Erro ao salvar: " + error.message);
-    await carregar();
-    toast.success("Preferências salvas");
+    const gravar = () =>
+      existente
+        ? supabase.from("config_notificacoes_usuario").update(payload).eq("id", existente.id)
+        : supabase.from("config_notificacoes_usuario").insert(payload);
+    try {
+      let { error } = await gravar();
+      // Sessão expirada derruba a chamada com "Failed to fetch": tenta renovar e repetir uma vez
+      if (error && /failed to fetch|fetch/i.test(error.message || "")) {
+        const { error: errRefresh } = await supabase.auth.refreshSession();
+        if (!errRefresh) ({ error } = await gravar());
+      }
+      setSaving(false);
+      if (error) {
+        if (/failed to fetch|fetch/i.test(error.message || "")) {
+          return toast.error("Sua sessão expirou. Saia e entre novamente no sistema para salvar as preferências.", { duration: 10000 });
+        }
+        return toast.error("Erro ao salvar: " + error.message);
+      }
+      await carregar();
+      toast.success("Preferências salvas");
+    } catch (e: any) {
+      setSaving(false);
+      toast.error("Sua sessão expirou. Saia e entre novamente no sistema para salvar as preferências.", { duration: 10000 });
+    }
   }
 
   async function voltarPadrao() {
