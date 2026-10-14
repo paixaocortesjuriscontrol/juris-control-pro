@@ -2100,10 +2100,10 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Evento
                     </Button>
                   </div>
-                  {renderAbasStatus(filtrarAba(seriesEventos).map((l) => l.principal))}
+                  {renderAbasStatus(seriesEventos.map((l) => l.principal))}
                   {filtrarAba(seriesEventos).length > 0 ? (
                     <div className="space-y-2">
-                      {seriesEventos.map((linha) =>
+                      {filtrarAba(seriesEventos).map((linha) =>
                         renderSerie(
                           linha,
                           (oc: any) => (
@@ -2162,10 +2162,10 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Parcelamento
                     </Button>
                   </div>
-                  {renderAbasStatus(filtrarAba(seriesParcelamentos).map((l) => l.principal))}
+                  {renderAbasStatus(seriesParcelamentos.map((l) => l.principal))}
                   {filtrarAba(seriesParcelamentos).length > 0 ? (
                     <div className="space-y-2">
-                      {seriesParcelamentos.map((linha) =>
+                      {filtrarAba(seriesParcelamentos).map((linha) =>
                         renderSerie(
                           linha,
                           (parcelamento: any) => (
