@@ -1,3 +1,4 @@
+import { mensagemBloqueioSituacao } from "@/hooks/usePodeAlterarItem";
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
@@ -123,7 +124,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
       setTemBaixa(true);
       await finalizar(`Situação aplicada somente à ocorrência de ${dataLabel}.`);
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao aplicar a situação nesta ocorrência.");
+      toast.error(mensagemBloqueioSituacao(e) ?? e?.message ?? "Erro ao aplicar a situação nesta ocorrência.", { duration: 10000 });
     } finally {
       setSalvando(null);
     }
@@ -168,7 +169,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
       setTemBaixa(false);
       await finalizar("Situação aplicada a toda a série recorrente.");
     } catch (e: any) {
-      toast.error(e?.message ?? "Erro ao aplicar a situação na série.");
+      toast.error(mensagemBloqueioSituacao(e) ?? e?.message ?? "Erro ao aplicar a situação na série.", { duration: 10000 });
     } finally {
       setSalvando(null);
     }

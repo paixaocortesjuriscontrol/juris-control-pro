@@ -313,7 +313,7 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
           )}
           {bloqueado && (
             <p className="text-xs text-destructive border border-destructive/40 rounded-md p-2">
-              {MSG_SOMENTE_RESPONSAVEL} Você pode consultar, mas não mudar a situação.
+              {MSG_SOMENTE_RESPONSAVEL} Enquanto isso, você pode apenas consultar.
             </p>
           )}
         </div>
