@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { parseDateSafe as parseDateSafeUtil } from "@/utils/date";
+import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 
 // Parse "YYYY-MM-DD" como data local para evitar deslocamento por timezone.
 function parseDateSafe(value: string): Date {
@@ -42,6 +43,24 @@ export function PendenciasProcessoCard({
 }: PendenciasProcessoCardProps) {
   const queryClient = useQueryClient();
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Baixa pelo mesmo pop-up do Painel de controle: respeita permissões por
+  // situação e comentário obrigatório da coordenação.
+  const [itemBaixa, setItemBaixa] = useState<any | null>(null);
+  const abrirBaixa = (table: string, reg: any) => {
+    const base = {
+      status: reg.status,
+      titulo: reg.titulo || reg.tipo_audiencia || reg.descricao || "",
+      coordenacao_id: reg.coordenacao_id ?? null,
+      processo: { numero: processoNumero, coordenacao_id: reg.coordenacao_id ?? null },
+    };
+    if (table === "audiencias_detectadas") {
+      setItemBaixa({ ...base, id: `audiencia-det-${reg.id}`, tipo: "audiencia", origem: "audiencia", data_inicio: reg.data_audiencia });
+    } else if (table === "tarefas") {
+      setItemBaixa({ ...base, id: reg.id, origem: "tarefa", tipo: isPrazoTarefa(reg.tipo_tarefa) ? "prazo" : "tarefa", data_inicio: reg.data_vencimento || reg.data_fatal || null });
+    } else {
+      setItemBaixa({ ...base, id: reg.id, origem: "evento", tipo: reg.tipo, grupo_parcelas: reg.grupo_parcelas, data_inicio: reg.data_inicio });
+    }
+  };
 
   // Um item só é pendência se o status for "pendente" E não houver marca de
   // conclusão/tratamento (o status pode ficar desatualizado em fluxos antigos).
@@ -174,6 +193,12 @@ export function PendenciasProcessoCard({
 
   return (
     <>
+    <BaixaRapidaDialog
+      item={itemBaixa}
+      open={!!itemBaixa}
+      onOpenChange={(o) => { if (!o) setItemBaixa(null); }}
+      onUpdate={() => { void invalidateAll(); }}
+    />
     <Card className="border border-border/60 shadow-md">
       <CardHeader className="py-2.5 px-4 bg-sidebar border-b border-border/50">
         <CardTitle className="text-[10px] font-bold uppercase tracking-[0.14em] text-sidebar-foreground flex items-center gap-2">
@@ -217,8 +242,8 @@ export function PendenciasProcessoCard({
                       )}
                       <StatusActions
                         id={aud.id}
-                        onConcluir={() => updateStatus("audiencias_detectadas", aud.id, "concluida")}
-                        onCancelar={() => updateStatus("audiencias_detectadas", aud.id, "cancelada")}
+                        onConcluir={() => abrirBaixa("audiencias_detectadas", aud)}
+                        onCancelar={() => abrirBaixa("audiencias_detectadas", aud)}
                       />
                     </div>
                   </div>
@@ -321,8 +346,8 @@ export function PendenciasProcessoCard({
                       )}
                       <StatusActions
                         id={t.id}
-                        onConcluir={() => updateStatus("tarefas", t.id, "cumprido")}
-                        onCancelar={() => updateStatus("tarefas", t.id, "cancelado")}
+                        onConcluir={() => abrirBaixa("tarefas", t)}
+                        onCancelar={() => abrirBaixa("tarefas", t)}
                       />
                     </div>
                   </div>
@@ -383,8 +408,8 @@ export function PendenciasProcessoCard({
                       )}
                       <StatusActions
                         id={t.id}
-                        onConcluir={() => updateStatus("tarefas", t.id, "cumprido")}
-                        onCancelar={() => updateStatus("tarefas", t.id, "cancelado")}
+                        onConcluir={() => abrirBaixa("tarefas", t)}
+                        onCancelar={() => abrirBaixa("tarefas", t)}
                       />
                     </div>
                   </div>
@@ -447,8 +472,8 @@ export function PendenciasProcessoCard({
                       )}
                       <StatusActions
                         id={ev.id}
-                        onConcluir={() => updateStatus("eventos_agenda", ev.id, "concluido")}
-                        onCancelar={() => updateStatus("eventos_agenda", ev.id, "cancelado")}
+                        onConcluir={() => abrirBaixa("eventos_agenda", ev)}
+                        onCancelar={() => abrirBaixa("eventos_agenda", ev)}
                       />
                     </div>
                   </div>
@@ -500,8 +525,8 @@ export function PendenciasProcessoCard({
                       )}
                       <StatusActions
                         id={ev.id}
-                        onConcluir={() => updateStatus("eventos_agenda", ev.id, "concluido")}
-                        onCancelar={() => updateStatus("eventos_agenda", ev.id, "cancelado")}
+                        onConcluir={() => abrirBaixa("eventos_agenda", ev)}
+                        onCancelar={() => abrirBaixa("eventos_agenda", ev)}
                       />
                     </div>
                   </div>
