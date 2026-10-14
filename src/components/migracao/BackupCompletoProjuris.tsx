@@ -145,6 +145,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; msg?: string; quando: string };
+  const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const pausado = useRef(false);
   const cancelado = useRef(false);
   const [pausa, setPausa] = useState(false);
@@ -621,11 +623,15 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelada" : "concluida", contadores }).eq("id", mid);
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
       else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}`);
-      setFeitos((f) => ({ ...f, [mod]: true }));
+      const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, quando } }));
+      if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
       await supabase.from("migracoes_projuris" as any).update({ status: "erro", contadores }).eq("id", mid);
       toast.error(`Erro na importação: ${e?.message || e}`);
+      const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      setResultados((r) => ({ ...r, [mod]: { status: "erro", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, msg: String(e?.message || e), quando } }));
     } finally {
       setRodando(null);
     }
@@ -655,6 +661,24 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             <p className="text-xs text-muted-foreground">{prog.feito.toLocaleString("pt-BR")} de {prog.total.toLocaleString("pt-BR")}</p>
           </div>
         )}
+        {rodando !== mod && resultados[mod] && (() => {
+          const r = resultados[mod];
+          const cor = r.status === "ok" && !r.erros ? "border-emerald-600 bg-emerald-50 text-emerald-900" : r.status === "erro" || r.erros ? "border-destructive bg-destructive/10 text-destructive" : "border-amber-500 bg-amber-50 text-amber-900";
+          const tit = r.status === "ok" ? (r.erros ? "Importação concluída com erros" : "Importação concluída com sucesso") : r.status === "cancelado" ? "Importação cancelada" : "Importação interrompida por erro";
+          return (
+            <div className={`rounded-md border-2 p-3 text-sm ${cor}`}>
+              <div className="flex items-center gap-2 font-semibold">{r.status === "ok" && !r.erros ? <CheckCircle2 className="h-4 w-4" /> : <AlertTriangle className="h-4 w-4" />}{tit} — {r.quando}</div>
+              <p className="mt-1">
+                {r.criados.toLocaleString("pt-BR")} {tipo} importados
+                {r.vinculados ? ` · ${r.vinculados.toLocaleString("pt-BR")} já existentes vinculados à coordenação` : ""}
+                {` · ${r.pulados.toLocaleString("pt-BR")} pulados`}
+                {r.erros ? ` · ${r.erros.toLocaleString("pt-BR")} com erro` : ""}
+              </p>
+              {r.msg && <p className="mt-1 text-xs">{r.msg}</p>}
+              <p className="mt-1 text-xs opacity-80">O detalhe de cada item está no Histórico de migrações, no rodapé da tela.</p>
+            </div>
+          );
+        })()}
         <div className="flex items-center gap-2">
           <Button size="sm" disabled={!!rodando || !ok || !conf} onClick={() => void importar(mod)}>
             {rodando === mod ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
