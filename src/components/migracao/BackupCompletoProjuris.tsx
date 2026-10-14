@@ -93,6 +93,7 @@ const WORKER_SRC = [
 ].join("\n");
 
 const ceder = () => new Promise((r) => setTimeout(r, 0));
+const CANCELADO = new Error("__cancelado__");
 const valorNum = (v: string) => { const s = String(v ?? "").trim(); if (!s) return null; const n = Number(s.replace(/[^0-9.]/g, "")); return isFinite(n) && s ? n : null; };
 const baseNome = (n: string) => (n.split("/").pop() || n).replace(/\.(csv|txt)$/i, "").toLowerCase().replace(/[-_]\d+$/, "");
 const REGEX_CNJ = /\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/;
