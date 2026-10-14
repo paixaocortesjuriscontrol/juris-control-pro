@@ -88,6 +88,7 @@ export default function PautasTstPage() {
   const [expFim, setExpFim] = useState("");
   const [exportando, setExportando] = useState(false);
   const [fModal, setFModal] = useState("__all__");
+  const [fGrupo, setFGrupo] = useState("__all__");
   const [fResp, setFResp] = useState("__all__");
   const [fSit, setFSit] = useState("__all__");
   const [fCad, setFCad] = useState("__all__");
@@ -219,6 +220,7 @@ export default function PautasTstPage() {
       (fAdv === "__all__" || d.advogado_interno === fAdv) &&
       (fDecisao === "__all__" || (fDecisao === "__sem__" ? !d.decisao : d.decisao === fDecisao)) &&
       (fModal === "__all__" || d.modalidade === fModal) &&
+      (fGrupo === "__all__" || (grupoDaPauta(d.equipe, d.processo_numero) ?? "__sem__") === fGrupo) &&
       (fResp === "__all__" || (fResp === "__sem__" ? !(respMap[d.id]?.length) : respMap[d.id]?.includes(fResp))) &&
       (fSit === "__all__" || ((d as any).status_avaliacao || "avaliada") === fSit) &&
       (fCad === "__all__" || (fCad === "sim" ? !!d.processo_id : !d.processo_id)) &&
@@ -226,10 +228,10 @@ export default function PautasTstPage() {
       (!dFim || (d.data_julgamento || "9999") <= dFim) &&
       (!q || [d.processo_numero, d.dossie, d.reclamante, d.reclamada, d.relator].some((v) => String(v || "").toLowerCase().includes(q))),
     );
-  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fResp, fSit, fCad, dIni, dFim, respMap]);
+  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fGrupo, fResp, fSit, fCad, dIni, dFim, respMap]);
 
   const limparFiltros = () => {
-    setBusca(""); setFRelator("__all__"); setFOrgao("__all__"); setFAdv("__all__"); setFDecisao("__all__");
+    setBusca(""); setFRelator("__all__"); setFOrgao("__all__"); setFAdv("__all__"); setFDecisao("__all__"); setFGrupo("__all__");
     setFModal("__all__"); setFResp("__all__"); setFSit("__all__"); setFCad("__all__"); setDIni(""); setDFim("");
   };
 
@@ -543,6 +545,15 @@ export default function PautasTstPage() {
               {opcoes("decisao").map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
             </SelectContent>
           </Select>
+          <Select value={fGrupo} onValueChange={setFGrupo}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">Grupo: todos</SelectItem>
+              <SelectItem value="tatiana">Grupo Dra. Tatiana</SelectItem>
+              <SelectItem value="renata">Grupo Dra. Renata</SelectItem>
+              <SelectItem value="__sem__">Sem grupo</SelectItem>
+            </SelectContent>
+          </Select>
           <Select value={fModal} onValueChange={setFModal}>
             <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -656,7 +667,10 @@ export default function PautasTstPage() {
                       })()}
                       <span>{d.processo_numero || "—"}</span>
                     </div>
-                    <div className="text-xs text-muted-foreground truncate">{d.dossie || "—"}</div>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <GrupoPautaBadge equipe={d.equipe} processo={d.processo_numero} />
+                      <span className="text-xs text-muted-foreground truncate">{d.dossie || "—"}</span>
+                    </div>
                   </TableCell>
                   <TableCell className="py-2 min-w-0">
                     <div className="text-sm truncate" title={d.reclamante || ""}>{d.reclamante || "—"}</div>
