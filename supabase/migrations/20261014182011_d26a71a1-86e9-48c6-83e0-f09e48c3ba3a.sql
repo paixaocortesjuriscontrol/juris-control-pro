@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.pode_trocar_responsavel_item(uuid,uuid) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.bloquear_troca_responsavel_terceiros() FROM PUBLIC, anon, authenticated;
