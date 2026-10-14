@@ -417,7 +417,7 @@ export function ProcessoDetalhesCompletos({
         }),
         {
           chaveDe: (e) =>
-            e.grupo_parcelas ? null : `${tituloNormalizado(e.titulo)}|${e.responsavel_id ?? ""}`,
+            e.grupo_parcelas ? null : `${tituloNormalizado(e.titulo)}|${e.responsavel_id ?? ""}|${ehPendenteItem(e) ? "p" : "c"}`,
           dataDe: (e) => e.data_inicio,
         }
       ).sort(
@@ -507,8 +507,9 @@ export function ProcessoDetalhesCompletos({
         },
       }),
       {
+        // Inclui a situação: um item pendente nunca pode ficar escondido atrás de um concluído de mesmo título.
         chaveDe: (t) =>
-          `${tituloNormalizado(t.titulo)}|${t.tipo_tarefa ?? ""}|${t.responsavel_id ?? ""}`,
+          `${tituloNormalizado(t.titulo)}|${t.tipo_tarefa ?? ""}|${t.responsavel_id ?? ""}|${ehPendenteItem(t) ? "p" : "c"}`,
         dataDe: (t) => t.data_vencimento || t.data_fatal || t.data_prevista || t.created_at,
       }
     );
