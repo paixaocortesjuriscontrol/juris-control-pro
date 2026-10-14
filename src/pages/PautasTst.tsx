@@ -103,6 +103,15 @@ export default function PautasTstPage() {
   const [excluindo, setExcluindo] = useState(false);
   const [emLote, setEmLote] = useState(false);
   const [acesso, setAcesso] = useState<boolean | null>(null);
+  const [soNovas, setSoNovas] = useState(false);
+  const [autoInfo, setAutoInfo] = useState<{ n: number; ult: string | null }>({ n: 0, ult: null });
+  const [dispensado, setDispensado] = useState<string | null>(() => localStorage.getItem("pautas_auto_dispensado"));
+  const carregarAutoInfo = useCallback(async () => {
+    const { count } = await supabase.from("pautas_tst" as any).select("id", { count: "exact", head: true }).eq("origem", "djen_auto").eq("status_avaliacao", "a_avaliar");
+    const { data } = await supabase.from("pautas_tst" as any).select("created_at").eq("origem", "djen_auto").eq("status_avaliacao", "a_avaliar").order("created_at", { ascending: false }).limit(1);
+    setAutoInfo({ n: count || 0, ult: (data as any[])?.[0]?.created_at || null });
+  }, []);
+  useEffect(() => { carregarAutoInfo(); }, [carregarAutoInfo]);
   const { user } = useAuth();
   const { isAdmin, loading: roleLoading } = useUserRole() as any;
 
@@ -133,8 +142,10 @@ export default function PautasTstPage() {
     setLoading(true);
     try {
       const fim = addDias(semana, 6);
-      const rows = await fetchAll<PautaTst>((a, b) =>
-        supabase
+      const rows = await fetchAll<PautaTst>((a, b) => soNovas
+        ? supabase.from("pautas_tst" as any).select("*").eq("origem", "djen_auto").eq("status_avaliacao", "a_avaliar")
+          .order("data_julgamento", { ascending: true, nullsFirst: false }).range(a, b)
+        : supabase
           .from("pautas_tst" as any)
           .select("*")
           .or(`semana_inicio.eq.${semana},and(semana_inicio.is.null,data_julgamento.gte.${semana},data_julgamento.lte.${fim})`)
@@ -192,7 +203,8 @@ export default function PautasTstPage() {
       toast.error("Erro ao carregar pautas: " + e.message);
     }
     setLoading(false);
-  }, [semana]);
+    carregarAutoInfo();
+  }, [semana, soNovas, carregarAutoInfo]);
 
   useEffect(() => { carregarSemanas(); }, [carregarSemanas]);
   useEffect(() => { carregarSemana(); }, [carregarSemana]);
@@ -420,6 +432,17 @@ export default function PautasTstPage() {
       )}
       {acesso && !formAberto && (
       <div className="space-y-5">
+        {autoInfo.n > 0 && (soNovas || dispensado !== autoInfo.ult) && (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-primary/40 bg-primary/10 px-4 py-3 text-sm">
+            <Lightbulb className="w-5 h-5 text-primary shrink-0" />
+            <div className="flex-1 text-foreground">
+              <strong>{autoInfo.n} {autoInfo.n === 1 ? "pauta encontrada" : "pautas encontradas"} automaticamente pelo DJEN</strong> aguardando avaliação
+              {autoInfo.ult && <> (última busca em {new Date(autoInfo.ult).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })})</>}
+            </div>
+            <Button size="sm" variant={soNovas ? "outline" : "default"} onClick={() => setSoNovas((v) => !v)}>{soNovas ? "Voltar para a semana" : "Ver pautas novas"}</Button>
+            {!soNovas && <Button size="sm" variant="ghost" onClick={() => { localStorage.setItem("pautas_auto_dispensado", autoInfo.ult || ""); setDispensado(autoInfo.ult); }}>Dispensar</Button>}
+          </div>
+        )}
         <div className="flex flex-col xl:flex-row xl:items-end xl:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground flex items-center gap-2"><Gavel className="w-6 h-6 text-primary" /> Pautas de Julgamento TST</h1>
