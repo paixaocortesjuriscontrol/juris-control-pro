@@ -92,6 +92,7 @@ const WORKER_SRC = [
   "};",
 ].join("\n");
 
+const excluido = (v: unknown) => { const s = String(v ?? "").trim().toLowerCase(); return !!s && !["0", "n", "nao", "não", "false", "null", "f"].includes(s); };
 const ceder = () => new Promise((r) => setTimeout(r, 0));
 const CANCELADO = new Error("__cancelado__");
 const valorNum = (v: string) => { const s = String(v ?? "").trim(); if (!s) return null; const n = Number(s.replace(/[^0-9.]/g, "")); return isFinite(n) && s ? n : null; };
@@ -273,7 +274,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       const procNum = new Map<string, { dig: string; sc: number }>();
       const guNum = gu("processonumero");
       if (guNum) for (const r of guNum.linhas) {
-        if (norm(guNum.g(r, "flexclusaotipo"))) continue;
+        if (excluido(guNum.g(r, "flexclusaotipo"))) continue;
         const dig = digitos(guNum.g(r, "denumeroprocesso"));
         if (dig.length !== 20) continue;
         const cd = String(guNum.g(r, "cdprocesso") || ""); if (!cd) continue;
@@ -327,7 +328,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       if (guProc) for (const r of guProc.linhas) {
         const cd = String(guProc.g(r, "cdprocesso") || ""); if (!cd) continue;
         let motivo: string | null = null;
-        if (norm(guProc.g(r, "flexclusaotipo"))) motivo = "Excluído no Projuris";
+        if (excluido(guProc.g(r, "flexclusaotipo"))) motivo = "Excluído no Projuris";
         else if (norm(guProc.g(r, "flativo")) === "n") motivo = "Inativo no Projuris";
         const num = procNum.get(cd);
         const dig = num?.dig || "";
@@ -399,7 +400,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const chave = String(guTe.g(r, "cdtarefaevento") || "");
           let motivo: string | null = null;
           if (!chave) motivo = "Sem identificador";
-          else if (norm(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
+          else if (excluido(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
           else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
           if (!motivo && !det) motivo = "Sem título";
@@ -452,7 +453,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const cd = String(guAnd.g(r, "cdandamento") || "");
           let motivo: string | null = null;
           if (!cd) motivo = "Sem identificador";
-          else if (norm(guAnd.g(r, "flexclusaotipo"))) motivo = "Excluído no Projuris";
+          else if (excluido(guAnd.g(r, "flexclusaotipo"))) motivo = "Excluído no Projuris";
           else if (norm(guAnd.g(r, "flativo")) === "n") motivo = "Inativo no Projuris";
           const procCd = vincMap.get(cd) || "";
           const proc = procByCd.get(procCd);
