@@ -1755,6 +1755,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     <CoordenacoesResponsaveisPicker
                       processoId={processo?.id}
                       coordenacaoPrincipalId={form.coordenacao_id || null}
+                      onPrincipalChange={(nova) => update("coordenacao_id", nova || "")}
                     />
                   </FormField>
                   {processo?.id && (
