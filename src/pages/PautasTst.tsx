@@ -1,3 +1,5 @@
+import { GrupoPautaBadge } from "@/components/pautas-tst/GrupoPautaBadge";
+import { grupoDaPauta } from "@/lib/pautasGrupo";
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
