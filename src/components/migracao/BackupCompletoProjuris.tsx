@@ -145,6 +145,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; msg?: string; quando: string };
+  const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const pausado = useRef(false);
   const cancelado = useRef(false);
   const [pausa, setPausa] = useState(false);
@@ -621,11 +623,15 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelada" : "concluida", contadores }).eq("id", mid);
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
       else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}`);
-      setFeitos((f) => ({ ...f, [mod]: true }));
+      const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, quando } }));
+      if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
       await supabase.from("migracoes_projuris" as any).update({ status: "erro", contadores }).eq("id", mid);
       toast.error(`Erro na importação: ${e?.message || e}`);
+      const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      setResultados((r) => ({ ...r, [mod]: { status: "erro", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, msg: String(e?.message || e), quando } }));
     } finally {
       setRodando(null);
     }
