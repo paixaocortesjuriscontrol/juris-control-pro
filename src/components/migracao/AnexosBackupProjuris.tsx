@@ -124,7 +124,10 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         return { ...m, motivo, processoId, tarefaId, entry };
       });
       setConf(ls);
-    } catch (e: any) { toast.error(`Erro na análise: ${e?.message || e}`); }
+    } catch (e: any) {
+      if (cancelado.current) { cancelado.current = false; toast.warning("Análise cancelada. Nada foi gravado."); }
+      else toast.error(`Erro na análise: ${e?.message || e}`);
+    }
     setMsg("");
   };
 
