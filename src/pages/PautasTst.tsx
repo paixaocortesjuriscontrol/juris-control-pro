@@ -90,6 +90,7 @@ export default function PautasTstPage() {
   const [expFim, setExpFim] = useState("");
   const [exportando, setExportando] = useState(false);
   const [fModal, setFModal] = useState("__all__");
+  const [fCardModal, setFCardModal] = useState("__all__");
   const [fGrupo, setFGrupo] = useState("__all__");
   const [fResp, setFResp] = useState("__all__");
   const [fSit, setFSit] = useState("__all__");
@@ -231,7 +232,7 @@ export default function PautasTstPage() {
       (!dFim || (d.data_julgamento || "9999") <= dFim) &&
       (!q || [d.processo_numero, d.dossie, d.reclamante, d.reclamada, d.relator].some((v) => String(v || "").toLowerCase().includes(q))),
     );
-  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fGrupo, fResp, fSit, fCad, dIni, dFim, respMap]);
+  }, [dados, busca, fRelator, fOrgao, fAdv, fDecisao, fModal, fCardModal, fGrupo, fResp, fSit, fCad, dIni, dFim, respMap]);
 
   const limparFiltros = () => {
     setBusca(""); setFRelator("__all__"); setFOrgao("__all__"); setFAdv("__all__"); setFDecisao("__all__"); setFGrupo("__all__");
