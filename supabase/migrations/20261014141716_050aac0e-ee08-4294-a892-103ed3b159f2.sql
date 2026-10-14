@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.get_ranking_publicacoes(date,date,uuid,uuid) FROM PUBLIC, anon;
