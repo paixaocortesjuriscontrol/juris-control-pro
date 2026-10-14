@@ -34,15 +34,15 @@ const TIPO_META: Record<ItemCriadoTipo, { label: string; icon: React.ComponentTy
  * está vazia.
  */
 export function ItensCriadosPublicacaoCard({ itens, className, onSelecionarItem }: Props) {
-  const [aberto, setAberto] = useState(true);
+  const [aberto, setAberto] = useState(false);
   const [flashId, setFlashId] = useState<string | null>(null);
   const ultimo = itens[itens.length - 1];
 
-  // Destaca por 2.5s o item mais recente adicionado.
+  // Destaca por 2.5s o item mais recente adicionado (sem abrir o card:
+  // a lista começa sempre recolhida).
   useEffect(() => {
     if (!ultimo) return;
     setFlashId(ultimo.id);
-    setAberto(true);
     const t = setTimeout(() => setFlashId(null), 2500);
     return () => clearTimeout(t);
   }, [ultimo?.id]);
