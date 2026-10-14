@@ -128,7 +128,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       if (cancelado.current) { cancelado.current = false; toast.warning("Análise cancelada. Nada foi gravado."); }
       else toast.error(`Erro na análise: ${e?.message || e}`);
     }
-    setMsg("");
+    setMsg(""); setAnalisando(false);
   };
 
   const esperar = async () => { while (pausado.current && !cancelado.current) await new Promise((r) => setTimeout(r, 400)); };
@@ -204,16 +204,22 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           <span className="text-sm font-medium">Arraste o mapeamento (.csv) e os zips dos anexos</span>
           <input type="file" multiple className="hidden" accept=".csv,.zip" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
         </label>
-        {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
+        {lendo && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...
+            <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" onClick={() => { cancelado.current = true; }}>Cancelar leitura</Button>
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant={mapa.length ? "secondary" : "outline"}>Mapeamento: {mapa.length ? `${mapa.length.toLocaleString("pt-BR")} arquivos` : "não enviado"}</Badge>
           <Badge variant={zips.length ? "secondary" : "outline"}>Zips: {zips.length} ({totalZip.toLocaleString("pt-BR")} arquivos)</Badge>
-          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
+          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
         </div>
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || !!msg} onClick={() => void analisar()}>
-            {msg ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Analisar anexos (nada é gravado)
+          <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || analisando} onClick={() => void analisar()}>
+            {analisando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Analisar anexos (nada é gravado)
           </Button>
+          {analisando && <Button size="sm" variant="destructive" onClick={() => { cancelado.current = true; }}>Cancelar análise</Button>}
           {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
         </div>
         {conf && (
