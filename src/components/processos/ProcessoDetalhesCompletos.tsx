@@ -251,6 +251,7 @@ export function ProcessoDetalhesCompletos({
   // Inicializa com initialSection se fornecido (vem do ?tab= da URL)
   const [activeSection, setActiveSection] = useState<string>(initialSection || "resumo");
   const [juditNovoDestaque, setJuditNovoDestaque] = useState(false);
+  const [abaStatus, setAbaStatus] = useState<"pendentes" | "concluidos">("pendentes");
 
   // Sinaliza (fonte verde no nome da aba) quais seções têm dados vindos da Judit.
   const { data: juditFlags } = useQuery({
@@ -515,7 +516,7 @@ export function ProcessoDetalhesCompletos({
   // Pendentes sempre no início da lista (concluídos/cumpridos/cancelados vão para o fim).
   function ehPendenteItem(t: any) {
     const st = String(t?.status ?? "pendente").toLowerCase();
-    return !["cumprido", "concluido", "verificado", "protocolado", "baixado", "cancelado", "cancelada"].includes(st);
+    return !["cumprido", "concluido", "concluida", "realizada", "verificado", "protocolado", "baixado", "cancelado", "cancelada", "cancelado_oculto", "tratado", "concluido_sem_sucesso"].includes(st);
   }
   function pendentesPrimeiro<T extends { principal: any }>(linhas: T[]) {
     return [...linhas].sort((a, b) => Number(!ehPendenteItem(a.principal)) - Number(!ehPendenteItem(b.principal)));
@@ -529,6 +530,31 @@ export function ProcessoDetalhesCompletos({
     () => pendentesPrimeiro(agruparTarefas(prazosDoProcesso)),
     [JSON.stringify(prazosDoProcesso), baixasPorOcorrencia]
   );
+
+  // Abas Pendentes / Concluídos nas listas de tarefas, prazos, audiências, eventos e parcelamentos.
+  const naAba = (item: any) => (abaStatus === "pendentes") === ehPendenteItem(item);
+  const filtrarAba = <T extends { principal: any }>(linhas: T[]) => linhas.filter((l) => naAba(l.principal));
+  const renderAbasStatus = (itens: any[]) => {
+    const pend = itens.filter((i) => ehPendenteItem(i)).length;
+    const conc = itens.length - pend;
+    return (
+      <div className="flex gap-1 mb-3 border-b border-border">
+        {([["pendentes", `Pendentes (${pend})`], ["concluidos", `Concluídos (${conc})`]] as const).map(([v, label]) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setAbaStatus(v)}
+            className={cn(
+              "px-3 py-1.5 text-xs font-medium border-b-2 -mb-px transition-colors",
+              abaStatus === v ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    );
+  };
 
 
   // Contagem de atividades (subatividades) vinculadas aos itens do processo,
@@ -1355,13 +1381,14 @@ export function ProcessoDetalhesCompletos({
                           Adicionar Audiência
                         </Button>
                       </div>
+                      {renderAbasStatus(audiencias)}
                       {loadingAudiencias ? (
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-24 rounded-lg" />)}
                         </div>
-                      ) : audiencias.length > 0 ? (
+                      ) : audiencias.filter(naAba).length > 0 ? (
                         <div className="space-y-3">
-                          {audiencias.map((aud) => (
+                          {audiencias.filter(naAba).map((aud) => (
                             <Card
                               key={aud.id}
                               role="button"
@@ -1536,13 +1563,14 @@ export function ProcessoDetalhesCompletos({
                           Adicionar Tarefa
                         </Button>
                       </div>
+                      {renderAbasStatus(seriesTarefas.map((l) => l.principal))}
                       {loadingTarefas ? (
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : seriesTarefas.length > 0 ? (
+                      ) : filtrarAba(seriesTarefas).length > 0 ? (
                         <div className="space-y-2">
-                          {seriesTarefas.map((linha) =>
+                          {filtrarAba(seriesTarefas).map((linha) =>
                             renderSerie(
                               linha,
                               (tarefa: any) => (
@@ -1787,13 +1815,14 @@ export function ProcessoDetalhesCompletos({
                           Adicionar Prazo
                         </Button>
                       </div>
+                      {renderAbasStatus(seriesPrazos.map((l) => l.principal))}
                       {loadingTarefas ? (
                         <div className="space-y-3">
                           {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg" />)}
                         </div>
-                      ) : seriesPrazos.length > 0 ? (
+                      ) : filtrarAba(seriesPrazos).length > 0 ? (
                         <div className="space-y-2">
-                          {seriesPrazos.map((linha) =>
+                          {filtrarAba(seriesPrazos).map((linha) =>
                             renderSerie(
                               linha,
                               (tarefa: any) => (
@@ -2071,7 +2100,8 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Evento
                     </Button>
                   </div>
-                  {seriesEventos.length > 0 ? (
+                  {renderAbasStatus(filtrarAba(seriesEventos).map((l) => l.principal))}
+                  {filtrarAba(seriesEventos).length > 0 ? (
                     <div className="space-y-2">
                       {seriesEventos.map((linha) =>
                         renderSerie(
@@ -2132,7 +2162,8 @@ export function ProcessoDetalhesCompletos({
                       Adicionar Parcelamento
                     </Button>
                   </div>
-                  {seriesParcelamentos.length > 0 ? (
+                  {renderAbasStatus(filtrarAba(seriesParcelamentos).map((l) => l.principal))}
+                  {filtrarAba(seriesParcelamentos).length > 0 ? (
                     <div className="space-y-2">
                       {seriesParcelamentos.map((linha) =>
                         renderSerie(
