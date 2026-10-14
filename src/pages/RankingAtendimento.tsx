@@ -235,7 +235,7 @@ export default function RankingAtendimento() {
     const base = geralQuery.data || [];
     const pubs = publicacoesQuery.data || [];
     const porUid = new Map(pubs.map((p) => [p.usuario_id, Number(p.publicacoes_tratadas) || 0]));
-    const linhas = base.map((l) => ({ ...l, publicacoes_tratadas: porUid.get(l.usuario_id) ?? 0 }));
+    const linhas: LinhaGeral[] = base.map((l) => ({ ...l, publicacoes_tratadas: porUid.get(l.usuario_id) ?? 0 }));
     const existentes = new Set(base.map((l) => l.usuario_id));
     for (const p of pubs) {
       if (existentes.has(p.usuario_id) || !Number(p.publicacoes_tratadas)) continue;
