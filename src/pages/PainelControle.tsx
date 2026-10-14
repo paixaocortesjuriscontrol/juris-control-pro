@@ -2157,7 +2157,11 @@ export default function PainelControle() {
 
       // Eventos de vários dias aparecem em todos os dias do período (limite 92 dias)
       const keys: string[] = [dateKey];
-      if (item.origem === "evento" && item.data_fim) {
+      // Ocorrências de eventos recorrentes ficam só no próprio dia: o data_fim
+      // gravado costuma ser o fim da série, não da ocorrência.
+      const ehOcorrenciaRecorrente =
+        !!item.recorrencia_pai_id || !!item.recorrente || !!item.recorrencia_tipo || String(item.id).includes("::");
+      if (item.origem === "evento" && item.data_fim && !ehOcorrenciaRecorrente) {
         const fimKey = item.data_fim.slice(0, 10);
         if (fimKey > dateKey) {
           const d = new Date(`${dateKey}T12:00:00Z`);
