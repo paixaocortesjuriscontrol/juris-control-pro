@@ -17,6 +17,7 @@ import { sanitizarNome } from "@/lib/migracaoProjuris";
  */
 type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
 type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry };
+const CANCELADO = new Error("__cancelado__");
 
 const parseCsv = (txt: string) => {
   const linhas: string[][] = []; let campo = "", linha: string[] = [], q = false;
