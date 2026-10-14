@@ -234,6 +234,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         toast.error(`Erro ao ler ${f.name}: ${e?.message || e}`);
       }
     }
+    if (cancelado.current) {
+      cancelado.current = false;
+      toast.warning("Leitura cancelada. O que já foi lido continua disponível — use “Limpar tudo” para começar de novo.");
+    }
     setLendo(null);
   };
 
