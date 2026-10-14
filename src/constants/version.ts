@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "8.2.0";
+export const APP_VERSION = "8.2.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -86,4 +86,5 @@ export const VERSION_HISTORY = [
   { version: "8.0.2", date: "2026-10-09", notes: "Assistente coordenador passa a ver Análise DJEN e Documentos no menu, como o coordenador" },
   { version: "8.1.0", date: "2026-10-14", notes: "Pautas de Julgamento: grupos por equipe na lista e no detalhe, botão Salvar sempre visível e aviso de pautas novas após o DJEN; Ranking de Atendimento com coluna Publicações; e-mail de prazos perdidos deixa de avisar itens já protocolados, baixados, reagendados, minutados ou cancelados" },
   { version: "8.2.0", date: "2026-10-14", notes: "Troca de responsável bloqueada para quem é só envolvido: só o responsável e os corresponsáveis do item, a coordenação, o admin ou as pessoas liberadas nas permissões da coordenação podem alterar o responsável de prazos, tarefas, eventos e audiências" },
+  { version: "8.2.1", date: "2026-10-14", notes: "Aviso ao tentar baixar um item sem permissão: a mensagem orienta a procurar o coordenador e pedir a liberação no menu Coordenações, em 'Quem pode mudar cada situação'" },
 ];
