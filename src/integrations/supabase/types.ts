@@ -11938,6 +11938,10 @@ export type Database = {
         Args: { _coordenacao_id: string }
         Returns: boolean
       }
+      pode_trocar_responsavel_item: {
+        Args: { _tarefa: string; _user: string }
+        Returns: boolean
+      }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
