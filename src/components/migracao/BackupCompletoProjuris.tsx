@@ -692,12 +692,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             <span className="text-xs text-muted-foreground">.zip com os CSVs do Projuris (também aceita .csv avulsos)</span>
             <input type="file" multiple className="hidden" accept=".zip,.csv,.txt,.xlsx,.xls" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
           </label>
-          {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
+          {lendo && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...
+              <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" onClick={() => { cancelado.current = true; }}>Cancelar leitura</Button>
+            </p>
+          )}
           {info.length > 0 && (
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <h4 className="text-sm font-semibold">Tabelas lidas ({info.length})</h4>
-                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={zerar}>Limpar tudo</Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando !== null} onClick={zerar}>Limpar tudo</Button>
               </div>
               <div className="max-h-64 overflow-auto">
                 {info.map((t) => (
@@ -718,7 +723,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               {analisando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Analisar (nada é gravado)
             </Button>
-            {(analisando || msg) && <span className="text-xs text-muted-foreground">{msg || "Analisando..."}</span>}
+              {analisando && <Button size="sm" variant="destructive" onClick={() => { cancelado.current = true; }}>Cancelar análise</Button>}
+              {(analisando || msg) && <span className="text-xs text-muted-foreground">{msg || "Analisando..."}</span>}
           </div>
         </CardContent>
       </Card>
