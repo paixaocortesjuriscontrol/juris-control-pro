@@ -4317,6 +4317,8 @@ const AnaliseDjen = () => {
           };
           const registrarItemCriado = (tipo: ItemCriado["tipo"]) =>
             (info: { id: string; titulo: string }) => {
+              // Atualiza a lista verde a partir do banco logo após salvar.
+              queryClient.invalidateQueries({ queryKey: ["itens-existentes-publicacao"] });
               setItensCriadosSessao((prev) => [
                 ...prev,
                 { id: info.id, titulo: info.titulo, tipo, createdAt: Date.now() },
