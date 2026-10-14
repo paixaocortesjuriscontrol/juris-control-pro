@@ -5,12 +5,20 @@
 const COMUNS = [
   "cancelado",
   "cancelada",
+  "cancelado_oculto",
   "concluido_sem_sucesso",
   "verificado",
   "tratado",
   "tratada",
   "arquivada",
   "arquivado",
+  "protocolado",
+  "protocolada",
+  "baixado",
+  "baixada",
+  "reagendado",
+  "reagendada",
+  "minutado_revisao",
 ];
 
 export const ENCERRADAS_TAREFA = [...COMUNS, "cumprido", "cumprida", "concluida", "concluido"];
