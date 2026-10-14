@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "8.0.2";
+export const APP_VERSION = "8.1.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -84,4 +84,5 @@ export const VERSION_HISTORY = [
   { version: "8.0.0", date: "2026-10-08", notes: "Marco 8.0.0: Pautas de Julgamento com importação em barra de progresso e sugestões do DEJT; certificado digital A1 nas Minhas credenciais PJe; Análise DJEN reconhece processos já cadastrados; notificações configuráveis por coordenação" },
   { version: "8.0.1", date: "2026-10-09", notes: "Processos e Casos: ao criar um novo, Tipo de Processo aparece antes do Número do Processo e os dois na mesma linha" },
   { version: "8.0.2", date: "2026-10-09", notes: "Assistente coordenador passa a ver Análise DJEN e Documentos no menu, como o coordenador" },
+  { version: "8.1.0", date: "2026-10-14", notes: "Pautas de Julgamento: grupos por equipe na lista e no detalhe, botão Salvar sempre visível e aviso de pautas novas após o DJEN; Ranking de Atendimento com coluna Publicações; e-mail de prazos perdidos deixa de avisar itens já protocolados, baixados, reagendados, minutados ou cancelados" },
 ];
