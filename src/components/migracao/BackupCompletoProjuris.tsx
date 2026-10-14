@@ -191,8 +191,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
 
   const abrir = async (files: FileList | null) => {
     if (!files) return;
+    cancelado.current = false;
     setConf(null); setAnalisando(false);
     for (const f of Array.from(files)) {
+      if (cancelado.current) break;
       try {
         if (f.name.toLowerCase().endsWith(".zip")) {
           setLendo(`${f.name} (listando...)`);
@@ -200,6 +202,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const entries = (await reader.getEntries()).filter((e) => !e.directory);
           let usados = 0;
           for (const e of entries) {
+            if (cancelado.current) break;
             if (ehRelatorio(e.filename)) {
               setLendo(e.filename);
               const b: Blob = await (e as any).getData(new BlobWriter());
