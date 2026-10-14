@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -268,7 +269,7 @@ export function CriarTarefaAudienciaDialog({
                 <div className="flex items-center gap-2">
                   <Calendar className="w-4 h-4 text-muted-foreground" />
                   <strong>Data:</strong>
-                  <span>{formatDate(audiencia.data_audiencia)}</span>
+                  <span>{formatDate(audiencia.data_audiencia)}{sufixoHoraAudiencia(audiencia)}</span>
                   {audiencia.hora && <span className="text-muted-foreground">às {audiencia.hora}</span>}
                 </div>
 

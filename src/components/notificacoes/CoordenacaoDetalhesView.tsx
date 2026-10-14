@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -981,7 +982,7 @@ export function CoordenacaoDetalhesView({
                     <div className="flex items-center gap-1 text-xs text-primary font-medium">
                       <Calendar className="h-3 w-3" />
                       <span>
-                        {formatDate(aud.data_audiencia)}
+                        {formatDate(aud.data_audiencia)}{sufixoHoraAudiencia(aud)}
                         {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
                         {!aud.hora_brasilia && aud.hora && ` às ${aud.hora}`}
                       </span>

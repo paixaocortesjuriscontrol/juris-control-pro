@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -342,7 +343,7 @@ export function RelatorioAudienciasDiretoria() {
                     })
                     .map((audiencia) => (
                       <TableRow key={audiencia.id}>
-                        <TableCell className="whitespace-nowrap">{formatDate(audiencia.data_audiencia)}</TableCell>
+                        <TableCell className="whitespace-nowrap">{formatDate(audiencia.data_audiencia)}{sufixoHoraAudiencia(audiencia)}</TableCell>
                         <TableCell className="whitespace-nowrap">{horaAudienciaBrt(audiencia) || "-"}</TableCell>
                         <TableCell className="font-mono text-xs">{audiencia.processo_numero || "-"}</TableCell>
                         <TableCell>{audiencia.vara_camara || "-"}</TableCell>

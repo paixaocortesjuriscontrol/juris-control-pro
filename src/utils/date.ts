@@ -104,3 +104,10 @@ export function dataInicioAudiencia(
   const hh = match[1].padStart(2, "0");
   return `${dia}T${hh}:${match[2]}:00`;
 }
+
+/** Sufixo " às HH:mm" da audiência (vazio se não houver hora real). */
+export function sufixoHoraAudiencia(a: any): string {
+  if (!a) return "";
+  const h = horaBrt(a.hora_brasilia || a.hora_local || a.hora || null);
+  return h && h !== "00:00" ? ` às ${h}` : "";
+}

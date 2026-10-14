@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -378,7 +379,7 @@ export default function PainelAudiencias({ embedded = false, statusFilter: statu
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">Data</label>
                   <p className="font-medium">
-                    {formatDate(selectedAudiencia.data_audiencia)}
+                    {formatDate(selectedAudiencia.data_audiencia)}{sufixoHoraAudiencia(selectedAudiencia)}
                     {selectedAudiencia.hora && ` às ${selectedAudiencia.hora}`}
                   </p>
                 </div>

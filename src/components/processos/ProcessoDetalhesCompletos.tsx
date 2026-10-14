@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { FileSpreadsheet } from "lucide-react";
 import { RelatorioClienteTab } from "./RelatorioClienteTab";
 import { useState, useRef, useEffect, useMemo } from "react";
@@ -1437,7 +1438,7 @@ export function ProcessoDetalhesCompletos({
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-2 text-xs">
                                   <div>
                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Data</p>
-                                    <p className="font-medium text-foreground">{aud.data_audiencia ? formatDate(aud.data_audiencia) : '—'}</p>
+                                    <p className="font-medium text-foreground">{aud.data_audiencia ? formatDate(aud.data_audiencia) + sufixoHoraAudiencia(aud) : '—'}</p>
                                   </div>
                                   <div>
                                     <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Hora</p>

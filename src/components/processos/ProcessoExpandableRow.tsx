@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -719,7 +720,7 @@ export function ProcessoExpandableRow({
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-sm font-medium text-muted-foreground">
                             {aud.data_audiencia
-                              ? format(new Date(aud.data_audiencia), "dd/MM/yyyy")
+                              ? format(new Date(aud.data_audiencia), "dd/MM/yyyy") + sufixoHoraAudiencia(aud)
                               : "Data não informada"}
                             {aud.hora && ` às ${aud.hora}`}
                           </span>

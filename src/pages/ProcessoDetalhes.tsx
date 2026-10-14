@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useAuth } from "@/contexts/AuthContext";
 import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import DOMPurify from "dompurify";
@@ -1718,7 +1719,7 @@ export default function ProcessoDetalhes() {
                               <div className="flex items-center gap-4 text-sm flex-wrap">
                                 <div className="flex items-center gap-2 bg-primary/10 px-3 py-1.5 rounded-lg">
                                   <Calendar className="h-5 w-5 text-primary" />
-                                  <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}</span>
+                                  <span className="font-bold text-primary text-lg">{formatDate(aud.data_audiencia)}{sufixoHoraAudiencia(aud)}</span>
                                   {(aud.hora_brasilia || aud.hora) && (
                                     <span className="text-muted-foreground">às {aud.hora_brasilia || aud.hora}</span>
                                   )}
