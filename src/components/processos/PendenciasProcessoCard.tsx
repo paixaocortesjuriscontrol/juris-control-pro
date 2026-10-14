@@ -1,3 +1,4 @@
+import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -250,8 +251,7 @@ export function PendenciasProcessoCard({
                   <div className="flex items-center gap-3 text-muted-foreground">
                     <span className="flex items-center gap-1">
                       <CalendarDays className="w-3 h-3" />
-                      {formatDate(aud.data_audiencia)}
-                      {aud.hora_brasilia && ` às ${aud.hora_brasilia}`}
+                      {formatDate(aud.data_audiencia)}{sufixoHoraAudiencia(aud)}
                     </span>
                   </div>
                   {aud.local_audiencia && (
