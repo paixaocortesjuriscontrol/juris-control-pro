@@ -734,10 +734,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {conf.comentarios > 0 && (
-                  <p><strong>{conf.comentarios.toLocaleString("pt-BR")} comentários:</strong> o backup não traz a tabela que liga comentário à tarefa ou ao processo. Se conseguirmos essa tabela depois, eles podem ser importados pela aba Comentários.</p>
+                  <p><strong>{conf.comentarios.toLocaleString("pt-BR")} comentários:</strong> o backup não traz a tabela que liga comentário à tarefa ou ao processo (o Mapeamento de Arquivos enviado pelo Projuris também não traz comentários). Ficam de fora até chegar essa tabela.</p>
                 )}
                 {conf.arquivos.total > 0 && (
-                  <p><strong>{conf.arquivos.total.toLocaleString("pt-BR")} anexos</strong> ({conf.arquivos.comCnj.toLocaleString("pt-BR")} com número de processo no nome): o backup traz só o cadastro, sem os arquivos físicos e sem a tabela de vínculos. Quando você enviar o zip com os arquivos reais, a aba Anexos liga pelo CNJ no nome.</p>
+                  <p><strong>{conf.arquivos.total.toLocaleString("pt-BR")} anexos</strong> no cadastro do backup: são importados na etapa <strong>4. Anexos</strong> abaixo, usando o Mapeamento de Arquivos do Projuris e os zips. Anexos fora do mapeamento ficam sem vínculo.</p>
                 )}
               </CardContent>
             </Card>

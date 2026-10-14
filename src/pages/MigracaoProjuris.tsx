@@ -24,6 +24,7 @@ import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { DiagnosticoProjuris } from "@/components/migracao/DiagnosticoProjuris";
 import { ImportacaoProjurisSimples } from "@/components/migracao/ImportacaoProjurisSimples";
 import { BackupCompletoProjuris } from "@/components/migracao/BackupCompletoProjuris";
+import { AnexosBackupProjuris } from "@/components/migracao/AnexosBackupProjuris";
 
 type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
 const MODULOS: [Modulo, string][] = [["processos", "Processos"], ["tarefas", "Tarefas"], ["anexos", "Anexos"], ["comentarios", "Comentários"], ["andamentos", "Andamentos"]];
@@ -527,8 +528,9 @@ export default function MigracaoProjuris() {
     XLSX.writeFile(wb, `Relatorio_Migracao_Projuris_${mid.slice(0, 8)}.xlsx`);
   };
 
-  const desfazer = async (mid: string) => {
-    if (!window.confirm("Desfazer este lote? Processos, tarefas, anexos, comentários e andamentos criados por ele serão removidos.")) return;
+  const desfazer = async (mid: string, rotulo = "este lote", qtd = 0) => {
+    const txt = window.prompt(`Desfazer o lote "${rotulo}"? ${qtd.toLocaleString("pt-BR")} registro(s) criados por ele serão apagados do Juris Control.\n\nPara confirmar, digite DESFAZER:`);
+    if ((txt || "").trim().toUpperCase() !== "DESFAZER") return;
     const ids = async (tipo: string) => {
       const out: string[] = [];
       for (let from = 0; ; from += 1000) {
@@ -570,47 +572,55 @@ export default function MigracaoProjuris() {
   return (
     <MainLayout title="Migração Projuris" subtitle="Restaurar backup de tarefas e anexos do Projuris">
       <div className="space-y-6">
-        <div className="flex flex-wrap gap-2">
-          <Button variant={modo === "backup" ? "default" : "outline"} onClick={() => setModo(modo === "backup" ? "importacoes" : "backup")}>
-            Backup completo do Projuris
-          </Button>
-          {modo === "importacoes" && MODULOS.map(([k, rot], i) => (
-            <Button key={k} variant={modulo === k ? "default" : "outline"} onClick={() => setModulo(k)}>
-              {i + 1}. {rot}{contMigrados[k] ? <Badge variant="secondary" className="ml-2">{contMigrados[k].toLocaleString("pt-BR")}</Badge> : null}
-            </Button>
-          ))}
-        </div>
-        {modo === "backup" ? (
-          <div className="space-y-4">
-            <p className="text-xs text-muted-foreground">Tela para o zip completo do Projuris (as tabelas do backup). As abas 1 a 5 continuam disponíveis para os zips de planilhas e de anexos.</p>
-            {user && (
-              <>
-                <div className="grid max-w-md gap-2">
-                  <Label>Coordenação de destino</Label>
-                  <Select value={coordId} onValueChange={setCoordId}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
-                <BackupCompletoProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
-              </>
-            )}
-          </div>
-        ) : (
-        <div className="space-y-4">
-        <p className="text-xs text-muted-foreground">Ordem recomendada: Processos → Tarefas → Anexos → Comentários → Andamentos. Cada importação usa o que já foi migrado nas anteriores. Os números mostram o que já foi migrado para a coordenação selecionada.</p>
-        {(modulo === "processos" || modulo === "comentarios" || modulo === "andamentos") && user && (
-          <>
+        <Card>
+          <CardContent className="space-y-4 pt-6">
             <div className="grid max-w-md gap-2">
-              <Label>Coordenação de destino</Label>
+              <Label>Coordenação de destino (vale para todas as etapas)</Label>
               <Select value={coordId} onValueChange={setCoordId}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-muted-foreground">Já migrado para {coords.find((c) => c.id === coordId)?.nome || "esta coordenação"}</p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {MODULOS.map(([k, rot]) => (
+                  <div key={k} className="rounded-md border p-2">
+                    <div className="text-lg font-semibold">{(contMigrados[k] || 0).toLocaleString("pt-BR")}</div>
+                    <div className="text-xs text-muted-foreground">{rot}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant={modo === "backup" ? "default" : "outline"} onClick={() => setModo("backup")}>Backup completo do Projuris (recomendado)</Button>
+              <Button variant={modo === "importacoes" ? "default" : "outline"} onClick={() => setModo("importacoes")}>Planilhas avulsas (modo antigo)</Button>
+            </div>
+          </CardContent>
+        </Card>
+        {modo === "importacoes" && (
+          <div className="flex flex-wrap gap-2">
+            {MODULOS.map(([k, rot], i) => (
+              <Button key={k} size="sm" variant={modulo === k ? "default" : "outline"} onClick={() => setModulo(k)}>{i + 1}. {rot}</Button>
+            ))}
+          </div>
+        )}
+        {modo === "backup" ? (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Ordem: 1. Processos → 2. Tarefas → 3. Andamentos → 4. Anexos. Se a página fechar no meio, envie os arquivos de novo e clique em Analisar: o que já entrou é pulado e a importação continua de onde parou.</p>
+            {user && (
+              <>
+                <BackupCompletoProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+                <AnexosBackupProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+              </>
+            )}
+          </div>
+        ) : (
+        <div className="space-y-4">
+        <p className="text-xs text-muted-foreground">Modo antigo, para planilhas exportadas manualmente. Para o backup do Projuris, use "Backup completo".</p>
+        {(modulo === "processos" || modulo === "comentarios" || modulo === "andamentos") && user && (
             <ImportacaoProjurisSimples key={modulo + coordId} modulo={modulo} coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""}
               userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
-          </>
         )}
         {(modulo === "tarefas" || modulo === "anexos") && (<>
         {modulo === "anexos" && etapa === 0 && (
@@ -635,13 +645,6 @@ export default function MigracaoProjuris() {
               <CardDescription>Envie as planilhas de tarefas e os zips com os anexos. Os zips são lidos aqui mesmo, sem limite de tamanho. Pode importar as tarefas primeiro e subir os anexos depois — eles serão ligados às tarefas e processos já importados.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2 max-w-md">
-                <Label>Coordenação de destino</Label>
-                <Select value={coordId} onValueChange={setCoordId}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
               <div className="grid gap-2 max-w-md">
                 <Label>Usuário que assume as tarefas sem responsável</Label>
                 <Select value={usuarioAssume} onValueChange={setUsuarioAssume}>
@@ -930,26 +933,32 @@ export default function MigracaoProjuris() {
           <CardContent className="p-0">
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Lote</TableHead><TableHead>Situação</TableHead><TableHead>Processos</TableHead><TableHead>Tarefas</TableHead><TableHead>Anexos</TableHead><TableHead>Sem vínculo</TableHead><TableHead>Erros</TableHead><TableHead>Comentários / andamentos</TableHead><TableHead />
+                <TableHead>Data</TableHead><TableHead>Etapa</TableHead><TableHead>Coordenação</TableHead><TableHead>Situação</TableHead><TableHead>Resultado</TableHead><TableHead />
               </TableRow></TableHeader>
               <TableBody>
-                {historico.map((h) => (
+                {historico.map((h) => {
+                  const c = h.contadores || {};
+                  const etapaNome = h.mapeamento?.tabela || ({ processos: "Processos", tarefas: "Tarefas", anexos: "Anexos", comentarios: "Comentários", andamentos: "Andamentos" } as Record<string, string>)[h.mapeamento?.modulo] || "Tarefas e anexos";
+                  const criados = c.criados ?? ((c.tarefas_criadas || 0) + (c.anexos_enviados || 0) + (c.processos_criados || 0));
+                  const partes = [`${Number(criados || 0).toLocaleString("pt-BR")} importados`];
+                  if (c.vinculados) partes.push(`${c.vinculados} já existentes vinculados`);
+                  if (c.pulados) partes.push(`${Number(c.pulados).toLocaleString("pt-BR")} pulados`);
+                  if (c.erros) partes.push(`${c.erros} com erro`);
+                  return (
                   <TableRow key={h.id}>
-                    <TableCell className="text-sm">{h.nome}</TableCell>
+                    <TableCell className="whitespace-nowrap text-sm">{new Date(h.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</TableCell>
+                    <TableCell className="text-sm">{etapaNome}{h.mapeamento?.modulo === "backup" ? <span className="text-xs text-muted-foreground"> (backup)</span> : null}</TableCell>
+                    <TableCell className="text-sm">{coords.find((x) => x.id === h.coordenacao_id)?.nome || "—"}</TableCell>
                     <TableCell><Badge variant="outline">{h.status}</Badge></TableCell>
-                    <TableCell>{h.contadores?.processos_criados ?? (h.mapeamento?.modulo === "processos" ? h.contadores?.criados : 0) ?? 0}</TableCell>
-                    <TableCell>{h.contadores?.tarefas_criadas ?? 0}</TableCell>
-                    <TableCell>{h.contadores?.anexos_enviados ?? 0}</TableCell>
-                    <TableCell>{h.contadores?.anexos_sem_vinculo ?? 0}</TableCell>
-                    <TableCell>{h.contadores?.erros ?? 0}</TableCell>
-                    <TableCell>{h.mapeamento?.modulo === "comentarios" || h.mapeamento?.modulo === "andamentos" ? `${h.contadores?.criados ?? 0} ${h.mapeamento.modulo}` : ""}</TableCell>
+                    <TableCell className="text-sm">{partes.join(" · ")}</TableCell>
                     <TableCell className="flex gap-1">
-                      <Button size="sm" variant="ghost" onClick={() => baixarRelatorio(h.id)}><Download className="h-4 w-4" /></Button>
-                      {h.status !== "desfeito" && <Button size="sm" variant="ghost" onClick={() => desfazer(h.id)}><Undo2 className="h-4 w-4" /></Button>}
+                      <Button size="sm" variant="ghost" title="Baixar relatório" onClick={() => baixarRelatorio(h.id)}><Download className="h-4 w-4" /></Button>
+                      {h.status !== "desfeito" && <Button size="sm" variant="ghost" className="text-destructive" title="Desfazer lote" onClick={() => desfazer(h.id, `${etapaNome} de ${new Date(h.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`, Number(criados || 0))}><Undo2 className="h-4 w-4" /></Button>}
                     </TableCell>
                   </TableRow>
-                ))}
-                {!historico.length && <TableRow><TableCell colSpan={9} className="text-center text-sm text-muted-foreground">Nenhuma migração ainda</TableCell></TableRow>}
+                  );
+                })}
+                {!historico.length && <TableRow><TableCell colSpan={6} className="text-center text-sm text-muted-foreground">Nenhuma migração ainda</TableCell></TableRow>}
               </TableBody>
             </Table>
           </CardContent>
