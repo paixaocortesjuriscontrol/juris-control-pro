@@ -90,7 +90,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       const busca = async (tabela: "processos" | "tarefas", ids: string[]) => {
         const out = new Map<string, { id: string; processo_id?: string | null }>();
         for (let k = 0; k < ids.length; k += 200) {
-          const { data, error } = await supabase.from(tabela).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris" as any, ids.slice(k, k + 200));
+          const { data, error } = await (supabase.from(tabela as any) as any).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris" as any, ids.slice(k, k + 200));
           if (error) throw error;
           ((data as any[]) || []).forEach((x) => out.set(String(x.identificador_projuris), x));
           setMsg(`Procurando ${tabela}: ${Math.min(k + 200, ids.length)} de ${ids.length}`); await ceder();
