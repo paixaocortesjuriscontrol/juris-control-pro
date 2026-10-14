@@ -22,6 +22,8 @@
 
     /* Primary - Deep Navy */
     --primary: 222 47% 18%;
+    --grupo-tatiana: 211 85% 45%;
+    --grupo-renata: 271 60% 50%;
     --primary-foreground: 45 100% 96%;
 
     /* Secondary - Warm Slate */
@@ -103,6 +105,8 @@
     --popover-foreground: 220 20% 95%;
 
     --primary: 43 74% 55%;
+    --grupo-tatiana: 211 90% 65%;
+    --grupo-renata: 271 70% 72%;
     --primary-foreground: 222 47% 11%;
 
     --secondary: 222 30% 18%;
