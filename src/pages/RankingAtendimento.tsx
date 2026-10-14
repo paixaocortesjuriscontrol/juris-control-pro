@@ -47,6 +47,8 @@ type LinhaGeral = {
   prazos_perdidos: number;
   atividades_total: number;
   atividades_concluidas: number;
+  /** Publicações da Análise DJEN lidas ou descartadas no período */
+  publicacoes_tratadas?: number;
 };
 
 type LinhaTst = {
