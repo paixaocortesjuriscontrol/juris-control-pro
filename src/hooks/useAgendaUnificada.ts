@@ -1,3 +1,4 @@
+import { mensagemBloqueioSituacao } from "@/hooks/usePodeAlterarItem";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1487,7 +1488,7 @@ export function useUpdateItemAgenda() {
     onError: (error) => {
       console.error("Erro ao atualizar item:", error);
       const msg = String((error as any)?.message || "");
-      toast.error(msg.includes("Somente o responsável") ? "Somente o responsável pode alterar a situação deste item." : "Erro ao atualizar item");
+      toast.error(mensagemBloqueioSituacao({ message: msg }) ?? "Erro ao atualizar item", { duration: 10000 });
     },
   });
 }

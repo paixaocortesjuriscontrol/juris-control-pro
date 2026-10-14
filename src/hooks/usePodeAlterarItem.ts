@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export const MSG_SOMENTE_RESPONSAVEL = "Somente o responsável pode alterar a situação deste item.";
+export const MSG_SOMENTE_RESPONSAVEL =
+  "Você não tem permissão para dar baixa neste item. Procure o coordenador e peça que libere seu acesso no menu Coordenações, em \"Quem pode mudar cada situação\".";
 
 /**
  * Diz se o usuário logado pode mudar a situação de um item (prazo/tarefa).
@@ -28,5 +29,6 @@ export function usePodeAlterarItem(tarefaId?: string | null, enabled = true) {
 /** Converte o erro do banco em mensagem amigável quando for bloqueio de terceiros. */
 export function mensagemBloqueioSituacao(err: any): string | null {
   const m = String(err?.message || "");
+  if (m.includes("trocar o responsável")) return "Você não tem permissão para trocar o responsável deste item. Procure o coordenador e peça que libere seu acesso no menu Coordenações, em \"Alterar itens de terceiros\".";
   return m.includes("Somente o responsável") ? MSG_SOMENTE_RESPONSAVEL : null;
 }
