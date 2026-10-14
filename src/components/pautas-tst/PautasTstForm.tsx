@@ -1,3 +1,4 @@
+import { GrupoPautaBadge } from "./GrupoPautaBadge";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,6 +200,7 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
           <div className="font-semibold text-foreground font-mono">{form.processo_numero || (existente ? "Pauta" : "Nova pauta")}</div>
           {subtitulo && <div className="text-xs text-muted-foreground">{subtitulo}</div>}
         </div>
+        <GrupoPautaBadge equipe={form.equipe} processo={form.processo_numero} className="text-xs" />
         {existente && (
           <Badge variant={aAvaliar ? "destructive" : "secondary"}>{aAvaliar ? "A avaliar" : "Avaliada"}</Badge>
         )}

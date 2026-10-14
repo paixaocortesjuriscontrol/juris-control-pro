@@ -26,6 +26,8 @@ export default {
         serif: ['Playfair Display', 'serif'],
       },
       colors: {
+        "grupo-tatiana": "hsl(var(--grupo-tatiana))",
+        "grupo-renata": "hsl(var(--grupo-renata))",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
