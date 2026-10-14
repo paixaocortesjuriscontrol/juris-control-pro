@@ -11837,6 +11837,19 @@ export type Database = {
           usuario_id: string
         }[]
       }
+      get_ranking_publicacoes: {
+        Args: {
+          p_coordenacao_id?: string
+          p_fim: string
+          p_inicio: string
+          p_usuario_id?: string
+        }
+        Returns: {
+          nome: string
+          publicacoes_tratadas: number
+          usuario_id: string
+        }[]
+      }
       get_relatorio_andamentos: { Args: never; Returns: Json }
       get_relatorio_atividades: { Args: never; Returns: Json }
       get_relatorio_clientes: { Args: never; Returns: Json }
