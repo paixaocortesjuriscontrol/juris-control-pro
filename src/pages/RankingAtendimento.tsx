@@ -47,6 +47,8 @@ type LinhaGeral = {
   prazos_perdidos: number;
   atividades_total: number;
   atividades_concluidas: number;
+  /** Publicações da Análise DJEN lidas ou descartadas no período */
+  publicacoes_tratadas?: number;
 };
 
 type LinhaTst = {
@@ -208,6 +210,16 @@ export default function RankingAtendimento() {
     },
   });
 
+  const publicacoesQuery = useQuery({
+    queryKey: ["ranking-publicacoes", filtroParams],
+    enabled: !!inicio && !!fim,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_ranking_publicacoes" as any, filtroParams as any);
+      if (error) throw error;
+      return (data || []) as unknown as { usuario_id: string; nome: string; publicacoes_tratadas: number }[];
+    },
+  });
+
   const tstQuery = useQuery({
     queryKey: ["ranking-tst", filtroParams],
     enabled: !!inicio && !!fim,
@@ -219,7 +231,24 @@ export default function RankingAtendimento() {
     retry: 1,
   });
 
-  const geral = geralQuery.data || [];
+  const geral = useMemo<LinhaGeral[]>(() => {
+    const base = geralQuery.data || [];
+    const pubs = publicacoesQuery.data || [];
+    const porUid = new Map(pubs.map((p) => [p.usuario_id, Number(p.publicacoes_tratadas) || 0]));
+    const linhas: LinhaGeral[] = base.map((l) => ({ ...l, publicacoes_tratadas: porUid.get(l.usuario_id) ?? 0 }));
+    const existentes = new Set(base.map((l) => l.usuario_id));
+    for (const p of pubs) {
+      if (existentes.has(p.usuario_id) || !Number(p.publicacoes_tratadas)) continue;
+      linhas.push({
+        usuario_id: p.usuario_id, nome: p.nome || "(sem nome)",
+        abertos_prazos: 0, abertos_tarefas: 0, abertos_audiencias: 0, abertos_eventos: 0, abertos_parcelamentos: 0, abertos_total: 0,
+        concluidos: 0, concluidos_no_prazo: 0, concluidos_atraso: 0, prazos_perdidos: 0,
+        atividades_total: 0, atividades_concluidas: 0, concluidos_avaliaveis: 0,
+        publicacoes_tratadas: Number(p.publicacoes_tratadas),
+      } as LinhaGeral);
+    }
+    return linhas;
+  }, [geralQuery.data, publicacoesQuery.data]);
   const tstBruto = tstQuery.data || [];
 
   // ---- Ranking TST respeitando os filtros dos cards clicados -------------
@@ -423,6 +452,7 @@ export default function RankingAtendimento() {
             { header: "Atraso", width: 20, key: "concluidos_atraso", align: "right" },
             { header: "Ativid.", width: 20, key: "atividades_total", align: "right" },
             { header: "Ativid. concl.", width: 26, key: "atividades_concluidas", align: "right" },
+            { header: "Public.", width: 20, key: "publicacoes_tratadas", align: "right" },
             { header: "% no prazo", width: 24, key: "taxa", align: "right" },
             { header: "Prazos perdidos", width: 28, key: "prazos_perdidos", align: "right" },
           ] as any,
@@ -439,6 +469,7 @@ export default function RankingAtendimento() {
             concluidos_atraso: l.concluidos_atraso,
             atividades_total: l.atividades_total ?? 0,
             atividades_concluidas: l.atividades_concluidas ?? 0,
+            publicacoes_tratadas: l.publicacoes_tratadas ?? 0,
             taxa: `${pct(Number(l.concluidos_no_prazo), Number(l.concluidos_avaliaveis ?? 0))}%`,
             prazos_perdidos: l.prazos_perdidos,
           })),
@@ -471,6 +502,7 @@ export default function RankingAtendimento() {
             { header: "Itens concluídos", width: 34, key: "concluidos", align: "right" },
             { header: "Atividades concl.", width: 36, key: "atividades_concluidas", align: "right" },
             { header: "Entregas totais", width: 34, key: "entregas", align: "right" },
+            { header: "Publicações", width: 30, key: "publicacoes_tratadas", align: "right" },
           ] as any,
           linhas: produtividade.map((l, idx) => ({
             pos: String(idx + 1),
@@ -479,6 +511,7 @@ export default function RankingAtendimento() {
             concluidos: l.concluidos,
             atividades_concluidas: l.atividades_concluidas ?? 0,
             entregas: l.entregas,
+            publicacoes_tratadas: l.publicacoes_tratadas ?? 0,
           })),
         },
         {
@@ -867,6 +900,7 @@ export default function RankingAtendimento() {
                       <TableHead className="text-right">Atraso</TableHead>
                       <TableHead className="text-right">Atividades</TableHead>
                       <TableHead className="text-right">Ativid. concl.</TableHead>
+                      <TableHead className="text-right" title="Publicações da Análise DJEN lidas ou descartadas pela pessoa no período">Publicações</TableHead>
                       <TableHead className="text-right">% no prazo</TableHead>
                       <TableHead className="text-right">Prazos perdidos</TableHead>
                     </TableRow>
@@ -904,6 +938,7 @@ export default function RankingAtendimento() {
                           <TableCell className="text-right text-amber-600"><NumeroDrill valor={Number(l.concluidos_atraso)} metrica="atraso" linha={l} /></TableCell>
                           <TableCell className="text-right">{l.atividades_total ?? 0}</TableCell>
                           <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
+                          <TableCell className="text-right">{l.publicacoes_tratadas ?? 0}</TableCell>
                           <TableCell className="text-right">
                             <Badge variant="outline" className="gap-1">
                               <CheckCircle2 className="w-3 h-3" />
@@ -1004,6 +1039,7 @@ export default function RankingAtendimento() {
                       <TableHead className="text-right">Concluídos</TableHead>
                       <TableHead className="text-right">Atividades concl.</TableHead>
                       <TableHead className="text-right">Entregas totais</TableHead>
+                      <TableHead className="text-right" title="Publicações da Análise DJEN lidas ou descartadas pela pessoa no período">Publicações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1033,6 +1069,7 @@ export default function RankingAtendimento() {
                           <TableCell className="text-right font-semibold"><NumeroDrill valor={Number(l.concluidos)} metrica="concluidos" linha={l} /></TableCell>
                           <TableCell className="text-right text-blue-600">{l.atividades_concluidas ?? 0}</TableCell>
                           <TableCell className="text-right font-semibold">{l.entregas}</TableCell>
+                          <TableCell className="text-right">{l.publicacoes_tratadas ?? 0}</TableCell>
                         </TableRow>
                       ))
                     )}
