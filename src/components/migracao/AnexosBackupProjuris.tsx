@@ -17,6 +17,7 @@ import { sanitizarNome } from "@/lib/migracaoProjuris";
  */
 type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
 type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry };
+const CANCELADO = new Error("__cancelado__");
 
 const parseCsv = (txt: string) => {
   const linhas: string[][] = []; let campo = "", linha: string[] = [], q = false;
@@ -42,6 +43,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
   const [conf, setConf] = useState<Linha[] | null>(null);
   const [lendo, setLendo] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [analisando, setAnalisando] = useState(false);
   const [rodando, setRodando] = useState(false);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feito, setFeito] = useState(false);
@@ -50,8 +52,10 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
 
   const abrir = async (files: FileList | null) => {
     if (!files) return;
+    cancelado.current = false;
     setConf(null);
     for (const f of Array.from(files)) {
+      if (cancelado.current) break;
       try {
         if (/\.csv$/i.test(f.name)) {
           setLendo(f.name);
@@ -70,10 +74,15 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         } else toast.warning(`${f.name}: envie o CSV de mapeamento e os zips dos anexos`);
       } catch (e: any) { toast.error(`Erro ao ler ${f.name}: ${e?.message || e}`); }
     }
+    if (cancelado.current) {
+      cancelado.current = false;
+      toast.warning("Leitura cancelada. O que já foi lido continua disponível — use “Limpar” para começar de novo.");
+    }
     setLendo(null);
   };
 
   const analisar = async () => {
+    setAnalisando(true); cancelado.current = false;
     setMsg("Cruzando arquivos...");
     try {
       const porNome = new Map<string, Entry>();
@@ -85,7 +94,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa").eq("tipo", "anexo").eq("status", "criado").in("chave_externa", cds.slice(k, k + 200));
         if (error) throw error;
         ((data as any[]) || []).forEach((x) => migrados.add(x.chave_externa));
-        if (k % 2000 === 0) { setMsg(`Verificando anexos já migrados: ${k} de ${cds.length}`); await ceder(); }
+        if (k % 2000 === 0) { setMsg(`Verificando anexos já migrados: ${k} de ${cds.length}`); await ceder(); if (cancelado.current) throw CANCELADO; }
       }
       const busca = async (tabela: "processos" | "tarefas", ids: string[]) => {
         const out = new Map<string, { id: string; processo_id?: string | null }>();
@@ -93,7 +102,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           const { data, error } = await (supabase.from(tabela as any) as any).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris" as any, ids.slice(k, k + 200));
           if (error) throw error;
           ((data as any[]) || []).forEach((x) => out.set(String(x.identificador_projuris), x));
-          setMsg(`Procurando ${tabela}: ${Math.min(k + 200, ids.length)} de ${ids.length}`); await ceder();
+          setMsg(`Procurando ${tabela}: ${Math.min(k + 200, ids.length)} de ${ids.length}`); await ceder(); if (cancelado.current) throw CANCELADO;
         }
         return out;
       };
@@ -116,8 +125,11 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         return { ...m, motivo, processoId, tarefaId, entry };
       });
       setConf(ls);
-    } catch (e: any) { toast.error(`Erro na análise: ${e?.message || e}`); }
-    setMsg("");
+    } catch (e: any) {
+      if (cancelado.current) { cancelado.current = false; toast.warning("Análise cancelada. Nada foi gravado."); }
+      else toast.error(`Erro na análise: ${e?.message || e}`);
+    }
+    setMsg(""); setAnalisando(false);
   };
 
   const esperar = async () => { while (pausado.current && !cancelado.current) await new Promise((r) => setTimeout(r, 400)); };
@@ -193,16 +205,22 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           <span className="text-sm font-medium">Arraste o mapeamento (.csv) e os zips dos anexos</span>
           <input type="file" multiple className="hidden" accept=".csv,.zip" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
         </label>
-        {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
+        {lendo && (
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...
+            <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" onClick={() => { cancelado.current = true; }}>Cancelar leitura</Button>
+          </p>
+        )}
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant={mapa.length ? "secondary" : "outline"}>Mapeamento: {mapa.length ? `${mapa.length.toLocaleString("pt-BR")} arquivos` : "não enviado"}</Badge>
           <Badge variant={zips.length ? "secondary" : "outline"}>Zips: {zips.length} ({totalZip.toLocaleString("pt-BR")} arquivos)</Badge>
-          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
+          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
         </div>
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || !!msg} onClick={() => void analisar()}>
-            {msg ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Analisar anexos (nada é gravado)
+          <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || analisando} onClick={() => void analisar()}>
+            {analisando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Analisar anexos (nada é gravado)
           </Button>
+          {analisando && <Button size="sm" variant="destructive" onClick={() => { cancelado.current = true; }}>Cancelar análise</Button>}
           {msg && <span className="text-xs text-muted-foreground">{msg}</span>}
         </div>
         {conf && (

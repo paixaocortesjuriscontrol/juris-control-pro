@@ -93,6 +93,7 @@ const WORKER_SRC = [
 ].join("\n");
 
 const ceder = () => new Promise((r) => setTimeout(r, 0));
+const CANCELADO = new Error("__cancelado__");
 const valorNum = (v: string) => { const s = String(v ?? "").trim(); if (!s) return null; const n = Number(s.replace(/[^0-9.]/g, "")); return isFinite(n) && s ? n : null; };
 const baseNome = (n: string) => (n.split("/").pop() || n).replace(/\.(csv|txt)$/i, "").toLowerCase().replace(/[-_]\d+$/, "");
 const REGEX_CNJ = /\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}/;
@@ -190,8 +191,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
 
   const abrir = async (files: FileList | null) => {
     if (!files) return;
+    cancelado.current = false;
     setConf(null); setAnalisando(false);
     for (const f of Array.from(files)) {
+      if (cancelado.current) break;
       try {
         if (f.name.toLowerCase().endsWith(".zip")) {
           setLendo(`${f.name} (listando...)`);
@@ -199,6 +202,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const entries = (await reader.getEntries()).filter((e) => !e.directory);
           let usados = 0;
           for (const e of entries) {
+            if (cancelado.current) break;
             if (ehRelatorio(e.filename)) {
               setLendo(e.filename);
               const b: Blob = await (e as any).getData(new BlobWriter());
@@ -229,6 +233,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       } catch (e: any) {
         toast.error(`Erro ao ler ${f.name}: ${e?.message || e}`);
       }
+    }
+    if (cancelado.current) {
+      cancelado.current = false;
+      toast.warning("Leitura cancelada. O que já foi lido continua disponível — use “Limpar tudo” para começar de novo.");
     }
     setLendo(null);
   };
@@ -272,7 +280,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         const sc = (norm(guNum.g(r, "flprincipal")) === "s" ? 2 : 0) + (norm(guNum.g(r, "flprocessoinstancia")).includes("primeira") ? 1 : 0);
         const cur = procNum.get(cd);
         if (!cur || sc > cur.sc) procNum.set(cd, { dig, sc });
-        if (procNum.size % 8000 === 0) await ceder();
+        if (procNum.size % 8000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
       }
       // --------- 2. usuários → nome da pessoa ---------
       const nomePessoa = new Map<string, string>();
@@ -335,7 +343,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         };
         procRows.push(item);
         if (!motivo) procByCd.set(cd, { cdprocesso: cd, dig });
-        if (procRows.length % 5000 === 0) await ceder();
+        if (procRows.length % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
       }
       // já cadastrados no Juris Control (qualquer coordenação)
       const procDb = new Map<string, string>();
@@ -346,12 +354,12 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         if (error) throw error;
         ((data as any[]) || []).forEach((p) => procDb.set(digitos(p.numero), p.id));
         setMsg(`Procurando processos cadastrados: ${Math.min(k + 100, digs.length)} de ${digs.length}`);
-        await ceder();
+        await ceder(); if (cancelado.current) throw CANCELADO;
       }
 
       // --------- 6. tarefas ---------
       setMsg("Cruzando tarefas...");
-      await ceder();
+      await ceder(); if (cancelado.current) throw CANCELADO;
       const migradas = new Set<string>();
       const guTe = gu("tarefaevento");
       const idsTe: string[] = [];
@@ -369,6 +377,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           }));
           feitosL += Math.min(4, partes.length - k);
           setMsg(`Verificando tarefas já migradas: ${feitosL} de ${partes.length} lotes`);
+          await ceder(); if (cancelado.current) throw CANCELADO;
         }
         await ceder();
       }
@@ -380,6 +389,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         ((data as any[]) || []).forEach((t: any) => existentes.add(`${norm(t.titulo)}|${t.data_vencimento ? String(t.data_vencimento).slice(0, 10) : ""}`));
         if (!data || data.length < 1000) break;
         setMsg(`Conferindo tarefas já cadastradas: ${from + ((data as any[]) || []).length}`);
+        if (cancelado.current) throw CANCELADO;
       }
       const tarefasRows: LinhaConf[] = [];
       const respCache = new Map<string, string | null>();
@@ -415,13 +425,13 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, criadorNome: criador,
           });
-          if (tarefasRows.length % 5000 === 0) await ceder();
+          if (tarefasRows.length % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
         }
       }
 
       // --------- 7. andamentos ---------
       setMsg("Cruzando andamentos...");
-      await ceder();
+      await ceder(); if (cancelado.current) throw CANCELADO;
       const movExistentes = new Set<string>();
       const idsProcDb = Array.from(new Set(Array.from(procDb.values())));
       for (let k = 0; k < idsProcDb.length; k += 50) {
@@ -432,7 +442,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (!data || data.length < 1000) break;
         }
         setMsg(`Verificando andamentos existentes: ${Math.min(k + 50, idsProcDb.length)} de ${idsProcDb.length} processos`);
-        await ceder();
+        await ceder(); if (cancelado.current) throw CANCELADO;
       }
       const guAnd = gu("andamento");
       const andamentosRows: LinhaConf[] = [];
@@ -461,7 +471,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (!motivo && vistosAnd.has(chaveMov)) motivo = "Repetido no backup";
           movExistentes.add(chaveMov); vistosAnd.add(chaveMov);
           andamentosRows.push({ chave: cd, motivo, processoId, data, texto, tipoNome: andamentoTipoNome.get(String(guAnd.g(r, "cdandamentotipo") || "")) || "" });
-          if (andamentosRows.length % 5000 === 0) await ceder();
+          if (andamentosRows.length % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
         }
       }
 
@@ -473,7 +483,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         arqTotal++;
         const txt = `${guArq.g(r, "dearquivo")} ${guArq.g(r, "nmarquivoorigem")} ${guArq.g(r, "deurlexterna")} ${guArq.g(r, "decaminhoarquivo")}`;
         if (REGEX_CNJ.test(txt)) arqCnj++;
-        if (arqTotal % 5000 === 0) await ceder();
+        if (arqTotal % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
       }
 
       setConf({
@@ -482,7 +492,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         ignorados, arquivosLidos: info,
       });
     } catch (e: any) {
-      toast.error(`Erro na análise: ${e?.message || e}`);
+      if (cancelado.current) { cancelado.current = false; toast.warning("Análise cancelada. Nada foi gravado."); }
+      else toast.error(`Erro na análise: ${e?.message || e}`);
     } finally {
       setAnalisando(false); setMsg("");
     }
@@ -681,12 +692,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             <span className="text-xs text-muted-foreground">.zip com os CSVs do Projuris (também aceita .csv avulsos)</span>
             <input type="file" multiple className="hidden" accept=".zip,.csv,.txt,.xlsx,.xls" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
           </label>
-          {lendo && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...</p>}
+          {lendo && (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Lendo {lendo}...
+              <Button size="sm" variant="destructive" className="h-6 px-2 text-xs" onClick={() => { cancelado.current = true; }}>Cancelar leitura</Button>
+            </p>
+          )}
           {info.length > 0 && (
             <div>
               <div className="mb-1 flex items-center justify-between">
                 <h4 className="text-sm font-semibold">Tabelas lidas ({info.length})</h4>
-                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" onClick={zerar}>Limpar tudo</Button>
+                <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando !== null} onClick={zerar}>Limpar tudo</Button>
               </div>
               <div className="max-h-64 overflow-auto">
                 {info.map((t) => (
@@ -707,7 +723,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               {analisando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Analisar (nada é gravado)
             </Button>
-            {(analisando || msg) && <span className="text-xs text-muted-foreground">{msg || "Analisando..."}</span>}
+              {analisando && <Button size="sm" variant="destructive" onClick={() => { cancelado.current = true; }}>Cancelar análise</Button>}
+              {(analisando || msg) && <span className="text-xs text-muted-foreground">{msg || "Analisando..."}</span>}
           </div>
         </CardContent>
       </Card>
