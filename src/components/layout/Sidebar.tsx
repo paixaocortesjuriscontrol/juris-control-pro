@@ -56,6 +56,7 @@ export function Sidebar() {
   const { isMenuAllowed } = useMenuPermissions();
   const { totalNaoLidas } = useMensagensNaoLidas();
   const { movimentacoes: totalMonitoramento } = useMonitoramentoCounts();
+  const pautasAutoCount = usePautasAutoCount();
   const nomesCoordenacoes = new Set((minhasCoordenacoes || []).map((c) => c.nome));
   const isAdvogadoTemporario = role === "advogado_temporario";
 
