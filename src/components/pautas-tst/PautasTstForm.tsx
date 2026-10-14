@@ -354,15 +354,13 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
         ))}
       </Tabs>
 
-      {!existente && (
-        <div className="sticky bottom-0 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-            Criar pauta
-          </Button>
-        </div>
-      )}
+      <div className="sticky bottom-0 py-3 bg-background/95 backdrop-blur border-t border-border flex justify-end gap-2">
+        {!existente && <Button variant="outline" onClick={onCancel}>Cancelar</Button>}
+        <Button onClick={handleSave} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+          {existente ? "Salvar" : "Criar pauta"}
+        </Button>
+      </div>
     </div>
   );
 }
