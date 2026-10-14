@@ -42,6 +42,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
   const [conf, setConf] = useState<Linha[] | null>(null);
   const [lendo, setLendo] = useState<string | null>(null);
   const [msg, setMsg] = useState("");
+  const [analisando, setAnalisando] = useState(false);
   const [rodando, setRodando] = useState(false);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feito, setFeito] = useState(false);
@@ -50,8 +51,10 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
 
   const abrir = async (files: FileList | null) => {
     if (!files) return;
+    cancelado.current = false;
     setConf(null);
     for (const f of Array.from(files)) {
+      if (cancelado.current) break;
       try {
         if (/\.csv$/i.test(f.name)) {
           setLendo(f.name);
@@ -70,10 +73,15 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         } else toast.warning(`${f.name}: envie o CSV de mapeamento e os zips dos anexos`);
       } catch (e: any) { toast.error(`Erro ao ler ${f.name}: ${e?.message || e}`); }
     }
+    if (cancelado.current) {
+      cancelado.current = false;
+      toast.warning("Leitura cancelada. O que já foi lido continua disponível — use “Limpar” para começar de novo.");
+    }
     setLendo(null);
   };
 
   const analisar = async () => {
+    setAnalisando(true); cancelado.current = false;
     setMsg("Cruzando arquivos...");
     try {
       const porNome = new Map<string, Entry>();
@@ -85,7 +93,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa").eq("tipo", "anexo").eq("status", "criado").in("chave_externa", cds.slice(k, k + 200));
         if (error) throw error;
         ((data as any[]) || []).forEach((x) => migrados.add(x.chave_externa));
-        if (k % 2000 === 0) { setMsg(`Verificando anexos já migrados: ${k} de ${cds.length}`); await ceder(); }
+        if (k % 2000 === 0) { setMsg(`Verificando anexos já migrados: ${k} de ${cds.length}`); await ceder(); if (cancelado.current) throw CANCELADO; }
       }
       const busca = async (tabela: "processos" | "tarefas", ids: string[]) => {
         const out = new Map<string, { id: string; processo_id?: string | null }>();
@@ -93,7 +101,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           const { data, error } = await (supabase.from(tabela as any) as any).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris" as any, ids.slice(k, k + 200));
           if (error) throw error;
           ((data as any[]) || []).forEach((x) => out.set(String(x.identificador_projuris), x));
-          setMsg(`Procurando ${tabela}: ${Math.min(k + 200, ids.length)} de ${ids.length}`); await ceder();
+          setMsg(`Procurando ${tabela}: ${Math.min(k + 200, ids.length)} de ${ids.length}`); await ceder(); if (cancelado.current) throw CANCELADO;
         }
         return out;
       };
