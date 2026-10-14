@@ -44,6 +44,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
+import { usePautasAutoCount } from "@/hooks/usePautasAutoCount";
 import { menuItemsPublicos, menuItemsAdmin, type MenuItem } from "@/config/menuItems";
 import { Button } from "@/components/ui/button";
 
@@ -55,6 +56,7 @@ export function Sidebar() {
   const { isMenuAllowed } = useMenuPermissions();
   const { totalNaoLidas } = useMensagensNaoLidas();
   const { movimentacoes: totalMonitoramento } = useMonitoramentoCounts();
+  const pautasAutoCount = usePautasAutoCount();
   const nomesCoordenacoes = new Set((minhasCoordenacoes || []).map((c) => c.nome));
   const isAdvogadoTemporario = role === "advogado_temporario";
 
@@ -136,6 +138,17 @@ export function Sidebar() {
                 )}
               >
                 {totalMonitoramento > 99 ? "99+" : totalMonitoramento}
+              </span>
+            )}
+            {item.path === "/pautas-julgamento" && pautasAutoCount > 0 && (
+              <span
+                title={`${pautasAutoCount} pauta(s) automática(s) do DJEN aguardando avaliação`}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold leading-none",
+                  collapsed ? "absolute top-1 right-1 h-4 min-w-4 px-1" : "ml-auto h-5 min-w-5 px-1.5"
+                )}
+              >
+                {pautasAutoCount > 99 ? "99+" : pautasAutoCount}
               </span>
             )}
           </NavLink>
