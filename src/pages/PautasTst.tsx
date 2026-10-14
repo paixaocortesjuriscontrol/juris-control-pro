@@ -214,13 +214,14 @@ export default function PautasTstPage() {
   useEffect(() => { carregarSemana(); }, [carregarSemana]);
 
   const opcoes = (k: keyof PautaTst) => [...new Set(dados.map((d) => (d[k] as string) || "").filter(Boolean))].sort();
+  const mMod = (s: string | null) => (s || "").toUpperCase();
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return dados.filter((d) =>
       (fRelator === "__all__" || d.relator === fRelator) &&
       (fOrgao === "__all__" || d.orgao === fOrgao) &&
-      (fCardModal === "__all__" || (fCardModal === "virtual" ? /VIRTUAL/.test(m(d.modalidade)) : /TELE|PRESENC|HIBRID|HÍBRID/.test(m(d.modalidade)))) &&
+      (fCardModal === "__all__" || (fCardModal === "virtual" ? /VIRTUAL/.test(mMod(d.modalidade)) : /TELE|PRESENC|HIBRID|HÍBRID/.test(mMod(d.modalidade)))) &&
       (fAdv === "__all__" || d.advogado_interno === fAdv) &&
       (fDecisao === "__all__" || (fDecisao === "__sem__" ? !d.decisao : d.decisao === fDecisao)) &&
       (fModal === "__all__" || d.modalidade === fModal) &&
