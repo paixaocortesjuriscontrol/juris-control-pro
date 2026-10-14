@@ -85,4 +85,5 @@ export const VERSION_HISTORY = [
   { version: "8.0.1", date: "2026-10-09", notes: "Processos e Casos: ao criar um novo, Tipo de Processo aparece antes do Número do Processo e os dois na mesma linha" },
   { version: "8.0.2", date: "2026-10-09", notes: "Assistente coordenador passa a ver Análise DJEN e Documentos no menu, como o coordenador" },
   { version: "8.1.0", date: "2026-10-14", notes: "Pautas de Julgamento: grupos por equipe na lista e no detalhe, botão Salvar sempre visível e aviso de pautas novas após o DJEN; Ranking de Atendimento com coluna Publicações; e-mail de prazos perdidos deixa de avisar itens já protocolados, baixados, reagendados, minutados ou cancelados" },
+  { version: "8.2.0", date: "2026-10-14", notes: "Troca de responsável bloqueada para quem é só envolvido: só o responsável e os corresponsáveis do item, a coordenação, o admin ou as pessoas liberadas nas permissões da coordenação podem alterar o responsável de prazos, tarefas, eventos e audiências" },
 ];
