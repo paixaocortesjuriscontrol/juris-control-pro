@@ -467,7 +467,17 @@ export async function fetchAgendaPage(
 
               const diasRestantes = differenceInDays(startOfDay(occ), today);
               const isAtrasado = diasRestantes < 0 && evento.status !== "concluido";
-              const dataFimOcc = duracaoMs > 0 ? new Date(occ.getTime() + duracaoMs).toISOString() : evento.data_fim;
+              // Em eventos recorrentes, data_fim costuma guardar o fim da série
+              // (ex.: 12:00 de hoje até 13:00 de daqui a 4 meses). Cada ocorrência
+              // deve durar só o horário do dia; senão ela se espalha por vários
+              // dias e o mesmo evento aparece repetido no calendário.
+              const DIA_MS = 24 * 60 * 60 * 1000;
+              const duracaoOccMs = isRecorrente && duracaoMs >= DIA_MS ? duracaoMs % DIA_MS : duracaoMs;
+              const dataFimOcc = duracaoOccMs > 0
+                ? new Date(occ.getTime() + duracaoOccMs).toISOString()
+                : isRecorrente
+                ? occIso
+                : evento.data_fim;
 
               resultItems.push({
                 id: occId,
