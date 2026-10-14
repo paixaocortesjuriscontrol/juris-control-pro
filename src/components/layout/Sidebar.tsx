@@ -44,6 +44,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
+import { usePautasAutoCount } from "@/hooks/usePautasAutoCount";
 import { menuItemsPublicos, menuItemsAdmin, type MenuItem } from "@/config/menuItems";
 import { Button } from "@/components/ui/button";
 
