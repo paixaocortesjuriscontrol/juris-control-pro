@@ -407,7 +407,10 @@ export default function RankingAtendimento() {
     "dd/MM/yyyy"
   )}`;
 
-  const exportarPdf = async () => {
+  const [exportandoPdf, setExportandoPdf] = useState(false);
+  const exportarPdf = async (escopo: "sistema" | "todos") => {
+    setExportandoPdf(true);
+    try {
     const { data: sisRaw } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
       p_inicio: inicio, p_fim: fim, p_coordenacao_id: filtroParams.p_coordenacao_id ?? null,
     });
