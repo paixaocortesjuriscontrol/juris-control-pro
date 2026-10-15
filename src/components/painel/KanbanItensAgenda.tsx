@@ -17,6 +17,7 @@ import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { isItemAta } from "@/lib/tipoItemAgenda";
 
 
 interface KanbanItensAgendaProps {

@@ -59,7 +59,7 @@ import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from 
 
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
-import { corKeyItem, isItemAta, rotuloTipoItem } from "@/lib/tipoItemAgenda";
+import { isItemAta, rotuloTipoItem } from "@/lib/tipoItemAgenda";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
