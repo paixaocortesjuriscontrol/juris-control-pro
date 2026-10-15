@@ -662,8 +662,17 @@ export default function RankingAtendimento() {
             judit_preenchidos: l.judit_preenchidos,
           })),
         }] as any : []),
-      ],
+    ];
+    gerarRankingPdfCompleto({
+      titulo: "Ranking de Atendimento",
+      periodo: periodoLabel,
+      filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+      nomeArquivo: escopo === "sistema" ? "ranking_criados_no_sistema" : "ranking_atendimento_completo",
+      secoes: escopo === "sistema" ? secoesSistema : [...secoesSistema, ...secoesRestantes],
     });
+    } finally {
+      setExportandoPdf(false);
+    }
   };
 
   const medalha = (idx: number) =>
