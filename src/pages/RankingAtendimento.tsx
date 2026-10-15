@@ -473,13 +473,7 @@ export default function RankingAtendimento() {
     const topo = (arr: any[], n = 12) => arr.slice(0, n);
     const nomesCurtos = (arr: any[]) => topo(arr).map((l) => l.nome.split(" ").slice(0, 2).join(" "));
 
-    gerarRankingPdfCompleto({
-      titulo: "Ranking de Atendimento",
-      periodo: periodoLabel,
-      filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-      nomeArquivo: "ranking_atendimento_completo",
-      secoes: [
-        ...secoesSistema,
+    const secoesRestantes: any[] = [
         {
           titulo: "Visão Geral",
           subtitulo: "Produtividade e cumprimento de prazos por profissional",
