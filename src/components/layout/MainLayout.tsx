@@ -11,6 +11,11 @@ import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { allMenuItems } from "@/config/menuItems";
 
 
+const TELAS_COMPUTADOR = [
+  "/migracao-projuris", "/admin", "/carga-benner", "/planilha-tst", "/dados-benner", "/corrigir-planilha",
+  "/importar", "/configuracoes", "/distribuicao-tst", "/relatorio", "/workflow", "/modelos-titulo",
+];
+
 export interface MainLayoutProps {
   children: ReactNode;
   title: string;
@@ -57,6 +62,11 @@ export function MainLayout({ children, title, subtitle, headerActions, className
       <div className={`min-w-0 transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
         <main data-page-scroll-container className="min-w-0 p-3 pb-24 md:p-6 md:pb-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
+          {isMobile && TELAS_COMPUTADOR.some((p) => location.pathname.startsWith(p)) && (
+            <div className="mb-3 rounded-md border border-border bg-muted px-3 py-2 text-xs text-muted-foreground">
+              Esta tela funciona no celular, mas é mais indicada no computador.
+            </div>
+          )}
           {children}
         </main>
       </div>
