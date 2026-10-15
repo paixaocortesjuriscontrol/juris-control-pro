@@ -142,7 +142,12 @@ const TIPO_CORES: Record<string, string> = {
   audiencia: "bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-300 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300",
   prazo_parcela: "bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-600 dark:text-red-300",
   parcelamento: "bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300",
+  ata: "bg-violet-50 dark:bg-violet-950/40 border border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300",
 };
+
+/** Ata é uma tarefa com tipo_tarefa "ATA"; usa cor própria. */
+const corKeyItem = (item: any): string =>
+  (item?.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item?.tipo;
 
 
 const TIPO_LABELS: Record<string, string> = {
@@ -153,6 +158,7 @@ const TIPO_LABELS: Record<string, string> = {
   audiencia: "Audiência",
   prazo_parcela: "Parcela",
   parcelamento: "Parcelamento",
+  ata: "Ata",
 };
 
 const normalizeAgendaStatus = (status?: string | null) =>
@@ -259,7 +265,7 @@ export default function PainelControle() {
   const [relatorioAudOpen, setRelatorioAudOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
   const [selectedParcelamento, setSelectedParcelamento] = useState<EventoAgenda | null>(null);
-  const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
+  const [novoItemTipo, setNovoItemTipo] = useState<null | "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento">(null);
   /** Data (yyyy-MM-dd) escolhida no calendário para pré-preencher a criação do item. */
   const [novoItemData, setNovoItemData] = useState<string | null>(null);
   /** Item aberto no pop-up de baixa rápida (tela principal). */
@@ -1259,9 +1265,11 @@ export default function PainelControle() {
         // Evento é APENAS quando o tipo real do item é "evento". Não usar item.origem,
         // que no hook useAgendaUnificada é só um rótulo interno (tarefa vs. outras origens).
         const isEvento = tipo === "evento" || tipoUpper === "EVENTO";
-        const isTarefa = !isAudiencia && !isPrazo && !isEvento && !isParcelamento;
+        const isAta = tipoUpper === "ATA";
+        const isTarefa = !isAudiencia && !isPrazo && !isEvento && !isParcelamento && !isAta;
 
         const match =
+          (painelFiltros.classificacoes.includes("ata") && isAta) ||
           (painelFiltros.classificacoes.includes("audiencia") && isAudiencia) ||
           (painelFiltros.classificacoes.includes("prazo") && isPrazo) ||
           (painelFiltros.classificacoes.includes("parcelamento") && isParcelamento) ||
@@ -1514,13 +1522,14 @@ export default function PainelControle() {
   }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados, buscaGlobalAtiva, buscaGlobalQuery.data, painelFiltros.situacoes, painelFiltros.statusGroup, situacaoFilter]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
-  const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" => {
+  const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" | "ata" => {
     const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
     const tipo = (item.tipo ?? "").toLowerCase();
     if (tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia") return "audiencia";
     if (tipo === "prazo" || tipo === "prazo_parcela") return "prazo";
     if (tipo === "parcelamento") return "parcelamento";
     if (tipo === "evento" || tipoUpper === "EVENTO") return "evento";
+    if (tipoUpper === "ATA") return "ata";
     return "tarefa";
   };
 
@@ -2065,7 +2074,7 @@ export default function PainelControle() {
   // Aplica todos os filtros do painel EXCETO o de classificação, de modo que
   // ao clicar num card, o calendário mostra exatamente aqueles itens.
   const contagensPorClassificacao = useMemo(() => {
-    const counts = { tarefa: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
+    const counts = { tarefa: 0, ata: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
     const base = itensAgenda.filter((item) => {
       // Os cards totalizadores SEMPRE representam pendências em aberto,
       // independentemente do filtro de status escolhido pelo usuário.
@@ -2784,6 +2793,9 @@ export default function PainelControle() {
                   <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}>
                     <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("ata"); }}>
+                    <FileText className="w-4 h-4 mr-2" /> Ata
+                  </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("evento"); }}>
                     <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                   </DropdownMenuItem>
@@ -2826,12 +2838,12 @@ export default function PainelControle() {
         <div className="flex-shrink-0 px-3 md:px-6 py-2 md:py-3 border-b border-border bg-card">
           {!mostrarTotalizadores ? null : isLoading ? (
             <div className="flex gap-2">
-              {[...Array(6)].map((_, i) => (
+              {[...Array(7)].map((_, i) => (
                 <Skeleton key={i} className="h-9 md:h-10 flex-1 rounded-lg" />
               ))}
             </div>
           ) : (
-            <div className="grid grid-cols-3 md:grid-cols-6 gap-1.5 md:gap-2">
+            <div className="grid grid-cols-4 md:grid-cols-7 gap-1.5 md:gap-2">
               {/* Data Atual */}
               <button
                 type="button"
@@ -2874,6 +2886,30 @@ export default function PainelControle() {
                       <p className="text-[11px] md:text-xs font-medium leading-none text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
                     </div>
                     <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-blue-500/50 flex-shrink-0" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card
+                onClick={() =>
+                  setPainelFiltros((f) => ({
+                    ...f,
+                    classificacoes: f.classificacoes.includes("ata") ? [] : ["ata"],
+                  }))
+                }
+                className={cn(
+                  "cursor-pointer transition-shadow hover:shadow-md",
+                  "bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800",
+                  painelFiltros.classificacoes.includes("ata") && "ring-2 ring-violet-500",
+                )}
+              >
+                <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{contagensPorClassificacao.ata}</p>
+                      <p className="text-[11px] md:text-xs font-medium leading-none text-violet-600 dark:text-violet-400 truncate">Atas</p>
+                    </div>
+                    <FileText className="w-4 h-4 md:w-5 md:h-5 text-violet-500/50 flex-shrink-0" />
                   </div>
                 </CardContent>
               </Card>
@@ -3033,6 +3069,7 @@ export default function PainelControle() {
                   { key: "prazo",         label: "Prazos" },
                   { key: "audiencia",     label: "Audiências" },
                   { key: "tarefa",        label: "Tarefas" },
+                  { key: "ata",           label: "Atas" },
                   { key: "evento",        label: "Eventos" },
                   { key: "parcelamento",  label: "Parcelamentos" },
                 ] as const).map((f) => {
@@ -3440,7 +3477,7 @@ export default function PainelControle() {
                                       ? "bg-muted border border-foreground/60 text-foreground"
                                       : isItemConcluidoComSucesso(item)
                                       ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
-                                      : TIPO_CORES[item.tipo] || "bg-muted border border-border text-muted-foreground"
+                                      : TIPO_CORES[corKeyItem(item)] || "bg-muted border border-border text-muted-foreground"
                                   )}
 
                                   onClick={(e) => {
@@ -3459,7 +3496,7 @@ export default function PainelControle() {
                                     (isItemRiscado(item) || isCancelado) && "line-through",
                                     isItemConcluidoComSucesso(item) && "!text-emerald-800 dark:!text-emerald-300"
                                   )}>
-                                    {item.titulo || TIPO_LABELS[item.tipo]}
+                                    {item.titulo || TIPO_LABELS[corKeyItem(item)]}
                                   </span>
                                   {(item.anexos_count ?? 0) > 0 && (
                                     <AnexoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 ml-0.5" />
@@ -3632,6 +3669,7 @@ export default function PainelControle() {
             : novoItemTipo === "prazo" ? "Novo prazo"
             : novoItemTipo === "audiencia" ? "Nova audiência"
             : novoItemTipo === "parcelamento" ? "Novo parcelamento"
+            : novoItemTipo === "ata" ? "Nova ata"
             : "Nova tarefa"
         }
         subtitulo={novoItemData}
@@ -3742,7 +3780,7 @@ function NovoItemPanel({
   onSuccess,
   hideHeader,
 }: {
-  tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
+  tipo: "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento";
   dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
@@ -3762,7 +3800,7 @@ function NovoItemPanel({
       if (error) throw error;
       return (data || []).map((m) => m.coordenacao_id);
     },
-    enabled: !!user?.id && !isAdmin && tipo === "tarefa",
+    enabled: !!user?.id && !isAdmin && (tipo === "tarefa" || tipo === "ata"),
   });
 
   const { data: coordenacoes = [] } = useQuery({
@@ -3781,7 +3819,7 @@ function NovoItemPanel({
       if (error) throw error;
       return data || [];
     },
-    enabled: tipo === "tarefa" && (isAdmin || membrosCoordenacoes.length > 0),
+    enabled: (tipo === "tarefa" || tipo === "ata") && (isAdmin || membrosCoordenacoes.length > 0),
   });
 
   const handleOpenChange = (o: boolean) => {
@@ -3799,9 +3837,10 @@ function NovoItemPanel({
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tipo === "tarefa" && (
+        {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
             inline
+            tipoTarefa={tipo === "ata" ? "ATA" : undefined}
             dataPadrao={dataPadrao}
             open
             onOpenChange={handleOpenChange}
