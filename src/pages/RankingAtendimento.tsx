@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
@@ -406,7 +407,10 @@ export default function RankingAtendimento() {
     "dd/MM/yyyy"
   )}`;
 
-  const exportarPdf = async () => {
+  const [exportandoPdf, setExportandoPdf] = useState(false);
+  const exportarPdf = async (escopo: "sistema" | "todos") => {
+    setExportandoPdf(true);
+    try {
     const { data: sisRaw } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
       p_inicio: inicio, p_fim: fim, p_coordenacao_id: filtroParams.p_coordenacao_id ?? null,
     });
@@ -469,13 +473,7 @@ export default function RankingAtendimento() {
     const topo = (arr: any[], n = 12) => arr.slice(0, n);
     const nomesCurtos = (arr: any[]) => topo(arr).map((l) => l.nome.split(" ").slice(0, 2).join(" "));
 
-    gerarRankingPdfCompleto({
-      titulo: "Ranking de Atendimento",
-      periodo: periodoLabel,
-      filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
-      nomeArquivo: "ranking_atendimento_completo",
-      secoes: [
-        ...secoesSistema,
+    const secoesRestantes: any[] = [
         {
           titulo: "Visão Geral",
           subtitulo: "Produtividade e cumprimento de prazos por profissional",
@@ -664,8 +662,17 @@ export default function RankingAtendimento() {
             judit_preenchidos: l.judit_preenchidos,
           })),
         }] as any : []),
-      ],
+    ];
+    gerarRankingPdfCompleto({
+      titulo: "Ranking de Atendimento",
+      periodo: periodoLabel,
+      filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
+      nomeArquivo: escopo === "sistema" ? "ranking_criados_no_sistema" : "ranking_atendimento_completo",
+      secoes: escopo === "sistema" ? secoesSistema : [...secoesSistema, ...secoesRestantes],
     });
+    } finally {
+      setExportandoPdf(false);
+    }
   };
 
   const medalha = (idx: number) =>
@@ -830,10 +837,24 @@ export default function RankingAtendimento() {
               </>
             )}
             <div className="ml-auto">
-              <Button onClick={exportarPdf} className="gap-2">
-                <FileDown className="w-4 h-4" />
-                Exportar PDF (todas as abas)
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button disabled={exportandoPdf} className="gap-2">
+                    <FileDown className="w-4 h-4" />
+                    {exportandoPdf ? "Gerando PDF..." : "Exportar PDF"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportarPdf("sistema")}>
+                    <Trophy className="w-4 h-4 text-[hsl(43_74%_49%)]" />
+                    Criados no Sistema
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportarPdf("todos")}>
+                    <Medal className="w-4 h-4 text-[hsl(43_74%_49%)]" />
+                    Todos
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </CardContent>
         </Card>
