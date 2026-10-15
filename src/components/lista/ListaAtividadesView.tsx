@@ -59,6 +59,7 @@ import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from 
 
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { AGENDA_INFINITE_QUERY_KEY, type ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+import { isItemAta, rotuloTipoItem } from "@/lib/tipoItemAgenda";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
@@ -112,6 +113,7 @@ const TIPO_LABELS: Record<string, string> = {
   audiencia: "Audiência",
   parcelamento: "Parcelamento recorrente",
   prazo_parcela: "Parcela",
+  ata: "Ata",
 };
 
 function fmtDate(s?: string | null) {
@@ -1095,8 +1097,8 @@ export default function ListaAtividadesView({
                                 <span className="font-mono text-[10px] text-primary font-semibold">
                                   {r.identificador_projuris || r.processo?.numero || "—"}
                                 </span>
-                                <Badge variant="outline" className="font-normal text-[9px] px-1 py-0">
-                                  {TIPO_LABELS[item.tipo]}
+                                <Badge variant="outline" className={cn("font-normal text-[9px] px-1 py-0", isItemAta(item) && "border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300")}>
+                                  {rotuloTipoItem(item, TIPO_LABELS)}
                                 </Badge>
                               </div>
                               <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">

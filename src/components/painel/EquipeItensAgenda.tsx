@@ -34,6 +34,7 @@ import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, Che
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { corKeyItem } from "@/lib/tipoItemAgenda";
 
 interface EquipeItensAgendaProps {
   itens: ItemAgendaUnificado[];
@@ -75,6 +76,7 @@ const TIPO_BAR_CLASSES: Record<string, string> = {
   audiencia: "bg-yellow-500",
   prazo_parcela: "bg-red-400",
   parcelamento: "bg-emerald-500",
+  ata: "bg-violet-500",
 };
 
 function getRefDate(item: ItemAgendaUnificado): Date | null {
@@ -503,7 +505,7 @@ export function EquipeItensAgenda({
                   <TableCell className="relative pl-4">
                     <span
                       aria-hidden="true"
-                      className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[item.tipo] || "bg-muted")}
+                      className={cn("absolute left-0 top-0 h-full w-1", TIPO_BAR_CLASSES[corKeyItem(item)] || "bg-muted")}
                     />
                     <div className="max-w-[260px]">
                       <div className="flex items-center gap-1.5">

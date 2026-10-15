@@ -17,6 +17,7 @@ import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from
 import { AlertTriangle, CalendarClock, CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { isItemAta } from "@/lib/tipoItemAgenda";
 
 
 interface KanbanItensAgendaProps {
@@ -171,6 +172,11 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                       >
                         {item.titulo || "(sem título)"}
                       </p>
+                      {isItemAta(item) && (
+                        <Badge className="shrink-0 bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-300 dark:border-violet-800 text-[8px] px-1 py-0 h-auto">
+                          Ata
+                        </Badge>
+                      )}
                       {temAtividade && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {veioDeWorkflow && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
                        {veioDePublicacao && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
