@@ -16,7 +16,7 @@ export function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 border-t border-sidebar-border bg-sidebar text-sidebar-foreground"
+      className="fixed bottom-0 left-0 right-0 w-full max-w-[100vw] z-40 border-t border-sidebar-border bg-sidebar text-sidebar-foreground"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Atalhos"
     >
