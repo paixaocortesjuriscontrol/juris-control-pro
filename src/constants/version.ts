@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "8.4.0";
+export const APP_VERSION = "8.5.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -89,4 +89,5 @@ export const VERSION_HISTORY = [
   { version: "8.2.1", date: "2026-10-14", notes: "Aviso ao tentar baixar um item sem permissão: a mensagem orienta a procurar o coordenador e pedir a liberação no menu Coordenações, em 'Quem pode mudar cada situação'" },
   { version: "8.3.0", date: "2026-10-14", notes: "Pautas de Julgamento: cartões do topo filtram a lista ao clicar; hora da audiência exibida na ficha do processo, Processos e Casos, Painel de Audiências e relatórios; tarefa pendente não fica mais escondida atrás de concluída com o mesmo nome; Migração Projuris com etapa de anexos, painel 'Já migrado', desfazer protegido e leitura corrigida do backup completo; aviso claro quando a sessão expira ao salvar preferências de notificação" },
   { version: "8.4.0", date: "2026-10-15", notes: "App instalável no celular (ícone na tela inicial, tela cheia), barra inferior de atalhos no celular e telas adaptadas ao toque" },
+  { version: "8.5.0", date: "2026-10-15", notes: "Celular: Painel de Controle, Processos e Casos, Análise DJEN e Pautas de Julgamento adaptados — tabelas e abas com rolagem lateral, Kanban por coluna, janelas em tela cheia, botão Salvar acima da barra inferior e campos sem zoom automático" },
 ];
