@@ -58,18 +58,6 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
     },
     staleTime: 5 * 60 * 1000,
   });
-      }
-      const uids = new Set<string>(baixou.values());
-      itens.forEach((i) => { if (i.criado_por) uids.add(i.criado_por); resp.get(i.id)?.forEach((u) => uids.add(u)); });
-      const nomes = new Map<string, string>();
-      const arr = Array.from(uids);
-      for (let k = 0; k < arr.length; k += 200) {
-        const { data } = await supabase.from("profiles_basic" as any).select("id, nome").in("id", arr.slice(k, k + 200));
-        ((data || []) as any[]).forEach((p) => nomes.set(p.id, p.nome || "Sem nome"));
-      }
-      return { itens, resp: Array.from(resp.entries()).map(([k, v]) => [k, Array.from(v)] as const), nomes: Array.from(nomes.entries()), baixou: Array.from(baixou.entries()) };
-    },
-  });
 
   const linhas = useMemo<Linha[]>(() => {
     if (!q.data) return [];
