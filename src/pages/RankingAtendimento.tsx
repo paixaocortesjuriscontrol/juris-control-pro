@@ -22,6 +22,7 @@ import { RankingTstCards, filtersFromCards } from "@/components/distribuicao-tst
 import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
+import { RankingCriadosSistema } from "@/components/ranking/RankingCriadosSistema";
 
 
 const NAVY = "hsl(222 47% 18%)";
@@ -818,7 +819,20 @@ export default function RankingAtendimento() {
               <Target className="w-4 h-4" />
               TST
             </TabsTrigger>
+            <TabsTrigger value="sistema" className="gap-2">
+              <CheckCircle2 className="w-4 h-4" />
+              Criados no sistema
+            </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="sistema" className="space-y-4">
+            <RankingCriadosSistema
+              inicio={inicio}
+              fim={fim}
+              coordenacaoId={filtroParams.p_coordenacao_id}
+              usuarioId={filtroParams.p_usuario_id}
+            />
+          </TabsContent>
 
           {/* ---------------- GERAL ---------------- */}
           <TabsContent value="geral" className="space-y-4">
