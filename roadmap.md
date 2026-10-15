@@ -110,3 +110,8 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [ ] Tabelas de vínculo (tarefa, anexo, comentário, responsáveis, etiquetas) — aguardando equipe Projuris
 - [ ] Etapa Anexos (vínculo ou 3 regras) — aguarda arquivovinculomodulo
 - [ ] Etapa Comentários — aguarda tabela de vínculo
+
+## App mobile (PWA)
+- [x] Etapa 1 instalação e Etapa 2 estrutura (v8.4.0)
+- [ ] Etapa 3: cartões no Painel, Processos, DJEN e Pautas
+- [ ] Etapa 4: demais telas

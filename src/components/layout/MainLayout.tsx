@@ -2,6 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { MonitoramentosFloatingIndicator } from "./MonitoramentosFloatingIndicator";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useSidebarCollapsed } from "@/contexts/SidebarContext";
@@ -55,11 +56,12 @@ export function MainLayout({ children, title, subtitle, headerActions, className
       <Sidebar />
       <div className={`min-w-0 transition-all duration-300 ${isMobile ? 'ml-0' : collapsed ? 'lg:ml-20' : 'lg:ml-64'} ${className || ''}`}>
         <Header title={title} subtitle={subtitle} headerActions={headerActions} />
-        <main data-page-scroll-container className="min-w-0 p-4 md:p-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
+        <main data-page-scroll-container className="min-w-0 p-3 pb-24 md:p-6 md:pb-6 lg:max-h-[calc(100vh-64px)] lg:overflow-y-auto">
           {children}
         </main>
       </div>
       <MonitoramentosFloatingIndicator />
+      {isMobile && <MobileBottomNav />}
     </div>
   );
 }
