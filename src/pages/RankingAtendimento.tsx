@@ -792,6 +792,14 @@ export default function RankingAtendimento() {
             <p className="flex gap-2">
               <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
               <span>
+                <strong className="text-foreground">Concluídos</strong>: creditados a quem realmente deu a baixa do item
+                (pelo registro de alterações). Quando não há registro de quem deu a baixa — por exemplo, itens vindos de
+                importações —, contam para os responsáveis. “No prazo” e “Com atraso” seguem a mesma pessoa.
+              </span>
+            </p>
+            <p className="flex gap-2">
+              <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
                 <strong className="text-foreground">Atividades concl.</strong>: subatividades criadas dentro de um item
                 (aba “Atividades” da tarefa) e concluídas no período, em que o profissional é responsável, envolvido ou
                 quem concluiu. Fica próximo de zero porque o recurso de atividades ainda é pouco usado — quanto mais as
