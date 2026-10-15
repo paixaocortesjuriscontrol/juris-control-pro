@@ -11837,6 +11837,23 @@ export type Database = {
           usuario_id: string
         }[]
       }
+      get_ranking_criados_sistema: {
+        Args: { p_coordenacao_id?: string; p_fim: string; p_inicio: string }
+        Returns: {
+          atrasados: number
+          atribuidos: number
+          b_atraso: number
+          b_no_prazo: number
+          baixou: number
+          concluidos: number
+          criados: number
+          no_prazo: number
+          nome: string
+          pendentes: number
+          tipo: string
+          uid: string
+        }[]
+      }
       get_ranking_publicacoes: {
         Args: {
           p_coordenacao_id?: string

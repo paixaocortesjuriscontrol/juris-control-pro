@@ -50,100 +50,23 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
   const q = useQuery({
     queryKey: ["ranking-criados-sistema", inicio, fim, coordenacaoId],
     queryFn: async () => {
-      const itens: Item[] = [];
-      const fimExcl = new Date(fim + "T00:00:00");
-      fimExcl.setDate(fimExcl.getDate() + 1);
-      for (let from = 0; ; from += 1000) {
-        let qb = supabase
-          .from("tarefas")
-          .select("id, criado_por, responsavel_id, status, tipo_tarefa, data_fatal, data_vencimento, data_prevista, data_cumprimento")
-          .or(`origem.is.null,origem.in.(${ORIGENS_SISTEMA.join(",")})`)
-          .gte("created_at", inicio)
-          .lt("created_at", fimExcl.toISOString().slice(0, 10))
-          .order("id")
-          .range(from, from + 999);
-        if (coordenacaoId) qb = qb.eq("coordenacao_id", coordenacaoId);
-        const { data, error } = await qb;
-        if (error) throw error;
-        (data || []).forEach((t: any) =>
-          itens.push({
-            id: t.id,
-            criado_por: t.criado_por,
-            responsavel_id: t.responsavel_id,
-            status: String(t.status),
-            tipo: tipoDe(t.tipo_tarefa),
-            prazo: t.data_fatal || t.data_vencimento || t.data_prevista || null,
-            data_cumprimento: t.data_cumprimento,
-          })
-        );
-        if (!data || data.length < 1000) break;
-      }
-      // corresponsáveis
-      const resp = new Map<string, Set<string>>();
-      itens.forEach((i) => resp.set(i.id, new Set(i.responsavel_id ? [i.responsavel_id] : [])));
-      const ids = itens.map((i) => i.id);
-      for (let k = 0; k < ids.length; k += 200) {
-        const { data } = await supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", ids.slice(k, k + 200));
-        (data || []).forEach((r: any) => resp.get(r.tarefa_id)?.add(r.usuario_id));
-      }
-      // quem realmente deu baixa (auditoria: primeira atualização que levou a situação concluída)
-      const baixou = new Map<string, string>();
-      const concl = itens.filter((i) => CONCLUIDOS.includes(i.status)).map((i) => i.id);
-      for (let k = 0; k < concl.length; k += 100) {
-        const { data } = await (supabase.from("auditoria_tarefas" as any) as any)
-          .select("tarefa_id, usuario_id, created_at, status:dados_saida->>status")
-          .eq("acao", "atualizar")
-          .in("tarefa_id", concl.slice(k, k + 100))
-          .order("created_at");
-        ((data || []) as any[]).forEach((a) => {
-          if (a.usuario_id && CONCLUIDOS.includes(String(a.status)) && !baixou.has(a.tarefa_id)) baixou.set(a.tarefa_id, a.usuario_id);
-        });
-      }
-      const uids = new Set<string>(baixou.values());
-      itens.forEach((i) => { if (i.criado_por) uids.add(i.criado_por); resp.get(i.id)?.forEach((u) => uids.add(u)); });
-      const nomes = new Map<string, string>();
-      const arr = Array.from(uids);
-      for (let k = 0; k < arr.length; k += 200) {
-        const { data } = await supabase.from("profiles_basic" as any).select("id, nome").in("id", arr.slice(k, k + 200));
-        ((data || []) as any[]).forEach((p) => nomes.set(p.id, p.nome || "Sem nome"));
-      }
-      return { itens, resp: Array.from(resp.entries()).map(([k, v]) => [k, Array.from(v)] as const), nomes: Array.from(nomes.entries()), baixou: Array.from(baixou.entries()) };
+      const { data, error } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
+        p_inicio: inicio, p_fim: fim, p_coordenacao_id: coordenacaoId || null,
+      });
+      if (error) throw error;
+      return (data || []) as any[];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const linhas = useMemo<Linha[]>(() => {
     if (!q.data) return [];
-    const resp = new Map(q.data.resp);
-    const nomes = new Map(q.data.nomes);
-    const baixou = new Map(q.data.baixou);
-    const hoje = new Date().toISOString().slice(0, 10);
     const m = new Map<string, Linha>();
-    const get = (uid: string) => {
-      let l = m.get(uid);
-      if (!l) { l = { uid, nome: nomes.get(uid) || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, baixou: 0, bNoPrazo: 0, bAtraso: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(uid, l); }
-      return l;
-    };
-    q.data.itens.filter((i) => tipo === "todos" || i.tipo === tipo).forEach((i) => {
-      if (i.criado_por) get(i.criado_por).criados++;
-      const b = baixou.get(i.id);
-      if (b) {
-        const lb = get(b);
-        lb.baixou++;
-        if (i.prazo && i.data_cumprimento) {
-          if (i.data_cumprimento.slice(0, 10) <= i.prazo) lb.bNoPrazo++; else lb.bAtraso++;
-        }
-      }
-      (resp.get(i.id) || []).forEach((u) => {
-        const l = get(u);
-        l.atribuidos++;
-        if (CONCLUIDOS.includes(i.status)) {
-          l.concluidos++;
-          if (i.prazo && i.data_cumprimento && i.data_cumprimento.slice(0, 10) <= i.prazo) l.noPrazo++;
-        } else if (!ENCERRADOS.includes(i.status)) {
-          l.pendentes++;
-          if (i.prazo && i.prazo < hoje) l.atrasados++;
-        }
-      });
+    q.data.filter((r) => tipo === "todos" || r.tipo === tipo).forEach((r) => {
+      let l = m.get(r.uid);
+      if (!l) { l = { uid: r.uid, nome: r.nome || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, baixou: 0, bNoPrazo: 0, bAtraso: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(r.uid, l); }
+      l.criados += r.criados; l.atribuidos += r.atribuidos; l.concluidos += r.concluidos; l.noPrazo += r.no_prazo;
+      l.pendentes += r.pendentes; l.atrasados += r.atrasados; l.baixou += r.baixou; l.bNoPrazo += r.b_no_prazo; l.bAtraso += r.b_atraso;
     });
     return Array.from(m.values())
       .filter((l) => !usuarioId || l.uid === usuarioId)
