@@ -112,6 +112,7 @@ const TIPO_LABELS: Record<string, string> = {
   audiencia: "Audiência",
   parcelamento: "Parcelamento recorrente",
   prazo_parcela: "Parcela",
+  ata: "Ata",
 };
 
 function fmtDate(s?: string | null) {

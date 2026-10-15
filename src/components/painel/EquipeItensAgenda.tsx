@@ -34,6 +34,7 @@ import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, Che
 import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { corKeyItem } from "@/lib/tipoItemAgenda";
 
 interface EquipeItensAgendaProps {
   itens: ItemAgendaUnificado[];
