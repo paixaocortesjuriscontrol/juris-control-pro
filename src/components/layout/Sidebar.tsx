@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { APP_VERSION } from "@/constants/version";
 import { NavLink } from "react-router-dom";
 import { 
@@ -51,6 +51,11 @@ import { Button } from "@/components/ui/button";
 export function Sidebar() {
   const { collapsed, setCollapsed } = useSidebarCollapsed();
   const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    const abrir = () => setMobileOpen(true);
+    window.addEventListener("abrir-menu-mobile", abrir);
+    return () => window.removeEventListener("abrir-menu-mobile", abrir);
+  }, []);
   const { isAdmin, isAdminOrCoordinator, role } = useUserRole();
   const { coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
   const { isMenuAllowed } = useMenuPermissions();

@@ -1,0 +1,16 @@
+{
+  "name": "JurisControl | Paixão Cortes Advogados",
+  "short_name": "JurisControl",
+  "description": "Gestão jurídica: prazos, processos, publicações e pautas.",
+  "start_url": "/painel-controle",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#162447",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
