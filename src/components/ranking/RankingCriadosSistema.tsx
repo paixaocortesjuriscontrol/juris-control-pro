@@ -32,7 +32,7 @@ type Item = {
   data_cumprimento: string | null;
 };
 
-type Linha = { uid: string; nome: string; criados: number; atribuidos: number; concluidos: number; noPrazo: number; pendentes: number; atrasados: number };
+type Linha = { uid: string; nome: string; criados: number; atribuidos: number; concluidos: number; baixou: number; noPrazo: number; pendentes: number; atrasados: number };
 
 interface Props {
   inicio: string;
@@ -83,7 +83,20 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
         const { data } = await supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", ids.slice(k, k + 200));
         (data || []).forEach((r: any) => resp.get(r.tarefa_id)?.add(r.usuario_id));
       }
-      const uids = new Set<string>();
+      // quem realmente deu baixa (auditoria: primeira atualização que levou a situação concluída)
+      const baixou = new Map<string, string>();
+      const concl = itens.filter((i) => CONCLUIDOS.includes(i.status)).map((i) => i.id);
+      for (let k = 0; k < concl.length; k += 100) {
+        const { data } = await (supabase.from("auditoria_tarefas" as any) as any)
+          .select("tarefa_id, usuario_id, created_at, status:dados_saida->>status")
+          .eq("acao", "atualizar")
+          .in("tarefa_id", concl.slice(k, k + 100))
+          .order("created_at");
+        ((data || []) as any[]).forEach((a) => {
+          if (a.usuario_id && CONCLUIDOS.includes(String(a.status)) && !baixou.has(a.tarefa_id)) baixou.set(a.tarefa_id, a.usuario_id);
+        });
+      }
+      const uids = new Set<string>(baixou.values());
       itens.forEach((i) => { if (i.criado_por) uids.add(i.criado_por); resp.get(i.id)?.forEach((u) => uids.add(u)); });
       const nomes = new Map<string, string>();
       const arr = Array.from(uids);
@@ -91,7 +104,7 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
         const { data } = await supabase.from("profiles_basic" as any).select("id, nome").in("id", arr.slice(k, k + 200));
         ((data || []) as any[]).forEach((p) => nomes.set(p.id, p.nome || "Sem nome"));
       }
-      return { itens, resp: Array.from(resp.entries()).map(([k, v]) => [k, Array.from(v)] as const), nomes: Array.from(nomes.entries()) };
+      return { itens, resp: Array.from(resp.entries()).map(([k, v]) => [k, Array.from(v)] as const), nomes: Array.from(nomes.entries()), baixou: Array.from(baixou.entries()) };
     },
   });
 
@@ -99,15 +112,18 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
     if (!q.data) return [];
     const resp = new Map(q.data.resp);
     const nomes = new Map(q.data.nomes);
+    const baixou = new Map(q.data.baixou);
     const hoje = new Date().toISOString().slice(0, 10);
     const m = new Map<string, Linha>();
     const get = (uid: string) => {
       let l = m.get(uid);
-      if (!l) { l = { uid, nome: nomes.get(uid) || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(uid, l); }
+      if (!l) { l = { uid, nome: nomes.get(uid) || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, baixou: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(uid, l); }
       return l;
     };
     q.data.itens.filter((i) => tipo === "todos" || i.tipo === tipo).forEach((i) => {
       if (i.criado_por) get(i.criado_por).criados++;
+      const b = baixou.get(i.id);
+      if (b) get(b).baixou++;
       (resp.get(i.id) || []).forEach((u) => {
         const l = get(u);
         l.atribuidos++;
@@ -122,10 +138,10 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
     });
     return Array.from(m.values())
       .filter((l) => !usuarioId || l.uid === usuarioId)
-      .sort((a, b) => b.concluidos - a.concluidos || b.criados - a.criados);
+      .sort((a, b) => b.baixou - a.baixou || b.concluidos - a.concluidos || b.criados - a.criados);
   }, [q.data, tipo, usuarioId]);
 
-  const tot = linhas.reduce((s, l) => ({ c: s.c + l.criados, k: s.k + l.concluidos, p: s.p + l.pendentes, a: s.a + l.atrasados }), { c: 0, k: 0, p: 0, a: 0 });
+  const tot = linhas.reduce((s, l) => ({ c: s.c + l.criados, k: s.k + l.baixou, p: s.p + l.pendentes, a: s.a + l.atrasados }), { c: 0, k: 0, p: 0, a: 0 });
 
   return (
     <div className="space-y-4">
@@ -153,7 +169,7 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
           <Card>
             <CardHeader>
               <CardTitle>Ranking — criados no sistema</CardTitle>
-              <CardDescription>Ordenado por itens concluídos. "Criou" conta quem cadastrou; as demais colunas contam responsáveis e corresponsáveis.</CardDescription>
+              <CardDescription>Ordenado por "Deu baixa" (quem realmente baixou o item, pelo registro de alterações). "Criou" conta quem cadastrou; "Atribuídos", "Concluídos (como responsável)", pendentes e atrasados contam responsáveis e corresponsáveis.</CardDescription>
             </CardHeader>
             <CardContent>
               {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.error ? (
@@ -164,19 +180,20 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
                     <TableRow>
                       <TableHead>#</TableHead><TableHead>Profissional</TableHead>
                       <TableHead className="text-right">Criou</TableHead><TableHead className="text-right">Atribuídos</TableHead>
-                      <TableHead className="text-right">Concluídos</TableHead><TableHead className="text-right">No prazo</TableHead>
+                      <TableHead className="text-right">Deu baixa</TableHead><TableHead className="text-right">Concluídos (como responsável)</TableHead><TableHead className="text-right">No prazo</TableHead>
                       <TableHead className="text-right">Pendentes</TableHead><TableHead className="text-right">Atrasados</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {linhas.length === 0 && <TableRow><TableCell colSpan={8} className="text-center text-muted-foreground">Nenhum item criado no sistema no período.</TableCell></TableRow>}
+                    {linhas.length === 0 && <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground">Nenhum item criado no sistema no período.</TableCell></TableRow>}
                     {linhas.map((l, i) => (
                       <TableRow key={l.uid}>
                         <TableCell>{i < 3 ? <span className="inline-flex items-center gap-1"><Medal className="w-4 h-4 text-primary" />{i + 1}</span> : i + 1}</TableCell>
                         <TableCell>{l.nome}</TableCell>
                         <TableCell className="text-right">{l.criados}</TableCell>
                         <TableCell className="text-right">{l.atribuidos}</TableCell>
-                        <TableCell className="text-right font-semibold">{l.concluidos}</TableCell>
+                        <TableCell className="text-right font-semibold">{l.baixou}</TableCell>
+                        <TableCell className="text-right">{l.concluidos}</TableCell>
                         <TableCell className="text-right">{l.noPrazo}</TableCell>
                         <TableCell className="text-right">{l.pendentes}</TableCell>
                         <TableCell className="text-right text-destructive">{l.atrasados}</TableCell>
