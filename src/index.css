@@ -513,6 +513,8 @@
 @media (max-width: 767px) {
   html { -webkit-text-size-adjust: 100%; }
   body { padding-top: env(safe-area-inset-top); }
+  /* Impede que conteúdo largo estique a página e empurre a barra inferior para fora da tela */
+  html, body { overflow-x: clip; }
   /* Evita zoom automático do iPhone ao tocar em campos */
   input, select, textarea { font-size: 16px !important; }
   /* Tabelas largas rolam na horizontal em vez de estourar a tela */
