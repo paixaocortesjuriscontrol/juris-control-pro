@@ -87,8 +87,7 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
       const baixou = new Map<string, string>();
       const concl = itens.filter((i) => CONCLUIDOS.includes(i.status)).map((i) => i.id);
       for (let k = 0; k < concl.length; k += 100) {
-        const { data } = await supabase
-          .from("auditoria_tarefas")
+        const { data } = await (supabase.from("auditoria_tarefas" as any) as any)
           .select("tarefa_id, usuario_id, created_at, status:dados_saida->>status")
           .eq("acao", "atualizar")
           .in("tarefa_id", concl.slice(k, k + 100))
