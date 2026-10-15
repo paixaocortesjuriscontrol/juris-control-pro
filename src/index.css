@@ -507,7 +507,6 @@
 .processo-chrome [data-slot="card"],
 .processo-chrome .card {
   box-shadow: none;
-  main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
 }
 
 /* ============ Celular (app instalável) ============ */
@@ -540,4 +539,5 @@
   /* Rodapés de formulário (Salvar) sempre acima da barra inferior */
   main .sticky.bottom-0 { bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
   /* Cabeçalhos de filtros quebram linha em vez de estourar */
+  main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
 }
