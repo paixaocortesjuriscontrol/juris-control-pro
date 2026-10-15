@@ -12,7 +12,7 @@ import { ItemAtividades } from "@/components/comum/ItemAtividades";
 import { BaixaOcorrenciaBar } from "@/components/agenda/BaixaOcorrenciaBar";
 import { isOcorrenciaRecorrente } from "@/lib/baixaOcorrencia";
 
-export type NovoItemTipo = "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
+export type NovoItemTipo = "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento";
 
 interface NovoItemPanelProps {
   tipo: NovoItemTipo;
@@ -60,7 +60,7 @@ export function NovoItemPanel({
       if (error) throw error;
       return (data || []).map((m) => m.coordenacao_id);
     },
-    enabled: !!user?.id && !isAdmin && tipo === "tarefa",
+    enabled: !!user?.id && !isAdmin && (tipo === "tarefa" || tipo === "ata"),
   });
 
   const { data: coordenacoes = [] } = useQuery({
@@ -79,7 +79,7 @@ export function NovoItemPanel({
       if (error) throw error;
       return data || [];
     },
-    enabled: tipo === "tarefa" && (isAdmin || membrosCoordenacoes.length > 0),
+    enabled: (tipo === "tarefa" || tipo === "ata") && (isAdmin || membrosCoordenacoes.length > 0),
   });
 
   const handleOpenChange = (o: boolean) => {
@@ -95,8 +95,9 @@ export function NovoItemPanel({
         </Button>
       </div>
       <div className={embedded ? "w-full" : "flex-1 min-h-0 overflow-hidden"}>
-        {tipo === "tarefa" && (
+        {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
+            tipoTarefa={tipo === "ata" ? "ATA" : undefined}
             inline
             embedded={embedded}
             open

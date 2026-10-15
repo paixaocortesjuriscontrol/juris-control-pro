@@ -159,6 +159,8 @@ interface NovaTarefaDialogProps {
    * desta publicação".
    */
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
+  /** Tipo gravado em tipo_tarefa ao criar (ex.: "ATA"). */
+  tipoTarefa?: string;
 }
 
 export function NovaTarefaDialog({
@@ -177,7 +179,9 @@ export function NovaTarefaDialog({
   secondarySave,
   tertiarySave,
   onAfterCreate,
+  tipoTarefa,
 }: NovaTarefaDialogProps) {
+  const ehAta = (tipoTarefa ?? tarefaParaEditar?.tipo_tarefa ?? "").toUpperCase().trim() === "ATA";
   const [loading, setLoading] = useState(false);
   const secondaryClickedRef = useRef(false);
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
@@ -735,6 +739,7 @@ export function NovaTarefaDialog({
         processo_id: processoId,
         coordenacao_id: values.coordenacao_id || null,
         responsavel_id: responsavelPrincipal,
+        ...(tipoTarefa ? { tipo_tarefa: tipoTarefa } : {}),
         titulo: values.titulo,
         descricao: values.descricao || null,
         data_base: values.data_base || null,
@@ -958,7 +963,7 @@ export function NovaTarefaDialog({
     inline ? (
       <div className="px-6 pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
         <h3 className="text-base font-semibold flex items-center gap-2">
-          Tarefa
+          {ehAta ? "Ata" : "Tarefa"}
         </h3>
         <div className="flex items-center gap-2">
           {publicacao && (
@@ -1006,7 +1011,7 @@ export function NovaTarefaDialog({
       <DialogHeader className="px-6 pt-6 pb-4 shrink-0">
         <div className="flex items-center justify-between gap-3">
           <DialogTitle className="flex items-center gap-2">
-            Tarefa
+            {ehAta ? "Ata" : "Tarefa"}
           </DialogTitle>
           <div className="flex items-center gap-2">
             {!ocultarSituacao && (
