@@ -3780,7 +3780,7 @@ function NovoItemPanel({
   onSuccess,
   hideHeader,
 }: {
-  tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento";
+  tipo: "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento";
   dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
@@ -3800,7 +3800,7 @@ function NovoItemPanel({
       if (error) throw error;
       return (data || []).map((m) => m.coordenacao_id);
     },
-    enabled: !!user?.id && !isAdmin && tipo === "tarefa",
+    enabled: !!user?.id && !isAdmin && (tipo === "tarefa" || tipo === "ata"),
   });
 
   const { data: coordenacoes = [] } = useQuery({
@@ -3819,7 +3819,7 @@ function NovoItemPanel({
       if (error) throw error;
       return data || [];
     },
-    enabled: tipo === "tarefa" && (isAdmin || membrosCoordenacoes.length > 0),
+    enabled: (tipo === "tarefa" || tipo === "ata") && (isAdmin || membrosCoordenacoes.length > 0),
   });
 
   const handleOpenChange = (o: boolean) => {
@@ -3837,9 +3837,10 @@ function NovoItemPanel({
         </div>
       )}
       <div className="flex-1 min-h-0 overflow-hidden">
-        {tipo === "tarefa" && (
+        {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
             inline
+            tipoTarefa={tipo === "ata" ? "ATA" : undefined}
             dataPadrao={dataPadrao}
             open
             onOpenChange={handleOpenChange}
