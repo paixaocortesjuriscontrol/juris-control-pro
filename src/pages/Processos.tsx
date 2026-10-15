@@ -21,6 +21,8 @@ import { TransferirProcessosDialog } from "@/components/processos/TransferirProc
 import { ProcessoFormDialog } from "@/components/processos/ProcessoFormDialog";
 import { FiltrosAvancadosProcessos, FiltrosAvancados, defaultFiltrosAvancados } from "@/components/processos/FiltrosAvancadosProcessos";
 import { ProcessoExpandableRow } from "@/components/processos/ProcessoExpandableRow";
+import { ProcessoCardMobile } from "@/components/processos/ProcessoCardMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
@@ -73,6 +75,7 @@ const situacaoLabels: Record<string, string> = {
 };
 
 const Processos = () => {
+  const isMobileTela = useIsMobile();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1156,6 +1159,9 @@ const Processos = () => {
                 const isSelected = selectedProcessos.includes(processo.id);
                 const temRedistribuicaoRecente = processosRedistribuidos?.has(processo.id);
                 
+                if (isMobileTela && !isSelectionMode) {
+                  return <ProcessoCardMobile key={processo.id} processo={processo} onNavigate={(id) => navigate(`/processos/${id}`)} />;
+                }
                 return (
                   <ProcessoExpandableRow
                     key={processo.id}
