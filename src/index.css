@@ -507,6 +507,24 @@
 .processo-chrome [data-slot="card"],
 .processo-chrome .card {
   box-shadow: none;
+  /* Etapa 3: telas principais no celular */
+  /* Evita zoom automático do iPhone ao tocar em campos */
+  main input, main select, main textarea, [role="dialog"] input, [role="dialog"] textarea { font-size: 16px !important; }
+  /* Tabelas largas rolam de lado, sem quebrar a tela */
+  main table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  main table td, main table th { white-space: normal; min-width: 96px; }
+  /* Listas de abas roláveis */
+  main [role="tablist"] { overflow-x: auto; flex-wrap: nowrap; justify-content: flex-start; max-width: 100%; scrollbar-width: none; }
+  main [role="tablist"] > * { flex-shrink: 0; }
+  /* Kanban: colunas com rolagem lateral e encaixe por coluna */
+  main .overflow-x-auto { scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+  main .overflow-x-auto > * > * { scroll-snap-align: start; }
+  /* Janelas centrais ocupam a tela inteira no celular */
+  [role="dialog"].fixed.left-\[50\%\] { width: 100vw !important; height: 100dvh; top: 0 !important; left: 0 !important; transform: none !important; border-radius: 0 !important; padding-bottom: calc(1.5rem + env(safe-area-inset-bottom)); }
+  /* Rodapés de formulário (Salvar) sempre acima da barra inferior */
+  main .sticky.bottom-0 { bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
+  /* Cabeçalhos de filtros quebram linha em vez de estourar */
+  main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
 }
 
 /* ============ Celular (app instalável) ============ */
