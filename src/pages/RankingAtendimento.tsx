@@ -406,7 +406,66 @@ export default function RankingAtendimento() {
     "dd/MM/yyyy"
   )}`;
 
-  const exportarPdf = () => {
+  const exportarPdf = async () => {
+    const { data: sisRaw } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
+      p_inicio: inicio, p_fim: fim, p_coordenacao_id: filtroParams.p_coordenacao_id ?? null,
+    });
+    const sisMap = new Map<string, any>();
+    ((sisRaw || []) as any[]).forEach((r) => {
+      const l = sisMap.get(r.uid) || { uid: r.uid, nome: r.nome || "Sem nome", criados: 0, atribuidos: 0, baixou: 0, concluidos: 0, pendentes: 0, atrasados: 0, bn: 0, ba: 0 };
+      l.criados += r.criados; l.atribuidos += r.atribuidos; l.baixou += r.baixou; l.concluidos += r.concluidos;
+      l.pendentes += r.pendentes; l.atrasados += r.atrasados; l.bn += r.b_no_prazo; l.ba += r.b_atraso;
+      sisMap.set(r.uid, l);
+    });
+    const sis = Array.from(sisMap.values()).filter((l) => !filtroParams.p_usuario_id || l.uid === filtroParams.p_usuario_id);
+    const sisGeral = [...sis].sort((a, b) => b.baixou - a.baixou || b.concluidos - a.concluidos || b.criados - a.criados);
+    const sisProd = [...sis].sort((a, b) => b.criados + b.baixou - (a.criados + a.baixou));
+    const sisPont = sis.filter((l) => l.bn + l.ba > 0).sort((a, b) => pct(b.bn, b.bn + b.ba) - pct(a.bn, a.bn + a.ba) || b.bn - a.bn);
+    const sT = sis.reduce((t, l) => ({ c: t.c + l.criados, k: t.k + l.baixou, p: t.p + l.pendentes, a: t.a + l.atrasados, bn: t.bn + l.bn, ba: t.ba + l.ba }), { c: 0, k: 0, p: 0, a: 0, bn: 0, ba: 0 });
+    const notaSis = "Considera só itens cadastrados dentro do sistema (manualmente, Análise DJEN, fluxos ou IA). Importações, planilhas, Projuris e Astrea ficam de fora. Baixas creditadas a quem realmente deu a baixa.";
+    const nc = (arr: any[]) => arr.slice(0, 12).map((l) => l.nome.split(" ").slice(0, 2).join(" "));
+    const secoesSistema: any[] = [
+      {
+        titulo: "Criados no sistema — Geral", subtitulo: "Itens cadastrados no sistema, por profissional", notas: [notaSis],
+        resumo: [{ label: "Criados", valor: sT.c }, { label: "Baixas", valor: sT.k }, { label: "Pendentes", valor: sT.p }, { label: "Atrasados", valor: sT.a }],
+        grafico: { titulo: "Top 12 — criou e deu baixa", categorias: nc(sisGeral), series: [
+          { nome: "Criou", valores: sisGeral.slice(0, 12).map((l) => l.criados), cor: [59, 154, 225] },
+          { nome: "Deu baixa", valores: sisGeral.slice(0, 12).map((l) => l.baixou), cor: [31, 169, 113] }] },
+        colunas: [
+          { header: "#", width: 12, key: "pos" }, { header: "Profissional", width: 70, key: "nome" },
+          { header: "Criou", width: 24, key: "criados", align: "right" }, { header: "Atribuídos", width: 26, key: "atribuidos", align: "right" },
+          { header: "Deu baixa", width: 26, key: "baixou", align: "right" }, { header: "Concl. (resp.)", width: 30, key: "concluidos", align: "right" },
+          { header: "Pendentes", width: 26, key: "pendentes", align: "right" }, { header: "Atrasados", width: 26, key: "atrasados", align: "right" },
+        ],
+        linhas: sisGeral.map((l, i) => ({ ...l, pos: String(i + 1) })),
+      },
+      {
+        titulo: "Criados no sistema — Produtividade", subtitulo: "Itens criados + baixas dadas por profissional", notas: [notaSis],
+        resumo: [{ label: "Criados", valor: sT.c }, { label: "Baixas", valor: sT.k }, { label: "Total produzido", valor: sT.c + sT.k }],
+        grafico: { titulo: "Top 12 — total produzido", categorias: nc(sisProd), series: [
+          { nome: "Criou", valores: sisProd.slice(0, 12).map((l) => l.criados), cor: [24, 37, 68] },
+          { nome: "Deu baixa", valores: sisProd.slice(0, 12).map((l) => l.baixou), cor: [59, 154, 225] }] },
+        colunas: [
+          { header: "#", width: 12, key: "pos" }, { header: "Profissional", width: 80, key: "nome" },
+          { header: "Criou", width: 30, key: "criados", align: "right" }, { header: "Deu baixa", width: 30, key: "baixou", align: "right" },
+          { header: "Total produzido", width: 36, key: "total", align: "right" }, { header: "Pendentes", width: 30, key: "pendentes", align: "right" },
+        ],
+        linhas: sisProd.map((l, i) => ({ ...l, pos: String(i + 1), total: l.criados + l.baixou })),
+      },
+      {
+        titulo: "Criados no sistema — Pontualidade", subtitulo: "Baixas feitas até a data do prazo, por quem deu a baixa", notas: [notaSis],
+        resumo: [{ label: "Baixas com prazo", valor: sT.bn + sT.ba }, { label: "No prazo", valor: sT.bn }, { label: "Com atraso", valor: sT.ba }, { label: "% no prazo", valor: `${pct(sT.bn, sT.bn + sT.ba)}%` }],
+        grafico: { titulo: "Top 12 — no prazo x com atraso", categorias: nc(sisPont), series: [
+          { nome: "No prazo", valores: sisPont.slice(0, 12).map((l) => l.bn), cor: [31, 169, 113] },
+          { nome: "Com atraso", valores: sisPont.slice(0, 12).map((l) => l.ba), cor: [242, 84, 91] }] },
+        colunas: [
+          { header: "#", width: 12, key: "pos" }, { header: "Profissional", width: 80, key: "nome" },
+          { header: "Baixas com prazo", width: 36, key: "tot", align: "right" }, { header: "No prazo", width: 30, key: "bn", align: "right" },
+          { header: "Com atraso", width: 30, key: "ba", align: "right" }, { header: "% no prazo", width: 30, key: "taxa", align: "right" },
+        ],
+        linhas: sisPont.map((l, i) => ({ ...l, pos: String(i + 1), tot: l.bn + l.ba, taxa: `${pct(l.bn, l.bn + l.ba)}%` })),
+      },
+    ];
     const topo = (arr: any[], n = 12) => arr.slice(0, n);
     const nomesCurtos = (arr: any[]) => topo(arr).map((l) => l.nome.split(" ").slice(0, 2).join(" "));
 
@@ -416,6 +475,7 @@ export default function RankingAtendimento() {
       filtros: `${nomeCoordenacao} | ${nomeUsuario}`,
       nomeArquivo: "ranking_atendimento_completo",
       secoes: [
+        ...secoesSistema,
         {
           titulo: "Visão Geral",
           subtitulo: "Produtividade e cumprimento de prazos por profissional",
