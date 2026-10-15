@@ -32,7 +32,9 @@ type Item = {
   data_cumprimento: string | null;
 };
 
-type Linha = { uid: string; nome: string; criados: number; atribuidos: number; concluidos: number; baixou: number; noPrazo: number; pendentes: number; atrasados: number };
+const pct = (l: { bNoPrazo: number; bAtraso: number }) => { const t = l.bNoPrazo + l.bAtraso; return t ? Math.round((l.bNoPrazo / t) * 100) : 0; };
+
+type Linha = { uid: string; nome: string; criados: number; atribuidos: number; concluidos: number; baixou: number; bNoPrazo: number; bAtraso: number; noPrazo: number; pendentes: number; atrasados: number };
 
 interface Props {
   inicio: string;
@@ -43,6 +45,7 @@ interface Props {
 
 export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }: Props) {
   const [tipo, setTipo] = useState<"todos" | Tipo>("todos");
+  const [visao, setVisao] = useState<"geral" | "produtividade" | "pontualidade">("geral");
 
   const q = useQuery({
     queryKey: ["ranking-criados-sistema", inicio, fim, coordenacaoId],
@@ -117,13 +120,19 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
     const m = new Map<string, Linha>();
     const get = (uid: string) => {
       let l = m.get(uid);
-      if (!l) { l = { uid, nome: nomes.get(uid) || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, baixou: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(uid, l); }
+      if (!l) { l = { uid, nome: nomes.get(uid) || "Sem nome", criados: 0, atribuidos: 0, concluidos: 0, baixou: 0, bNoPrazo: 0, bAtraso: 0, noPrazo: 0, pendentes: 0, atrasados: 0 }; m.set(uid, l); }
       return l;
     };
     q.data.itens.filter((i) => tipo === "todos" || i.tipo === tipo).forEach((i) => {
       if (i.criado_por) get(i.criado_por).criados++;
       const b = baixou.get(i.id);
-      if (b) get(b).baixou++;
+      if (b) {
+        const lb = get(b);
+        lb.baixou++;
+        if (i.prazo && i.data_cumprimento) {
+          if (i.data_cumprimento.slice(0, 10) <= i.prazo) lb.bNoPrazo++; else lb.bAtraso++;
+        }
+      }
       (resp.get(i.id) || []).forEach((u) => {
         const l = get(u);
         l.atribuidos++;
@@ -138,8 +147,13 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
     });
     return Array.from(m.values())
       .filter((l) => !usuarioId || l.uid === usuarioId)
-      .sort((a, b) => b.baixou - a.baixou || b.concluidos - a.concluidos || b.criados - a.criados);
-  }, [q.data, tipo, usuarioId]);
+      .filter((l) => visao !== "pontualidade" || l.bNoPrazo + l.bAtraso > 0)
+      .sort((a, b) => {
+        if (visao === "pontualidade") return pct(b) - pct(a) || b.bNoPrazo - a.bNoPrazo;
+        if (visao === "produtividade") return b.baixou + b.criados - (a.baixou + a.criados) || b.baixou - a.baixou;
+        return b.baixou - a.baixou || b.concluidos - a.concluidos || b.criados - a.criados;
+      });
+  }, [q.data, tipo, usuarioId, visao]);
 
   const tot = linhas.reduce((s, l) => ({ c: s.c + l.criados, k: s.k + l.baixou, p: s.p + l.pendentes, a: s.a + l.atrasados }), { c: 0, k: 0, p: 0, a: 0 });
 
@@ -150,6 +164,14 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
           Considera somente itens cadastrados dentro do sistema no período (manualmente, pela Análise DJEN, por fluxos ou pela IA). Itens vindos de importações, planilhas, Projuris e Astrea ficam de fora.
         </CardContent>
       </Card>
+
+      <Tabs value={visao} onValueChange={(v) => setVisao(v as any)}>
+        <TabsList>
+          <TabsTrigger value="geral">Geral</TabsTrigger>
+          <TabsTrigger value="produtividade">Produtividade</TabsTrigger>
+          <TabsTrigger value="pontualidade">Pontualidade</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
       <Tabs value={tipo} onValueChange={(v) => setTipo(v as any)}>
         <TabsList className="flex-wrap h-auto">
@@ -169,7 +191,7 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
           <Card>
             <CardHeader>
               <CardTitle>Ranking — criados no sistema</CardTitle>
-              <CardDescription>Ordenado por "Deu baixa" (quem realmente baixou o item, pelo registro de alterações). "Criou" conta quem cadastrou; "Atribuídos", "Concluídos (como responsável)", pendentes e atrasados contam responsáveis e corresponsáveis.</CardDescription>
+              <CardDescription>{visao === "produtividade" ? "Ordenado pelo total produzido: itens que a pessoa cadastrou mais itens a que ela deu baixa." : visao === "pontualidade" ? "Ordenado pelo percentual de baixas feitas até a data do prazo, creditadas a quem deu a baixa." : null} {visao === "geral" && <>Ordenado por "Deu baixa" (quem realmente baixou o item, pelo registro de alterações). "Criou" conta quem cadastrou; "Atribuídos", "Concluídos (como responsável)", pendentes e atrasados contam responsáveis e corresponsáveis.</>}</CardDescription>
             </CardHeader>
             <CardContent>
               {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.error ? (
@@ -179,9 +201,19 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
                   <TableHeader>
                     <TableRow>
                       <TableHead>#</TableHead><TableHead>Profissional</TableHead>
-                      <TableHead className="text-right">Criou</TableHead><TableHead className="text-right">Atribuídos</TableHead>
-                      <TableHead className="text-right">Deu baixa</TableHead><TableHead className="text-right">Concluídos (como responsável)</TableHead><TableHead className="text-right">No prazo</TableHead>
-                      <TableHead className="text-right">Pendentes</TableHead><TableHead className="text-right">Atrasados</TableHead>
+                      {visao === "geral" && <>
+                        <TableHead className="text-right">Criou</TableHead><TableHead className="text-right">Atribuídos</TableHead>
+                        <TableHead className="text-right">Deu baixa</TableHead><TableHead className="text-right">Concluídos (como responsável)</TableHead><TableHead className="text-right">No prazo</TableHead>
+                        <TableHead className="text-right">Pendentes</TableHead><TableHead className="text-right">Atrasados</TableHead>
+                      </>}
+                      {visao === "produtividade" && <>
+                        <TableHead className="text-right">Criou</TableHead><TableHead className="text-right">Deu baixa</TableHead>
+                        <TableHead className="text-right">Total produzido</TableHead><TableHead className="text-right">Pendentes</TableHead>
+                      </>}
+                      {visao === "pontualidade" && <>
+                        <TableHead className="text-right">Baixas com prazo</TableHead><TableHead className="text-right">No prazo</TableHead>
+                        <TableHead className="text-right">Com atraso</TableHead><TableHead className="text-right">% no prazo</TableHead>
+                      </>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -190,13 +222,27 @@ export function RankingCriadosSistema({ inicio, fim, coordenacaoId, usuarioId }:
                       <TableRow key={l.uid}>
                         <TableCell>{i < 3 ? <span className="inline-flex items-center gap-1"><Medal className="w-4 h-4 text-primary" />{i + 1}</span> : i + 1}</TableCell>
                         <TableCell>{l.nome}</TableCell>
-                        <TableCell className="text-right">{l.criados}</TableCell>
-                        <TableCell className="text-right">{l.atribuidos}</TableCell>
-                        <TableCell className="text-right font-semibold">{l.baixou}</TableCell>
-                        <TableCell className="text-right">{l.concluidos}</TableCell>
-                        <TableCell className="text-right">{l.noPrazo}</TableCell>
-                        <TableCell className="text-right">{l.pendentes}</TableCell>
-                        <TableCell className="text-right text-destructive">{l.atrasados}</TableCell>
+                        {visao === "geral" && <>
+                          <TableCell className="text-right">{l.criados}</TableCell>
+                          <TableCell className="text-right">{l.atribuidos}</TableCell>
+                          <TableCell className="text-right font-semibold">{l.baixou}</TableCell>
+                          <TableCell className="text-right">{l.concluidos}</TableCell>
+                          <TableCell className="text-right">{l.noPrazo}</TableCell>
+                          <TableCell className="text-right">{l.pendentes}</TableCell>
+                          <TableCell className="text-right text-destructive">{l.atrasados}</TableCell>
+                        </>}
+                        {visao === "produtividade" && <>
+                          <TableCell className="text-right">{l.criados}</TableCell>
+                          <TableCell className="text-right">{l.baixou}</TableCell>
+                          <TableCell className="text-right font-semibold">{l.criados + l.baixou}</TableCell>
+                          <TableCell className="text-right">{l.pendentes}</TableCell>
+                        </>}
+                        {visao === "pontualidade" && <>
+                          <TableCell className="text-right">{l.bNoPrazo + l.bAtraso}</TableCell>
+                          <TableCell className="text-right">{l.bNoPrazo}</TableCell>
+                          <TableCell className="text-right text-destructive">{l.bAtraso}</TableCell>
+                          <TableCell className="text-right font-semibold">{pct(l)}%</TableCell>
+                        </>}
                       </TableRow>
                     ))}
                   </TableBody>
