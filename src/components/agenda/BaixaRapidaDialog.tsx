@@ -204,7 +204,7 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
       } else if ((info?.origem ?? item.origem) === "tarefa") {
         const { error } = await supabase
           .from("tarefas")
-          .update({ status: situacao as any, concluido_em: concluidoEm } as any)
+          .update({ status: situacao as any, data_cumprimento: concluidoEm ? concluidoEm.slice(0, 10) : null } as any)
           .eq("id", rawId);
         if (error) throw error;
         await gravarComentario(rawId);
