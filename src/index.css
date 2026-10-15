@@ -507,6 +507,22 @@
 .processo-chrome [data-slot="card"],
 .processo-chrome .card {
   box-shadow: none;
+  main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
+}
+
+/* ============ Celular (app instalável) ============ */
+@media (max-width: 767px) {
+  html { -webkit-text-size-adjust: 100%; }
+  body { padding-top: env(safe-area-inset-top); }
+  /* Evita zoom automático do iPhone ao tocar em campos */
+  input, select, textarea { font-size: 16px !important; }
+  /* Tabelas largas rolam na horizontal em vez de estourar a tela */
+  main table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
+  /* Janelas e painéis laterais em tela cheia */
+  [role="dialog"] { max-width: 100vw !important; max-height: 100dvh; overflow-y: auto; }
+  [role="dialog"][data-state][class*="inset-y-0"] { width: 100vw !important; }
+  /* Alvos de toque mais confortáveis */
+  main button { min-height: 36px; }
   /* Etapa 3: telas principais no celular */
   /* Evita zoom automático do iPhone ao tocar em campos */
   main input, main select, main textarea, [role="dialog"] input, [role="dialog"] textarea { font-size: 16px !important; }
@@ -524,20 +540,4 @@
   /* Rodapés de formulário (Salvar) sempre acima da barra inferior */
   main .sticky.bottom-0 { bottom: calc(56px + env(safe-area-inset-bottom)) !important; }
   /* Cabeçalhos de filtros quebram linha em vez de estourar */
-  main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
-}
-
-/* ============ Celular (app instalável) ============ */
-@media (max-width: 767px) {
-  html { -webkit-text-size-adjust: 100%; }
-  body { padding-top: env(safe-area-inset-top); }
-  /* Evita zoom automático do iPhone ao tocar em campos */
-  input, select, textarea { font-size: 16px !important; }
-  /* Tabelas largas rolam na horizontal em vez de estourar a tela */
-  main table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; white-space: nowrap; }
-  /* Janelas e painéis laterais em tela cheia */
-  [role="dialog"] { max-width: 100vw !important; max-height: 100dvh; overflow-y: auto; }
-  [role="dialog"][data-state][class*="inset-y-0"] { width: 100vw !important; }
-  /* Alvos de toque mais confortáveis */
-  main button { min-height: 36px; }
 }
