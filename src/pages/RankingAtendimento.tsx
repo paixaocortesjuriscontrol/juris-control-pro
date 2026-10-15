@@ -837,10 +837,24 @@ export default function RankingAtendimento() {
               </>
             )}
             <div className="ml-auto">
-              <Button onClick={exportarPdf} className="gap-2">
-                <FileDown className="w-4 h-4" />
-                Exportar PDF (todas as abas)
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button disabled={exportandoPdf} className="gap-2">
+                    <FileDown className="w-4 h-4" />
+                    {exportandoPdf ? "Gerando PDF..." : "Exportar PDF"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => exportarPdf("sistema")}>
+                    <Trophy className="w-4 h-4 text-[hsl(43_74%_49%)]" />
+                    Criados no Sistema
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => exportarPdf("todos")}>
+                    <Medal className="w-4 h-4 text-[hsl(43_74%_49%)]" />
+                    Todos
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </CardContent>
         </Card>
