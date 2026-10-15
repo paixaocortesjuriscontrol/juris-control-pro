@@ -17,6 +17,7 @@ export const TIPOS_TAREFA = [
   "PREPARAÇÃO AUDIÊNCIA",
   "PROVIDÊNCIA",
   "INTIMAÇÃO",
+  "ATA",
   "OUTROS"
 ] as const;
 
@@ -49,5 +50,6 @@ export const TIPOS_TAREFA_LABELS: Record<string, string> = {
   "PREPARAÇÃO AUDIÊNCIA": "Preparação Audiência",
   "PROVIDÊNCIA": "Providência",
   "INTIMAÇÃO": "Intimação",
+  "ATA": "Ata",
   "OUTROS": "Outros",
 };
