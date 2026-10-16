@@ -216,3 +216,6 @@ verify_jwt = false
 
 [functions.importar-tese-peca]
 verify_jwt = true
+
+[functions.import-gol-daiane]
+verify_jwt = false
