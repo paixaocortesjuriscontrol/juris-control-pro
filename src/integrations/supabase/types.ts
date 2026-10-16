@@ -10345,57 +10345,6 @@ export type Database = {
         }
         Relationships: []
       }
-      tmp_gol_daiane_import: {
-        Row: {
-          aba: string | null
-          arquivo: string | null
-          cliente: string | null
-          dias: string | null
-          fatal: string | null
-          id: number
-          obs: string | null
-          proc: string | null
-          prov: string | null
-          pub: string | null
-          recl: string | null
-          resp: string | null
-          status: string | null
-          uf: string | null
-        }
-        Insert: {
-          aba?: string | null
-          arquivo?: string | null
-          cliente?: string | null
-          dias?: string | null
-          fatal?: string | null
-          id?: number
-          obs?: string | null
-          proc?: string | null
-          prov?: string | null
-          pub?: string | null
-          recl?: string | null
-          resp?: string | null
-          status?: string | null
-          uf?: string | null
-        }
-        Update: {
-          aba?: string | null
-          arquivo?: string | null
-          cliente?: string | null
-          dias?: string | null
-          fatal?: string | null
-          id?: number
-          obs?: string | null
-          proc?: string | null
-          prov?: string | null
-          pub?: string | null
-          recl?: string | null
-          resp?: string | null
-          status?: string | null
-          uf?: string | null
-        }
-        Relationships: []
-      }
       user_roles: {
         Row: {
           created_at: string
