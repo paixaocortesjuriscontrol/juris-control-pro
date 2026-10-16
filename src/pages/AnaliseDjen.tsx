@@ -4114,10 +4114,30 @@ const AnaliseDjen = () => {
     () => allPublicacoes.map((publicacao) => publicacao.id),
     [allPublicacoes],
   );
-  const { data: etiquetasPorPublicacao = new Map<string, string[]>() } = useEtiquetasDeItens(
+  const { data: etiquetasSoPublicacao = new Map<string, string[]>() } = useEtiquetasDeItens(
     "publicacao",
     idsPublicacoesCarregadas,
   );
+  // Publicações novas herdam as etiquetas já aplicadas ao processo vinculado,
+  // para que etiquetas colocadas antes continuem aparecendo nas novas publicações.
+  const idsProcessosCarregados = useMemo(
+    () => Array.from(new Set(allPublicacoes.map((p: any) => p.processo_id).filter(Boolean))) as string[],
+    [allPublicacoes],
+  );
+  const { data: etiquetasPorProcesso = new Map<string, string[]>() } = useEtiquetasDeItens(
+    "processo",
+    idsProcessosCarregados,
+  );
+  const etiquetasPorPublicacao = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const p of allPublicacoes as any[]) {
+      const proprias = etiquetasSoPublicacao.get(p.id) ?? [];
+      const herdadas = p.processo_id ? etiquetasPorProcesso.get(p.processo_id) ?? [] : [];
+      const todas = Array.from(new Set([...proprias, ...herdadas]));
+      if (todas.length) m.set(p.id, todas);
+    }
+    return m;
+  }, [allPublicacoes, etiquetasSoPublicacao, etiquetasPorProcesso]);
 
   // Agrupar publicações por coordenação
   const publicacoesPorCoordenacao = publicacoesParaListagem.reduce((acc, pub) => {
