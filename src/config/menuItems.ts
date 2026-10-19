@@ -5,6 +5,7 @@ import {
   Users,
   FileText,
   ShieldCheck,
+  Settings,
   Newspaper,
   UserCircle,
   Brain,
