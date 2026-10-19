@@ -3,7 +3,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { User, Shield, Palette, RefreshCw, Activity, Globe, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap } from "lucide-react";
+import { User, Shield, Palette, RefreshCw, Activity, Globe, FileSearch, Radar, BarChart3, Settings, KeyRound, LayoutDashboard, SlidersHorizontal, FlaskConical, Server, Zap, Network } from "lucide-react";
 import { MonitoramentoRedistribuicoesCard } from "@/components/configuracoes/MonitoramentoRedistribuicoesCard";
 import { MonitoramentoAndamentosCard } from "@/components/configuracoes/MonitoramentoAndamentosCard";
 import { MonitoramentoDistribuicoesCard } from "@/components/configuracoes/MonitoramentoDistribuicoesCard";
@@ -22,6 +22,7 @@ import CofreSenhasPage from "@/pages/CofreSenhas";
 import RelatorioExecucoesPage from "@/pages/RelatorioExecucoes";
 import ComparacaoDjenDje from "@/components/configuracoes/ComparacaoDjenDje";
 import WorkersDjenVpsPanel from "@/components/configuracoes/WorkersDjenVpsPanel";
+import PoolProxyDjenCard from "@/components/configuracoes/PoolProxyDjenCard";
 import { MeuPerfilCard } from "@/components/configuracoes/MeuPerfilCard";
 import { NotificacoesEmailCard } from "@/components/configuracoes/NotificacoesEmailCard";
 // MonitoramentoDataJudCard removido - agora integrado no Dashboard via DataJudDashboardCard
@@ -100,6 +101,10 @@ export default function Configuracoes() {
           <TabsTrigger value="vps-workers" className="flex items-center gap-2">
             <Server className="h-4 w-4" />
             <span className="hidden sm:inline">VPS Workers</span>
+          </TabsTrigger>
+          <TabsTrigger value="pool-proxy" className="flex items-center gap-2">
+            <Network className="h-4 w-4" />
+            <span className="hidden sm:inline">Pool de Proxies</span>
           </TabsTrigger>
         </TabsList>
 
@@ -306,6 +311,17 @@ export default function Configuracoes() {
         {/* Aba VPS Workers - Busca distribuída */}
         <TabsContent value="vps-workers" className="space-y-4">
           <WorkersDjenVpsPanel />
+        </TabsContent>
+
+        {/* Aba Pool de Proxies */}
+        <TabsContent value="pool-proxy" className="space-y-4">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold">Pool de Proxies DJEN</h2>
+            <p className="text-sm text-muted-foreground">
+              Gerencie as VPS usadas pelo motor DJEN e teste a conexão de cada uma
+            </p>
+          </div>
+          <PoolProxyDjenCard />
         </TabsContent>
 
       </Tabs>
