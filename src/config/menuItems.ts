@@ -5,6 +5,7 @@ import {
   Users,
   FileText,
   ShieldCheck,
+  Settings,
   Newspaper,
   UserCircle,
   Brain,
@@ -80,6 +81,7 @@ export const menuItemsPublicos: MenuItem[] = [
 // Itens visíveis apenas para administradores/coordenadores (na seção inferior)
 export const menuItemsAdmin: MenuItem[] = [
   { icon: ShieldCheck, label: "Administração", path: "/admin", adminOnly: true },
+  { icon: Settings, label: "Configurações", path: "/configuracoes", adminOnly: true },
   { icon: History, label: "Auditoria de Itens", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Server, label: "Pool de Proxies DJEN", path: "/pool-proxy-djen", adminOnly: true },
   { icon: ArrowRightLeft, label: "Valida Kurier", path: "/valida-kurier", adminOnly: true },
