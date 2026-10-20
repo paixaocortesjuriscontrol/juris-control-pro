@@ -115,4 +115,4 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Etapa 1 instalação e Etapa 2 estrutura (v8.4.0)
 - [ ] Etapa 3: cartões no Painel, Processos, DJEN e Pautas
 - [ ] Etapa 4: demais telas
-- [ ] Importar processos da planilha BASE_PAIXAO_102026.xlsx na Coordenação Citibank (269 processos, 18 lotes; lote de teste pendente de aprovação)
+- [x] Importar processos da planilha BASE_PAIXAO_102026.xlsx na Coordenação Citibank (269 processos)
