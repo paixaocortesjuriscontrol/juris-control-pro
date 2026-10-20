@@ -93,7 +93,13 @@ export const horaDoItem = (item: ItemAgendaUnificado) => {
 const formatarData = (data?: string | null) => {
   if (!data) return null;
   try {
-    const d = data.includes("T") ? parseISO(data) : new Date(data + "T00:00:00");
+    const s = String(data);
+    // Com fuso explícito, fixa a data no horário de Brasília
+    const d = !s.includes("T")
+      ? new Date(s + "T00:00:00")
+      : /([zZ]|[+-]\d{2}:?\d{2})$/.test(s)
+        ? toZonedTime(parseISO(s), TIME_ZONE_BR)
+        : parseISO(s);
     if (isNaN(d.getTime())) return null;
     return format(d, "dd/MM/yyyy", { locale: ptBR });
   } catch {
