@@ -103,7 +103,9 @@ const formatarData = (data?: string | null) => {
 
 const formatarHora = (valor?: string | null) => {
   if (!valor) return null;
-  const bruta = String(valor).includes("T") ? String(valor).slice(11, 16) : String(valor).slice(0, 5);
+  const s = String(valor);
+  const bruta = s.includes("T") ? extrairHoraBrt(s) : s.slice(0, 5);
+  if (!bruta) return null;
   return /^\d{2}:\d{2}$/.test(bruta) && bruta !== "00:00" ? bruta : null;
 };
 
