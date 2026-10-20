@@ -1,6 +1,25 @@
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
+
+const TIME_ZONE_BR = "America/Sao_Paulo";
+
+/**
+ * Extrai HH:mm de um valor de data/hora SEMPRE no horário de Brasília.
+ * Strings com fuso explícito (Z ou ±hh:mm, ex.: saída de toISOString)
+ * são convertidas; strings sem fuso já são tratadas como horário local.
+ */
+const extrairHoraBrt = (valor: string): string | null => {
+  const s = String(valor);
+  if (!s.includes("T")) return null;
+  if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = parseISO(s);
+    if (isNaN(d.getTime())) return null;
+    return format(toZonedTime(d, TIME_ZONE_BR), "HH:mm");
+  }
+  return s.slice(11, 16);
+};
 import { CheckCircle2, ListChecks, Plus, X } from "lucide-react";
 import {
   DropdownMenu,
@@ -65,7 +84,7 @@ export const horaDoItem = (item: ItemAgendaUnificado) => {
   const bruta =
     item.hora_prevista ||
     item.hora_fatal ||
-    (item.dia_inteiro ? null : item.data_inicio?.slice(11, 16));
+    (item.dia_inteiro ? null : item.data_inicio ? extrairHoraBrt(item.data_inicio) : null);
   if (!bruta) return null;
   const hhmm = String(bruta).slice(0, 5);
   return /^\d{2}:\d{2}$/.test(hhmm) && hhmm !== "00:00" ? hhmm : null;
@@ -74,7 +93,13 @@ export const horaDoItem = (item: ItemAgendaUnificado) => {
 const formatarData = (data?: string | null) => {
   if (!data) return null;
   try {
-    const d = data.includes("T") ? parseISO(data) : new Date(data + "T00:00:00");
+    const s = String(data);
+    // Com fuso explícito, fixa a data no horário de Brasília
+    const d = !s.includes("T")
+      ? new Date(s + "T00:00:00")
+      : /([zZ]|[+-]\d{2}:?\d{2})$/.test(s)
+        ? toZonedTime(parseISO(s), TIME_ZONE_BR)
+        : parseISO(s);
     if (isNaN(d.getTime())) return null;
     return format(d, "dd/MM/yyyy", { locale: ptBR });
   } catch {
@@ -84,7 +109,9 @@ const formatarData = (data?: string | null) => {
 
 const formatarHora = (valor?: string | null) => {
   if (!valor) return null;
-  const bruta = String(valor).includes("T") ? String(valor).slice(11, 16) : String(valor).slice(0, 5);
+  const s = String(valor);
+  const bruta = s.includes("T") ? extrairHoraBrt(s) : s.slice(0, 5);
+  if (!bruta) return null;
   return /^\d{2}:\d{2}$/.test(bruta) && bruta !== "00:00" ? bruta : null;
 };
 
