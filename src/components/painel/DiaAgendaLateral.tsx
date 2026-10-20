@@ -1,6 +1,25 @@
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
+
+const TIME_ZONE_BR = "America/Sao_Paulo";
+
+/**
+ * Extrai HH:mm de um valor de data/hora SEMPRE no horário de Brasília.
+ * Strings com fuso explícito (Z ou ±hh:mm, ex.: saída de toISOString)
+ * são convertidas; strings sem fuso já são tratadas como horário local.
+ */
+const extrairHoraBrt = (valor: string): string | null => {
+  const s = String(valor);
+  if (!s.includes("T")) return null;
+  if (/([zZ]|[+-]\d{2}:?\d{2})$/.test(s)) {
+    const d = parseISO(s);
+    if (isNaN(d.getTime())) return null;
+    return format(toZonedTime(d, TIME_ZONE_BR), "HH:mm");
+  }
+  return s.slice(11, 16);
+};
 import { CheckCircle2, ListChecks, Plus, X } from "lucide-react";
 import {
   DropdownMenu,
