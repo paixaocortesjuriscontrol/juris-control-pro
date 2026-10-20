@@ -216,3 +216,6 @@ verify_jwt = false
 
 [functions.importar-tese-peca]
 verify_jwt = true
+
+[functions.importar-processos-citibank]
+verify_jwt = false
