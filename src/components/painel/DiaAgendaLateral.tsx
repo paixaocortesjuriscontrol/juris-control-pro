@@ -84,7 +84,7 @@ export const horaDoItem = (item: ItemAgendaUnificado) => {
   const bruta =
     item.hora_prevista ||
     item.hora_fatal ||
-    (item.dia_inteiro ? null : item.data_inicio?.slice(11, 16));
+    (item.dia_inteiro ? null : item.data_inicio ? extrairHoraBrt(item.data_inicio) : null);
   if (!bruta) return null;
   const hhmm = String(bruta).slice(0, 5);
   return /^\d{2}:\d{2}$/.test(hhmm) && hhmm !== "00:00" ? hhmm : null;
