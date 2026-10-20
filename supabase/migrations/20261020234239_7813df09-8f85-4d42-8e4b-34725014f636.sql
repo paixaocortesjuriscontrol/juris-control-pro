@@ -1,0 +1,1 @@
+UPDATE public.profiles SET telefone = NULL WHERE id = 'c3bb1df8-ea39-4cc9-9496-39d68df3f1f4';
