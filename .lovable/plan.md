@@ -18,11 +18,10 @@ Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equi
 
 ## O que muda
 
-1. **Termos de busca da GOL**
-   - Ficam ativos só estes termos: **GOL LINHAS, WEBJET, SMILES, VRG, G.L.A.S., GOL TRANSPORTES, CARLOS JOSE ELIAS JUNIOR e OSMAR MENDES PAIXAO CORTES**. Os que ainda não existirem serão criados.
-   - Os outros termos são **desativados**, não apagados, e podem ser religados.
-   - Os termos ativos passam a cobrir todos os tribunais, inclusive o TST, menos os TRT 1, 2 e 15.
-   - Os 42 termos da Execução GOL também são desativados, porque a leitura passa a ser só na GOL. Assim as publicações não aparecem duas vezes.
+1. **Termos de busca: nenhum é desativado**
+   - Os termos da Coordenação GOL e da Execução GOL continuam todos ativos, como estão hoje.
+   - Confiro se GOL LINHAS, WEBJET, SMILES, VRG, G.L.A.S., GOL TRANSPORTES, CARLOS JOSE ELIAS JUNIOR e OSMAR MENDES PAIXAO CORTES já existem. Só crio os que faltarem.
+   - Os tribunais dos termos não mudam. Só os termos novos vão cobrir todos os tribunais, inclusive o TST, menos os TRT 1, 2 e 15.
 
 2. **Criar 2 coordenações**
    - **Centro, Sul e Minas:** coordenador Dr. Carlos. Equipe: Phelipe, Emilly, Daiane e Fernanda.
