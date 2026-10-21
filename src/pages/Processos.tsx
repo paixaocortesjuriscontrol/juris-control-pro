@@ -246,9 +246,10 @@ const Processos = () => {
     queryFn: async () => {
       const results = await Promise.all(
         (coordenacoes || []).map(async (c: any) => {
+          // Conta principal + coordenações responsáveis adicionais (mesma regra da lista)
           const { count } = await supabase
-            .from("processos")
-            .select("id", { count: "exact", head: true })
+            .from("processos_coordenacoes_responsaveis")
+            .select("processo_id", { count: "exact", head: true })
             .eq("coordenacao_id", c.id);
           return [c.id, count ?? 0] as const;
         })
