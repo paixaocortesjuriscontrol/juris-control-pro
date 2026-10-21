@@ -19,26 +19,29 @@ Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equi
 ## O que muda
 
 1. **Termos de busca da GOL**
-   - Ficam ativos só os termos da GOL e os nomes do Dr. Carlos e do Dr. Osmar.
+   - Ficam ativos só estes termos: **GOL LINHAS, WEBJET, SMILES, VRG, G.L.A.S., GOL TRANSPORTES, CARLOS JOSE ELIAS JUNIOR e OSMAR MENDES PAIXAO CORTES**. Os que ainda não existirem serão criados.
    - Os outros termos são **desativados**, não apagados, e podem ser religados.
    - Os termos ativos passam a cobrir todos os tribunais, inclusive o TST, menos os TRT 1, 2 e 15.
    - Os 42 termos da Execução GOL também são desativados, porque a leitura passa a ser só na GOL. Assim as publicações não aparecem duas vezes.
 
 2. **Criar 2 coordenações**
-   - **Centro, Sul e Minas:** coordenador Dr. Carlos.
+   - **Centro, Sul e Minas:** coordenador Dr. Carlos. Equipe: Phelipe, Emilly, Daiane e Fernanda.
    - **Casos Especiais (Sindicatos e MPT):** coordenadoras Dras. Beatriz Anjos, Gisele e Fernanda.
    - Dr. Carlos entra como coordenador em todos os grupos, para a supervisão.
 
 3. **Delegar da leitura para o grupo**
    - Na Análise DJEN da GOL, ao criar um prazo ou uma tarefa a partir da publicação, aparece a escolha **"Enviar para o grupo"**: Execução, Norte e Nordeste, Centro, Sul e Minas ou Casos Especiais.
    - O item vai para a agenda do grupo escolhido e o coordenador recebe o aviso. Depois ele repassa para a equipe com a troca de responsável que já existe.
-   - Para facilitar, o sistema sugere o grupo pelo tribunal: TRTs do Norte e Nordeste vão para Norte e Nordeste, e os demais para Centro, Sul e Minas. Execução e Casos Especiais são escolhidos por quem lê.
+   - O sistema sugere o grupo pelo tribunal:
+     - TRT 5, 6, 7, 8, 11, 13, 14, 16, 19, 20, 21 e 22 vão para **Norte e Nordeste**.
+     - Os demais TRTs e o TST vão para **Centro, Sul e Minas**.
+     - Execução e Casos Especiais são escolhidos por quem lê.
 
-4. **Equipes:** os membros atuais da Execução e da Norte e Nordeste ficam como estão. As equipes da Centro, Sul e Minas e da Casos Especiais começam só com os coordenadores, até vocês me passarem os nomes.
+4. **Equipes:** os membros atuais da Execução e da Norte e Nordeste ficam como estão.
 
-## Pontos a confirmar
-- Os processos da GOL do TRT 1, 2 e 15 que já estão cadastrados ficam como estão. Só a busca de publicações deixa de cobrir esses tribunais.
-- Quais TRTs contam como Norte e Nordeste. A proposta é TRT 5, 6, 7, 8, 11, 13, 14, 16, 19, 20, 21 e 22. Os outros, menos 1, 2 e 15, vão para Centro, Sul e Minas.
+## Definido pelo cliente
+- Os processos do TRT 1, 2 e 15 que já estão cadastrados ficam como estão. Só a busca de novas publicações deixa de cobrir esses tribunais.
+- A Coordenação Dra. Beatriz Costa e o que ela definiu não mudam. Essa estrutura nova não tem relação com ela.
 
 ## Detalhes técnicos
 - Dados (sem mudar a estrutura do banco): `monitoramentos_djen` (`ativo=false` nos termos fora do escopo, ajuste de `tribunais`), insert em `coordenacoes` e `membros_coordenacao` (cargo `coordenador`).
