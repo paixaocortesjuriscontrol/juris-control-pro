@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { GRUPOS_GOL, GrupoGolKey, sugerirGrupoGol } from "@/lib/gruposGol";
+import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 
@@ -56,7 +57,7 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
           jaTemItem: com.has(p.id),
           marcado: !com.has(p.id),
           grupo: sugerirGrupoGol(p),
-          titulo: `Analisar publicação${p.processo_numero ? ` - ${p.processo_numero}` : ""}`,
+          titulo: `Analisar publicação${p.processo_numero ? ` - ${aplicarMascaraCnj(p.processo_numero)}` : ""}`,
           data: hojeBrt(),
         })),
       );
@@ -144,7 +145,7 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
                 <div key={l.pub.id} className="border rounded-md p-2 space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <Checkbox checked={l.marcado} disabled={l.jaTemItem} onCheckedChange={(v) => upd(i, { marcado: !!v })} />
-                    <span className="font-medium">{l.pub.processo_numero || "Sem processo"}</span>
+                    <span className="font-medium">{l.pub.processo_numero ? aplicarMascaraCnj(l.pub.processo_numero) : "Sem processo"}</span>
                     {l.jaTemItem && <span className="text-xs text-muted-foreground">já tem item criado</span>}
                   </div>
                   <div className="space-y-1">
