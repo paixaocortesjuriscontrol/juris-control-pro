@@ -40,6 +40,7 @@ import {
   Tag,
   FileSpreadsheet,
   Workflow,
+  Share2,
 } from "lucide-react";
 
 import { obterVariantesCnjBusca } from "@/utils/cnjMask";
@@ -89,7 +90,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
 import { RelatorioLidasMesDialog } from "@/components/analise-djen/RelatorioLidasMesDialog";
 import { DistribuirGruposGolSheet } from "@/components/analise-djen/DistribuirGruposGolSheet";
-import { COORDENACAO_GOL_ID } from "@/lib/gruposGol";
+import { COORDENACAO_GOL_ID, podeDistribuirPublicacaoGol } from "@/lib/gruposGol";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -375,6 +376,7 @@ const AnaliseDjen = () => {
     return null;
   };
   const [selectedPublicacao, setSelectedPublicacao] = useState<PublicacaoUnificada | null>(null);
+  const [publicacaoDistribuicao, setPublicacaoDistribuicao] = useState<PublicacaoUnificada | null>(null);
   const [expandedCoordenacoes, setExpandedCoordenacoes] = useState<Set<string>>(new Set(['all']));
   const [expandedPublicacoes, setExpandedPublicacoes] = useState<Set<string>>(new Set());
   const [expandirGeralAtivo, setExpandirGeralAtivo] = useState(false);
@@ -5881,7 +5883,12 @@ const AnaliseDjen = () => {
                                               <span className="text-xs">Adicionar</span>
                                             </Button>
                                           </DropdownMenuTrigger>
-                                          <DropdownMenuContent align="end" className="w-44" onClick={(e) => e.stopPropagation()}>
+                                          <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
+                                            {podeDistribuirPublicacaoGol(isAdmin, pub.coordenacao_id, pub.tipo_origem) && (
+                                              <DropdownMenuItem onSelect={() => setTimeout(() => setPublicacaoDistribuicao(pub), 0)}>
+                                                <Share2 className="w-4 h-4 mr-2" /> Distribuir publicação
+                                              </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
@@ -5900,10 +5907,6 @@ const AnaliseDjen = () => {
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                        
-                                       {pub.coordenacao_id === COORDENACAO_GOL_ID && (pub.tipo_origem === "termo" || pub.tipo_origem === "processo") && (
-                                         <DistribuirGruposGolSheet publicacoes={[pub]} individual />
-                                       )}
-
                                        {/* Botão Marcar como Lida individual — SOMENTE esta publicação */}
                                        {!pub.lida && (
                                          <Button
@@ -6249,6 +6252,13 @@ const AnaliseDjen = () => {
             inline no topo da página (ver bloco acima), para esconder a lista
             e abrir o formulário na mesma tela. */}
       </div>
+      <DistribuirGruposGolSheet
+        publicacoes={publicacaoDistribuicao ? [publicacaoDistribuicao] : []}
+        individual
+        hideTrigger
+        open={!!publicacaoDistribuicao}
+        onOpenChange={(open) => { if (!open) setPublicacaoDistribuicao(null); }}
+      />
       <PreagendarIaDialog
         open={preagendarIaOpen}
         onOpenChange={setPreagendarIaOpen}

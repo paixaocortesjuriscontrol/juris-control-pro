@@ -3,6 +3,10 @@ export const COORDENACAO_GOL_ID = "f5a0ac48-7461-49c1-9151-219e570831bd";
 
 export type GrupoGolKey = "execucao" | "nne" | "csm" | "especiais";
 
+export function podeDistribuirPublicacaoGol(isAdmin: boolean, coordenacaoId: string | null, origem: string): boolean {
+  return (isAdmin || coordenacaoId === COORDENACAO_GOL_ID) && (origem === "termo" || origem === "processo");
+}
+
 export const GRUPOS_GOL: { key: GrupoGolKey; nome: string; coordenacaoId: string }[] = [
   { key: "execucao", nome: "Execução", coordenacaoId: "408d691a-dd97-4d18-b3c0-0ffd5c572c21" },
   { key: "nne", nome: "Conhecimento - Norte e Nordeste", coordenacaoId: "b7aba3d4-0f1e-4040-9f64-2c1f38e3d858" },
