@@ -63,46 +63,24 @@ export function RelatorioLidasMesDialog() {
       const [a, m] = mes.split("-").map(Number);
       const ini = new Date(Date.UTC(a, m - 1, 1, 3)).toISOString();
       const fim = new Date(Date.UTC(a, m, 1, 3)).toISOString();
-      const leituras: any[] = [];
+      const rows: any[] = [];
       for (let from = 0; ; from += 1000) {
-        const { data, error } = await supabase
-          .from("publicacoes_djen_leituras")
-          .select("publicacao_id, tabela_origem, usuario_nome, lida_em")
-          .gte("lida_em", ini).lt("lida_em", fim)
-          .order("lida_em", { ascending: true })
+        const { data, error } = await (supabase as any)
+          .rpc("relatorio_publicacoes_lidas", { p_ini: ini, p_fim: fim, p_coord: coord === "todas" ? null : coord })
           .range(from, from + 999);
         if (error) throw error;
-        leituras.push(...(data ?? []));
+        rows.push(...(data ?? []));
         if (!data || data.length < 1000) break;
       }
-      const pubs = new Map<string, any>();
-      for (const origem of Object.keys(TABELAS)) {
-        const ids = [...new Set(leituras.filter((l) => l.tabela_origem === origem).map((l) => l.publicacao_id))];
-        for (let i = 0; i < ids.length; i += 200) {
-          let q = (supabase as any)
-            .from(TABELAS[origem])
-            .select("id, data_publicacao, processo_numero, tribunal, coordenacao_id")
-            .in("id", ids.slice(i, i + 200));
-          if (coord !== "todas") q = q.eq("coordenacao_id", coord);
-          const { data, error } = await q;
-          if (error) throw error;
-          (data ?? []).forEach((p: any) => pubs.set(origem + ":" + p.id, p));
-        }
-      }
-      const out: Linha[] = leituras
-        .filter((l) => pubs.has(l.tabela_origem + ":" + l.publicacao_id))
-        .map((l) => {
-          const p = pubs.get(l.tabela_origem + ":" + l.publicacao_id);
-          return {
-            lida_em: l.lida_em,
-            usuario: l.usuario_nome || "—",
-            data_publicacao: p.data_publicacao,
-            processo: p.processo_numero,
-            tribunal: p.tribunal,
-            origem: ORIGEM_LABEL[l.tabela_origem] ?? l.tabela_origem,
-            coordenacao: coordNome.get(p.coordenacao_id) ?? "—",
-          };
-        });
+      const out: Linha[] = rows.map((r) => ({
+        lida_em: r.lida_em,
+        usuario: r.usuario || "—",
+        data_publicacao: r.data_publicacao,
+        processo: r.processo,
+        tribunal: r.tribunal,
+        origem: ORIGEM_LABEL[r.origem] ?? r.origem,
+        coordenacao: coordNome.get(r.coordenacao_id) ?? "—",
+      }));
       setLinhas(out);
     } catch (e: any) {
       toast.error("Erro ao gerar relatório: " + (e?.message ?? e));
