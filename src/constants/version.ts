@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "8.7.0";
+export const APP_VERSION = "9.0.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -92,4 +92,5 @@ export const VERSION_HISTORY = [
   { version: "8.5.0", date: "2026-10-15", notes: "Celular: Painel de Controle, Processos e Casos, Análise DJEN e Pautas de Julgamento adaptados — tabelas e abas com rolagem lateral, Kanban por coluna, janelas em tela cheia, botão Salvar acima da barra inferior e campos sem zoom automático" },
   { version: "8.6.0", date: "2026-10-15", notes: "Celular: demais telas adaptadas (tabelas com rolagem lateral, janelas em tela cheia) e aviso nas telas de administração e importação de que são mais indicadas no computador" },
   { version: "8.7.0", date: "2026-10-15", notes: "Celular: lista de Processos e Casos em cartões (número, partes, situação, área, tribunal e responsável), tocando no cartão abre a ficha" },
+  { version: "9.0.0", date: "2026-10-21", notes: "Marco 9.0.0: Ranking de Atendimento com abas 'Criados no sistema' (Geral, Produtividade e Pontualidade) e conclusão creditada a quem realmente deu baixa; PDF do ranking com escolha entre Criados no Sistema ou Todos; novo tipo Ata no Painel de Controle (violeta, card próprio e cor em Lista, Kanban e Equipe); relatório 'Lidas no mês' na Análise DJEN para o admin, por coordenação ou todas; etiquetas do processo passam a aparecer nas publicações e o nome do cliente renomeado atualiza a etiqueta em tudo; Coordenações Citibank e GOL cadastradas com termos de busca DJEN e processos importados" },
 ];
