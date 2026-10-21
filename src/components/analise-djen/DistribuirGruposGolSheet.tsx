@@ -130,6 +130,9 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
           <SheetHeader>
             <SheetTitle>Distribuir para os grupos GOL</SheetTitle>
             <SheetDescription>Confira o grupo sugerido de cada publicação. Nada é criado antes de confirmar.</SheetDescription>
+            <p className="text-xs text-muted-foreground bg-muted rounded-md p-2">
+              Ao confirmar, é criada uma <strong>Tarefa</strong> na coordenação do grupo escolhido (aparece no Painel de Controle, Kanban e Equipe desse grupo e na ficha do processo), atribuída ao responsável fixo do grupo ou ao coordenador. A publicação fica marcada como lida na Coordenação GOL.
+            </p>
           </SheetHeader>
           <div className="flex-1 overflow-y-auto space-y-2 py-3">
             {carregando ? (
@@ -144,15 +147,24 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
                     <span className="font-medium">{l.pub.processo_numero || "Sem processo"}</span>
                     {l.jaTemItem && <span className="text-xs text-muted-foreground">já tem item criado</span>}
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr_140px] gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground">Grupo de destino</label>
                     <Select value={l.grupo} onValueChange={(v) => upd(i, { grupo: v as GrupoGolKey })} disabled={l.jaTemItem}>
-                      <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {GRUPOS_GOL.map((g) => <SelectItem key={g.key} value={g.key}>{g.nome}</SelectItem>)}
+                        {GRUPOS_GOL.map((g) => <SelectItem key={g.key} value={g.key} className="whitespace-normal">{g.nome}</SelectItem>)}
                       </SelectContent>
                     </Select>
-                    <Input className="h-8" value={l.titulo} onChange={(e) => upd(i, { titulo: e.target.value })} disabled={l.jaTemItem} />
-                    <Input className="h-8" type="date" value={l.data} onChange={(e) => upd(i, { data: e.target.value })} disabled={l.jaTemItem} />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-[1fr_150px] gap-2">
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Título da tarefa</label>
+                      <Input className="h-9" value={l.titulo} onChange={(e) => upd(i, { titulo: e.target.value })} disabled={l.jaTemItem} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Data</label>
+                      <Input className="h-9" type="date" value={l.data} onChange={(e) => upd(i, { data: e.target.value })} disabled={l.jaTemItem} />
+                    </div>
                   </div>
                 </div>
               ))
