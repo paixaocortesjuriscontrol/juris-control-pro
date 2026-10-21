@@ -30,10 +30,15 @@ function hojeBrt() {
   return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export function DistribuirGruposGolSheet({ publicacoes, individual = false }: { publicacoes: any[]; individual?: boolean }) {
+export function DistribuirGruposGolSheet({ publicacoes, individual = false, open: controlledOpen, onOpenChange, hideTrigger = false }: { publicacoes: any[]; individual?: boolean; open?: boolean; onOpenChange?: (open: boolean) => void; hideTrigger?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = (value: boolean) => {
+    setInternalOpen(value);
+    onOpenChange?.(value);
+  };
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -143,10 +148,10 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false }: { 
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); publicacoes.length ? setOpen(true) : toast.error("Marque as publicações para distribuir."); }}>
+      {!hideTrigger && <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); publicacoes.length ? setOpen(true) : toast.error("Marque as publicações para distribuir."); }}>
         <Share2 className="w-4 h-4 mr-2" />
         {individual ? "Distribuir publicação" : "Distribuir para coordenações"}
-      </Button>
+      </Button>}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" className="w-full sm:max-w-5xl flex flex-col gap-0" onClick={(e) => e.stopPropagation()}>
           <SheetHeader>
