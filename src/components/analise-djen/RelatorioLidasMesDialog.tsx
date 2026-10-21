@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery } from "@tanstack/react-query";
 import { BookOpenCheck, Loader2, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,7 @@ type Linha = {
   processo: string | null;
   tribunal: string | null;
   origem: string;
+  coordenacao: string;
 };
 
 const TABELAS: Record<string, string> = {
@@ -46,9 +48,15 @@ export function RelatorioLidasMesDialog() {
   const [mes, setMes] = useState(mesAtual());
   const [loading, setLoading] = useState(false);
   const [linhas, setLinhas] = useState<Linha[] | null>(null);
+  const { data: coords } = useQuery({
+    queryKey: ["relatorio-lidas-coords"],
+    queryFn: async () => (await supabase.from("coordenacoes").select("id, nome").order("nome")).data ?? [],
+    enabled: open,
+  });
+  const coordNome = new Map((coords ?? []).map((c) => [c.id, c.nome]));
 
   const gerar = async () => {
-    if (!coord) { toast.error("Selecione a coordenação."); return; }
+    if (!coord) { toast.error("Selecione a coordenação ou Todas."); return; }
     setLoading(true);
     setLinhas(null);
     try {
@@ -71,11 +79,12 @@ export function RelatorioLidasMesDialog() {
       for (const origem of Object.keys(TABELAS)) {
         const ids = [...new Set(leituras.filter((l) => l.tabela_origem === origem).map((l) => l.publicacao_id))];
         for (let i = 0; i < ids.length; i += 200) {
-          const { data, error } = await (supabase as any)
+          let q = (supabase as any)
             .from(TABELAS[origem])
-            .select("id, data_publicacao, processo_numero, tribunal")
-            .eq("coordenacao_id", coord)
+            .select("id, data_publicacao, processo_numero, tribunal, coordenacao_id")
             .in("id", ids.slice(i, i + 200));
+          if (coord !== "todas") q = q.eq("coordenacao_id", coord);
+          const { data, error } = await q;
           if (error) throw error;
           (data ?? []).forEach((p: any) => pubs.set(origem + ":" + p.id, p));
         }
@@ -91,6 +100,7 @@ export function RelatorioLidasMesDialog() {
             processo: p.processo_numero,
             tribunal: p.tribunal,
             origem: ORIGEM_LABEL[l.tabela_origem] ?? l.tabela_origem,
+            coordenacao: coordNome.get(p.coordenacao_id) ?? "—",
           };
         });
       setLinhas(out);
@@ -116,6 +126,7 @@ export function RelatorioLidasMesDialog() {
       Processo: l.processo ?? "",
       Tribunal: l.tribunal ?? "",
       Origem: l.origem,
+      Coordenação: l.coordenacao,
     }))), "Lidas");
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
       Object.entries(porUsuario).sort((a, b) => b[1] - a[1]).map(([u, n]) => ({ Usuário: u, Lidas: n }))
@@ -135,7 +146,16 @@ export function RelatorioLidasMesDialog() {
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Relatório de publicações lidas no mês</DialogTitle></DialogHeader>
         <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto] items-end">
-          <CoordenacaoSelect value={coord} onChange={setCoord} required />
+          <div>
+            <Label className="text-sm">Coordenação<span className="text-destructive">*</span></Label>
+            <Select value={coord} onValueChange={setCoord}>
+              <SelectTrigger className="h-10 mt-1.5"><SelectValue placeholder="Selecione a coordenação" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {(coords ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div>
             <Label className="text-sm">Mês</Label>
             <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="h-10 mt-1.5" />
@@ -158,10 +178,10 @@ export function RelatorioLidasMesDialog() {
             <div className="border rounded overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted">
-                  <tr>{["Lida em", "Lida por", "Data publ.", "Processo", "Tribunal", "Origem"].map((h) => <th key={h} className="text-left p-2">{h}</th>)}</tr>
+                  <tr>{["Lida em", "Lida por", "Data publ.", "Processo", "Tribunal", "Origem", "Coordenação"].map((h) => <th key={h} className="text-left p-2">{h}</th>)}</tr>
                 </thead>
                 <tbody>
-                  {linhas.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nenhuma publicação lida neste mês.</td></tr>}
+                  {linhas.length === 0 && <tr><td colSpan={7} className="p-4 text-center text-muted-foreground">Nenhuma publicação lida neste mês.</td></tr>}
                   {linhas.map((l, i) => (
                     <tr key={i} className="border-t">
                       <td className="p-2 whitespace-nowrap">{fmtBRT(l.lida_em, true)}</td>
@@ -170,6 +190,7 @@ export function RelatorioLidasMesDialog() {
                       <td className="p-2 whitespace-nowrap">{l.processo}</td>
                       <td className="p-2">{l.tribunal}</td>
                       <td className="p-2">{l.origem}</td>
+                      <td className="p-2">{l.coordenacao}</td>
                     </tr>
                   ))}
                 </tbody>
