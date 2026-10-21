@@ -19,10 +19,12 @@ Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equi
 ## O que muda
 
 1. **Publicações chegam só na Coordenação GOL**
-   - Os 43 termos da Coordenação GOL continuam ativos.
-   - Os 43 termos da Execução GOL são iguais aos da GOL. Eles serão **desativados**, sem apagar, para que a mesma publicação não chegue duas vezes. A Execução e os outros grupos passam a receber só as tarefas e os prazos que a GOL abrir para eles.
-   - Confiro se GOL LINHAS, WEBJET, SMILES, VRG, G.L.A.S., GOL TRANSPORTES, CARLOS JOSE ELIAS JUNIOR e OSMAR MENDES PAIXAO CORTES já existem. Só crio os que faltarem.
-   - Depois aplico as escolhas da planilha "Manter? SIM/NÃO" que o cliente devolver.
+   - Na Coordenação GOL ficam ativos só estes termos:
+     - **Partes:** GOL LINHAS, WEBJET, SMILES, VRG, G.L.A.S. e GOL TRANSPORTES.
+     - **Advogados:** CARLOS JOSE ELIAS JUNIOR e OSMAR MENDES PAIXAO CORTES, também nas grafias com acento.
+   - Esses termos cobrem todos os tribunais, inclusive o TST, menos os TRT 1, 2 e 15. As versões que já existem são ajustadas, e só crio as que faltarem.
+   - Os outros termos da GOL são **desativados**, sem apagar. Entre eles estão as partes do TRT 10 (Citibank, Crefisa, Balcony...), Fernando Hugo, Renata Mouta e os termos dos TRT 1, 2 e 15.
+   - Os 43 termos da Execução GOL também são desativados. A Execução e os outros grupos recebem só as tarefas e os prazos que a GOL abrir para eles.
 
 2. **Criar 2 coordenações**
    - **Centro, Sul e Minas:** coordenador Dr. Carlos. Equipe: Phelipe, Emilly, Daiane e Fernanda.
