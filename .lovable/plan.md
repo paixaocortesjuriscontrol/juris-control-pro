@@ -53,6 +53,18 @@ Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equi
    - Ela vê os prazos e os prazos fatais de todos os grupos no Painel e no Kanban de Prazos Fatais, para poder cobrar.
    - Ela não precisa ser responsável pelos itens.
 
+6. **Botão "Distribuir para os grupos" na Análise DJEN**
+   - Aparece na Coordenação GOL. A pessoa marca as publicações, ou usa "todas as não lidas do dia", e clica no botão.
+   - O sistema sugere um grupo para cada publicação:
+     - **Casos Especiais:** quando a parte é sindicato ou Ministério Público do Trabalho (palavras como "SINDICATO", "MINISTÉRIO PÚBLICO DO TRABALHO" ou "MPT").
+     - **Execução:** quando o texto indica fase de execução (palavras como "execução", "penhora", "cálculos", "liquidação", "embargos à execução" ou "RPV").
+     - **Norte e Nordeste:** os demais casos dos TRT 5, 6, 7, 8, 11, 13, 14, 16, 19, 20, 21 e 22.
+     - **Centro, Sul e Minas:** todos os outros casos, incluindo o TST.
+   - Antes de criar qualquer coisa, abre um painel lateral à direita com a lista. Ali dá para trocar o grupo de cada linha, desmarcar linhas e editar o título e a data.
+   - Ao confirmar, o sistema cria uma tarefa "Analisar publicação" na coordenação do grupo, ligada à publicação e ao processo. O responsável é o coordenador do grupo, ou quem estiver nos "Responsáveis fixos" dele. A publicação é marcada como lida e distribuída.
+   - Publicação que já tem item criado não é distribuída de novo.
+   - Nada é criado sem a confirmação da pessoa.
+
 ## Definido pelo cliente
 - Os processos do TRT 1, 2 e 15 que já estão cadastrados ficam como estão. Só a busca de novas publicações deixa de cobrir esses tribunais.
 - A Coordenação Dra. Beatriz Costa e o que ela definiu não mudam. Essa estrutura nova não tem relação com ela.
