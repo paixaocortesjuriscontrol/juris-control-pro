@@ -5332,7 +5332,7 @@ const AnaliseDjen = () => {
             <Badge variant="secondary" className="ml-1 px-1 py-0 text-[10px]">Teste</Badge>
           </Button>
 
-          {isAdmin && <RelatorioLidasMesDialog />}
+          <RelatorioLidasMesDialog />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
