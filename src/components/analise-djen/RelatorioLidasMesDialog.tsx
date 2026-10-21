@@ -20,11 +20,6 @@ type Linha = {
   coordenacao: string;
 };
 
-const TABELAS: Record<string, string> = {
-  termo: "publicacoes_djen",
-  processo: "publicacoes_djen_processos",
-  descartada: "publicacoes_djen_descartadas",
-};
 const ORIGEM_LABEL: Record<string, string> = { termo: "Termos", processo: "Processos", descartada: "Descartada" };
 
 const fmtBRT = (iso: string | null, hora = false) => {
