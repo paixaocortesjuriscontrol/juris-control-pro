@@ -16,6 +16,13 @@ Coordenação GOL (lê as publicações)  Supervisão: Dr. Carlos | Direção: D
 
 Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equipe, a própria agenda e os próprios "Responsáveis fixos". As permissões de quem pode mudar cada situação continuam valendo.
 
+## O que NÃO muda
+- Prazos, tarefas, eventos, audiências e atas já criados continuam como estão: mesma coordenação, mesmos responsáveis e mesma situação.
+- Os responsáveis pelos processos e a coordenação dos processos não mudam.
+- As outras coordenações não mudam. A Coordenação Dra. Beatriz Costa também fica como está.
+- Na Execução GOL e na Norte e Nordeste, só os termos de busca são desativados e o Dr. Carlos e a Bruna entram como membros, se ainda não estiverem. Membros, cargos e itens dessas coordenações não mudam.
+- A nova regra vale só para publicações e itens criados daqui para frente.
+
 ## O que muda
 
 1. **Publicações chegam só na Coordenação GOL**
