@@ -1,5 +1,17 @@
 # Explicação técnica para o suporte Projuris
 
+## Conferência dos 4 arquivos enviados agora (21/10/2026, 11:50 BRT)
+- **tarefa.csv** (96.253 tarefas): as colunas são cdtarefa, datas, usuários, recorrência e cdexterno. Não há nenhuma coluna de processo.
+- **comentario.csv** (cerca de 135 mil linhas): as colunas são cdcomentario, texto, datas, usuário e cdcomentariopai. Não há coluna de tarefa nem de processo.
+- **processo.csv** (25.906 processos): é a tabela de processos. Nela não há referência a tarefas nem a comentários.
+- **Mapeamento de arquivos** (12.419 anexos):
+  - 11.974 ligados a processos (módulo 3);
+  - só 61 ligados a tarefas (módulo 4);
+  - 271 no módulo 52, 112 no módulo 85 e 1 no módulo 2.
+  - Nenhum anexo está ligado a comentários.
+- Conclusão: os arquivos estão corretos como tabelas, mas nenhum deles traz o vínculo entre tarefa e processo nem entre comentário e tarefa ou processo.
+
+
 ## O que será entregue
 Um documento em PDF, com uma versão em texto para colar no e-mail, explicando por que o backup enviado não permite ligar tarefas, comentários e anexos aos processos. O documento também lista exatamente o que precisamos receber.
 
