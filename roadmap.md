@@ -118,5 +118,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Importar processos da planilha BASE_PAIXAO_102026.xlsx na Coordenação Citibank (269 processos)
 
 ## Distribuição de publicações GOL
-- [ ] Mostrar nomes cadastrados das coordenações e ampliar detalhes da revisão em lote.
-- [ ] Disponibilizar e verificar o acesso à distribuição de uma única publicação.
+- [x] Mostrar nomes cadastrados das coordenações e ampliar detalhes da revisão em lote.
+- [x] Disponibilizar acesso à distribuição de uma única publicação.
+- [ ] Conferir distribuição autenticada — sessão indisponível para o Supabase externo deste projeto.

@@ -14,7 +14,7 @@ import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
-import { formatDateOnly } from "@/lib/utils";
+import { formatDateOnly } from "@/utils/formatConteudo";
 
 interface Linha {
   pub: any;
