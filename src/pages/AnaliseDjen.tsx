@@ -88,6 +88,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
 import { RelatorioLidasMesDialog } from "@/components/analise-djen/RelatorioLidasMesDialog";
+import { DistribuirGruposGolSheet } from "@/components/analise-djen/DistribuirGruposGolSheet";
+import { COORDENACAO_GOL_ID } from "@/lib/gruposGol";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -5333,6 +5335,9 @@ const AnaliseDjen = () => {
           </Button>
 
           <RelatorioLidasMesDialog />
+          {coordenacaoFiltroEfetivo === COORDENACAO_GOL_ID && (
+            <DistribuirGruposGolSheet publicacoes={allPublicacoes.filter((p: any) => selectedIds.has(p.id))} />
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
