@@ -39,6 +39,11 @@ Cada grupo é uma coordenação ligada à GOL. Assim cada um tem a própria equi
 
 4. **Equipes:** os membros atuais da Execução e da Norte e Nordeste ficam como estão.
 
+5. **Bruna Sousa: leitura e cobrança**
+   - Ela entra na GOL e nos 4 grupos como **Assistente Coordenador**. É ela quem lê as publicações e delega para os grupos.
+   - Ela vê os prazos e os prazos fatais de todos os grupos no Painel e no Kanban de Prazos Fatais, para poder cobrar.
+   - Ela não precisa ser responsável pelos itens.
+
 ## Definido pelo cliente
 - Os processos do TRT 1, 2 e 15 que já estão cadastrados ficam como estão. Só a busca de novas publicações deixa de cobrir esses tribunais.
 - A Coordenação Dra. Beatriz Costa e o que ela definiu não mudam. Essa estrutura nova não tem relação com ela.
