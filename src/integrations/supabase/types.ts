@@ -11962,6 +11962,18 @@ export type Database = {
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
+      relatorio_publicacoes_lidas: {
+        Args: { p_coord?: string; p_fim: string; p_ini: string }
+        Returns: {
+          coordenacao_id: string
+          data_publicacao: string
+          lida_em: string
+          origem: string
+          processo: string
+          tribunal: string
+          usuario: string
+        }[]
+      }
       release_kurier_execution_lease: {
         Args: { _exec_id: string; _lease_token: string }
         Returns: undefined
