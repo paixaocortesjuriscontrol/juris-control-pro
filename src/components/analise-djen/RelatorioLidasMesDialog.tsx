@@ -1,0 +1,183 @@
+import { useState } from "react";
+import * as XLSX from "xlsx";
+import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { BookOpenCheck, Loader2, FileSpreadsheet } from "lucide-react";
+import { toast } from "sonner";
+
+type Linha = {
+  lida_em: string;
+  usuario: string;
+  data_publicacao: string | null;
+  processo: string | null;
+  tribunal: string | null;
+  origem: string;
+};
+
+const TABELAS: Record<string, string> = {
+  termo: "publicacoes_djen",
+  processo: "publicacoes_djen_processos",
+  descartada: "publicacoes_djen_descartadas",
+};
+const ORIGEM_LABEL: Record<string, string> = { termo: "Termos", processo: "Processos", descartada: "Descartada" };
+
+const fmtBRT = (iso: string | null, hora = false) => {
+  if (!iso) return "";
+  const d = new Date(iso.length <= 10 ? iso + "T12:00:00Z" : iso);
+  return d.toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    day: "2-digit", month: "2-digit", year: "numeric",
+    ...(hora ? { hour: "2-digit", minute: "2-digit" } : {}),
+  });
+};
+
+function mesAtual() {
+  const s = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  return s.slice(0, 7);
+}
+
+export function RelatorioLidasMesDialog() {
+  const [open, setOpen] = useState(false);
+  const [coord, setCoord] = useState<string>("");
+  const [mes, setMes] = useState(mesAtual());
+  const [loading, setLoading] = useState(false);
+  const [linhas, setLinhas] = useState<Linha[] | null>(null);
+
+  const gerar = async () => {
+    if (!coord) { toast.error("Selecione a coordenação."); return; }
+    setLoading(true);
+    setLinhas(null);
+    try {
+      const [a, m] = mes.split("-").map(Number);
+      const ini = new Date(Date.UTC(a, m - 1, 1, 3)).toISOString();
+      const fim = new Date(Date.UTC(a, m, 1, 3)).toISOString();
+      const leituras: any[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("publicacoes_djen_leituras")
+          .select("publicacao_id, tabela_origem, usuario_nome, lida_em")
+          .gte("lida_em", ini).lt("lida_em", fim)
+          .order("lida_em", { ascending: true })
+          .range(from, from + 999);
+        if (error) throw error;
+        leituras.push(...(data ?? []));
+        if (!data || data.length < 1000) break;
+      }
+      const pubs = new Map<string, any>();
+      for (const origem of Object.keys(TABELAS)) {
+        const ids = [...new Set(leituras.filter((l) => l.tabela_origem === origem).map((l) => l.publicacao_id))];
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data, error } = await (supabase as any)
+            .from(TABELAS[origem])
+            .select("id, data_publicacao, processo_numero, tribunal")
+            .eq("coordenacao_id", coord)
+            .in("id", ids.slice(i, i + 200));
+          if (error) throw error;
+          (data ?? []).forEach((p: any) => pubs.set(origem + ":" + p.id, p));
+        }
+      }
+      const out: Linha[] = leituras
+        .filter((l) => pubs.has(l.tabela_origem + ":" + l.publicacao_id))
+        .map((l) => {
+          const p = pubs.get(l.tabela_origem + ":" + l.publicacao_id);
+          return {
+            lida_em: l.lida_em,
+            usuario: l.usuario_nome || "—",
+            data_publicacao: p.data_publicacao,
+            processo: p.processo_numero,
+            tribunal: p.tribunal,
+            origem: ORIGEM_LABEL[l.tabela_origem] ?? l.tabela_origem,
+          };
+        });
+      setLinhas(out);
+    } catch (e: any) {
+      toast.error("Erro ao gerar relatório: " + (e?.message ?? e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const porUsuario = (linhas ?? []).reduce<Record<string, number>>((acc, l) => {
+    acc[l.usuario] = (acc[l.usuario] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const exportar = () => {
+    if (!linhas) return;
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(linhas.map((l) => ({
+      "Lida em": fmtBRT(l.lida_em, true),
+      "Lida por": l.usuario,
+      "Data publicação": fmtBRT(l.data_publicacao),
+      Processo: l.processo ?? "",
+      Tribunal: l.tribunal ?? "",
+      Origem: l.origem,
+    }))), "Lidas");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(
+      Object.entries(porUsuario).sort((a, b) => b[1] - a[1]).map(([u, n]) => ({ Usuário: u, Lidas: n }))
+    ), "Por usuário");
+    XLSX.writeFile(wb, `Publicacoes_lidas_${mes}.xlsx`);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm" className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3">
+          <BookOpenCheck className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+          <span className="hidden sm:inline">Lidas no mês</span>
+          <span className="sm:hidden">Lidas</span>
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Relatório de publicações lidas no mês</DialogTitle></DialogHeader>
+        <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto] items-end">
+          <CoordenacaoSelect value={coord} onChange={setCoord} required />
+          <div>
+            <Label className="text-sm">Mês</Label>
+            <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="h-10 mt-1.5" />
+          </div>
+          <Button onClick={gerar} disabled={loading || !coord || !mes} className="h-10">
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Gerar
+          </Button>
+        </div>
+        {linhas && (
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <strong>{linhas.length} leituras</strong>
+              {Object.entries(porUsuario).sort((a, b) => b[1] - a[1]).map(([u, n]) => (
+                <span key={u} className="rounded bg-muted px-2 py-0.5">{u}: {n}</span>
+              ))}
+              <Button size="sm" variant="outline" className="ml-auto" onClick={exportar} disabled={!linhas.length}>
+                <FileSpreadsheet className="w-4 h-4 mr-1" />Exportar Excel
+              </Button>
+            </div>
+            <div className="border rounded overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead className="bg-muted">
+                  <tr>{["Lida em", "Lida por", "Data publ.", "Processo", "Tribunal", "Origem"].map((h) => <th key={h} className="text-left p-2">{h}</th>)}</tr>
+                </thead>
+                <tbody>
+                  {linhas.length === 0 && <tr><td colSpan={6} className="p-4 text-center text-muted-foreground">Nenhuma publicação lida neste mês.</td></tr>}
+                  {linhas.map((l, i) => (
+                    <tr key={i} className="border-t">
+                      <td className="p-2 whitespace-nowrap">{fmtBRT(l.lida_em, true)}</td>
+                      <td className="p-2">{l.usuario}</td>
+                      <td className="p-2 whitespace-nowrap">{fmtBRT(l.data_publicacao)}</td>
+                      <td className="p-2 whitespace-nowrap">{l.processo}</td>
+                      <td className="p-2">{l.tribunal}</td>
+                      <td className="p-2">{l.origem}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}

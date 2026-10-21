@@ -87,6 +87,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
+import { RelatorioLidasMesDialog } from "@/components/analise-djen/RelatorioLidasMesDialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -5330,6 +5331,8 @@ const AnaliseDjen = () => {
             <span className="sm:hidden">{gerandoDocResumoIntimacaoCorrigido ? "..." : "Intimação corrig."}</span>
             <Badge variant="secondary" className="ml-1 px-1 py-0 text-[10px]">Teste</Badge>
           </Button>
+
+          <RelatorioLidasMesDialog />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
