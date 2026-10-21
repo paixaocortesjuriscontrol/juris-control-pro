@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Share2 } from "lucide-react";
+import { Loader2, Share2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -13,6 +13,8 @@ import { GRUPOS_GOL, GrupoGolKey, sugerirGrupoGol } from "@/lib/gruposGol";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { PublicacaoConteudoDjen } from "@/components/djen/PublicacaoConteudoDjen";
+import { formatDateOnly } from "@/lib/utils";
 
 interface Linha {
   pub: any;
@@ -21,19 +23,36 @@ interface Linha {
   titulo: string;
   data: string;
   jaTemItem: boolean;
+  detalhes: boolean;
 }
 
 function hojeBrt() {
   return new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }) {
+export function DistribuirGruposGolSheet({ publicacoes, individual = false }: { publicacoes: any[]; individual?: boolean }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [linhas, setLinhas] = useState<Linha[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+
+  const { data: coordenacoes = [], isLoading: carregandoCoordenacoes, error: erroCoordenacoes } = useQuery({
+    queryKey: ["coordenacoes-distribuicao-gol"],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("coordenacoes").select("id, nome").in("id", GRUPOS_GOL.map((g) => g.coordenacaoId));
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const destinos = GRUPOS_GOL.flatMap((g) => {
+    const coord = coordenacoes.find((c) => c.id === g.coordenacaoId);
+    return coord ? [{ ...g, nome: coord.nome }] : [];
+  });
+  const totalMarcadas = linhas.filter((l) => l.marcado && !l.jaTemItem).length;
+  const publicacoesKey = JSON.stringify(publicacoes);
 
   useEffect(() => {
     if (!open) return;
@@ -55,6 +74,7 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
         pubs.map((p) => ({
           pub: p,
           jaTemItem: com.has(p.id),
+          detalhes: pubs.length === 1,
           marcado: !com.has(p.id),
           grupo: sugerirGrupoGol(p),
           titulo: `Analisar publicação${p.processo_numero ? ` - ${aplicarMascaraCnj(p.processo_numero)}` : ""}`,
@@ -63,7 +83,7 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
       );
       setCarregando(false);
     })();
-  }, [open, publicacoes]);
+  }, [open, publicacoesKey]);
 
   const upd = (i: number, patch: Partial<Linha>) =>
     setLinhas((ls) => ls.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -84,7 +104,8 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
       };
       let ok = 0;
       for (const l of sel) {
-        const g = GRUPOS_GOL.find((x) => x.key === l.grupo)!;
+        const g = destinos.find((x) => x.key === l.grupo);
+        if (!g) continue;
         const resp = respDo(g.coordenacaoId);
         const { data: t, error } = await supabase
           .from("tarefas")
@@ -122,21 +143,23 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => publicacoes.length ? setOpen(true) : toast.error("Marque as publicações para distribuir.")}>
+      <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); publicacoes.length ? setOpen(true) : toast.error("Marque as publicações para distribuir."); }}>
         <Share2 className="w-4 h-4 mr-2" />
-        Distribuir para os grupos
+        {individual ? "Distribuir publicação" : "Distribuir para coordenações"}
       </Button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full sm:max-w-3xl flex flex-col">
+        <SheetContent side="right" className="w-full sm:max-w-5xl flex flex-col gap-0" onClick={(e) => e.stopPropagation()}>
           <SheetHeader>
-            <SheetTitle>Distribuir para os grupos GOL</SheetTitle>
-            <SheetDescription>Confira o grupo sugerido de cada publicação. Nada é criado antes de confirmar.</SheetDescription>
-            <p className="text-xs text-muted-foreground bg-muted rounded-md p-2">
-              Ao confirmar, é criada uma <strong>Tarefa</strong> na coordenação do grupo escolhido (aparece no Painel de Controle, Kanban e Equipe desse grupo e na ficha do processo), atribuída ao responsável fixo do grupo ou ao coordenador. A publicação fica marcada como lida na Coordenação GOL.
-            </p>
+            <SheetTitle>{individual ? "Distribuir publicação GOL" : "Distribuição de publicações GOL em lote"}</SheetTitle>
+            <SheetDescription>{linhas.length} publicação(ões) · {totalMarcadas} para distribuir · {linhas.filter((l) => l.jaTemItem).length} com item existente</SheetDescription>
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto space-y-2 py-3">
-            {carregando ? (
+          <div className="border-b py-3 flex flex-wrap gap-2">
+            {destinos.map((g) => <span key={g.key} className="text-xs text-muted-foreground">{g.nome}: <strong className="text-foreground">{linhas.filter((l) => l.marcado && !l.jaTemItem && l.grupo === g.key).length}</strong></span>)}
+            {erroCoordenacoes && <p role="alert" className="text-sm text-destructive">Não foi possível carregar as coordenações. Feche e tente novamente.</p>}
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 py-3">
+
+            {carregando || carregandoCoordenacoes ? (
               <Loader2 className="w-5 h-5 animate-spin mx-auto" />
             ) : linhas.length === 0 ? (
               <p className="text-sm text-muted-foreground">Nenhuma publicação de Termos ou Processos marcada.</p>
@@ -144,16 +167,36 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
               linhas.map((l, i) => (
                 <div key={l.pub.id} className="border rounded-md p-2 space-y-2">
                   <div className="flex items-center gap-2 text-sm">
-                    <Checkbox checked={l.marcado} disabled={l.jaTemItem} onCheckedChange={(v) => upd(i, { marcado: !!v })} />
+                    <Checkbox aria-label={`Selecionar publicação ${l.pub.processo_numero || i + 1}`} checked={l.marcado} disabled={l.jaTemItem} onCheckedChange={(v) => upd(i, { marcado: !!v })} />
                     <span className="font-medium">{l.pub.processo_numero ? aplicarMascaraCnj(l.pub.processo_numero) : "Sem processo"}</span>
                     {l.jaTemItem && <span className="text-xs text-muted-foreground">já tem item criado</span>}
                   </div>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                    <div><dt className="text-muted-foreground">Tribunal / órgão</dt><dd className="break-words">{[l.pub.tribunal, l.pub.orgao].filter(Boolean).join(" · ") || "Não informado"}</dd></div>
+                    <div><dt className="text-muted-foreground">Publicação / disponibilização</dt><dd>{formatDateOnly(l.pub.data_publicacao)} · {formatDateOnly(l.pub.data_disponibilizacao)}</dd></div>
+                    <div><dt className="text-muted-foreground">Polo ativo</dt><dd className="break-words">{l.pub.polo_ativo || "Não informado"}</dd></div>
+                    <div><dt className="text-muted-foreground">Polo passivo</dt><dd className="break-words">{l.pub.polo_passivo || "Não informado"}</dd></div>
+                    <div><dt className="text-muted-foreground">Vínculo com processo</dt><dd>{l.pub.processo_id ? "Processo cadastrado vinculado" : "Sem ficha vinculada"}</dd></div>
+                    <div><dt className="text-muted-foreground">Situação</dt><dd>{l.jaTemItem ? "Não será distribuída: já possui item" : l.pub.lida ? "Publicação lida" : "Publicação não lida"}</dd></div>
+                  </dl>
+                  <Button variant="ghost" size="sm" onClick={() => upd(i, { detalhes: !l.detalhes })} aria-expanded={l.detalhes}>
+                    {l.detalhes ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
+                    {l.detalhes ? "Recolher publicação" : "Ler publicação completa"}
+                  </Button>
+                  {l.detalhes && <PublicacaoConteudoDjen
+                    processoNumero={l.pub.processo_numero} tribunal={l.pub.tribunal} fonte={l.pub.fonte}
+                    dataDisponibilizacao={l.pub.data_disponibilizacao} dataPublicacao={l.pub.data_publicacao}
+                    conteudo={l.pub.conteudo} poloAtivo={l.pub.polo_ativo} poloPassivo={l.pub.polo_passivo}
+                    monitoramentoOab={null} monitoramentoUf={null} monitoramentoTermo={null} monitoramentoDescricao={null}
+                    orgaoEstruturado={l.pub.orgao} tipoComunicacaoEstruturado={l.pub.tipo_comunicacao}
+                    partesJson={l.pub.partes_json} advogadosJson={l.pub.advogados_json} expandirGeralExterno
+                  />}
                   <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Grupo de destino</label>
+                    <label className="text-xs text-muted-foreground">Coordenação de destino</label>
                     <Select value={l.grupo} onValueChange={(v) => upd(i, { grupo: v as GrupoGolKey })} disabled={l.jaTemItem}>
-                      <SelectTrigger className="h-9 w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal"><SelectValue /></SelectTrigger>
+                      <SelectTrigger aria-label="Coordenação de destino" className="min-h-9 h-auto w-full text-left [&>span]:line-clamp-none [&>span]:whitespace-normal"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        {GRUPOS_GOL.map((g) => <SelectItem key={g.key} value={g.key} className="whitespace-normal">{g.nome}</SelectItem>)}
+                        {destinos.map((g) => <SelectItem key={g.key} value={g.key} className="whitespace-normal">{g.nome}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -163,7 +206,7 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
                       <Input className="h-9" value={l.titulo} onChange={(e) => upd(i, { titulo: e.target.value })} disabled={l.jaTemItem} />
                     </div>
                     <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Data</label>
+                      <label className="text-xs text-muted-foreground">Vencimento da tarefa</label>
                       <Input className="h-9" type="date" value={l.data} onChange={(e) => upd(i, { data: e.target.value })} disabled={l.jaTemItem} />
                     </div>
                   </div>
@@ -173,9 +216,9 @@ export function DistribuirGruposGolSheet({ publicacoes }: { publicacoes: any[] }
           </div>
           <div className="border-t pt-3 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={salvando}>Cancelar</Button>
-            <Button onClick={confirmar} disabled={salvando || carregando}>
+            <Button onClick={confirmar} disabled={salvando || carregando || carregandoCoordenacoes || !!erroCoordenacoes || !totalMarcadas || linhas.some((l) => l.marcado && !l.jaTemItem && !destinos.some((g) => g.key === l.grupo))}>
               {salvando && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Confirmar distribuição
+              Confirmar distribuição ({totalMarcadas})
             </Button>
           </div>
         </SheetContent>

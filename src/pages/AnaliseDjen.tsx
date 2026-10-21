@@ -5900,6 +5900,10 @@ const AnaliseDjen = () => {
                                           </DropdownMenuContent>
                                         </DropdownMenu>
                                        
+                                       {pub.coordenacao_id === COORDENACAO_GOL_ID && (pub.tipo_origem === "termo" || pub.tipo_origem === "processo") && (
+                                         <DistribuirGruposGolSheet publicacoes={[pub]} individual />
+                                       )}
+
                                        {/* Botão Marcar como Lida individual — SOMENTE esta publicação */}
                                        {!pub.lida && (
                                          <Button
