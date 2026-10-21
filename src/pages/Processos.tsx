@@ -246,9 +246,10 @@ const Processos = () => {
     queryFn: async () => {
       const results = await Promise.all(
         (coordenacoes || []).map(async (c: any) => {
+          // Conta principal + coordenações responsáveis adicionais (mesma regra da lista)
           const { count } = await supabase
-            .from("processos")
-            .select("id", { count: "exact", head: true })
+            .from("processos_coordenacoes_responsaveis")
+            .select("processo_id", { count: "exact", head: true })
             .eq("coordenacao_id", c.id);
           return [c.id, count ?? 0] as const;
         })
@@ -257,10 +258,15 @@ const Processos = () => {
     },
   });
 
-  const totalProcessosTodasCoordenacoes = useMemo(
-    () => Object.values(processosPorCoordenacao).reduce((acc, n) => acc + (n || 0), 0),
-    [processosPorCoordenacao]
-  );
+  // Total sem duplicar processos que estão em mais de uma coordenação
+  const { data: totalProcessosTodasCoordenacoes = 0 } = useQuery({
+    queryKey: ["processos-count-todas-coordenacoes"],
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { count } = await supabase.from("processos").select("id", { count: "exact", head: true });
+      return count ?? 0;
+    },
+  });
   const queryClient = useQueryClient();
 
   // Auto-selecionar coordenação do usuário ao carregar (se não veio da URL)
