@@ -33,3 +33,23 @@ export function sugerirGrupoGol(pub: { processo_numero?: string | null; conteudo
   if (/EXECUCAO|PENHORA|CALCULOS|LIQUIDACAO|\bRPV\b/.test(txt)) return "execucao";
   return TRTS_NORTE_NORDESTE.includes(trtDoProcesso(pub.processo_numero)) ? "nne" : "csm";
 }
+
+/** Chave de duplicidade: mesmo processo + mesmo dia + mesmo conteúdo (sem acento/espaços). */
+export function chaveDuplicidadePublicacao(p: { id: string; processo_numero?: string | null; data_disponibilizacao?: string | null; data_publicacao?: string | null; conteudo?: string | null }): string {
+  const proc = (p.processo_numero || "").replace(/\D/g, "");
+  if (!proc) return `id:${p.id}`;
+  const dia = String(p.data_disponibilizacao || p.data_publicacao || "").slice(0, 10);
+  const texto = semAcento(p.conteudo || "").replace(/[^A-Z0-9]/g, "").slice(0, 2000);
+  return `${proc}|${dia}|${texto}`;
+}
+
+/** Agrupa cópias duplicadas mantendo a ordem da primeira ocorrência. */
+export function agruparDuplicadasDistribuicao<T extends { id: string }>(pubs: T[]): T[][] {
+  const mapa = new Map<string, T[]>();
+  for (const p of pubs) {
+    const k = chaveDuplicidadePublicacao(p as any);
+    const g = mapa.get(k);
+    if (g) g.push(p); else mapa.set(k, [p]);
+  }
+  return [...mapa.values()];
+}
