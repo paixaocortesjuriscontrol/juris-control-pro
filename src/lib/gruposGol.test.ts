@@ -1,17 +1,18 @@
-import { describe, expect, test } from "bun:test";
+import { describe, test } from "node:test";
+import { strict as assert } from "node:assert";
 import { COORDENACAO_GOL_ID, podeDistribuirPublicacaoGol } from "./gruposGol";
 
 describe("acesso à distribuição individual", () => {
   test("Admin acessa publicação de termos sem depender da coordenação selecionada", () => {
-    expect(podeDistribuirPublicacaoGol(true, null, "termo")).toBe(true);
-    expect(podeDistribuirPublicacaoGol(true, "outra-coordenacao", "processo")).toBe(true);
+    assert.equal(podeDistribuirPublicacaoGol(true, null, "termo"), true);
+    assert.equal(podeDistribuirPublicacaoGol(true, "outra-coordenacao", "processo"), true);
   });
   test("demais usuários mantêm distribuição restrita à GOL", () => {
-    expect(podeDistribuirPublicacaoGol(false, COORDENACAO_GOL_ID, "termo")).toBe(true);
-    expect(podeDistribuirPublicacaoGol(false, "outra-coordenacao", "termo")).toBe(false);
+    assert.equal(podeDistribuirPublicacaoGol(false, COORDENACAO_GOL_ID, "termo"), true);
+    assert.equal(podeDistribuirPublicacaoGol(false, "outra-coordenacao", "termo"), false);
   });
   test("origens sem suporte não oferecem distribuição", () => {
-    expect(podeDistribuirPublicacaoGol(true, COORDENACAO_GOL_ID, "datajud")).toBe(false);
-    expect(podeDistribuirPublicacaoGol(true, COORDENACAO_GOL_ID, "descartada")).toBe(false);
+    assert.equal(podeDistribuirPublicacaoGol(true, COORDENACAO_GOL_ID, "datajud"), false);
+    assert.equal(podeDistribuirPublicacaoGol(true, COORDENACAO_GOL_ID, "descartada"), false);
   });
 });
