@@ -9,7 +9,7 @@ import { Loader2, Share2, ChevronDown, ChevronUp } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { GRUPOS_GOL, GrupoGolKey, sugerirGrupoGol } from "@/lib/gruposGol";
+import { GRUPOS_GOL, GrupoGolKey, sugerirGrupoGol, agruparDuplicadasDistribuicao } from "@/lib/gruposGol";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
@@ -18,6 +18,7 @@ import { formatDateOnly } from "@/utils/formatConteudo";
 
 interface Linha {
   pub: any;
+  copias: any[];
   marcado: boolean;
   grupo: GrupoGolKey;
   titulo: string;
@@ -75,16 +76,18 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
         const { data } = await supabase.from("tarefas_publicacoes_processos").select("publicacao_processo_id").in("publicacao_processo_id", procIds);
         (data || []).forEach((r: any) => com.add(r.publicacao_processo_id));
       }
+      const grupos = agruparDuplicadasDistribuicao(pubs);
       setLinhas(
-        pubs.map((p) => ({
+        grupos.map((copias) => { const p = copias[0]; const tem = copias.some((c) => com.has(c.id)); return {
           pub: p,
-          jaTemItem: com.has(p.id),
-          detalhes: pubs.length === 1,
-          marcado: !com.has(p.id),
+          copias,
+          jaTemItem: tem,
+          detalhes: grupos.length === 1,
+          marcado: !tem,
           grupo: sugerirGrupoGol(p),
           titulo: `Analisar publicação${p.processo_numero ? ` - ${aplicarMascaraCnj(p.processo_numero)}` : ""}`,
           data: hojeBrt(),
-        })),
+        }; }),
       );
       setCarregando(false);
     })();
@@ -129,11 +132,13 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
           .single();
         if (error) { console.error(error); continue; }
         if (resp) await supabase.from("tarefa_responsaveis").insert({ tarefa_id: t.id, usuario_id: resp });
-        await vincularItemPublicacao({ id: t.id, tipo: "tarefa" }, { tipo: l.pub.tipo_origem, id: l.pub.id });
-        await supabase
-          .from(l.pub.tipo_origem === "termo" ? "publicacoes_djen" : "publicacoes_djen_processos")
-          .update({ lida: true } as any)
-          .eq("id", l.pub.id);
+        for (const c of l.copias) {
+          await vincularItemPublicacao({ id: t.id, tipo: "tarefa" }, { tipo: c.tipo_origem, id: c.id });
+          await supabase
+            .from(c.tipo_origem === "termo" ? "publicacoes_djen" : "publicacoes_djen_processos")
+            .update({ lida: true } as any)
+            .eq("id", c.id);
+        }
         ok++;
       }
       await invalidarItensAgenda(qc);
@@ -156,7 +161,7 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
         <SheetContent side="right" className="w-full sm:max-w-5xl flex flex-col gap-0" onClick={(e) => e.stopPropagation()}>
           <SheetHeader>
             <SheetTitle>{individual ? "Distribuir publicação GOL" : "Distribuição de publicações GOL em lote"}</SheetTitle>
-            <SheetDescription>{linhas.length} publicação(ões) · {totalMarcadas} para distribuir · {linhas.filter((l) => l.jaTemItem).length} com item existente</SheetDescription>
+            <SheetDescription>{linhas.length} publicação(ões){linhas.some((l) => l.copias.length > 1) ? ` (${linhas.reduce((a, l) => a + l.copias.length - 1, 0)} cópia(s) duplicada(s) agrupada(s))` : ""} · {totalMarcadas} para distribuir · {linhas.filter((l) => l.jaTemItem).length} com item existente</SheetDescription>
           </SheetHeader>
           <div className="border-b py-3 flex flex-wrap gap-2">
             {destinos.map((g) => <span key={g.key} className="text-xs text-muted-foreground">{g.nome}: <strong className="text-foreground">{linhas.filter((l) => l.marcado && !l.jaTemItem && l.grupo === g.key).length}</strong></span>)}
@@ -174,6 +179,7 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
                   <div className="flex items-center gap-2 text-sm">
                     <Checkbox aria-label={`Selecionar publicação ${l.pub.processo_numero || i + 1}`} checked={l.marcado} disabled={l.jaTemItem} onCheckedChange={(v) => upd(i, { marcado: !!v })} />
                     <span className="font-medium">{l.pub.processo_numero ? aplicarMascaraCnj(l.pub.processo_numero) : "Sem processo"}</span>
+                    {l.copias.length > 1 && <span className="text-xs font-medium text-primary">{l.copias.length} cópias · 1 tarefa</span>}
                     {l.jaTemItem && <span className="text-xs text-muted-foreground">já tem item criado</span>}
                   </div>
                   <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs">
