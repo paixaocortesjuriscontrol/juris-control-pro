@@ -35,7 +35,11 @@ Um documento em PDF, com uma versão em texto para colar no e-mail, explicando p
    - `reprocessousuario`
    - `marcadorvinculomodulo`
    - Como alternativa: o Relatório de Atividades completo, sem filtros, com as colunas Identificador e Processo Vinculado.
-5. **Como o suporte pode conferir**
+5. **Anexo: dicionário de colunas de cada arquivo**
+   - Tabela por arquivo (tarefa, comentario, processo e Mapeamento de Arquivos) com todas as colunas, um exemplo real de valor e o que cada uma representa.
+   - Para cada arquivo, uma linha final em destaque: "Coluna de vínculo com processo/tarefa: NÃO EXISTE" (ou qual existe).
+   - No Mapeamento de Arquivos: contagem por `cdmodulo` (3 = processo, 4 = tarefa, 52, 85 e 2), mostrando que não há vínculo com comentários.
+6. **Como o suporte pode conferir**
    - Um exemplo concreto: uma tarefa (TAR.x) e o arquivo e a coluna em que se esperaria encontrar o processo dela, mostrando que essa informação não existe no backup.
 6. **Cuidados**
    - Não reenviar as tabelas de senhas e credenciais (`credencialorgaosistema` e semelhantes).
