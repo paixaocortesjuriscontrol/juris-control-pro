@@ -90,7 +90,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { NovaTarefaPublicacaoDialog } from "@/components/djen/NovaTarefaPublicacaoDialog";
 import { RelatorioLidasMesDialog } from "@/components/analise-djen/RelatorioLidasMesDialog";
 import { DistribuirGruposGolSheet } from "@/components/analise-djen/DistribuirGruposGolSheet";
-import { COORDENACAO_GOL_ID } from "@/lib/gruposGol";
+import { COORDENACAO_GOL_ID, podeDistribuirPublicacaoGol } from "@/lib/gruposGol";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -5884,7 +5884,7 @@ const AnaliseDjen = () => {
                                             </Button>
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
-                                            {(isAdmin || pub.coordenacao_id === COORDENACAO_GOL_ID) && (pub.tipo_origem === "termo" || pub.tipo_origem === "processo") && (
+                                            {podeDistribuirPublicacaoGol(isAdmin, pub.coordenacao_id, pub.tipo_origem) && (
                                               <DropdownMenuItem onSelect={() => setTimeout(() => setPublicacaoDistribuicao(pub), 0)}>
                                                 <Share2 className="w-4 h-4 mr-2" /> Distribuir publicação
                                               </DropdownMenuItem>
