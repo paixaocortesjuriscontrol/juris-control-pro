@@ -116,3 +116,8 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [ ] Etapa 3: cartões no Painel, Processos, DJEN e Pautas
 - [ ] Etapa 4: demais telas
 - [x] Importar processos da planilha BASE_PAIXAO_102026.xlsx na Coordenação Citibank (269 processos)
+
+## Distribuição de publicações GOL
+- [x] Mostrar nomes cadastrados das coordenações e ampliar detalhes da revisão em lote.
+- [x] Disponibilizar acesso à distribuição de uma única publicação.
+- [ ] Conferir distribuição autenticada — sessão indisponível para o Supabase externo deste projeto.

@@ -12,3 +12,4 @@
 - Envolvidos/responsáveis automáticos em itens novos vêm só de `responsaveis_fixos_tipo_tarefa` (aplicado nas telas de criação); não há trigger incluindo coordenadores, para respeitar a escolha de cada coordenação.
 - App mobile é PWA só com manifest (`public/manifest.webmanifest`, sem service worker); no celular o `MainLayout` mostra `MobileBottomNav`, que abre o menu lateral pelo evento `abrir-menu-mobile`, para manter um único menu com as mesmas permissões.
 - O tipo "Ata" vive em `tarefas` com `tipo_tarefa = "ATA"` e chega à agenda com `tipo = "tarefa"`; a cor própria (violeta) é resolvida por `corKeyItem`/`isItemAta` de `src/lib/tipoItemAgenda.ts`, usada em todas as visões, para não quebrar filtros e contagens que dependem de `tipo`.
+- GOL publication distribution uses one shared right-side Sheet for individual and bulk actions; destination labels are loaded from coordination records by their stable IDs so renaming stays consistent.
