@@ -22,6 +22,13 @@ const TABELAS: Record<string, string[] | null> = {
   workflowcontrole: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
   workflowexecucao: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
   cacheintimacaotarefa: ["cdintimacao", "cdtarefa"],
+  // Tabelas de vínculo enviadas pelo Projuris (22/10/2026)
+  tarefavinculomodulo: ["cdtarefa", "cdmodulo", "cdregistrovinculo", "flprincipal"],
+  retarefaeventousuario: ["cdtarefaevento", "cdusuario"],
+  comentariovinculomodulo: ["cdcomentario", "cdmodulo", "cdregistrovinculo"],
+  arquivovinculomodulo: ["cdarquivo", "cdmodulo", "cdregistrovinculo", "flprincipal"],
+  reprocessousuario: ["cdprocesso", "cdusuario"],
+  marcadorvinculomodulo: ["cdmarcador", "cdmodulo", "cdregistrovinculo"],
   intimacaonumeroprocesso: ["cdintimacao", "denumeroprocesso"],
   usuario: ["cdusuario", "flativo", "delogin", "cdpessoa"],
   pessoa: ["cdpessoa", "nmpessoa"],
@@ -316,6 +323,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       const guWc = gu("workflowcontrole");
       if (guWc) for (const r of guWc.linhas) if (norm(guWc.g(r, "cdmodulo")) === "3") controleProc.set(String(guWc.g(r, "cdworkflowcontrole") || ""), String(guWc.g(r, "cdregistrovinculo") || ""));
       const tarefaProc = new Map<string, string>();
+      // vínculo oficial: tarefavinculomodulo (cdtarefa → processo, módulo 3); cdtarefa = tarefaevento.cdtarefa
+      const tarefaVincProc = new Map<string, string>();
+      const guTv = gu("tarefavinculomodulo");
+      if (guTv) for (const r of guTv.linhas) if (norm(guTv.g(r, "cdmodulo")) === "3") tarefaVincProc.set(String(guTv.g(r, "cdtarefa") || ""), String(guTv.g(r, "cdregistrovinculo") || ""));
+      // responsáveis: retarefaeventousuario (cdtarefaevento → cdusuario)
+      const respTarefa = new Map<string, string[]>();
+      const guRu = gu("retarefaeventousuario");
+      if (guRu) for (const r of guRu.linhas) {
+        const k = String(guRu.g(r, "cdtarefaevento") || ""); const u = usuarioNome.get(String(guRu.g(r, "cdusuario") || ""))?.nome;
+        if (k && u) respTarefa.set(k, [...(respTarefa.get(k) || []), u]);
+      }
       const guWe = gu("workflowexecucao");
       if (guWe) for (const r of guWe.linhas) if (norm(guWe.g(r, "cdmodulo")) === "4") {
         const p = controleProc.get(String(guWe.g(r, "cdworkflowcontrole") || ""));
@@ -418,15 +436,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const concluido = norm(guTe.g(r, "flconcluido")) === "s" || !!paraData(guTe.g(r, "dtconclusao"));
           const status = concluido ? "cumprido" : mapearSituacao("", data);
           const criador = usuarioNome.get(String(guTe.g(r, "cdusuariocriador") || ""))?.nome || "";
-          let respId = respCache.get(criador);
-          if (respId === undefined) { respId = casarNome(criador); respCache.set(criador, respId); }
+          const casar = (n: string) => { let id = respCache.get(n); if (id === undefined) { id = casarNome(n); respCache.set(n, id); } return id; };
+          const respsProjuris = (respTarefa.get(chave) || []).map(casar).filter(Boolean) as string[];
+          const respId = respsProjuris[0] || casar(criador);
           const ident = String(guTe.g(r, "deidentificador") || "").trim().toUpperCase();
-          const procDig = vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
+          const cpVinc = tarefaVincProc.get(String(guTe.g(r, "cdtarefa") || ""));
+          const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
             chave, motivo, ident, procDig,
             titulo: det || "(sem título)", tipo: classificarTipo(det, tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || ""),
             data, fatal: limite && limite !== prevista ? limite : null, status,
-            conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, criadorNome: criador,
+            conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
           });
           if (tarefasRows.length % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
         }
@@ -593,8 +613,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: e.message, dados: { titulo: String(l.titulo).slice(0, 200) } }))); }
           else {
             const rows = ((data as any[]) || []);
-            const respList = parte.map((l) => l.responsavelId || userId);
-            for (let j = 0; j < rows.length; j += 500) await supabase.from("tarefa_responsaveis").insert(rows.slice(j, j + 500).map((r, jj) => ({ tarefa_id: r.id, usuario_id: respList[j + jj] })) as any);
+            const respRows = rows.flatMap((r, j) => Array.from(new Set([parte[j].responsavelId || userId, ...((parte[j].outrosResp as string[]) || [])])).map((u) => ({ tarefa_id: r.id, usuario_id: u })));
+            for (let j = 0; j < respRows.length; j += 500) await supabase.from("tarefa_responsaveis").insert(respRows.slice(j, j + 500) as any);
             await log(rows.map((r, j) => ({ tipo: tipoItem, chave_externa: String(parte[j].chave), registro_id: r.id, status: "criado", dados: { titulo: String(parte[j].titulo).slice(0, 200), tipo: parte[j].tipo, data: parte[j].data } })));
             cont.criados += rows.length;
           }
@@ -763,7 +783,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               <Secao titulo="1. Processos" ls={conf.processos} mod="processos" tipo="processos"
                 desc="Cadastra os processos pelo número CNJ. Não duplica; processos já cadastrados recebem a coordenação de destino como responsável." />
               <Secao titulo="2. Tarefas" ls={conf.tarefas} mod="tarefas" tipo="tarefas"
-                desc={`A ligação tarefa → processo vem do Relatório de Atividades do Projuris (colunas Identificador e Processo Vinculado). ${vincTarefas.toLocaleString("pt-BR")} tarefas com processo carregadas; ${conf.tarefas.filter((l) => l.procDig).length.toLocaleString("pt-BR")} do backup foram ligadas. Envie o relatório completo junto com o zip antes de analisar.`} />
+                desc={`A ligação tarefa → processo vem da tabela tarefavinculomodulo do Projuris (prioritária); sem ela, do Relatório de Atividades, dos fluxos e das intimações. Responsáveis vêm de retarefaeventousuario. ${conf.tarefas.filter((l) => l.procDig).length.toLocaleString("pt-BR")} tarefas do backup foram ligadas a processo.`} />
               <Secao titulo="3. Andamentos" ls={conf.andamentos} mod="andamentos" tipo="andamentos"
                 desc="Vinculados ao processo pelo arquivo andamentovinculomodulo. Sem repetir processo + data + descrição." />
             </CardContent>
@@ -776,7 +796,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               </CardHeader>
               <CardContent className="space-y-2 text-sm">
                 {conf.comentarios > 0 && (
-                  <p><strong>{conf.comentarios.toLocaleString("pt-BR")} comentários:</strong> o backup não traz a tabela que liga comentário à tarefa ou ao processo (o Mapeamento de Arquivos enviado pelo Projuris também não traz comentários). Ficam de fora até chegar essa tabela.</p>
+                  <p><strong>{conf.comentarios.toLocaleString("pt-BR")} comentários:</strong> a ligação vem da tabela comentariovinculomodulo. Os comentários das tarefas já migradas foram importados em 22/10/2026; tarefas novas recebem os comentários pela equipe técnica.</p>
                 )}
                 {conf.arquivos.total > 0 && (
                   <p><strong>{conf.arquivos.total.toLocaleString("pt-BR")} anexos</strong> no cadastro do backup: são importados na etapa <strong>4. Anexos</strong> abaixo, usando o Mapeamento de Arquivos do Projuris e os zips. Anexos fora do mapeamento ficam sem vínculo.</p>
