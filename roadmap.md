@@ -1,8 +1,9 @@
 # Roadmap — Considerações 02/09
 
 ## Aviso de inclusão como responsável
-- [ ] Notificar novos responsáveis nas tarefas, sem duplicar os avisos de criação.
-- [ ] Testar inclusão e troca de responsável.
+- [x] Notificar inclusão/troca de responsável e corresponsável no sino, mantendo avisos de criação e evitando repetições rápidas.
+- [x] Testar inclusão e troca em transação revertida, link e ausência de duplicação; nenhum dado de teste persistiu.
+- [ ] Conferir aviso pela tela autenticada — sessão indisponível no Supabase externo; testes transacionais aprovados.
 
 ## Classificação de audiências Projuris
 - [x] Exigir audiência no título na classificação de importação e testar a regra (3 testes aprovados).
