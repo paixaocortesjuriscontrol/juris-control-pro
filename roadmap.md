@@ -1,5 +1,9 @@
 # Roadmap — Considerações 02/09
 
+## Classificação de audiências Projuris
+- [ ] Exigir audiência no título na classificação de importação e testar a regra.
+- [ ] Conferir e corrigir itens Projuris já classificados como audiência sem essa palavra, preservando vínculos e situações.
+
 ## Abas no detalhe das pautas
 - [x] Incluir Processo com o formulário existente e Judit com as consultas já armazenadas, sem pesquisa automática ao abrir.
 - [x] Completar Judit da pauta com análise, movimentações, capa/partes, anexos e log usando os painéis existentes.
