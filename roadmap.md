@@ -1,9 +1,10 @@
 # Roadmap — Considerações 02/09
 
 ## Avisos multicanal de alterações e cobranças
-- [ ] Centralizar avisos de participantes e alterações para todos os tipos, incluindo quem alterou.
-- [ ] Notificar cobranças com e sem comentário, sem repetição.
-- [ ] Respeitar preferências individuais de canais e testar regras.
+- [x] Centralizar avisos de participantes e alterações para todos os tipos, incluindo quem alterou.
+- [x] Notificar cobranças com e sem comentário, sem repetir comentário + bolinha C.
+- [x] Respeitar preferências individuais de canais; 3 testes Deno e teste SQL transacional aprovados para tarefas/prazos/atas/eventos/audiências/parcelas.
+- [ ] Confirmar recebimento real no sistema, e-mail e WhatsApp — sessão autenticada indisponível no Supabase externo; função publicada e processamento da fila confirmado.
 
 ## Aviso de inclusão como responsável
 - [x] Notificar inclusão/troca de responsável e corresponsável no sino, mantendo avisos de criação e evitando repetições rápidas.
