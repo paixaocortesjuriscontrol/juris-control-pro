@@ -236,7 +236,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">4. Anexos {feito && <Badge className="bg-emerald-600 text-white"><CheckCircle2 className="mr-1 h-3 w-3" />importado</Badge>}</CardTitle>
         <CardDescription>
-          Envie o arquivo <strong>Mapeamento de Arquivos</strong> (.csv) do Projuris e os zips com os arquivos. Cada anexo vai para a ficha do processo
+          Envie <strong>arquivo.csv</strong> + <strong>arquivovinculomodulo.csv</strong> do backup (ou o Mapeamento de Arquivos) e os zips com os arquivos — os zips são lidos aqui no navegador, sem limite de tamanho. Cada anexo vai para a tarefa (e o processo dela) ou para a ficha do processo
           (ou para a tarefa) já importado, com o nome original. Faça antes as etapas Processos e Tarefas. Pode repetir quando chegarem mais arquivos: os já enviados são pulados.
         </CardDescription>
       </CardHeader>
@@ -244,7 +244,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 text-center hover:bg-muted/40"
           onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void abrir(e.dataTransfer.files); }}>
           <Upload className="h-6 w-6 text-muted-foreground" />
-          <span className="text-sm font-medium">Arraste o mapeamento (.csv) e os zips dos anexos</span>
+          <span className="text-sm font-medium">Arraste arquivo.csv, arquivovinculomodulo.csv e os zips dos anexos</span>
           <input type="file" multiple className="hidden" accept=".csv,.zip" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
         </label>
         {lendo && (
@@ -256,7 +256,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant={mapa.length ? "secondary" : "outline"}>Mapeamento: {mapa.length ? `${mapa.length.toLocaleString("pt-BR")} arquivos` : "não enviado"}</Badge>
           <Badge variant={zips.length ? "secondary" : "outline"}>Zips: {zips.length} ({totalZip.toLocaleString("pt-BR")} arquivos)</Badge>
-          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
+          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); infoRef.current = new Map(); vincRef.current = []; }}>Limpar</Button>}
         </div>
         <div className="flex items-center gap-3">
           <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || analisando} onClick={() => void analisar()}>
