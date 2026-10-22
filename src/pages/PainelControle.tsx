@@ -1854,12 +1854,35 @@ export default function PainelControle() {
       toast.error("Nenhuma atividade encontrada para o período e tipos selecionados.");
       return;
     }
+    void XLSX;
 
-    const ws = XLSX.utils.json_to_sheet(rowsFinal);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Atividades");
+    const fmtBr = (s: string) => (s ? s.split("-").reverse().join("/") : "");
+    const periodoLabel =
+      !inicio && !fim ? "Todas as datas" : inicio === fim ? fmtBr(inicio) : `${fmtBr(inicio)} a ${fmtBr(fim)}`;
+    const nomesTipo: Record<string, string> = {
+      tarefa: "Tarefas", ata: "Atas", evento: "Eventos", prazo: "Prazos", audiencia: "Audiências", parcelamento: "Parcelamentos",
+    };
+    const tiposLabel = tipos.length === 0 ? "Todos os tipos" : tipos.map((t) => nomesTipo[t] ?? t).join(", ");
+    const tipoSingular: Record<string, string> = {
+      tarefa: "Tarefa", ata: "Ata", evento: "Evento", prazo: "Prazo", audiencia: "Audiência", parcelamento: "Parcelamento",
+    };
+    const linhas = rowsFinal.map((r, i) => {
+      const { Classificação, Status, ...resto } = r as any;
+      return {
+        Tipo: tipoSingular[classificarItem(itensOrdenados[i])] ?? Classificação,
+        Subtipo: itensOrdenados[i]?.tipo_tarefa ?? "",
+        Situação: Status ?? "",
+        ...resto,
+      };
+    });
+    const { gerarRelatorioAtividadesExcel } = await import("@/lib/relatorioAtividadesExcel");
     const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
-    XLSX.writeFile(wb, `atividades_${stamp}.xlsx`);
+    await gerarRelatorioAtividadesExcel({
+      linhas,
+      periodoLabel,
+      tiposLabel,
+      nomeArquivo: `relatorio_atividades_${stamp}.xlsx`,
+    });
     toast.success(`${rowsFinal.length} atividade(s) exportada(s).`);
   };
 
