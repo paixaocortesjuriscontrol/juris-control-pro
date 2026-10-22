@@ -350,6 +350,24 @@ serve(async (req) => {
           coordNome = c?.nome ?? null;
         }
 
+        // Quantas coordenações cada destinatário tem (membro ou coordenador titular)
+        const qtdCoordPorUsuario = new Map<string, number>();
+        if (coordNome) {
+          const sets = new Map<string, Set<string>>();
+          const add = (u: string, c: string) => {
+            if (!u || !c) return;
+            if (!sets.has(u)) sets.set(u, new Set());
+            sets.get(u)!.add(c);
+          };
+          const { data: mems } = await supabase.from("membros_coordenacao")
+            .select("usuario_id, coordenacao_id").in("usuario_id", responsaveis);
+          for (const m of mems ?? []) add((m as any).usuario_id, (m as any).coordenacao_id);
+          const { data: tits } = await supabase.from("coordenacoes")
+            .select("id, coordenador_id").in("coordenador_id", responsaveis);
+          for (const t of tits ?? []) add((t as any).coordenador_id, (t as any).id);
+          for (const [u, s] of sets) qtdCoordPorUsuario.set(u, s.size);
+        }
+
         // Detalhes específicos da entidade
         const detalhes = await buscarDetalhesEntidade(supabase, item.entidade, item.entidade_id);
 
@@ -449,7 +467,10 @@ serve(async (req) => {
           if (!dentroDaJanela(cfg.janela_hora_inicio, cfg.janela_hora_fim)) continue;
 
           if (cfg.canal_email && p.email) {
-            const r = await enviarEmail(p.email, assunto, corpo, html);
+            const assuntoUsuario = coordNome && (qtdCoordPorUsuario.get(p.id) ?? 0) > 1
+              ? `[${coordNome}] ${assunto}`
+              : assunto;
+            const r = await enviarEmail(p.email, assuntoUsuario, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
               tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
               coordenacao_id: item.coordenacao_id ?? null,
