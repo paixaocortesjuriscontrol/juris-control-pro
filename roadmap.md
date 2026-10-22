@@ -1,8 +1,8 @@
 # Roadmap — Considerações 02/09
 
 ## Classificação de audiências Projuris
-- [ ] Exigir audiência no título na classificação de importação e testar a regra.
-- [ ] Conferir e corrigir itens Projuris já classificados como audiência sem essa palavra, preservando vínculos e situações.
+- [x] Exigir audiência no título na classificação de importação e testar a regra (3 testes aprovados).
+- [x] Corrigir itens Projuris da Santander Cível sem essa palavra: 346 tarefas e 3 prazos; nenhum restante nesse escopo, vínculos e situações verificados no banco. Itens de origem Ástrea não alterados.
 
 ## Abas no detalhe das pautas
 - [x] Incluir Processo com o formulário existente e Judit com as consultas já armazenadas, sem pesquisa automática ao abrir.
