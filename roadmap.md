@@ -138,6 +138,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [ ] Conferir distribuição autenticada — sessão indisponível para o Supabase externo deste projeto.
 
 ## Importação de anexos Projuris
+- [ ] Conferir falso processo ausente e caminhos em zip consolidado; melhorar diagnóstico sem importar ou alterar vínculos.
 - [x] Corrigir reconhecimento dos caminhos e dos nomes interno/original/final; separar relatórios internos dos arquivos ausentes (12 testes aprovados).
 - [x] Acelerar conferência/envio e mostrar progresso real nos dois modos, mantendo a proteção contra repetição.
 - [x] Validar fila, auditoria em lotes, progresso parcial e apresentação das barras (7 testes aprovados).
