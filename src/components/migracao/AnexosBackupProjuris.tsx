@@ -12,7 +12,7 @@ import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
 import { sanitizarNome } from "@/lib/migracaoProjuris";
-import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
+import { montarMapaBackup, indexarAnexosZip, nomeBaseAnexo, motivoModuloAnexo } from "@/lib/mapaAnexosProjuris";
 
 /**
  * Etapa 4 do backup: anexos.
@@ -20,7 +20,7 @@ import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
  * e os zips com os arquivos físicos. Módulo 3 = processo (identificador_projuris do processo),
  * módulo 4 = tarefa (identificador_projuris da tarefa). Relatórios (52) e importações (85) ficam fora.
  */
-type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
+type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string; nomeFinal?: string };
 type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry; docExistente?: string };
 const CANCELADO = new Error("__cancelado__");
 
@@ -41,13 +41,13 @@ const parseCsv = (txt: string) => {
 };
 
 
-const baseArq = (p: string) => (p.split("/").pop() || p).toLowerCase();
+const baseArq = nomeBaseAnexo;
 const ceder = () => new Promise((r) => setTimeout(r, 0));
 
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
 
 export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }: Props) {
-  const infoRef = useRef(new Map<string, { caminho: string; nome: string }>());
+  const infoRef = useRef(new Map<string, { caminho: string; nome: string; nomeFinal?: string }>());
   const vincRef = useRef<{ cd: string; modulo: string; entidade: string }[]>([]);
   const [mapa, setMapa] = useState<Map_[]>([]);
   const [zips, setZips] = useState<{ nome: string; entries: Entry[] }[]>([]);
@@ -78,8 +78,8 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           const iCd = ix("cdarquivo");
           if (iCd >= 0 && ix("decaminhoarquivo") >= 0) {
             // arquivo.csv do backup
-            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem");
-            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || "") }); });
+            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem"), iFinal = ix("nmarquivofinal");
+            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || ""), nomeFinal: (r[iFinal] || "").trim() }); });
             toast.success(`${f.name}: ${infoRef.current.size.toLocaleString("pt-BR")} arquivos cadastrados`);
           } else if (iCd >= 0 && ix("cdregistrovinculo") >= 0 && ix("cdmodulo") >= 0) {
             // arquivovinculomodulo.csv do backup
@@ -87,9 +87,9 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
             vincRef.current = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: (r[iMod] || "").trim(), entidade: (r[iReg] || "").trim() }));
             toast.success(`${f.name}: ${vincRef.current.length.toLocaleString("pt-BR")} ligações de anexos`);
           } else {
-            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
+            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome"), iFinal = ix("nome_final");
             if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: envie arquivo.csv + arquivovinculomodulo.csv ou o Mapeamento de Arquivos do Projuris`); continue; }
-            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
+            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]), nomeFinal: (r[iFinal] || "").trim() }));
             setMapa(lista);
             toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
           }
@@ -117,12 +117,12 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
     setMsg("Cruzando arquivos...");
     setAnalysisProgress({ done: 0, total: 0 });
     try {
-      const porNome = new Map<string, Entry>();
-      zips.forEach((z) => z.entries.forEach((e) => porNome.set(baseArq(e.filename), e)));
+      const localizar = indexarAnexosZip(zips.flatMap(z => z.entries));
+      const correspondencias = new Map(mapa.map(m => [m, localizar(m)]));
       // já migrados
       const migrados = new Set<string>();
       // Search only files present in this upload, rather than every attachment in the backup.
-      const presentes = mapa.filter(m => porNome.has(baseArq(m.caminho)));
+      const presentes = mapa.filter(m => !motivoModuloAnexo(m.modulo) && correspondencias.get(m)?.entry);
       const cds = Array.from(new Set(presentes.map(m => m.cd)));
       const procIds = Array.from(new Set(presentes.filter(m => m.modulo === "3").map(m => m.entidade)));
       const tarIds = Array.from(new Set(presentes.filter(m => m.modulo === "4").map(m => m.entidade)));
@@ -162,13 +162,13 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       const ls: Linha[] = mapa.map((m) => {
         let motivo: string | null = null;
         let processoId: string | null = null, tarefaId: string | null = null;
-        if (!porNome.has(baseArq(m.caminho))) motivo = "Arquivo não encontrado nos zips";
-        else if (m.modulo === "52") motivo = "Relatório gerado pelo Projuris (não é anexo de caso)";
-        else if (m.modulo === "85") motivo = "Planilha de importação do Projuris (não é anexo de caso)";
-        else if (m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Processo não importado (faça a etapa Processos)"; }
-        else if (m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Tarefa não importada (faça a etapa Tarefas)"; }
-        else motivo = `Vinculado a outro módulo do Projuris (${m.modulo})`;
-        const entry = porNome.get(baseArq(m.caminho));
+        const match = correspondencias.get(m);
+        motivo = motivoModuloAnexo(m.modulo);
+        if (!motivo && match?.ambiguous) motivo = "Nome repetido em pastas diferentes dos zips (vínculo não confirmado)";
+        if (!motivo && !match?.entry) motivo = "Arquivo não encontrado nos zips";
+        if (!motivo && m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Processo não importado (faça a etapa Processos)"; }
+        else if (!motivo && m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Tarefa não importada (faça a etapa Tarefas)"; }
+        const entry = match?.entry;
         if (!motivo && migrados.has(m.cd)) motivo = "Já migrado antes";
         if (!motivo && vistos.has(m.cd)) motivo = "Repetido no mapeamento";
         if (!motivo && !entry) motivo = "Arquivo não encontrado nos zips";
@@ -338,6 +338,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         {conf && (
           <div className="space-y-1 rounded-md border p-3">
             {resumo.map(([k, n]) => <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>)}
+            {conf.some(l => l.motivo === "Arquivo não encontrado nos zips") && <details className="pt-2 text-xs"><summary className="cursor-pointer font-medium">Conferir exemplos de arquivos não encontrados</summary><div className="mt-2 space-y-2">{conf.filter(l => l.motivo === "Arquivo não encontrado nos zips").slice(0, 10).map((l, i) => <div key={i} className="break-all"><p>{l.nome}</p><p className="text-muted-foreground">Caminho no cadastro: {l.caminho}</p></div>)}</div></details>}
             <div className="flex gap-2 pt-2">
               <Button size="sm" disabled={rodando || feito || !okN} onClick={() => void importar()}>
                 {rodando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Importar {okN.toLocaleString("pt-BR")} anexos
