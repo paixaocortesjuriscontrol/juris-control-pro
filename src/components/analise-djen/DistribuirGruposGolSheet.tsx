@@ -111,6 +111,7 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
         return f?.usuario_id || f?.responsavel_id || (coords || []).find((c: any) => c.id === coordId)?.coordenador_id || null;
       };
       let ok = 0;
+      let replicaFalhas = 0;
       for (const l of sel) {
         const g = destinos.find((x) => x.key === l.grupo);
         if (!g) continue;
@@ -139,6 +140,33 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
             .update({ lida: true } as any)
             .eq("id", c.id);
         }
+        // Replica a publicação (uma cópia) na coordenação que recebeu a distribuição
+        try {
+          const base = l.copias[0] || l.pub;
+          const tabela = base.tipo_origem === "termo" ? "publicacoes_djen" : "publicacoes_djen_processos";
+          const { data: orig } = await supabase.from(tabela as any).select("*").eq("id", base.id).maybeSingle();
+          if (orig) {
+            const o: any = orig;
+            const { data: existe } = await supabase
+              .from(tabela as any)
+              .select("id")
+              .eq("coordenacao_id", g.coordenacaoId)
+              .eq("hash_conteudo", o.hash_conteudo)
+              .limit(1);
+            let replicaId: string | null = (existe as any[])?.[0]?.id || null;
+            if (!replicaId) {
+              const { id: _i, created_at: _c, ...resto } = o;
+              const { data: nova, error: errRep } = await supabase
+                .from(tabela as any)
+                .insert({ ...resto, coordenacao_id: g.coordenacaoId, lida: false, dedup_conteudo_key: null } as any)
+                .select("id")
+                .single();
+              if (errRep) { console.error("Replicação:", errRep); replicaFalhas++; }
+              replicaId = (nova as any)?.id || null;
+            }
+            if (replicaId) await vincularItemPublicacao({ id: t.id, tipo: "tarefa" }, { tipo: base.tipo_origem, id: replicaId });
+          }
+        } catch (e) { console.error(e); replicaFalhas++; }
         ok++;
       }
       await invalidarItensAgenda(qc);
