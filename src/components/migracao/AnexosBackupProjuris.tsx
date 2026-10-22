@@ -82,13 +82,31 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         if (/\.csv$/i.test(f.name)) {
           setLendo(f.name);
           const rows = parseCsv(await f.text());
-          const h = rows[0].map((x) => x.trim().toLowerCase());
+          const h = rows[0].map((x) => x.trim().toLowerCase().replace(/^\ufeff/, ""));
           const ix = (n: string) => h.indexOf(n);
-          const iCd = ix("cdarquivo"), iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
-          if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: não é o Mapeamento de Arquivos do Projuris`); continue; }
-          const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
-          setMapa(lista);
-          toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
+          const iCd = ix("cdarquivo");
+          if (iCd >= 0 && ix("decaminhoarquivo") >= 0) {
+            // arquivo.csv do backup
+            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem");
+            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || "") }); });
+            toast.success(`${f.name}: ${infoRef.current.size.toLocaleString("pt-BR")} arquivos cadastrados`);
+          } else if (iCd >= 0 && ix("cdregistrovinculo") >= 0 && ix("cdmodulo") >= 0) {
+            // arquivovinculomodulo.csv do backup
+            const iMod = ix("cdmodulo"), iReg = ix("cdregistrovinculo");
+            vincRef.current = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: (r[iMod] || "").trim(), entidade: (r[iReg] || "").trim() }));
+            toast.success(`${f.name}: ${vincRef.current.length.toLocaleString("pt-BR")} ligações de anexos`);
+          } else {
+            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
+            if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: envie arquivo.csv + arquivovinculomodulo.csv ou o Mapeamento de Arquivos do Projuris`); continue; }
+            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
+            setMapa(lista);
+            toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
+          }
+          if (infoRef.current.size && vincRef.current.length) {
+            const m = montarMapaBackup(infoRef.current, vincRef.current);
+            setMapa(m);
+            toast.success(`${m.length.toLocaleString("pt-BR")} anexos prontos para cruzar com os zips`);
+          }
         } else if (/\.zip$/i.test(f.name)) {
           setLendo(`${f.name} (listando...)`);
           const entries = (await new ZipReader(new BlobReader(f)).getEntries()).filter((e) => !e.directory);
