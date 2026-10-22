@@ -14,3 +14,4 @@
 - O tipo "Ata" vive em `tarefas` com `tipo_tarefa = "ATA"` e chega à agenda com `tipo = "tarefa"`; a cor própria (violeta) é resolvida por `corKeyItem`/`isItemAta` de `src/lib/tipoItemAgenda.ts`, usada em todas as visões, para não quebrar filtros e contagens que dependem de `tipo`.
 - GOL publication distribution uses one shared right-side Sheet for individual and bulk actions; destination labels are loaded from coordination records by their stable IDs so renaming stays consistent.
 - Projuris attachment imports share byte-level upload progress, bounded workers and serialized batched audit writes; this keeps transfers visible without per-file audit request overhead or unbounded memory usage.
+- Projuris ZIP matching normalizes Windows/Unix paths and Unicode, tries stored names before unique original names, and rejects ambiguous matches; module exclusions precede missing-file counts to avoid false diagnoses and wrong attachments.

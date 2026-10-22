@@ -12,7 +12,7 @@ import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
 import { sanitizarNome } from "@/lib/migracaoProjuris";
-import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
+import { montarMapaBackup, indexarAnexosZip, nomeBaseAnexo, motivoModuloAnexo } from "@/lib/mapaAnexosProjuris";
 
 /**
  * Etapa 4 do backup: anexos.
@@ -41,7 +41,7 @@ const parseCsv = (txt: string) => {
 };
 
 
-const baseArq = (p: string) => (p.split("/").pop() || p).toLowerCase();
+const baseArq = nomeBaseAnexo;
 const ceder = () => new Promise((r) => setTimeout(r, 0));
 
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
@@ -117,12 +117,12 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
     setMsg("Cruzando arquivos...");
     setAnalysisProgress({ done: 0, total: 0 });
     try {
-      const porNome = new Map<string, Entry>();
-      zips.forEach((z) => z.entries.forEach((e) => porNome.set(baseArq(e.filename), e)));
+      const localizar = indexarAnexosZip(zips.flatMap(z => z.entries));
+      const correspondencias = new Map(mapa.map(m => [m, localizar(m)]));
       // já migrados
       const migrados = new Set<string>();
       // Search only files present in this upload, rather than every attachment in the backup.
-      const presentes = mapa.filter(m => porNome.has(baseArq(m.caminho)));
+      const presentes = mapa.filter(m => !motivoModuloAnexo(m.modulo) && correspondencias.get(m)?.entry);
       const cds = Array.from(new Set(presentes.map(m => m.cd)));
       const procIds = Array.from(new Set(presentes.filter(m => m.modulo === "3").map(m => m.entidade)));
       const tarIds = Array.from(new Set(presentes.filter(m => m.modulo === "4").map(m => m.entidade)));
@@ -162,13 +162,13 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       const ls: Linha[] = mapa.map((m) => {
         let motivo: string | null = null;
         let processoId: string | null = null, tarefaId: string | null = null;
-        if (!porNome.has(baseArq(m.caminho))) motivo = "Arquivo não encontrado nos zips";
-        else if (m.modulo === "52") motivo = "Relatório gerado pelo Projuris (não é anexo de caso)";
-        else if (m.modulo === "85") motivo = "Planilha de importação do Projuris (não é anexo de caso)";
-        else if (m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Processo não importado (faça a etapa Processos)"; }
-        else if (m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Tarefa não importada (faça a etapa Tarefas)"; }
-        else motivo = `Vinculado a outro módulo do Projuris (${m.modulo})`;
-        const entry = porNome.get(baseArq(m.caminho));
+        const match = correspondencias.get(m);
+        motivo = motivoModuloAnexo(m.modulo);
+        if (!motivo && match?.ambiguous) motivo = "Nome repetido em pastas diferentes dos zips (vínculo não confirmado)";
+        if (!motivo && !match?.entry) motivo = "Arquivo não encontrado nos zips";
+        if (!motivo && m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Processo não importado (faça a etapa Processos)"; }
+        else if (!motivo && m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Tarefa não importada (faça a etapa Tarefas)"; }
+        const entry = match?.entry;
         if (!motivo && migrados.has(m.cd)) motivo = "Já migrado antes";
         if (!motivo && vistos.has(m.cd)) motivo = "Repetido no mapeamento";
         if (!motivo && !entry) motivo = "Arquivo não encontrado nos zips";
@@ -338,6 +338,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         {conf && (
           <div className="space-y-1 rounded-md border p-3">
             {resumo.map(([k, n]) => <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>)}
+            {conf.some(l => l.motivo === "Arquivo não encontrado nos zips") && <details className="pt-2 text-xs"><summary className="cursor-pointer font-medium">Conferir exemplos de arquivos não encontrados</summary><div className="mt-2 space-y-2">{conf.filter(l => l.motivo === "Arquivo não encontrado nos zips").slice(0, 10).map((l, i) => <div key={i} className="break-all"><p>{l.nome}</p><p className="text-muted-foreground">Caminho no cadastro: {l.caminho}</p></div>)}</div></details>}
             <div className="flex gap-2 pt-2">
               <Button size="sm" disabled={rodando || feito || !okN} onClick={() => void importar()}>
                 {rodando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Importar {okN.toLocaleString("pt-BR")} anexos
