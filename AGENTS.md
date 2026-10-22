@@ -13,3 +13,4 @@
 - App mobile é PWA só com manifest (`public/manifest.webmanifest`, sem service worker); no celular o `MainLayout` mostra `MobileBottomNav`, que abre o menu lateral pelo evento `abrir-menu-mobile`, para manter um único menu com as mesmas permissões.
 - O tipo "Ata" vive em `tarefas` com `tipo_tarefa = "ATA"` e chega à agenda com `tipo = "tarefa"`; a cor própria (violeta) é resolvida por `corKeyItem`/`isItemAta` de `src/lib/tipoItemAgenda.ts`, usada em todas as visões, para não quebrar filtros e contagens que dependem de `tipo`.
 - GOL publication distribution uses one shared right-side Sheet for individual and bulk actions; destination labels are loaded from coordination records by their stable IDs so renaming stays consistent.
+- Projuris attachment imports share byte-level upload progress, bounded workers and serialized batched audit writes; this keeps transfers visible without per-file audit request overhead or unbounded memory usage.

@@ -121,3 +121,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Mostrar nomes cadastrados das coordenações e ampliar detalhes da revisão em lote.
 - [x] Disponibilizar acesso à distribuição de uma única publicação.
 - [ ] Conferir distribuição autenticada — sessão indisponível para o Supabase externo deste projeto.
+
+## Importação de anexos Projuris
+- [ ] Acelerar conferência/envio e mostrar progresso real nos dois modos, mantendo a proteção contra repetição.
+- [ ] Validar fila, progresso e envio; acesso autenticado real indisponível no Supabase externo.
