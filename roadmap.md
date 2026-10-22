@@ -1,5 +1,9 @@
 # Roadmap — Considerações 02/09
 
+## Aviso de inclusão como responsável
+- [ ] Notificar novos responsáveis nas tarefas, sem duplicar os avisos de criação.
+- [ ] Testar inclusão e troca de responsável.
+
 ## Classificação de audiências Projuris
 - [x] Exigir audiência no título na classificação de importação e testar a regra (3 testes aprovados).
 - [x] Corrigir itens Projuris da Santander Cível sem essa palavra: 346 tarefas e 3 prazos; nenhum restante nesse escopo, vínculos e situações verificados no banco. Itens de origem Ástrea não alterados.
