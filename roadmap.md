@@ -123,5 +123,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [ ] Conferir distribuição autenticada — sessão indisponível para o Supabase externo deste projeto.
 
 ## Importação de anexos Projuris
-- [ ] Acelerar conferência/envio e mostrar progresso real nos dois modos, mantendo a proteção contra repetição.
-- [ ] Validar fila, progresso e envio; acesso autenticado real indisponível no Supabase externo.
+- [x] Acelerar conferência/envio e mostrar progresso real nos dois modos, mantendo a proteção contra repetição.
+- [x] Validar fila, auditoria em lotes, progresso parcial e apresentação das barras (7 testes aprovados).
+- [ ] Medir envio com zip real — acesso autenticado indisponível no Supabase externo deste projeto.
