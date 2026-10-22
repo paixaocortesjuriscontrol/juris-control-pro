@@ -548,6 +548,22 @@ export default function PainelControle() {
     enabled: isAdmin,
   });
 
+  // Coordenações disponíveis no relatório Excel (admin: todas; demais: as suas)
+  const { data: coordenacoesExport = [] } = useQuery({
+    queryKey: ["painel-controle-coordenacoes-export", isAdmin, coordenacoesUsuario],
+    queryFn: async () => {
+      let q = supabase.from("coordenacoes").select("id, nome").order("nome");
+      if (!isAdmin) {
+        if (!coordenacoesUsuario.length) return [];
+        q = q.in("id", coordenacoesUsuario);
+      }
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
   // Membros da coordenação filtrada (admin) — inclui coordenador
   const { data: membrosCoordFiltrada = [], isLoading: membrosFilterLoading } = useQuery({
     queryKey: ["painel-controle-membros-coord-filtrada", adminCoordFilter],
@@ -1539,7 +1555,7 @@ export default function PainelControle() {
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
-  const exportarAtividades = async (inicio: string, fim: string, tipos: string[]) => {
+  const exportarAtividades = async (inicio: string, fim: string, tipos: string[], coordIds: string[] = []) => {
     const XLSX = await import("xlsx");
 
     const dataRefItem = (it: any) => {
@@ -1576,6 +1592,10 @@ export default function PainelControle() {
     const recorrentesVistos = new Set<string>();
     const itensExport = baseItens.filter((it: any) => {
       if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
+      if (coordIds.length > 0) {
+        const cid = it.coordenacao_id ?? it.processo?.coordenacao_id ?? null;
+        if (!cid || !coordIds.includes(cid)) return false;
+      }
       if (inicio || fim) {
         const { prev, fatal } = dataRefItem(it);
         const dentro = (d: string) =>
@@ -2778,6 +2798,7 @@ export default function PainelControle() {
                 open={exportOpen}
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
+                coordenacoes={coordenacoesExport}
               />
               <Button
                 size="sm"

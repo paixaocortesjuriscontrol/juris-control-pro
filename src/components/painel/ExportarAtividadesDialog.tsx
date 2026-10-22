@@ -19,7 +19,8 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** tipos vazio = todos */
-  onExportar: (inicio: string, fim: string, tipos: string[]) => Promise<void> | void;
+  onExportar: (inicio: string, fim: string, tipos: string[], coordIds: string[]) => Promise<void> | void;
+  coordenacoes?: { id: string; nome: string }[];
 }
 
 const hojeBrt = () =>
@@ -27,11 +28,12 @@ const hojeBrt = () =>
 
 type Modo = "hoje" | "periodo" | "todas";
 
-export function ExportarAtividadesDialog({ open, onOpenChange, onExportar }: Props) {
+export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coordenacoes = [] }: Props) {
   const [modo, setModo] = useState<Modo>("hoje");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [tipos, setTipos] = useState<string[]>([]);
+  const [coords, setCoords] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
   const todos = tipos.length === 0;
@@ -46,7 +48,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar }: Pro
     const [ini, fi] = modo === "hoje" ? [h, h] : modo === "periodo" ? [inicio, fim] : ["", ""];
     setLoading(true);
     try {
-      await onExportar(ini, fi, tipos);
+      await onExportar(ini, fi, tipos, coords);
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -112,6 +114,29 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar }: Pro
               ))}
             </div>
           </div>
+          {coordenacoes.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coordenações</p>
+              <label className="flex items-center gap-2 text-sm cursor-pointer mb-1.5">
+                <Checkbox checked={coords.length === 0} onCheckedChange={() => setCoords([])} />
+                Todas as coordenações
+              </label>
+              <div className="space-y-1.5 max-h-64 overflow-y-auto pr-1">
+                {coordenacoes.map((c) => (
+                  <label key={c.id} className="flex items-start gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      className="mt-0.5"
+                      checked={coords.includes(c.id)}
+                      onCheckedChange={() =>
+                        setCoords((p) => (p.includes(c.id) ? p.filter((x) => x !== c.id) : [...p, c.id]))
+                      }
+                    />
+                    <span className="leading-tight">{c.nome}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <SheetFooter className="gap-2">
