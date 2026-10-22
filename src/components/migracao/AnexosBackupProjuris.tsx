@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
 import { sanitizarNome } from "@/lib/migracaoProjuris";
+import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
 
 /**
  * Etapa 4 do backup: anexos.
@@ -20,24 +21,30 @@ type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaI
 const CANCELADO = new Error("__cancelado__");
 
 const parseCsv = (txt: string) => {
+  const primeira = txt.slice(0, txt.indexOf("\n") > 0 ? txt.indexOf("\n") : 500);
+  const sep = (primeira.split(";").length > primeira.split(",").length) ? ";" : ",";
   const linhas: string[][] = []; let campo = "", linha: string[] = [], q = false;
   for (let i = 0; i < txt.length; i++) {
     const c = txt[i];
     if (q) { if (c === '"') { if (txt[i + 1] === '"') { campo += '"'; i++; } else q = false; } else campo += c; }
     else if (c === '"') q = true;
-    else if (c === ",") { linha.push(campo); campo = ""; }
+    else if (c === sep) { linha.push(campo); campo = ""; }
     else if (c === "\n") { linha.push(campo); linhas.push(linha); linha = []; campo = ""; }
     else if (c !== "\r") campo += c;
   }
   if (campo || linha.length) { linha.push(campo); linhas.push(linha); }
   return linhas;
 };
+
+
 const baseArq = (p: string) => (p.split("/").pop() || p).toLowerCase();
 const ceder = () => new Promise((r) => setTimeout(r, 0));
 
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
 
 export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }: Props) {
+  const infoRef = useRef(new Map<string, { caminho: string; nome: string }>());
+  const vincRef = useRef<{ cd: string; modulo: string; entidade: string }[]>([]);
   const [mapa, setMapa] = useState<Map_[]>([]);
   const [zips, setZips] = useState<{ nome: string; entries: Entry[] }[]>([]);
   const [conf, setConf] = useState<Linha[] | null>(null);
@@ -60,13 +67,31 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         if (/\.csv$/i.test(f.name)) {
           setLendo(f.name);
           const rows = parseCsv(await f.text());
-          const h = rows[0].map((x) => x.trim().toLowerCase());
+          const h = rows[0].map((x) => x.trim().toLowerCase().replace(/^\ufeff/, ""));
           const ix = (n: string) => h.indexOf(n);
-          const iCd = ix("cdarquivo"), iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
-          if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: não é o Mapeamento de Arquivos do Projuris`); continue; }
-          const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
-          setMapa(lista);
-          toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
+          const iCd = ix("cdarquivo");
+          if (iCd >= 0 && ix("decaminhoarquivo") >= 0) {
+            // arquivo.csv do backup
+            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem");
+            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || "") }); });
+            toast.success(`${f.name}: ${infoRef.current.size.toLocaleString("pt-BR")} arquivos cadastrados`);
+          } else if (iCd >= 0 && ix("cdregistrovinculo") >= 0 && ix("cdmodulo") >= 0) {
+            // arquivovinculomodulo.csv do backup
+            const iMod = ix("cdmodulo"), iReg = ix("cdregistrovinculo");
+            vincRef.current = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: (r[iMod] || "").trim(), entidade: (r[iReg] || "").trim() }));
+            toast.success(`${f.name}: ${vincRef.current.length.toLocaleString("pt-BR")} ligações de anexos`);
+          } else {
+            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
+            if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: envie arquivo.csv + arquivovinculomodulo.csv ou o Mapeamento de Arquivos do Projuris`); continue; }
+            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
+            setMapa(lista);
+            toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
+          }
+          if (infoRef.current.size && vincRef.current.length) {
+            const m = montarMapaBackup(infoRef.current, vincRef.current);
+            setMapa(m);
+            toast.success(`${m.length.toLocaleString("pt-BR")} anexos prontos para cruzar com os zips`);
+          }
         } else if (/\.zip$/i.test(f.name)) {
           setLendo(`${f.name} (listando...)`);
           const entries = (await new ZipReader(new BlobReader(f)).getEntries()).filter((e) => !e.directory);
@@ -194,7 +219,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">4. Anexos {feito && <Badge className="bg-emerald-600 text-white"><CheckCircle2 className="mr-1 h-3 w-3" />importado</Badge>}</CardTitle>
         <CardDescription>
-          Envie o arquivo <strong>Mapeamento de Arquivos</strong> (.csv) do Projuris e os zips com os arquivos. Cada anexo vai para a ficha do processo
+          Envie <strong>arquivo.csv</strong> + <strong>arquivovinculomodulo.csv</strong> do backup (ou o Mapeamento de Arquivos) e os zips com os arquivos — os zips são lidos aqui no navegador, sem limite de tamanho. Cada anexo vai para a tarefa (e o processo dela) ou para a ficha do processo
           (ou para a tarefa) já importado, com o nome original. Faça antes as etapas Processos e Tarefas. Pode repetir quando chegarem mais arquivos: os já enviados são pulados.
         </CardDescription>
       </CardHeader>
@@ -202,7 +227,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         <label className="flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed p-6 text-center hover:bg-muted/40"
           onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); void abrir(e.dataTransfer.files); }}>
           <Upload className="h-6 w-6 text-muted-foreground" />
-          <span className="text-sm font-medium">Arraste o mapeamento (.csv) e os zips dos anexos</span>
+          <span className="text-sm font-medium">Arraste arquivo.csv, arquivovinculomodulo.csv e os zips dos anexos</span>
           <input type="file" multiple className="hidden" accept=".csv,.zip" onChange={(e) => { void abrir(e.target.files); e.target.value = ""; }} />
         </label>
         {lendo && (
@@ -214,7 +239,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         <div className="flex flex-wrap gap-2 text-sm">
           <Badge variant={mapa.length ? "secondary" : "outline"}>Mapeamento: {mapa.length ? `${mapa.length.toLocaleString("pt-BR")} arquivos` : "não enviado"}</Badge>
           <Badge variant={zips.length ? "secondary" : "outline"}>Zips: {zips.length} ({totalZip.toLocaleString("pt-BR")} arquivos)</Badge>
-          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); }}>Limpar</Button>}
+          {(mapa.length > 0 || zips.length > 0) && <Button size="sm" variant="ghost" className="h-6 px-2 text-xs" disabled={!!lendo || analisando || rodando} onClick={() => { setMapa([]); setZips([]); setConf(null); infoRef.current = new Map(); vincRef.current = []; }}>Limpar</Button>}
         </div>
         <div className="flex items-center gap-3">
           <Button size="sm" variant="outline" disabled={!mapa.length || !zips.length || rodando || analisando} onClick={() => void analisar()}>
