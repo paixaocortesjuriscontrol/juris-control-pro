@@ -20,7 +20,7 @@ import { montarMapaBackup, indexarAnexosZip, nomeBaseAnexo, motivoModuloAnexo } 
  * e os zips com os arquivos físicos. Módulo 3 = processo (identificador_projuris do processo),
  * módulo 4 = tarefa (identificador_projuris da tarefa). Relatórios (52) e importações (85) ficam fora.
  */
-type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
+type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string; nomeFinal?: string };
 type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry; docExistente?: string };
 const CANCELADO = new Error("__cancelado__");
 
@@ -47,7 +47,7 @@ const ceder = () => new Promise((r) => setTimeout(r, 0));
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
 
 export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }: Props) {
-  const infoRef = useRef(new Map<string, { caminho: string; nome: string }>());
+  const infoRef = useRef(new Map<string, { caminho: string; nome: string; nomeFinal?: string }>());
   const vincRef = useRef<{ cd: string; modulo: string; entidade: string }[]>([]);
   const [mapa, setMapa] = useState<Map_[]>([]);
   const [zips, setZips] = useState<{ nome: string; entries: Entry[] }[]>([]);
@@ -78,8 +78,8 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           const iCd = ix("cdarquivo");
           if (iCd >= 0 && ix("decaminhoarquivo") >= 0) {
             // arquivo.csv do backup
-            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem");
-            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || "") }); });
+            const iCam = ix("decaminhoarquivo"), iNome = ix("nmarquivoorigem"), iFinal = ix("nmarquivofinal");
+            rows.slice(1).forEach((r) => { if (r[iCd]) infoRef.current.set(r[iCd].trim(), { caminho: (r[iCam] || "").trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam] || ""), nomeFinal: (r[iFinal] || "").trim() }); });
             toast.success(`${f.name}: ${infoRef.current.size.toLocaleString("pt-BR")} arquivos cadastrados`);
           } else if (iCd >= 0 && ix("cdregistrovinculo") >= 0 && ix("cdmodulo") >= 0) {
             // arquivovinculomodulo.csv do backup

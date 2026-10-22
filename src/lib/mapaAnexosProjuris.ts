@@ -1,4 +1,4 @@
-export type MapaAnexo = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
+export type MapaAnexo = { cd: string; modulo: string; entidade: string; caminho: string; nome: string; nomeFinal?: string };
 
 export function normalizarCaminhoAnexo(path: string) {
   return path.trim().normalize("NFC").replace(/\\/g, "/").replace(/\/+/g, "/").replace(/^\.\//, "").toLowerCase();
@@ -19,13 +19,16 @@ export function indexarAnexosZip<T extends { filename: string }>(entries: T[]) {
     add(paths, normalizarCaminhoAnexo(entry.filename), entry);
     add(names, nomeBaseAnexo(entry.filename), entry);
   }
-  return (record: Pick<MapaAnexo, "caminho" | "nome">): { entry?: T; ambiguous: boolean } => {
+  return (record: Pick<MapaAnexo, "caminho" | "nome" | "nomeFinal">): { entry?: T; ambiguous: boolean } => {
     const exact = paths.get(normalizarCaminhoAnexo(record.caminho)) || [];
     if (exact.length === 1) return { entry: exact[0], ambiguous: false };
     if (exact.length > 1) return { ambiguous: true };
     const stored = names.get(nomeBaseAnexo(record.caminho)) || [];
     if (stored.length === 1) return { entry: stored[0], ambiguous: false };
     if (stored.length > 1) return { ambiguous: true };
+    const final = names.get(nomeBaseAnexo(record.nomeFinal || "")) || [];
+    if (final.length === 1) return { entry: final[0], ambiguous: false };
+    if (final.length > 1) return { ambiguous: true };
     const original = names.get(nomeBaseAnexo(record.nome)) || [];
     return original.length === 1 ? { entry: original[0], ambiguous: false } : { ambiguous: original.length > 1 };
   };
@@ -40,7 +43,7 @@ export function motivoModuloAnexo(modulo: string): string | null {
 /** Junta arquivo.csv (cd → caminho/nome) e arquivovinculomodulo.csv (cd → módulo/registro).
  *  Um anexo pode estar ligado ao processo e à tarefa: fica uma linha só, preferindo a tarefa. */
 export const montarMapaBackup = (
-  info: Map<string, { caminho: string; nome: string }>,
+  info: Map<string, { caminho: string; nome: string; nomeFinal?: string }>,
   vinc: { cd: string; modulo: string; entidade: string }[],
 ): MapaAnexo[] => {
   const porCd = new Map<string, { cd: string; modulo: string; entidade: string }>();
@@ -52,7 +55,7 @@ export const montarMapaBackup = (
   const out: MapaAnexo[] = [];
   porCd.forEach((v) => {
     const i = info.get(v.cd);
-    if (i) out.push({ ...v, caminho: i.caminho, nome: i.nome });
+    if (i) out.push({ ...v, caminho: i.caminho, nome: i.nome, ...(i.nomeFinal ? { nomeFinal: i.nomeFinal } : {}) });
   });
   return out;
 };

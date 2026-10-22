@@ -27,6 +27,10 @@ describe("montarMapaBackup", () => {
     assert.deepEqual(find({ caminho: "/interno/doc.pdf", nome: "doc.pdf" }), { ambiguous: true });
     assert.equal(find({ caminho: "a/doc.pdf", nome: "doc.pdf" }).entry?.filename, "a/doc.pdf");
   });
+  test("reconhece nmarquivofinal com espaços substituídos pelo Projuris", () => {
+    const entry = { filename: "anexos/Captura_de_tela.jpg" };
+    assert.equal(indexarAnexosZip([entry])({ caminho: "73807/processo-arquivo/123.jpg", nome: "Captura de tela.jpg", nomeFinal: "Captura_de_tela.jpg" }).entry, entry);
+  });
   test("classifica relatórios e planilhas separadamente dos anexos de caso", () => {
     assert.equal(motivoModuloAnexo("52"), "Relatório gerado pelo Projuris (não é anexo de caso)");
     assert.equal(motivoModuloAnexo("85"), "Planilha de importação do Projuris (não é anexo de caso)");
