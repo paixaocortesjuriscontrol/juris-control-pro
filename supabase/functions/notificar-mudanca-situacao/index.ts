@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { canalPermitido, eventoPermitido } from "./regras.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -253,9 +254,12 @@ serve(async (req) => {
       try {
         let responsaveis: string[] = item.responsaveis ?? [];
         const isMencao = item.tipo_evento === "mencao";
-        const isComentario = item.tipo_evento === "comentario" || isMencao;
+        const isCobranca = item.tipo_evento === "cobranca";
+        const isInclusao = item.tipo_evento === "participante_incluido";
+        const isAlteracao = item.tipo_evento === "alteracao";
+        const isComentario = item.tipo_evento === "comentario" || isMencao || isCobranca;
 
-        if (isComentario && !isMencao && item.coordenacao_id) {
+        if (isComentario && !isMencao && !isCobranca && item.coordenacao_id) {
           const { data: cfgC } = await supabase
             .from("config_alertas_coordenacao")
             .select("tipos_alerta")
@@ -357,7 +361,7 @@ serve(async (req) => {
           const add = (u: string, c: string) => {
             if (!u || !c) return;
             if (!sets.has(u)) sets.set(u, new Set());
-            sets.get(u)!.add(c);
+            sets.get(u)?.add(c);
           };
           const { data: mems } = await supabase.from("membros_coordenacao")
             .select("usuario_id, coordenacao_id").in("usuario_id", responsaveis);
@@ -375,6 +379,12 @@ serve(async (req) => {
         const conteudoComentario: string = String(ctx.conteudo ?? "");
         const assunto = isMencao
           ? `[${labelEntidade(item.entidade)}] Você foi mencionado — ${tituloItem}`
+          : isCobranca
+          ? `[${labelEntidade(item.entidade)}] Cobrança — ${tituloItem}`
+          : isInclusao
+          ? `[${labelEntidade(item.entidade)}] Inclusão de responsável ou envolvido — ${tituloItem}`
+          : isAlteracao
+          ? `[${labelEntidade(item.entidade)}] Item alterado — ${tituloItem}`
           : isComentario
           ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
           : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
@@ -384,10 +394,16 @@ serve(async (req) => {
           ``,
           isMencao
             ? `Você foi mencionado por: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`
-            : `Novo comentário de: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
+            : `${isCobranca ? "Cobrança" : "Novo comentário"} de: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`,
           `Data/hora: ${quando} (BRT)`,
           ``,
           `"${conteudoComentario}"`,
+        ] : isInclusao || isAlteracao ? [
+          `${labelEntidade(item.entidade)}: ${tituloItem}`,
+          isInclusao ? "Responsável ou envolvido incluído no item." : "Dados do item alterados.",
+          `Alterado por: ${atorNome}`,
+          `Data/hora: ${quando} (BRT)`,
+          ...(Array.isArray(ctx.campos) ? [`Campos alterados: ${ctx.campos.join(", ")}`] : []),
         ] : [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
           ``,
@@ -403,11 +419,17 @@ serve(async (req) => {
 
         // HTML rico
         const rows: string[] = (isComentario ? [
-          [isMencao ? "Mencionado por" : "Comentário de", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")] as [string, string],
+          [isMencao ? "Mencionado por" : isCobranca ? "Cobrança de" : "Comentário de", esc(atorNome) + (atorEmail ? ` <span style="color:#666">&lt;${esc(atorEmail)}&gt;</span>` : "")] as [string, string],
           ["Data/hora", `${esc(quando)} <span style="color:#666">(BRT)</span>`] as [string, string],
           ["Comentário", `<div style="white-space:pre-wrap"><strong>${esc(conteudoComentario)}</strong></div>`] as [string, string],
           ...(coordNome ? [["Coordenação", esc(coordNome)] as [string, string]] : []),
           ...Object.entries(detalhes).map(([k, v]) => [esc(k), esc(v)] as [string, string]),
+        ] : isInclusao || isAlteracao ? [
+          ["Alteração", isInclusao ? "Inclusão de responsável ou envolvido" : "Dados do item alterados"],
+          ["Alterado por", esc(atorNome)],
+          ["Data/hora", esc(quando) + " (BRT)"],
+          ...(coordNome ? [["Coordenação", esc(coordNome)]] : []),
+          ...Object.entries(detalhes).map(([k, v]) => [esc(k), esc(v)]),
         ] : [
           ["Situação anterior", esc(labelSituacao(item.status_anterior))],
           ["Nova situação", `<strong>${esc(labelSituacao(item.status_novo))}</strong>`],
@@ -419,7 +441,7 @@ serve(async (req) => {
 
         const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;max-width:640px">
   <div style="padding:16px 20px;background:#0f172a;color:#fff;border-radius:8px 8px 0 0">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isMencao ? "você foi mencionado" : isComentario ? "novo comentário" : "situação alterada"}</div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isMencao ? "você foi mencionado" : isCobranca ? "cobrança" : isInclusao ? "participante incluído" : isAlteracao ? "item alterado" : isComentario ? "novo comentário" : "situação alterada"}</div>
     <div style="font-size:18px;font-weight:600;margin-top:4px">${esc(tituloItem)}</div>
   </div>
   <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px">
@@ -431,8 +453,7 @@ serve(async (req) => {
         // In-app: cria notificação para cada responsável
         const notifRows = responsaveis.map((uid) => {
           const cfg = cfgMap.get(uid);
-          if (cfg && cfg.canal_in_app === false) return null;
-          if (cfg && (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false)) return null;
+          if (!canalPermitido(cfg, "in_app", item.tipo_evento, ctx.criacao === true)) return null;
           return {
             usuario_id: uid,
             // A tabela `notificacoes` só aceita: info | warning | success | djen
@@ -440,8 +461,9 @@ serve(async (req) => {
             titulo: assunto,
             mensagem: corpo,
             lida: false,
+            link: `/painel-controle?item=${item.entidade_id}`,
             dados: {
-              evento: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao",
+              evento: item.tipo_evento,
               entidade: item.entidade,
               entidade_id: item.entidade_id,
               ...(isComentario ? { conteudo: conteudoComentario } : {}),
@@ -455,7 +477,8 @@ serve(async (req) => {
           };
         }).filter(Boolean);
         if (notifRows.length > 0) {
-          await supabase.from("notificacoes").insert(notifRows as any);
+          const { error: erroAviso } = await supabase.from("notificacoes").insert(notifRows as any);
+          if (erroAviso) throw erroAviso;
         }
 
         for (const p of profiles ?? []) {
@@ -463,24 +486,24 @@ serve(async (req) => {
             canal_email: true, canal_whatsapp: true, evento_mudanca_situacao: true, evento_comentario: true,
             janela_hora_inicio: 8, janela_hora_fim: 20,
           };
-          if (isComentario ? cfg.evento_comentario === false : cfg.evento_mudanca_situacao === false) continue;
+          if (!eventoPermitido(cfg, item.tipo_evento, ctx.criacao === true)) continue;
           if (!dentroDaJanela(cfg.janela_hora_inicio, cfg.janela_hora_fim)) continue;
 
-          if (cfg.canal_email && p.email) {
+          if (canalPermitido(cfg, "email", item.tipo_evento, ctx.criacao === true) && p.email) {
             const assuntoUsuario = coordNome && (qtdCoordPorUsuario.get(p.id) ?? 0) > 1
               ? `[${coordNome}] ${assunto}`
               : assunto;
             const r = await enviarEmail(p.email, assuntoUsuario, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "email", destinatario: p.email,
+              tipo_alerta: item.tipo_evento, canal: "email", destinatario: p.email,
               coordenacao_id: item.coordenacao_id ?? null,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
           }
-          if (cfg.canal_whatsapp && p.telefone) {
+          if (canalPermitido(cfg, "whatsapp", item.tipo_evento, ctx.criacao === true) && p.telefone) {
             const r = await enviarWhatsApp(supabase, p.telefone, corpo);
             await supabase.from("historico_alertas_enviados").insert({
-              tipo_alerta: isMencao ? "mencao" : isComentario ? "comentario" : "mudanca_situacao", canal: "whatsapp", destinatario: p.telefone,
+              tipo_alerta: item.tipo_evento, canal: "whatsapp", destinatario: p.telefone,
               coordenacao_id: item.coordenacao_id ?? null,
               conteudo: corpo, referencia_id: item.entidade_id, status: r.ok ? "enviado" : "erro", erro: r.erro,
             });
