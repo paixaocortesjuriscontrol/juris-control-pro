@@ -2798,6 +2798,7 @@ export default function PainelControle() {
                 open={exportOpen}
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
+                coordenacoes={coordenacoesExport}
               />
               <Button
                 size="sm"
