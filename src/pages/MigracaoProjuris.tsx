@@ -24,6 +24,10 @@ import { TIPOS_TAREFA } from "@/constants/tiposTarefa";
 import { DiagnosticoProjuris } from "@/components/migracao/DiagnosticoProjuris";
 import { ImportacaoProjurisSimples } from "@/components/migracao/ImportacaoProjurisSimples";
 import { BackupCompletoProjuris } from "@/components/migracao/BackupCompletoProjuris";
+import { ProjurisAnexosProgress } from "@/components/migracao/ProjurisAnexosProgress";
+import { useProjurisUploadProgress } from "@/hooks/useProjurisUploadProgress";
+import { uploadAnexoProjuris } from "@/lib/uploadAnexoProjuris";
+import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { AnexosBackupProjuris } from "@/components/migracao/AnexosBackupProjuris";
 
 type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
@@ -65,6 +69,7 @@ export default function MigracaoProjuris() {
   const [analiseMsg, setAnaliseMsg] = useState("");
   const [progresso, setProgresso] = useState({ fase: "", feito: 0, total: 0 });
   const [rodando, setRodando] = useState(false);
+  const uploadProgress = useProjurisUploadProgress();
   const pausado = useRef(false);
   const cancelado = useRef(false);
   const [pausa, setPausa] = useState(false);
@@ -354,23 +359,30 @@ export default function MigracaoProjuris() {
   const esperar = async () => { while (pausado.current && !cancelado.current) await new Promise((r) => setTimeout(r, 400)); };
 
   const importar = async () => {
-    if (!user) return;
+    if (!user || rodando) return;
+    pausado.current = false; setPausa(false);
+    uploadProgress.start(anexos.length);
+    setProgresso({ fase: "Preparando importação", feito: 0, total: anexos.length });
     setRodando(true); setEtapa(3); cancelado.current = false;
     const nomeCoord = coords.find((c) => c.id === coordId)?.nome || "";
     const { data: mig, error } = await supabase.from("migracoes_projuris" as any).insert({
       coordenacao_id: coordId, nome: `Projuris ${nomeCoord} ${new Date().toLocaleString("pt-BR")}`,
-      mapeamento: mapa, criado_por: user.id,
+      mapeamento: { ...mapa, modulo }, criado_por: user.id,
     }).select("id").single();
-    if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(false); return; }
+    if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(false); uploadProgress.finish("Não foi possível iniciar"); return; }
     const mid = (mig as any).id as string;
     setMigracaoId(mid);
     const cont = { processos_criados: 0, tarefas_criadas: 0, tarefas_puladas: linhas.length - validas.length, anexos_enviados: 0, anexos_sem_vinculo: 0, erros: 0 };
     const logItens = async (itens: any[]) => {
-      for (let k = 0; k < itens.length; k += 500) await supabase.from("migracoes_projuris_itens" as any).insert(itens.slice(k, k + 500).map((x) => ({ migracao_id: mid, ...x })));
+      for (let k = 0; k < itens.length; k += 500) {
+        const { error } = await supabase.from("migracoes_projuris_itens" as any).insert(itens.slice(k, k + 500).map(x => ({ migracao_id: mid, ...x })));
+        if (error) throw error;
+      }
     };
+    const audit = criarGravadorLotes<any>(logItens);
+    try {
     await logItens(linhas.filter((l) => l.erro || l.duplicada).map((l) => ({ tipo: "tarefa", chave_externa: l.id_externo || null, status: "pulado", motivo: l.erro || "Já migrada / repetida", dados: { titulo: l.titulo } })));
 
-    try {
       // 1) processos
       const procMap = new Map<string, string>();
       linhas.forEach((l) => l.processoId && procMap.set(l.processo_dig, l.processoId));
@@ -432,17 +444,25 @@ export default function MigracaoProjuris() {
 
       // Tarefas importadas em migrações anteriores desta coordenação (anexos podem subir depois)
       const tarefaMapAnter = new Map<string, { id: string; processo_id: string | null }>();
-      {
+      if (anexos.some(a => a.destino === "tarefa")) {
+        setProgresso({ fase: "Localizando tarefas dos anexos", feito: 0, total: anexos.length });
         const { data: mids } = await supabase.from("migracoes_projuris" as any).select("id").eq("coordenacao_id", coordId);
         const listaMids = ((mids as any[]) || []).map((m) => m.id as string);
         if (listaMids.length) {
           const itens: { chave: string; registro: string }[] = [];
-          for (let from = 0; ; from += 1000) {
-            const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa, registro_id").eq("tipo", "tarefa").eq("status", "criado").not("registro_id", "is", null).in("migracao_id", listaMids).range(from, from + 999);
-            if (error) throw error;
-            ((data as any[]) || []).forEach((x) => itens.push({ chave: x.chave_externa, registro: x.registro_id }));
-            if (!data || data.length < 1000) break;
-          }
+          const taskKeys = Array.from(new Set(anexos.filter(a => a.destino === "tarefa" && a.chave).flatMap(a => a.chave ? [a.chave] : [])));
+          let checked = 0;
+          await executarFila(Array.from({ length: Math.ceil(taskKeys.length / 200) }, (_, i) => taskKeys.slice(i * 200, (i + 1) * 200)), async parte => {
+            await esperar(); if (cancelado.current) return;
+            for (let from = 0; ; from += 1000) {
+              const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa, registro_id").eq("tipo", "tarefa").eq("status", "criado").not("registro_id", "is", null).in("migracao_id", listaMids).in("chave_externa", parte).range(from, from + 999);
+              if (error) throw error;
+              ((data as any[]) || []).forEach(x => itens.push({ chave: x.chave_externa, registro: x.registro_id }));
+              if (!data || data.length < 1000) break;
+            }
+            checked += parte.length;
+            setProgresso({ fase: "Localizando tarefas dos anexos", feito: checked, total: taskKeys.length });
+          });
           const procById = new Map<string, string | null>();
           const idsT = Array.from(new Set(itens.map((r) => r.registro)));
           for (let k = 0; k < idsT.length; k += 200) {
@@ -455,53 +475,90 @@ export default function MigracaoProjuris() {
       // 3) anexos
       setProgresso({ fase: "Anexos", feito: 0, total: anexos.length });
       // Processos já cadastrados (qualquer migração): anexos podem apontar só pelo CNJ
-      const chavesProc = Array.from(new Set(anexos.filter((a) => a.destino === "processo" && a.chave && !procMap.has(a.chave)).map((a) => a.chave!)));
+      const chavesProc = Array.from(new Set(anexos.filter((a) => a.destino === "processo" && a.chave && !procMap.has(a.chave)).flatMap((a) => a.chave ? [a.chave] : [])));
       for (let k = 0; k < chavesProc.length; k += 100) {
         const parte = chavesProc.slice(k, k + 100);
         const { data } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
         ((data as any[]) || []).forEach((p) => procMap.set(digitos((p as any).numero), (p as any).id));
       }
       const base = import.meta.env.VITE_SUPABASE_URL;
-      let feitos = 0;
-      const fila = [...anexos];
-      const trabalhador = async () => {
-        while (fila.length && !cancelado.current) {
-          await esperar();
-          const a = fila.shift()!;
-          const tarefa = a.destino === "tarefa" && a.chave ? (tarefaMap.get(a.chave) || tarefaMapAnter.get(a.chave)) : undefined;
-          const procId = tarefa?.processo_id || (a.destino === "processo" && a.chave ? procMap.get(a.chave) : null) || null;
-          if (!tarefa && !procId) {
-            cont.anexos_sem_vinculo++;
-            await logItens([{ tipo: "anexo", chave_externa: a.entry.filename, status: "pulado", motivo: "Sem tarefa/processo correspondente" }]);
-          } else {
-            try {
-              const blob: Blob = await (a.entry as any).getData(new BlobWriter());
-              const path = `${procId || `tarefas/${tarefa!.id}`}/projuris_${Date.now()}_${sanitizarNome(a.nome)}`;
-              const { error: up } = await supabase.storage.from("documentos_processos").upload(path, blob);
-              if (up) throw up;
+      uploadProgress.phase("Enviando e vinculando anexos");
+      // Deduplication includes old imports: same name and same target, not only this batch.
+      const names = Array.from(new Set(anexos.map(a => a.nome)));
+      const docsByName = new Map<string, any[]>();
+      setProgresso({ fase: "Conferindo anexos existentes", feito: 0, total: names.length });
+      let checkedNames = 0;
+      await executarFila(Array.from({ length: Math.ceil(names.length / 150) }, (_, i) => names.slice(i * 150, (i + 1) * 150)), async parte => {
+        if (cancelado.current) return;
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await supabase.from("documentos").select("id, nome, processo_id, tarefa_id").in("nome", parte).range(from, from + 999);
+          if (error) throw error;
+          (data || []).forEach(d => { const key = d.nome.toLowerCase(); docsByName.set(key, [...(docsByName.get(key) || []), d]); });
+          if (!data || data.length < 1000) break;
+        }
+        checkedNames += parte.length; setProgresso({ fase: "Conferindo anexos existentes", feito: checkedNames, total: names.length });
+      });
+      const seenTargets = new Set<string>();
+      setProgresso({ fase: "Anexos", feito: 0, total: anexos.length });
+      await executarFila(anexos, async (a, index) => {
+        await esperar(); if (cancelado.current) return;
+        const key = String(index);
+        const tarefa = a.destino === "tarefa" && a.chave ? (tarefaMap.get(a.chave) || tarefaMapAnter.get(a.chave)) : undefined;
+        const procId = tarefa?.processo_id || (a.destino === "processo" && a.chave ? procMap.get(a.chave) : null) || null;
+        const target = `${tarefa?.id || procId}|${a.nome.toLowerCase()}`;
+        const docs = docsByName.get(a.nome.toLowerCase()) || [];
+        const existing = docs.find(d => tarefa ? d.tarefa_id === tarefa.id : procId && d.processo_id === procId);
+        const linkOnly = tarefa ? docs.find(d => procId && d.processo_id === procId && !d.tarefa_id) : undefined;
+        let result: "uploaded" | "linked" | "skipped" | "errors" = "skipped";
+        let auditItem: any;
+        if (!tarefa && !procId) {
+          cont.anexos_sem_vinculo++;
+          auditItem = { tipo: "anexo", chave_externa: a.entry.filename, status: "pulado", motivo: "Sem tarefa/processo correspondente" };
+        } else if (existing || seenTargets.has(target)) {
+          auditItem = { tipo: "anexo", chave_externa: a.entry.filename, status: "pulado", motivo: "Já existe no destino / repetido no zip" };
+        } else {
+          seenTargets.add(target);
+          try {
+            if (linkOnly && tarefa) {
+              uploadProgress.file(key, a.nome, "Vinculando", 0.2);
+              const { data, error } = await supabase.from("documentos").update({ tarefa_id: tarefa.id }).eq("id", linkOnly.id).is("tarefa_id", null).select("id").single();
+              if (error || !data) throw error || new Error("Vínculo não confirmado");
+              result = "linked";
+              auditItem = { tipo: "vinculo_anexo_tarefa", chave_externa: a.entry.filename, registro_id: linkOnly.id, status: "criado", dados: { tarefa_id: tarefa.id, titulo: a.nome } };
+            } else {
+              uploadProgress.file(key, a.nome, "Extraindo do zip");
+              const blob: Blob = await (a.entry as any).getData(new BlobWriter(), { onprogress: (current: number, total: number) => uploadProgress.file(key, a.nome, "Extraindo do zip", total ? current / total * 0.1 : 0) });
+              const path = `${procId || `tarefas/${tarefa?.id}`}/projuris_${crypto.randomUUID()}_${sanitizarNome(a.nome)}`;
+              await uploadAnexoProjuris(path, blob, (sent, total) => uploadProgress.file(key, a.nome, "Enviando", 0.1 + (total ? sent / total : 0) * 0.8, sent));
+              uploadProgress.file(key, a.nome, "Gravando vínculo", 0.9, blob.size);
               const { data: doc, error: ins } = await supabase.from("documentos").insert({
                 nome: a.nome, tipo: blob.type || null, tamanho_bytes: blob.size,
                 url: `${base}/storage/v1/object/sign/documentos_processos/${path}`,
                 processo_id: procId, tarefa_id: tarefa?.id || null, uploaded_by: user.id,
               } as any).select("id").single();
-              if (ins) throw ins;
-              cont.anexos_enviados++;
-              await logItens([{ tipo: "anexo", chave_externa: a.entry.filename, registro_id: (doc as any).id, status: "criado", dados: { path } }]);
-            } catch (e: any) {
-              cont.erros++;
-              await logItens([{ tipo: "anexo", chave_externa: a.entry.filename, status: "erro", motivo: e?.message || String(e) }]);
+              if (ins || !doc) throw ins || new Error("Cadastro do anexo não confirmado");
+              cont.anexos_enviados++; result = "uploaded";
+              auditItem = { tipo: "anexo", chave_externa: a.entry.filename, registro_id: (doc as any).id, status: "criado", dados: { path } };
             }
+          } catch (e: any) {
+            cont.erros++; result = "errors";
+            auditItem = { tipo: "anexo", chave_externa: a.entry.filename, status: "erro", motivo: e?.message || String(e) };
           }
-          feitos++;
-          setProgresso({ fase: "Anexos", feito: feitos, total: anexos.length });
         }
-      };
-      await Promise.all([trabalhador(), trabalhador(), trabalhador(), trabalhador()]);
+        await audit.add(auditItem);
+        uploadProgress.complete(key, result);
+      });
+      uploadProgress.phase("Salvando resultado do lote");
+      await audit.flush();
+      uploadProgress.finish(cancelado.current ? "Envio cancelado" : cont.erros ? "Finalizado com erros" : "Anexos concluídos");
 
-      await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelado" : "concluido", contadores: cont }).eq("id", mid);
-      toast.success("Migração finalizada");
+      const { error: finalError } = await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelado" : "concluido", contadores: cont }).eq("id", mid);
+      if (finalError) throw finalError;
+      if (cancelado.current || cont.erros) toast.warning(cancelado.current ? "Migração cancelada; arquivos já enviados foram preservados" : "Migração finalizada com erros; confira o relatório");
+      else toast.success("Migração finalizada");
     } catch (e: any) {
       await supabase.from("migracoes_projuris" as any).update({ status: "erro", contadores: { ...cont, erro: e?.message } }).eq("id", mid);
+      uploadProgress.finish("Importação interrompida por erro");
       toast.error(`Erro na migração: ${e?.message || e}`);
     } finally {
       setRodando(false); setEtapa(4); carregarHistorico();
@@ -904,7 +961,7 @@ export default function MigracaoProjuris() {
             <CardHeader><CardTitle>4. Importando</CardTitle><CardDescription>Não feche esta página até terminar.</CardDescription></CardHeader>
             <CardContent className="space-y-4">
               <div className="flex justify-between text-sm"><span>{progresso.fase}</span><span>{progresso.feito} / {progresso.total}</span></div>
-              <Progress value={pct} />
+              {progresso.fase === "Anexos" ? <ProjurisAnexosProgress state={uploadProgress.state} paused={pausa} running={rodando} /> : <Progress value={pct} />}
               <div className="flex gap-2">
                 <Button variant="outline" disabled={!rodando} onClick={() => { pausado.current = !pausado.current; setPausa(pausado.current); }}>
                   {pausa ? <><Play className="mr-2 h-4 w-4" />Continuar</> : <><Pause className="mr-2 h-4 w-4" />Pausar</>}
@@ -918,7 +975,8 @@ export default function MigracaoProjuris() {
         {etapa === 4 && migracaoId && (
           <Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-primary" />5. Migração finalizada</CardTitle></CardHeader>
-            <CardContent className="flex gap-2">
+            <CardContent className="space-y-3">
+              {anexos.length > 0 && <ProjurisAnexosProgress state={uploadProgress.state} running={false} />}
               <Button onClick={() => baixarRelatorio(migracaoId)}><Download className="mr-2 h-4 w-4" />Baixar relatório Excel</Button>
               <Button variant="outline" onClick={() => { setEtapa(0); setPlanilhas([]); setZips([]); setLinhas([]); setAnexos([]); setMigracaoId(null); }}>Nova migração</Button>
             </CardContent>
