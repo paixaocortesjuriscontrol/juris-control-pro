@@ -144,7 +144,9 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
         try {
           const base = l.copias[0] || l.pub;
           const tabela = base.tipo_origem === "termo" ? "publicacoes_djen" : "publicacoes_djen_processos";
-          const { data: orig } = await supabase.from(tabela as any).select("*").eq("id", base.id).maybeSingle();
+          const { data: orig } = base.tipo_origem === "termo"
+            ? await supabase.from(tabela as any).select("*").eq("id", base.id).maybeSingle()
+            : { data: null };
           if (orig) {
             const o: any = orig;
             const { data: existe } = await supabase
