@@ -60,6 +60,8 @@ const ceder = () => new Promise((r) => setTimeout(r, 0));
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
 
 export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }: Props) {
+  const infoRef = useRef(new Map<string, { caminho: string; nome: string }>());
+  const vincRef = useRef<{ cd: string; modulo: string; entidade: string }[]>([]);
   const [mapa, setMapa] = useState<Map_[]>([]);
   const [zips, setZips] = useState<{ nome: string; entries: Entry[] }[]>([]);
   const [conf, setConf] = useState<Linha[] | null>(null);
