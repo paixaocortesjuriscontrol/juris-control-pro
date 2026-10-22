@@ -219,10 +219,10 @@ export function ConfigNotificacoesUsuarioCard() {
             <h4 className="text-sm font-semibold mb-3">Tipos de evento</h4>
             <div className="space-y-3">
               {[
-                ["evento_mudanca_situacao", "Mudança de situação (tarefa, evento, audiência, parcela)"],
+                ["evento_mudanca_situacao", "Alterações nos meus itens (incluindo as feitas por mim)"],
                 ["evento_prazo_perdido", "Prazo perdido (lembrete diário)"],
-                ["evento_tarefa_nova", "Nova tarefa atribuída a mim"],
-                ["evento_comentario", "Novo comentário em item meu"],
+                ["evento_tarefa_nova", "Inclusão como responsável ou envolvido (todos os tipos)"],
+                ["evento_comentario", "Comentários, menções e cobranças nos meus itens"],
                 ["evento_reagendamento", "Reagendamento de audiência"],
               ].map(([k, label]) => (
                 <div key={k} className="flex items-center justify-between">

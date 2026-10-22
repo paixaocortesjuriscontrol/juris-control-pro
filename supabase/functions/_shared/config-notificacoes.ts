@@ -13,7 +13,8 @@ export async function carregarConfigsUsuarios(supabase: any, usuarioIds: string[
     .in("usuario_id", [...new Set(usuarioIds)]);
   for (const c of (data ?? []) as ConfigNotif[]) {
     if (!mapa.has(c.usuario_id)) mapa.set(c.usuario_id, { padrao: null, porCoord: new Map() });
-    const m = mapa.get(c.usuario_id)!;
+    const m = mapa.get(c.usuario_id);
+    if (!m) continue;
     if (c.coordenacao_id) m.porCoord.set(c.coordenacao_id, c);
     else m.padrao = c;
   }
@@ -30,5 +31,5 @@ export function resolverConfig(
   if (!m) return undefined;
   const esp = coordenacaoId ? m.porCoord.get(coordenacaoId) : undefined;
   if (esp) return esp.ativo === false ? null : esp;
-  return m.padrao ?? undefined;
+  return m.padrao?.ativo === false ? null : m.padrao ?? undefined;
 }
