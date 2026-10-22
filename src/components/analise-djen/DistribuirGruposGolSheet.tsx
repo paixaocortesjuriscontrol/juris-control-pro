@@ -171,7 +171,8 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
       }
       await invalidarItensAgenda(qc);
       await qc.invalidateQueries();
-      toast.success(`${ok} tarefa(s) distribuída(s) para os grupos.`);
+      toast.success(`${ok} tarefa(s) distribuída(s); publicações replicadas nas coordenações de destino.`);
+      if (replicaFalhas) toast.error(`${replicaFalhas} publicação(ões) não puderam ser replicadas.`);
       if (ok < sel.length) toast.error(`${sel.length - ok} não puderam ser criadas.`);
       setOpen(false);
     } finally {
