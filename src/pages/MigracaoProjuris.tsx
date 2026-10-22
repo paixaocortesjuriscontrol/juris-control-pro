@@ -369,7 +369,7 @@ export default function MigracaoProjuris() {
       coordenacao_id: coordId, nome: `Projuris ${nomeCoord} ${new Date().toLocaleString("pt-BR")}`,
       mapeamento: { ...mapa, modulo }, criado_por: user.id,
     }).select("id").single();
-    if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(false); return; }
+    if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(false); uploadProgress.finish("Não foi possível iniciar"); return; }
     const mid = (mig as any).id as string;
     setMigracaoId(mid);
     const cont = { processos_criados: 0, tarefas_criadas: 0, tarefas_puladas: linhas.length - validas.length, anexos_enviados: 0, anexos_sem_vinculo: 0, erros: 0 };
@@ -552,8 +552,10 @@ export default function MigracaoProjuris() {
       await audit.flush();
       uploadProgress.finish(cancelado.current ? "Envio cancelado" : cont.erros ? "Finalizado com erros" : "Anexos concluídos");
 
-      await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelado" : "concluido", contadores: cont }).eq("id", mid);
-      toast.success("Migração finalizada");
+      const { error: finalError } = await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelado" : "concluido", contadores: cont }).eq("id", mid);
+      if (finalError) throw finalError;
+      if (cancelado.current || cont.erros) toast.warning(cancelado.current ? "Migração cancelada; arquivos já enviados foram preservados" : "Migração finalizada com erros; confira o relatório");
+      else toast.success("Migração finalizada");
     } catch (e: any) {
       await supabase.from("migracoes_projuris" as any).update({ status: "erro", contadores: { ...cont, erro: e?.message } }).eq("id", mid);
       uploadProgress.finish("Importação interrompida por erro");

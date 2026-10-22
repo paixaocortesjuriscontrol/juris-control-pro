@@ -235,9 +235,18 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
     try {
       await log(pul.map((l) => ({ tipo: "anexo", chave_externa: l.cd, status: "pulado", motivo: l.motivo, dados: { titulo: l.nome } })));
       uploadProgress.phase("Enviando e vinculando anexos");
+      const reserved = new Set<string>();
       await executarFila(ok, async (a, index) => {
         await esperar(); if (cancelado.current) return;
         const key = String(index);
+        const target = `${a.tarefaId || a.processoId}|${a.nome.toLowerCase()}`;
+        if (reserved.has(target)) {
+          cont.pulados++;
+          await audit.add({ tipo: "anexo", chave_externa: a.cd, status: "pulado", motivo: "Repetido no mesmo destino", dados: { titulo: a.nome } });
+          uploadProgress.complete(key, "skipped");
+          return;
+        }
+        reserved.add(target);
         let result: "uploaded" | "linked" | "errors" = "errors";
         let auditItem: any;
         try {
