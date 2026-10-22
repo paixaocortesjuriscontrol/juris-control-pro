@@ -1,16 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
 import { canalPermitido, eventoPermitido } from "./regras.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-};
-
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscontrol.adv.br>";
 
@@ -235,8 +231,17 @@ serve(async (req) => {
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE);
 
   try {
+    const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+    if (!token) return new Response(JSON.stringify({ error: "Autenticação necessária" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (token !== SERVICE_ROLE) {
+      const { data: usuario, error: erroAuth } = await supabase.auth.getUser(token);
+      if (erroAuth || !usuario.user) return new Response(JSON.stringify({ error: "Sessão inválida" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const { data: role } = await supabase.from("user_roles").select("id").eq("user_id", usuario.user.id).eq("role", "admin").maybeSingle();
+      if (!role) return new Response(JSON.stringify({ error: "Acesso restrito" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
     const body = await req.json().catch(() => ({}));
     const limit = Number(body.limit ?? 25);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100) return new Response(JSON.stringify({ error: "Limite inválido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const { data: pendentes, error } = await supabase
       .from("notificacoes_fila")

@@ -11156,6 +11156,17 @@ export type Database = {
         }[]
       }
       djen_strip_destinatarios: { Args: { p_text: string }; Returns: string }
+      enfileirar_aviso_item: {
+        Args: {
+          _ator: string
+          _contexto?: Json
+          _entidade: string
+          _extra?: string[]
+          _id: string
+          _tipo: string
+        }
+        Returns: undefined
+      }
       enfileirar_execucao_servidor: {
         Args: {
           p_agendado_para?: string
