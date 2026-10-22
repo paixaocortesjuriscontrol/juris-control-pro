@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
 import { sanitizarNome } from "@/lib/migracaoProjuris";
+import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
 
 /**
  * Etapa 4 do backup: anexos.
@@ -35,25 +36,7 @@ const parseCsv = (txt: string) => {
   return linhas;
 };
 
-/** Junta arquivo.csv (cd → caminho/nome) e arquivovinculomodulo.csv (cd → módulo/registro).
- *  Um anexo pode estar ligado ao processo e à tarefa: fica uma linha só, preferindo a tarefa. */
-export const montarMapaBackup = (
-  info: Map<string, { caminho: string; nome: string }>,
-  vinc: { cd: string; modulo: string; entidade: string }[],
-): Map_[] => {
-  const porCd = new Map<string, { cd: string; modulo: string; entidade: string }>();
-  for (const v of vinc) {
-    const atual = porCd.get(v.cd);
-    const peso = (m: string) => (m === "4" ? 3 : m === "3" ? 2 : 1);
-    if (!atual || peso(v.modulo) > peso(atual.modulo)) porCd.set(v.cd, v);
-  }
-  const out: Map_[] = [];
-  porCd.forEach((v) => {
-    const i = info.get(v.cd);
-    if (i) out.push({ ...v, caminho: i.caminho, nome: i.nome });
-  });
-  return out;
-};
+
 const baseArq = (p: string) => (p.split("/").pop() || p).toLowerCase();
 const ceder = () => new Promise((r) => setTimeout(r, 0));
 
