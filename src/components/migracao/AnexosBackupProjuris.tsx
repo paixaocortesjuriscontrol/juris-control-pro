@@ -87,9 +87,9 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
             vincRef.current = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: (r[iMod] || "").trim(), entidade: (r[iReg] || "").trim() }));
             toast.success(`${f.name}: ${vincRef.current.length.toLocaleString("pt-BR")} ligações de anexos`);
           } else {
-            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome");
+            const iMod = ix("cdmodulo"), iEnt = ix("codigo_entidade_onde_o_arquivo_foi_vinculado"), iCam = ix("caminho"), iNome = ix("nome"), iFinal = ix("nome_final");
             if (iCd < 0 || iMod < 0 || iEnt < 0 || iCam < 0) { toast.error(`${f.name}: envie arquivo.csv + arquivovinculomodulo.csv ou o Mapeamento de Arquivos do Projuris`); continue; }
-            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]) }));
+            const lista = rows.slice(1).filter((r) => r[iCd]).map((r) => ({ cd: r[iCd].trim(), modulo: r[iMod].trim(), entidade: r[iEnt].trim(), caminho: r[iCam].trim(), nome: (r[iNome] || "").trim() || baseArq(r[iCam]), nomeFinal: (r[iFinal] || "").trim() }));
             setMapa(lista);
             toast.success(`${f.name}: ${lista.length.toLocaleString("pt-BR")} arquivos no mapeamento`);
           }
