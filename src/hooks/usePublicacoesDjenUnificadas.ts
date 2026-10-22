@@ -1677,6 +1677,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       }
 
       let ultimo: any = null;
+      const idsDescartados: string[] = [];
       for (const [alvoId, alvoTipo] of alvos) {
         const { data, error } = await (supabase as any).rpc('descartar_publicacao_manualmente', {
           p_id: alvoId,
@@ -1689,9 +1690,10 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
           console.warn('[DJEN] Falha ao descartar irmã:', alvoId, error.message);
           continue;
         }
+        idsDescartados.push(alvoId);
         if (alvoId === id) ultimo = data;
       }
-      return ultimo;
+      return { ...(ultimo || {}), ids_descartados: idsDescartados };
     },
     onSuccess: async (_data, variables) => {
       // Em ações em lote (silent), não invalida nem exibe toast por item:
