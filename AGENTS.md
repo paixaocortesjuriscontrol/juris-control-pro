@@ -16,3 +16,4 @@
 - Projuris attachment imports share byte-level upload progress, bounded workers and serialized batched audit writes; this keeps transfers visible without per-file audit request overhead or unbounded memory usage.
 - Projuris ZIP matching normalizes Windows/Unix paths and Unicode, tries stored names before unique original names, and rejects ambiguous matches; module exclusions precede missing-file counts to avoid false diagnoses and wrong attachments.
 - Projuris spreadsheet and backup imports share `classificarTipo`; hearing detection checks the title independently from the source type to prevent source categories or movement history from overriding the title requirement.
+- Task responsibility changes notify in-app through database triggers on the primary assignee and co-assignee table; this covers all editing screens without extra frontend calls, skips sessionless maintenance, and deduplicates rapid list rewrites.
