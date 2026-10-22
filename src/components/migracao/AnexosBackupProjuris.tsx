@@ -17,7 +17,7 @@ import { montarMapaBackup } from "@/lib/mapaAnexosProjuris";
  * módulo 4 = tarefa (identificador_projuris da tarefa). Relatórios (52) e importações (85) ficam fora.
  */
 type Map_ = { cd: string; modulo: string; entidade: string; caminho: string; nome: string };
-type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry };
+type Linha = Map_ & { motivo: string | null; processoId?: string | null; tarefaId?: string | null; entry?: Entry; docExistente?: string };
 const CANCELADO = new Error("__cancelado__");
 
 const parseCsv = (txt: string) => {
@@ -149,6 +149,25 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         vistos.add(m.cd);
         return { ...m, motivo, processoId, tarefaId, entry };
       });
+      // Anexos que já estão no sistema (inclusive de importações antigas, registradas pelo nome do arquivo):
+      // mesmo nome no mesmo processo ou na mesma tarefa → não envia de novo.
+      const cand = ls.filter((l) => !l.motivo);
+      const nomes = Array.from(new Set(cand.map((l) => l.nome)));
+      const existentes = new Map<string, { id: string; processo_id: string | null; tarefa_id: string | null }[]>();
+      for (let k = 0; k < nomes.length; k += 150) {
+        const { data, error } = await supabase.from("documentos").select("id, nome, processo_id, tarefa_id").in("nome", nomes.slice(k, k + 150));
+        if (error) throw error;
+        ((data as any[]) || []).forEach((d) => { const key = String(d.nome).toLowerCase(); existentes.set(key, [...(existentes.get(key) || []), d]); });
+        setMsg(`Conferindo anexos já existentes: ${Math.min(k + 150, nomes.length)} de ${nomes.length}`); await ceder(); if (cancelado.current) throw CANCELADO;
+      }
+      for (const l of cand) {
+        const docs = existentes.get(l.nome.toLowerCase()) || [];
+        if (l.tarefaId && docs.some((d) => d.tarefa_id === l.tarefaId)) { l.motivo = "Já existe na tarefa"; continue; }
+        const noProc = docs.find((d) => l.processoId && d.processo_id === l.processoId);
+        if (!noProc) continue;
+        if (l.tarefaId && !noProc.tarefa_id) l.docExistente = noProc.id; // só liga o anexo já existente à tarefa
+        else l.motivo = "Já existe no processo";
+      }
       setConf(ls);
     } catch (e: any) {
       if (cancelado.current) { cancelado.current = false; toast.warning("Análise cancelada. Nada foi gravado."); }
@@ -181,6 +200,14 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
           await esperar(); if (cancelado.current) break;
           const a = fila.shift()!;
           try {
+            if (a.docExistente) {
+              const { error: upd } = await supabase.from("documentos").update({ tarefa_id: a.tarefaId } as any).eq("id", a.docExistente).is("tarefa_id", null);
+              if (upd) throw upd;
+              cont.criados++;
+              await log([{ tipo: "vinculo_anexo_tarefa", chave_externa: a.cd, registro_id: a.docExistente, status: "criado", dados: { tarefa_id: a.tarefaId, titulo: a.nome } }]);
+              setProg({ feito: ++n, total: ok.length });
+              continue;
+            }
             const blob: Blob = await (a.entry as any).getData(new BlobWriter());
             const path = `${a.processoId || `tarefas/${a.tarefaId}`}/projuris_${a.cd}_${sanitizarNome(a.nome)}`;
             const { error: up } = await supabase.storage.from("documentos_processos").upload(path, blob, { upsert: true });
