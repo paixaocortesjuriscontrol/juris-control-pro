@@ -3735,16 +3735,21 @@ const AnaliseDjen = () => {
       let sucesso = 0;
       const falhas: { id: string; processo: string | null; erro: string }[] = [];
       const descartadosOk: string[] = [];
+      // Ao descartar uma publicação, as cópias dela saem juntas; não tenta de novo.
+      const jaSairam = new Set<string>();
       for (const p of paraDescartar) {
+        if (jaSairam.has(p.id)) { sucesso += 1; descartadosOk.push(p.id); continue; }
         try {
-          await descartarManualmente.mutateAsync({
+          const r: any = await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
             silent: true,
           });
+          (r?.ids_descartados || []).forEach((x: string) => jaSairam.add(x));
           sucesso += 1;
           descartadosOk.push(p.id);
         } catch (e: any) {
+          if (/não encontrada/i.test(e?.message || '')) { sucesso += 1; continue; }
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
@@ -3931,15 +3936,19 @@ const AnaliseDjen = () => {
     try {
       let sucesso = 0;
       const falhas: { id: string; processo: string | null; erro: string }[] = [];
+      const jaSairam = new Set<string>();
       for (const p of paraDescartar) {
+        if (jaSairam.has(p.id)) { sucesso += 1; continue; }
         try {
-          await descartarManualmente.mutateAsync({
+          const r: any = await descartarManualmente.mutateAsync({
             id: p.id,
             tipo_origem: p.tipo_origem as 'termo' | 'processo',
             silent: true,
           });
+          (r?.ids_descartados || []).forEach((x: string) => jaSairam.add(x));
           sucesso += 1;
         } catch (e: any) {
+          if (/não encontrada/i.test(e?.message || '')) { sucesso += 1; continue; }
           falhas.push({ id: p.id, processo: p.processo_numero ?? null, erro: e?.message || String(e) });
         }
       }
