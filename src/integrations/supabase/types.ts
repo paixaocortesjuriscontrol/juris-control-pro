@@ -8538,6 +8538,27 @@ export type Database = {
           },
         ]
       }
+      projuris_vinculo_stage: {
+        Row: {
+          chave: string
+          extra: string | null
+          tipo: string
+          valor: string
+        }
+        Insert: {
+          chave: string
+          extra?: string | null
+          tipo: string
+          valor: string
+        }
+        Update: {
+          chave?: string
+          extra?: string | null
+          tipo?: string
+          valor?: string
+        }
+        Relationships: []
+      }
       prompts_ia_publicacoes: {
         Row: {
           ativo: boolean
