@@ -94,9 +94,12 @@ export function paraHora(v: any): string | null {
 
 /** Classifica o tipo pelo título (o Projuris não grava o tipo). */
 export function classificarTipo(titulo: string, tipoOrigem?: string): string {
+  const tituloNormalizado = norm(titulo);
   const t = norm(`${tipoOrigem || ""} ${titulo}`);
-  if (/\baudiencia\b|\bpauta\b|\bjulgamento\b|\bsessao\b/.test(t) && !/prepar/.test(t)) return "AUDIÊNCIA";
-  if (/prepar.*audiencia/.test(t)) return "PREPARAÇÃO AUDIÊNCIA";
+  if (/\baudiencias?\b/.test(tituloNormalizado)) {
+    if (/prepar/.test(t)) return "PREPARAÇÃO AUDIÊNCIA";
+    return "AUDIÊNCIA";
+  }
   if (/contrarraz/.test(t)) return "CONTRARRAZÕES";
   if (/recurso|apelac|agravo|embargos/.test(t)) return "RECURSO";
   if (/contestac|defesa/.test(t)) return "DEFESA";
