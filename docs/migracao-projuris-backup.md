@@ -33,6 +33,11 @@ Módulos Projuris: 3=processo, 4=tarefa/evento, 32=comentário, 35=arquivo, 38=r
 - Relatório de Atividades completo (sem filtros) como alternativa.
 Arquivos físicos dos anexos: **já recebidos em 2 zips**.
 
+## Aplicado em 22/10/2026 (BRT) com as tabelas de vínculo recebidas
+Tabela de conferência `projuris_vinculo_stage` (só admin) guarda os vínculos e as linhas `undo_*` para desfazer:
+tarefas ligadas a processo 46.092 · corresponsáveis de tarefas 52.010 · responsáveis de processos 4.389 · etiquetas novas 47 e 6.296 aplicações · comentários 53.342 (fila de avisos limpa).
+Pendente: anexos pulados (19.498) exigem reenviar os zips; `cdtarefaevento` é a chave das tarefas importadas e `tarefavinculomodulo.cdtarefa` = `tarefaevento.cdtarefa`.
+
 ## Próximos passos (segunda-feira)
 1. Quando chegarem as tabelas de vínculo: adicioná-las em `TABELAS` e usar como ligação prioritária (mesmo padrão do `andamentovinculomodulo`).
 2. Implementar etapa **Anexos**: ligar por `arquivovinculomodulo`; sem ela, usar CNJ no nome, CNJ no texto do PDF e tamanho do arquivo (`arquivo.csv`). Sem vínculo → relatório, nunca solto.
