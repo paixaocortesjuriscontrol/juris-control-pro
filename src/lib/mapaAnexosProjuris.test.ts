@@ -27,6 +27,15 @@ describe("montarMapaBackup", () => {
     assert.deepEqual(find({ caminho: "/interno/doc.pdf", nome: "doc.pdf" }), { ambiguous: true });
     assert.equal(find({ caminho: "a/doc.pdf", nome: "doc.pdf" }).entry?.filename, "a/doc.pdf");
   });
+  test("zip consolidado mantém vínculo pela pasta mesmo com nomes repetidos", () => {
+    const target = { filename: "Todos/Pacote1/73807/processo-arquivo/doc.pdf" };
+    const find = indexarAnexosZip([target, { filename: "Todos/Pacote2/999/processo-arquivo/doc.pdf" }]);
+    assert.equal(find({ caminho: "C:\\origem\\73807\\processo-arquivo\\doc.pdf", nome: "doc.pdf" }).entry, target);
+  });
+  test("mesmo sufixo em dois pacotes continua ambíguo", () => {
+    const find = indexarAnexosZip([{ filename: "a/73807/doc.pdf" }, { filename: "b/73807/doc.pdf" }]);
+    assert.deepEqual(find({ caminho: "origem/73807/doc.pdf", nome: "doc.pdf" }), { ambiguous: true });
+  });
   test("reconhece nmarquivofinal com espaços substituídos pelo Projuris", () => {
     const entry = { filename: "anexos/Captura_de_tela.jpg" };
     assert.equal(indexarAnexosZip([entry])({ caminho: "73807/processo-arquivo/123.jpg", nome: "Captura de tela.jpg", nomeFinal: "Captura_de_tela.jpg" }).entry, entry);

@@ -10,7 +10,7 @@ import { useProjurisUploadProgress } from "@/hooks/useProjurisUploadProgress";
 import { uploadAnexoProjuris } from "@/lib/uploadAnexoProjuris";
 import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
+import { CheckCircle2, Download, Loader2, Pause, Play, Upload } from "lucide-react";
 import { sanitizarNome } from "@/lib/migracaoProjuris";
 import { montarMapaBackup, indexarAnexosZip, nomeBaseAnexo, motivoModuloAnexo } from "@/lib/mapaAnexosProjuris";
 
@@ -149,11 +149,51 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         const out = new Map<string, { id: string; processo_id?: string | null }>();
         await executarFila(batches(ids, 200), async parte => {
           if (cancelado.current) throw CANCELADO;
-          const { data, error } = await (supabase.from(tabela as any) as any).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris", parte);
-          if (error) throw error;
-          ((data as any[]) || []).forEach(x => out.set(String(x.identificador_projuris), x));
+          for (let from = 0; ; from += 1000) {
+            const { data, error } = await (supabase.from(tabela as any) as any).select(tabela === "tarefas" ? "id, identificador_projuris, processo_id" : "id, identificador_projuris").in("identificador_projuris", parte).range(from, from + 999);
+            if (error) throw error;
+            ((data as any[]) || []).forEach(x => out.set(String(x.identificador_projuris), x));
+            if (!data || data.length < 1000) break;
+          }
           await advance(parte.length, `Procurando ${tabela}`);
         });
+        // Existing processes were audited by cdprocesso without overwriting
+        // their original identificador_projuris. Resolve that history read-only.
+        const faltantes = ids.filter(id => !out.has(id));
+        const candidatos = new Map<string, Set<string>>();
+        await executarFila(batches(faltantes, 200), async parte => {
+          for (let from = 0; ; from += 1000) {
+            if (cancelado.current) throw CANCELADO;
+            const { data, error } = await supabase.from("migracoes_projuris_itens" as any)
+              .select("chave_externa, registro_id").eq("tipo", tabela === "processos" ? "processo" : "tarefa")
+              .in("status", ["criado", "existente"]).in("chave_externa", parte).range(from, from + 999);
+            if (error) throw error;
+            for (const item of (data as any[]) || []) {
+              if (!item.registro_id) continue;
+              const key = String(item.chave_externa);
+              const values = candidatos.get(key) || new Set<string>();
+              values.add(String(item.registro_id)); candidatos.set(key, values);
+            }
+            if (!data || data.length < 1000) break;
+          }
+          await ceder();
+        });
+        const unicos = Array.from(candidatos).filter(([, values]) => values.size === 1);
+        const registros = new Map<string, { id: string; processo_id?: string | null }>();
+        const verificarIds = Array.from(new Set(unicos.flatMap(([, values]) => Array.from(values))));
+        await executarFila(batches(verificarIds, 200), async parte => {
+          if (cancelado.current) throw CANCELADO;
+          const { data, error } = await (supabase.from(tabela as any) as any)
+            .select(tabela === "tarefas" ? "id, processo_id" : "id").in("id", parte);
+          if (error) throw error;
+          for (const item of (data as any[]) || []) registros.set(item.id, item);
+          await ceder();
+        });
+        for (const [key, values] of unicos) {
+          const id = Array.from(values)[0];
+          const registro = registros.get(id);
+          if (registro) out.set(key, registro);
+        }
         return out;
       };
       const procs = await busca("processos", procIds);
@@ -166,8 +206,8 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
         motivo = motivoModuloAnexo(m.modulo);
         if (!motivo && match?.ambiguous) motivo = "Nome repetido em pastas diferentes dos zips (vínculo não confirmado)";
         if (!motivo && !match?.entry) motivo = "Arquivo não encontrado nos zips";
-        if (!motivo && m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Processo não importado (faça a etapa Processos)"; }
-        else if (!motivo && m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Tarefa não importada (faça a etapa Tarefas)"; }
+        if (!motivo && m.modulo === "3") { processoId = procs.get(m.entidade)?.id || null; if (!processoId) motivo = "Anexo com processo não localizado pelo código Projuris"; }
+        else if (!motivo && m.modulo === "4") { const t = tars.get(m.entidade); tarefaId = t?.id || null; processoId = t?.processo_id || null; if (!tarefaId) motivo = "Anexo com tarefa não localizada pelo código Projuris"; }
         const entry = match?.entry;
         if (!motivo && migrados.has(m.cd)) motivo = "Já migrado antes";
         if (!motivo && vistos.has(m.cd)) motivo = "Repetido no mapeamento";
@@ -298,6 +338,18 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
   const resumo = conf ? Array.from(conf.reduce((m, l) => m.set(l.motivo || "Será importado", (m.get(l.motivo || "Será importado") || 0) + 1), new Map<string, number>())).sort((a, b) => b[1] - a[1]) : [];
   const okN = conf?.filter((l) => !l.motivo).length || 0;
   const totalZip = zips.reduce((s, z) => s + z.entries.length, 0);
+  const baixarConferencia = () => {
+    if (!conf) return;
+    const cell = (v: unknown) => {
+      const value = String(v ?? "");
+      return `"${(/^[=+@-]/.test(value) ? "'" + value : value).replace(/"/g, '""')}"`;
+    };
+    const rows = [["Código do anexo", "Módulo", "Código do destino Projuris", "Nome original", "Nome final", "Caminho no CSV", "Caminho no zip", "Resultado", "Processo localizado", "Tarefa localizada"],
+      ...conf.map(l => [l.cd, l.modulo, l.entidade, l.nome, l.nomeFinal, l.caminho, l.entry?.filename, l.motivo || "Será importado", l.processoId, l.tarefaId])];
+    const url = URL.createObjectURL(new Blob(["\ufeff" + rows.map(row => row.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "conferencia-anexos-projuris.csv"; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 
   return (
     <Card>
@@ -340,6 +392,7 @@ export function AnexosBackupProjuris({ coordId, nomeCoord, userId, onConcluido }
             {resumo.map(([k, n]) => <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>)}
             {conf.some(l => l.motivo === "Arquivo não encontrado nos zips") && <details className="pt-2 text-xs"><summary className="cursor-pointer font-medium">Conferir exemplos de arquivos não encontrados</summary><div className="mt-2 space-y-2">{conf.filter(l => l.motivo === "Arquivo não encontrado nos zips").slice(0, 10).map((l, i) => <div key={i} className="break-all"><p>{l.nome}</p><p className="text-muted-foreground">Caminho no cadastro: {l.caminho}</p></div>)}</div></details>}
             <div className="flex gap-2 pt-2">
+              <Button size="sm" variant="outline" onClick={baixarConferencia}><Download className="mr-2 h-4 w-4" />Baixar conferência completa (CSV)</Button>
               <Button size="sm" disabled={rodando || feito || !okN} onClick={() => void importar()}>
                 {rodando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}Importar {okN.toLocaleString("pt-BR")} anexos
               </Button>

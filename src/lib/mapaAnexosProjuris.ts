@@ -9,6 +9,7 @@ export const nomeBaseAnexo = (path: string) => normalizarCaminhoAnexo(path).spli
 /** Never silently select the last of several same-named physical files. */
 export function indexarAnexosZip<T extends { filename: string }>(entries: T[]) {
   const paths = new Map<string, T[]>();
+  const suffixes = new Map<string, T[]>();
   const names = new Map<string, T[]>();
   const add = (map: Map<string, T[]>, key: string, entry: T) => {
     if (!key) return;
@@ -17,12 +18,22 @@ export function indexarAnexosZip<T extends { filename: string }>(entries: T[]) {
   };
   for (const entry of entries) {
     add(paths, normalizarCaminhoAnexo(entry.filename), entry);
+    const parts = normalizarCaminhoAnexo(entry.filename).split("/").filter(Boolean);
+    for (let i = 0; i < parts.length - 1; i++) add(suffixes, parts.slice(i).join("/"), entry);
     add(names, nomeBaseAnexo(entry.filename), entry);
   }
   return (record: Pick<MapaAnexo, "caminho" | "nome" | "nomeFinal">): { entry?: T; ambiguous: boolean } => {
     const exact = paths.get(normalizarCaminhoAnexo(record.caminho)) || [];
     if (exact.length === 1) return { entry: exact[0], ambiguous: false };
     if (exact.length > 1) return { ambiguous: true };
+    // Consolidating ZIPs adds parent folders: preserve the longest shared path,
+    // never resolve two different files by their basename alone.
+    const parts = normalizarCaminhoAnexo(record.caminho).split("/").filter(Boolean);
+    for (let i = 0; i < parts.length - 1; i++) {
+      const matches = suffixes.get(parts.slice(i).join("/")) || [];
+      if (matches.length === 1) return { entry: matches[0], ambiguous: false };
+      if (matches.length > 1) return { ambiguous: true };
+    }
     const stored = names.get(nomeBaseAnexo(record.caminho)) || [];
     if (stored.length === 1) return { entry: stored[0], ambiguous: false };
     if (stored.length > 1) return { ambiguous: true };
