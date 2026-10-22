@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Avisos multicanal de alterações e cobranças
+- [ ] Centralizar avisos de participantes e alterações para todos os tipos, incluindo quem alterou.
+- [ ] Notificar cobranças com e sem comentário, sem repetição.
+- [ ] Respeitar preferências individuais de canais e testar regras.
+
 ## Aviso de inclusão como responsável
 - [x] Notificar inclusão/troca de responsável e corresponsável no sino, mantendo avisos de criação e evitando repetições rápidas.
 - [x] Testar inclusão e troca em transação revertida, link e ausência de duplicação; nenhum dado de teste persistiu.
