@@ -1,5 +1,8 @@
 # Roadmap — Considerações 02/09
 
+## E-mail de acompanhamento especial — partes
+- [ ] Incluir nomes das partes no assunto e corpo, validar a composição e publicar a função sem disparar novas consultas pagas.
+
 ## Avisos multicanal de alterações e cobranças
 - [x] Centralizar avisos de participantes e alterações para todos os tipos, incluindo quem alterou.
 - [x] Notificar cobranças com e sem comentário, sem repetir comentário + bolinha C.
