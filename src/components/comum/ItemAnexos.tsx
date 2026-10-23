@@ -53,6 +53,10 @@ export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
     const coluna = COLUNA[tipo];
 
     useEffect(() => {
+      onContagemMudou?.(anexos.length);
+    }, [anexos.length, onContagemMudou]);
+
+    useEffect(() => {
       let cancelado = false;
       (async () => {
         if (!itemId) {
