@@ -1,6 +1,21 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
+import { canalAlertaPermitido, idsDestinatarios } from "./destinatarios.ts";
+
+async function resolverDestinatarios(supabase: any, coordId: string, idsItem: Set<string>, idsCfg: string[] | null | undefined) {
+  const { data: membros } = await supabase.from("membros_coordenacao").select("usuario_id, cargo").eq("coordenacao_id", coordId);
+  const cargos = new Map<string, string | null>((membros ?? []).map((m: any) => [m.usuario_id, m.cargo]));
+  const ids = idsDestinatarios(idsItem, idsCfg, cargos);
+  if (ids.size === 0) return [] as any[];
+  const { data: perfis } = await supabase.from("profiles").select("id, nome, email, telefone").in("id", [...ids]);
+  const prefs = await carregarConfigsUsuarios(supabase, [...ids]);
+  return (perfis ?? []).map((d: any) => {
+    const c = resolverConfig(prefs, d.id, coordId);
+    return { ...d, okEmail: canalAlertaPermitido(c, "email"), okWhats: canalAlertaPermitido(c, "whatsapp") };
+  });
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -326,12 +341,7 @@ serve(async (req) => {
         if (itens.length === 0) continue;
 
         // Destinatários finais = destinatários da config ∪ responsáveis ∪ envolvidos ∪ criador (dedup)
-        const finalIds = new Set<string>([...(cfg.destinatarios_ids ?? []), ...idsExtras]);
-        if (finalIds.size === 0) continue;
-        const { data: dests } = await supabase
-          .from("profiles")
-          .select("id, nome, email, telefone")
-          .in("id", [...finalIds]);
+        const dests = await resolverDestinatarios(supabase, cfg.coordenacao_id, idsExtras, cfg.destinatarios_ids);
         if (!dests?.length) continue;
 
         // Montar mensagem (data BRT dd/MM/yyyy)
@@ -353,7 +363,7 @@ serve(async (req) => {
         const refUnico = itens.length === 1 ? itens[0].id : null;
 
         for (const d of dests) {
-          if (cfg.canal_whatsapp && d.telefone) {
+          if (cfg.canal_whatsapp && d.okWhats && d.telefone) {
             const { data: jaEnviado } = await supabase
               .from("historico_alertas_enviados")
               .select("id")
@@ -384,7 +394,7 @@ serve(async (req) => {
             }
           }
 
-          if (cfg.canal_email && d.email) {
+          if (cfg.canal_email && d.okEmail && d.email) {
             const { data: jaEnviado } = await supabase
               .from("historico_alertas_enviados")
               .select("id")
@@ -456,10 +466,7 @@ serve(async (req) => {
           }
 
           if (itensVenc.length > 0) {
-            const finalIdsVenc = new Set<string>([...(cfg.destinatarios_ids ?? []), ...idsExtrasVenc]);
-            const { data: destsVenc } = finalIdsVenc.size > 0
-              ? await supabase.from("profiles").select("id, nome, email, telefone").in("id", [...finalIdsVenc])
-              : { data: [] as any[] };
+            const destsVenc = await resolverDestinatarios(supabase, cfg.coordenacao_id, idsExtrasVenc, cfg.destinatarios_ids);
             const linhas = itensVenc.slice(0, 40)
               .map((i) => formatarItem(i, `(venceu em ${String(i.data).slice(0, 10).split("-").reverse().join("/")})`))
               .join("\n\n");
@@ -475,7 +482,7 @@ serve(async (req) => {
             const inicioJanelaUtc = new Date(inicioDiaBrtUtc.getTime() + 3 * 60 * 60 * 1000).toISOString();
 
             for (const d of (destsVenc ?? [])) {
-              if (cfg.canal_email && d.email) {
+              if (cfg.canal_email && d.okEmail && d.email) {
                 const { data: ja } = await supabase
                   .from("historico_alertas_enviados")
                   .select("id").eq("coordenacao_id", cfg.coordenacao_id)
@@ -495,7 +502,7 @@ serve(async (req) => {
                   if (r.ok) totalEnviados++; else totalFalhas++;
                 }
               }
-              if (cfg.canal_whatsapp && d.telefone) {
+              if (cfg.canal_whatsapp && d.okWhats && d.telefone) {
                 const { data: ja } = await supabase
                   .from("historico_alertas_enviados")
                   .select("id").eq("coordenacao_id", cfg.coordenacao_id)
