@@ -11994,6 +11994,10 @@ export type Database = {
       }
       limpar_auditoria_distribuicao_tst_antiga: { Args: never; Returns: number }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
+      marcar_acomp_especial_lidas: {
+        Args: { _ids?: string[] }
+        Returns: number
+      }
       marcar_publicacoes_lidas_por_dedup: {
         Args: {
           p_ids_descartadas?: string[]
