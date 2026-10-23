@@ -418,10 +418,7 @@ export default function Monitoramento() {
     if (ids.length === 0) return;
     setMarcando(true);
     try {
-      const { error } = await supabase
-        .from("acompanhamento_especial_eventos")
-        .update({ lido_em: new Date().toISOString() })
-        .in("id", ids);
+      const { error } = await (supabase.rpc as any)("marcar_acomp_especial_lidas", { _ids: ids });
       if (error) throw error;
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["monitoramento-eventos"] }),
@@ -440,24 +437,8 @@ export default function Monitoramento() {
   const marcarTodasLidas = async () => {
     setMarcando(true);
     try {
-      const agora = new Date().toISOString();
-      if (semRestricao) {
-        const { error } = await supabase
-          .from("acompanhamento_especial_eventos")
-          .update({ lido_em: agora })
-          .is("lido_em", null);
-        if (error) throw error;
-      } else {
-        for (let i = 0; i < processoIds.length; i += 150) {
-          const lote = processoIds.slice(i, i + 150);
-          const { error } = await supabase
-            .from("acompanhamento_especial_eventos")
-            .update({ lido_em: agora })
-            .is("lido_em", null)
-            .in("processo_id", lote);
-          if (error) throw error;
-        }
-      }
+      const { error } = await (supabase.rpc as any)("marcar_acomp_especial_lidas", { _ids: null });
+      if (error) throw error;
       await Promise.all([
         qc.invalidateQueries({ queryKey: ["monitoramento-eventos"] }),
         qc.invalidateQueries({ queryKey: ["monitoramento-counts"] }),
