@@ -86,7 +86,7 @@ peca_modelo (o texto integral da peça ANONIMIZADO: troque nomes de pessoas por 
       fundamentos: anonimizar(String(r.fundamentos ?? "")),
       peca_modelo: anonimizar(String(r.peca_modelo || trecho)),
       origem_arquivo: nomeArquivo,
-      ativo: false,
+      ativo: true,
       criado_por: u.user.id,
     }).select("id, titulo, tipo_peca, area, materia, tags").single();
     if (error) return json({ error: error.message }, 500);
