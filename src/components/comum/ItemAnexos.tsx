@@ -35,6 +35,8 @@ interface ItemAnexosProps {
   itemId?: string | null;
   processoId?: string | null;
   label?: string;
+  /** Notifica o pai (ex.: ItemAbas) o total de anexos (salvos + pendentes). */
+  onContagemMudou?: (total: number) => void;
 }
 
 function formatFileSize(bytes: number) {
@@ -44,7 +46,7 @@ function formatFileSize(bytes: number) {
 }
 
 export const ItemAnexos = forwardRef<ItemAnexosHandle, ItemAnexosProps>(
-  ({ tipo, itemId, processoId, label = "Documentos" }, ref) => {
+  ({ tipo, itemId, processoId, label = "Documentos", onContagemMudou }, ref) => {
     const { user } = useAuth();
     const [anexos, setAnexos] = useState<Anexo[]>([]);
     const [uploading, setUploading] = useState(false);
