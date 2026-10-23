@@ -123,6 +123,35 @@ export type Database = {
           },
         ]
       }
+      acompanhamento_especial_leituras: {
+        Row: {
+          evento_id: string
+          id: string
+          lido_em: string
+          user_id: string
+        }
+        Insert: {
+          evento_id: string
+          id?: string
+          lido_em?: string
+          user_id?: string
+        }
+        Update: {
+          evento_id?: string
+          id?: string
+          lido_em?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "acompanhamento_especial_leituras_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "acompanhamento_especial_eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_usage_logs: {
         Row: {
           completion_tokens: number | null
