@@ -808,11 +808,11 @@ serve(async (req) => {
 
             // E-mail consolidado — SOMENTE para novas movimentações
             // (divergências de campos nunca geram e-mail).
-            const assunto = `Acompanhamento Especial - novas movimentações - ${cnj}`;
+            const assunto = `Juris Control - ${cnj} - ${novos} nova(s) movimentação(ões) encontrada(s)`;
             const linkProcesso = `https://juriscontrol.adv.br/processos/${p.id}`;
             const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">
               <p><strong>Acompanhamento Especial</strong></p>
-              <p>Processo <strong>${cnj}</strong> — ${novos} nova(s) movimentação(ões) encontrada(s) pela Judit:</p>
+              <p>Processo <strong>${cnj}</strong> — ${novos} nova(s) movimentação(ões) encontrada(s):</p>
               <ul>${linhasHtml}</ul>
               <p><a href="${linkProcesso}" style="color:#2563EB">Abrir o processo no JurisControl</a></p>
             </div>`;
