@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { forwardRef, useCallback, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ItemAtividades, useSubatividades, type TipoItemAtividade } from "./ItemAtividades";
 import { ItemComentarios } from "./ItemComentarios";
@@ -27,6 +27,8 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
     const { data: atividades = [] } = useSubatividades(tipo, itemId);
     const concluidas = atividades.filter((a) => a.situacao === "concluida").length;
     const { data: totalComentarios = 0 } = useContagemComentarios(tipoComentario, itemId);
+    const [contagemAnexos, setContagemAnexos] = useState(0);
+    const aoMudarAnexos = useCallback((total: number) => setContagemAnexos(total), []);
 
     return (
       <Tabs defaultValue="atividades" className="w-full border-t pt-3">
@@ -37,7 +39,9 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
           <TabsTrigger value="comentarios">
             Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
           </TabsTrigger>
-          {mostrarAnexos && <TabsTrigger value="anexos">Anexos</TabsTrigger>}
+          {mostrarAnexos && (
+            <TabsTrigger value="anexos">Anexos{contagemAnexos > 0 ? ` ${contagemAnexos}` : ""}</TabsTrigger>
+          )}
           <TabsTrigger value="historico">Histórico de alterações</TabsTrigger>
         </TabsList>
 
@@ -61,6 +65,7 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
                 tipo={tipoComentario as ItemAnexosTipo}
                 itemId={itemId}
                 processoId={processoId}
+                onContagemMudou={aoMudarAnexos}
               />
             </TabErrorBoundary>
           </TabsContent>
