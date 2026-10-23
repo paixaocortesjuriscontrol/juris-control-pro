@@ -1,5 +1,8 @@
 # Roadmap — Considerações 02/09
 
+## E-mail de acompanhamento especial — partes
+- [x] Incluir nomes das partes no assunto e corpo; 3 testes aprovados e função publicada sem disparar consultas pagas ou e-mails de teste. Recebimento com os nomes será confirmado no próximo aviso real.
+
 ## Avisos multicanal de alterações e cobranças
 - [x] Centralizar avisos de participantes e alterações para todos os tipos, incluindo quem alterou.
 - [x] Notificar cobranças com e sem comentário, sem repetir comentário + bolinha C.

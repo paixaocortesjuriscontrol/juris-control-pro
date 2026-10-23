@@ -18,3 +18,4 @@
 - Projuris spreadsheet and backup imports share `classificarTipo`; hearing detection checks the title independently from the source type to prevent source categories or movement history from overriding the title requirement.
 - Activity changes, participant additions and charges use one database notification queue for all item types; the channel worker applies each recipient's preferences, includes the actor, and skips sessionless maintenance instead of creating direct in-app alerts.
 - Special monitoring (judit-acompanhamento-especial) requests a fresh Judit crawl first and uses the Judit cache only as fallback, because the cache went weeks without updating and hid new movements.
+- Special-monitoring email party names are resolved from process fields with fallback to the already-fetched normalized parties, excluding lawyers and third parties; this avoids extra paid requests and preserves registered names.

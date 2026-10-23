@@ -6,6 +6,7 @@ import {
   extrairStepsDoJuditRaw,
 } from "../_shared/juditRawCampos.ts";
 import { coordenacaoDoUsuario } from "../_shared/coordenacao-usuario.ts";
+import { resolverPartesEmail, escaparHtml } from "./partesEmail.ts";
 
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const EMAIL_FROM = Deno.env.get("EMAIL_FROM") ?? "JurisControl <alertas@juriscontrol.adv.br>";
@@ -467,7 +468,7 @@ serve(async (req) => {
   let query = supabase
     .from("processos")
     .select(
-      "id, numero, coordenacao_id, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date, acompanhamento_ativado_em"
+      "id, numero, coordenacao_id, polo_ativo, polo_passivo, reclamante, reclamados, acompanhamento_freq_diaria, acompanhamento_com_anexos, acompanhamento_ultima_checagem_em, acompanhamento_ultimo_step_date, acompanhamento_ativado_em"
     )
     .eq("acompanhamento_especial", true);
   if (forcedProcessoId) query = query.eq("id", forcedProcessoId);
@@ -808,11 +809,17 @@ serve(async (req) => {
 
             // E-mail consolidado — SOMENTE para novas movimentações
             // (divergências de campos nunca geram e-mail).
-            const assunto = `Juris Control - ${cnj} - ${novos} nova(s) movimentação(ões) encontrada(s)`;
+            const partesEmail = resolverPartesEmail(p, extrairPartesDoJuditRaw({ response_data: rd }));
+            const assunto = `Juris Control - ${cnj}${partesEmail.resumo ? ` - ${partesEmail.resumo}` : ""} - ${novos} nova(s) movimentação(ões) encontrada(s)`;
+            const partesHtml = [
+              partesEmail.ativo ? `<p><strong>Polo ativo:</strong> ${escaparHtml(partesEmail.ativo)}</p>` : "",
+              partesEmail.passivo ? `<p><strong>Polo passivo:</strong> ${escaparHtml(partesEmail.passivo)}</p>` : "",
+            ].join("");
             const linkProcesso = `https://juriscontrol.adv.br/processos/${p.id}`;
             const html = `<div style="font-family:Arial,sans-serif;font-size:14px;color:#111">
               <p><strong>Acompanhamento Especial</strong></p>
               <p>Processo <strong>${cnj}</strong> — ${novos} nova(s) movimentação(ões) encontrada(s):</p>
+              ${partesHtml}
               <ul>${linhasHtml}</ul>
               <p><a href="${linkProcesso}" style="color:#2563EB">Abrir o processo no JurisControl</a></p>
             </div>`;
