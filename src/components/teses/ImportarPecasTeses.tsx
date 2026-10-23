@@ -112,8 +112,8 @@ export function ImportarPecasTeses({ coords, coordPadrao }: { coords: any[]; coo
             <SheetTitle>Importar peças em lote</SheetTitle>
             <SheetDescription>
               Arraste vários arquivos Word (.docx), PDF com texto ou .txt. A IA identifica a tese, o tipo de peça, a área,
-              a matéria e as palavras-chave, e guarda tudo organizado, sem dados pessoais. Cada tese entra como <b>inativa</b>:
-              confira e ative antes de usar. Arquivos já importados não são repetidos.
+              a matéria e as palavras-chave, e guarda tudo organizado, sem dados pessoais. Cada tese entra direto como
+              <b>ativa</b>, pronta para o gerador usar. Arquivos já importados não são repetidos.
             </SheetDescription>
           </SheetHeader>
 
