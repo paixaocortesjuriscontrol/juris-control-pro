@@ -1,5 +1,5 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "9.3.0";
+export const APP_VERSION = "9.4.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
@@ -97,4 +97,5 @@ export const VERSION_HISTORY = [
   { version: "9.1.0", date: "2026-10-22", notes: "Análise DJEN: publicação distribuída para um grupo GOL passa a aparecer também na Análise DJEN da coordenação que recebeu (não lida e ligada à tarefa criada), sem repetir onde já existe; Migração Projuris recebe os vínculos que faltavam (tarefas ligadas ao processo, responsáveis, etiquetas e comentários), liga anexos às tarefas e permite enviar os arquivos dos anexos pela própria tela, conferindo pelo nome para não duplicar o que já está no sistema; itens que vieram como tarefa e eram audiência, prazo ou evento foram corrigidos; descarte em lote deixa de mostrar falha falsa quando as cópias da mesma publicação saem juntas" },
   { version: "9.2.0", date: "2026-10-22", notes: "Notificações unificadas: inclusão de responsável/envolvido, alterações nos itens e cobranças avisam todos os envolvidos (inclusive quem alterou) respeitando o canal escolhido por cada pessoa (sistema, e-mail ou WhatsApp); e-mails passam a trazer o nome da coordenação no título para quem atua em duas ou mais; relatório em Excel do Painel de Controle com seleção de uma ou várias coordenações; termos da Coordenação GOL com TST incluído nos tribunais; itens da Santander Cível classificados como audiência sem 'audiência' no título foram corrigidos (tarefa, prazo ou evento)" },
   { version: "9.3.0", date: "2026-10-23", notes: "Monitoramento de acompanhamento especial: busca nova direto no tribunal antes de usar a cópia em cache (cache só como reserva), evitando que novas movimentações fiquem escondidas; e-mails de novas movimentações com assunto limpo, sem a palavra Judit; correção do erro ao salvar audiência ('record \"new\" has no field \"responsavel_id\"')" },
+  { version: "9.4.0", date: "2026-10-23", notes: "Acompanhamento Especial: a leitura passa a ser individual — quando alguém marca movimentações como lidas (ou abre um processo), elas ficam lidas só para essa pessoa, sem esconder as novidades dos colegas da mesma coordenação; a bolinha vermelha e os contadores consideram as leituras de cada usuário; e-mails de novas movimentações passam a trazer o nome das partes no assunto e no corpo" },
 ];
