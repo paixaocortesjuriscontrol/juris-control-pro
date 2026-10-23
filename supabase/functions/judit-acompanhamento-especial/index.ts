@@ -550,40 +550,41 @@ serve(async (req) => {
       }
 
       // ── Chamar Judit ──
-      const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 12_000);
+      // Busca nova no tribunal primeiro (cache_ttl 0): a cópia guardada da Judit
+      // ficava semanas sem atualizar e nenhuma novidade era detectada.
       let payload: any = null;
       let erro: string | null = null;
       let statusHttp = 0;
       const inicioReq = Date.now();
       const comAnexosProc = !!p.acompanhamento_com_anexos;
-      try {
-        const r = await fetch(
-          `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(cnj)}${
-            comAnexosProc ? "?with_attachments=true" : ""
-          }`,
-          { headers: { "api-key": juditApiKey, "Content-Type": "application/json" }, signal: ctl.signal }
-        );
-        statusHttp = r.status;
-        if (r.ok) payload = await r.json();
-        else erro = await r.text();
-      } catch (e: any) {
-        erro = e?.name === "AbortError" ? "timeout" : e?.message ?? "erro";
-      } finally {
-        clearTimeout(to);
-      }
-
-      // Fallback: cache sem dados úteis (ou 404) → dispara crawler
-      let origemDado = "cache";
-      if (!payload || !temDadosUteis(payload.response_data || payload)) {
-        const viaCrawler = await juditCrawler(juditApiKey!, cnj, comAnexosProc);
-        if (viaCrawler) {
-          payload = viaCrawler;
-          erro = null;
-          statusHttp = 200;
-          origemDado = "crawler";
-        } else if (!erro) {
-          erro = "sem dados na Judit (cache e crawler vazios)";
+      let origemDado = "crawler";
+      const viaCrawler = await juditCrawler(juditApiKey!, cnj, comAnexosProc);
+      if (viaCrawler) {
+        payload = viaCrawler;
+        statusHttp = 200;
+      } else {
+        // Fallback: cópia guardada da Judit
+        origemDado = "cache";
+        const ctl = new AbortController();
+        const to = setTimeout(() => ctl.abort(), 12_000);
+        try {
+          const r = await fetch(
+            `https://lawsuits.production.judit.io/lawsuits/${encodeURIComponent(cnj)}${
+              comAnexosProc ? "?with_attachments=true" : ""
+            }`,
+            { headers: { "api-key": juditApiKey, "Content-Type": "application/json" }, signal: ctl.signal }
+          );
+          statusHttp = r.status;
+          if (r.ok) payload = await r.json();
+          else erro = await r.text();
+        } catch (e: any) {
+          erro = e?.name === "AbortError" ? "timeout" : e?.message ?? "erro";
+        } finally {
+          clearTimeout(to);
+        }
+        if (!payload || !temDadosUteis(payload.response_data || payload)) {
+          payload = null;
+          if (!erro) erro = "sem dados na Judit (busca nova e cópia vazias)";
         }
       }
 
