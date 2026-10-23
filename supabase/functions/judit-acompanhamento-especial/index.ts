@@ -597,9 +597,13 @@ serve(async (req) => {
             instancia: rdResumo.instance || rdResumo.instancia || null,
             steps: Array.isArray(rdResumo.steps) ? rdResumo.steps.length : 0,
             ultimo_step: Array.isArray(rdResumo.steps)
-              ? rdResumo.steps[0]?.step_date ?? null
+              ? rdResumo.steps.reduce((m: string | null, s: any) => {
+                  const d = s?.step_date || s?.date || null;
+                  return d && (!m || d > m) ? d : m;
+                }, null)
               : null,
             origem_dado: origemDado,
+            consultado_em: new Date().toISOString(),
           }
         : null;
 
