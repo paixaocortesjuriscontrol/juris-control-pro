@@ -28,7 +28,14 @@ export function AcompanhamentoEspecialEventos({ processoId, limit = 20, showProc
       if (processoId) q = q.eq("processo_id", processoId);
       const { data, error } = await q;
       if (error) throw error;
-      return data || [];
+      const lista = data || [];
+      if (lista.length === 0) return lista;
+      // Leitura é individual: remove o que o usuário logado já leu
+      const { data: lidas } = await (supabase.from as any)("acompanhamento_especial_leituras")
+        .select("evento_id")
+        .in("evento_id", lista.map((e: any) => e.id));
+      const lidasSet = new Set(((lidas ?? []) as any[]).map((l) => l.evento_id));
+      return lista.filter((e: any) => !lidasSet.has(e.id));
     },
     refetchInterval: 60_000,
   });
