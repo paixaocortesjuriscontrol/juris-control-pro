@@ -37,6 +37,15 @@ serve(async (req) => {
     const coordenacaoId = body?.coordenacaoId || null;
     if (texto.trim().length < 300) return json({ error: "Arquivo sem texto suficiente (talvez seja escaneado)." }, 400);
 
+    const AREAS = ["trabalhista", "civil", "empresarial", "direito_privado"];
+    const autoArea = area === "auto" || !AREAS.includes(area);
+    const adminDup = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    if (nomeArquivo) {
+      let dq = adminDup.from("teses_juridicas").select("id, titulo").eq("origem_arquivo", nomeArquivo).limit(1);
+      dq = coordenacaoId ? dq.eq("coordenacao_id", coordenacaoId) : dq.is("coordenacao_id", null);
+      const { data: dup } = await dq;
+      if (dup?.length) return json({ success: true, duplicada: true, tese: dup[0] });
+    }
     const trecho = texto.slice(0, 80000);
     const ai = await geminiChatCompletionsFetch({
       model: "gemini-flash-latest",
@@ -45,7 +54,7 @@ serve(async (req) => {
           role: "system",
           content: `Você é um advogado sênior que cataloga peças processuais num banco de teses.
 Leia a peça e responda APENAS um JSON com as chaves:
-titulo (curto, descreve a tese central), tipo_peca (um de: ${TIPOS.join(", ")}), materia, assunto_cnj, tipo_recurso (ou null),
+titulo (curto, descreve a tese central), area (um de: trabalhista, civil, empresarial, direito_privado), tipo_peca (um de: ${TIPOS.join(", ")}), materia, assunto_cnj, tipo_recurso (ou null),
 tags (array de 3 a 10 palavras-chave), fundamentos (texto organizado com os argumentos jurídicos, artigos de lei, súmulas, OJs e julgados citados, em tópicos),
 peca_modelo (o texto integral da peça ANONIMIZADO: troque nomes de pessoas por [RECLAMANTE], [RECLAMADA], [ADVOGADO], [TESTEMUNHA]; remova CPF, RG, endereços e números de processo).`,
         },
@@ -69,7 +78,7 @@ peca_modelo (o texto integral da peça ANONIMIZADO: troque nomes de pessoas por 
       coordenacao_id: coordenacaoId,
       titulo: String(r.titulo || nomeArquivo || "Tese importada").slice(0, 300),
       tipo_peca: TIPOS.includes(r.tipo_peca) ? r.tipo_peca : "outros",
-      area,
+      area: autoArea ? (AREAS.includes(r.area) ? r.area : "trabalhista") : area,
       materia: r.materia ?? null,
       assunto_cnj: r.assunto_cnj ?? null,
       tipo_recurso: r.tipo_recurso ?? null,
@@ -79,7 +88,7 @@ peca_modelo (o texto integral da peça ANONIMIZADO: troque nomes de pessoas por 
       origem_arquivo: nomeArquivo,
       ativo: false,
       criado_por: u.user.id,
-    }).select("id, titulo, tipo_peca").single();
+    }).select("id, titulo, tipo_peca, area, materia, tags").single();
     if (error) return json({ error: error.message }, 500);
     return json({ success: true, tese: data });
   } catch (e: any) {
