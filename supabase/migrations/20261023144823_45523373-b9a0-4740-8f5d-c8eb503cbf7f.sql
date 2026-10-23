@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.marcar_acomp_especial_lidas(uuid[]) FROM PUBLIC, anon;
