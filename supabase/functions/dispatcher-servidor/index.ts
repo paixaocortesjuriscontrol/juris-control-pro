@@ -1,6 +1,7 @@
 // Dispatcher DJEN Servidor — enfileira jobs conforme configuracoes_monitoramento_servidor
 // Executado pelo pg_cron a cada 5 minutos. Idempotente por hora via dedupe_key.
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { diaAlvoRepescagem, ymdBrt } from "./repescagem.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,10 +68,11 @@ function shouldDispatch(cfg: Cfg, sp: Date): boolean {
       // não disparar mais de uma vez no mesmo dia para o mesmo slot
       if (last) {
         const lastSp = new Date(last.getTime() - 3 * 60 * 60 * 1000);
+        const lastMin = lastSp.getUTCHours() * 60 + lastSp.getUTCMinutes();
         if (
           lastSp.getUTCDate() === sp.getDate() &&
           lastSp.getUTCMonth() === sp.getMonth() &&
-          lastSp.getUTCHours() === hh
+          lastMin >= slot && lastMin < slot + 5
         ) continue;
       }
       return true;
@@ -115,10 +117,29 @@ Deno.serve(async (req) => {
       .gte("agendado_para", startUtcIso);
     const rodada = (execHoje ?? 0) + 1;
     const slot = matchSlot(cfg, sp);
+    let payload: Record<string, unknown> = {};
+    const modo = slot ? ((cfg.metadata as any)?.modos_horarios?.[slot] ?? "normal") : "normal";
+    if (modo === "repescagem") {
+      const hoje = ymdBrt(new Date());
+      const { data: anteriores } = await sb
+        .from("execucoes_servidor")
+        .select("agendado_para, payload")
+        .eq("tipo", cfg.tipo)
+        .lt("agendado_para", startUtcIso)
+        .gte("agendado_para", new Date(Date.now() - 20 * 86400000).toISOString())
+        .order("agendado_para", { ascending: false })
+        .limit(500);
+      const alvo = diaAlvoRepescagem(hoje, (anteriores ?? []) as any[]);
+      if (!alvo) {
+        await sb.from("configuracoes_monitoramento_servidor").update({ ultima_execucao: new Date().toISOString() }).eq("id", cfg.id);
+        continue;
+      }
+      payload = { dataInicio: alvo, dataFim: alvo, repescagem: true };
+    }
     const { data: jobId } = await sb.rpc("enfileirar_execucao_servidor", {
       p_tipo: cfg.tipo,
       p_agendado_para: new Date().toISOString(),
-      p_payload: {},
+      p_payload: payload,
       p_rodada: rodada,
       p_slot: slot,
     });

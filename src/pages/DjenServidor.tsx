@@ -582,7 +582,7 @@ function ExecucoesPanel() {
             <TableBody>
               {filtrados.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="text-xs">{LABELS[e.tipo] || e.tipo}</TableCell>
+                  <TableCell className="text-xs">{LABELS[e.tipo] || e.tipo}{(e as any).payload?.repescagem && (e as any).payload?.dataInicio ? ` · Repescagem de ${String((e as any).payload.dataInicio).slice(8,10)}/${String((e as any).payload.dataInicio).slice(5,7)}` : ""}</TableCell>
                   <TableCell>{statusBadge(e.status)}</TableCell>
                   <TableCell className="font-mono text-xs">{e.worker_id || "—"}</TableCell>
                   <TableCell className="text-xs">{fmtDate(e.agendado_para)}</TableCell>
@@ -989,7 +989,7 @@ function ComparadorPanel() {
                     <TableBody>
                       {data.execucoesServidor.map((e) => (
                         <TableRow key={e.id}>
-                          <TableCell className="font-medium">{LABELS[e.tipo] || e.tipo}</TableCell>
+                          <TableCell className="font-medium">{LABELS[e.tipo] || e.tipo}{(e as any).payload?.repescagem && (e as any).payload?.dataInicio ? ` · Repescagem de ${String((e as any).payload.dataInicio).slice(8,10)}/${String((e as any).payload.dataInicio).slice(5,7)}` : ""}</TableCell>
                           <TableCell>{statusBadge(e.status || "—")}</TableCell>
                           <TableCell className="text-xs">{fmtDate(e.agendado_para)}</TableCell>
                           <TableCell className="text-xs">{fmtDate(e.finalizado_em)}</TableCell>

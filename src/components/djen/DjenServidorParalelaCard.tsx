@@ -256,6 +256,15 @@ export function DjenServidorParalelaCard() {
     await updateConfig.mutateAsync({ id: cfg.id, patch: { horarios_execucao: proximos } });
   }, [cfg, updateConfig]);
 
+  const handleModoHorarioChange = useCallback(async (horario: string, modo: "normal" | "repescagem") => {
+    if (!cfg) return;
+    const meta: any = { ...(cfg.metadata as any || {}) };
+    const modos = { ...(meta.modos_horarios || {}) };
+    if (modo === "repescagem") modos[horario] = "repescagem"; else delete modos[horario];
+    meta.modos_horarios = modos;
+    await updateConfig.mutateAsync({ id: cfg.id, patch: { metadata: meta } });
+  }, [cfg, updateConfig]);
+
   const handleDiasSemanaChange = useCallback(async (dias: number[]) => {
     if (!cfg) return;
     const meta = { ...(cfg.metadata as any || {}), dias_semana: dias };
@@ -381,11 +390,14 @@ export function DjenServidorParalelaCard() {
             <Switch id="djen-servidor-scheduler-toggle" checked={cfg.ativo} onCheckedChange={handleToggleAgenda} />
           </div>
           <div className="space-y-2">
-            <label className="text-xs text-muted-foreground">Horários BRT (até 3 por dia)</label>
+            <label className="text-xs text-muted-foreground">Horários BRT (até 4 por dia) — Normal busca o próprio dia; Repescagem busca o último dia anterior com busca normal</label>
             <HorariosDoDiaPicker
               value={(cfg.horarios_execucao || []) as string[]}
               onChange={handleHorariosChange}
               disabled={!cfg.ativo}
+              maxSlots={4}
+              modos={((cfg.metadata as any)?.modos_horarios || {}) as Record<string, string>}
+              onModoChange={handleModoHorarioChange}
             />
           </div>
           <div className="space-y-2">

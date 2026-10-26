@@ -4,9 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const MAX_SLOTS = 3;
+const MAX_SLOTS_PADRAO = 3;
 
-function normalizar(horarios: string[]): string[] {
+function normalizar(horarios: string[], MAX_SLOTS = MAX_SLOTS_PADRAO): string[] {
   const limpos = horarios
     .map((h) => String(h || "").trim())
     .filter((h) => /^([01]?\d|2[0-3]):[0-5]\d$/.test(h));
@@ -28,25 +28,30 @@ type Props = {
   conflitos?: string[];        // horários que conflitam (ex.: DJEN browser)
   conflitoLabel?: string;      // descrição do conjunto conflitante p/ aviso
   placeholder?: string;
+  maxSlots?: number;
+  /** Modo por horário (ex.: { "23:30": "repescagem" }). Quando informado, mostra o seletor Normal/Repescagem. */
+  modos?: Record<string, string>;
+  onModoChange?: (horario: string, modo: "normal" | "repescagem") => void;
 };
 
-export function HorariosDoDiaPicker({ value, onChange, disabled, conflitos = [], conflitoLabel, placeholder }: Props) {
+export function HorariosDoDiaPicker({ value, onChange, disabled, conflitos = [], conflitoLabel, placeholder, maxSlots = MAX_SLOTS_PADRAO, modos, onModoChange }: Props) {
+  const MAX_SLOTS = maxSlots;
   // Estado local com 3 slots — vazios viram desabilitados ao salvar
   const [slots, setSlots] = useState<string[]>(() => {
-    const base = normalizar(value || []);
+    const base = normalizar(value || [], MAX_SLOTS);
     while (base.length < MAX_SLOTS) base.push("");
     return base;
   });
 
   useEffect(() => {
-    const base = normalizar(value || []);
+    const base = normalizar(value || [], MAX_SLOTS);
     while (base.length < MAX_SLOTS) base.push("");
     setSlots(base);
   }, [JSON.stringify(value)]);
 
   const persistir = (proximos: string[]) => {
-    const norm = normalizar(proximos);
-    if (!arraysIguais(norm, normalizar(value || []))) onChange(norm);
+    const norm = normalizar(proximos, MAX_SLOTS);
+    if (!arraysIguais(norm, normalizar(value || [], MAX_SLOTS))) onChange(norm);
   };
 
   const setSlot = (i: number, v: string) => {
@@ -66,7 +71,7 @@ export function HorariosDoDiaPicker({ value, onChange, disabled, conflitos = [],
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-2">
+      <div className={cn("grid gap-2", MAX_SLOTS >= 4 ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-3")}>
         {slots.map((s, i) => {
           const conflita = !!s && conflitos.includes(s);
           return (
@@ -81,6 +86,19 @@ export function HorariosDoDiaPicker({ value, onChange, disabled, conflitos = [],
                 className={cn("h-9", conflita && "border-destructive focus-visible:ring-destructive")}
                 aria-label={`Slot ${i + 1}`}
               />
+              {onModoChange && s && (
+                <select
+                  className="h-9 rounded-md border border-input bg-background px-2 text-xs disabled:opacity-70"
+                  value={modos?.[s] === "repescagem" ? "repescagem" : "normal"}
+                  disabled={disabled}
+                  onChange={(e) => onModoChange(s, e.target.value as "normal" | "repescagem")}
+                  aria-label={`Tipo do horário ${s}`}
+                  title="Normal: busca o próprio dia. Repescagem: busca o último dia anterior com busca normal."
+                >
+                  <option value="normal">Normal</option>
+                  <option value="repescagem">Repescagem</option>
+                </select>
+              )}
               {s && !disabled && (
                 <Button
                   type="button"
