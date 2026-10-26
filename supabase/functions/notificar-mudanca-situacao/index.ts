@@ -233,7 +233,13 @@ serve(async (req) => {
   try {
     const token = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
     if (!token) return new Response(JSON.stringify({ error: "Autenticação necessária" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    if (token !== SERVICE_ROLE) {
+    const cronToken = req.headers.get("x-cron-token") ?? "";
+    let cronOk = false;
+    if (cronToken) {
+      const { data: t } = await supabase.from("pje_direto_cron_token").select("token").eq("token", cronToken).maybeSingle();
+      cronOk = !!t;
+    }
+    if (token !== SERVICE_ROLE && !cronOk) {
       const { data: usuario, error: erroAuth } = await supabase.auth.getUser(token);
       if (erroAuth || !usuario.user) return new Response(JSON.stringify({ error: "Sessão inválida" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
       const { data: role } = await supabase.from("user_roles").select("id").eq("user_id", usuario.user.id).eq("role", "admin").maybeSingle();
