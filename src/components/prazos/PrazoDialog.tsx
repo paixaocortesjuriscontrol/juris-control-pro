@@ -154,7 +154,6 @@ export function PrazoDialog({
   const tertiaryClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
-  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(null, "PRAZO");
   // Perfis bloqueados e quem não pode reagendar não alteram datas de itens existentes.
   const travarDatas = datasBloqueadas && !!prazo;
 
@@ -260,6 +259,7 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((prazo as any)?.coordenacao_id as string) || coordenacaoId || null, "PRAZO");
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
