@@ -14,5 +14,5 @@ Deno.test("WhatsApp desligado não recebe", () => {
 
 Deno.test("responsável com WhatsApp ligado recebe", () => {
   assertEquals(canalAlertaPermitido({ ativo: true, canal_whatsapp: true }, "whatsapp"), true);
-  assertEquals(canalAlertaPermitido(undefined, "whatsapp"), true);
+  assertEquals(canalAlertaPermitido(undefined, "whatsapp"), false);
 });
