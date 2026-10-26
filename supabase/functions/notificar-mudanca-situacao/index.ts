@@ -289,7 +289,14 @@ serve(async (req) => {
         // Regra "Qualquer alteração realizada": se a coordenação tiver esta opção
         // marcada, os coordenadores são ADICIONADOS aos responsáveis/envolvidos
         // (nunca substituem — os responsáveis continuam recebendo).
-        if (!isComentario && item.coordenacao_id) {
+        // Inclusão como responsável/envolvido: só a pessoa incluída recebe
+        // (os demais já recebem o aviso de alteração do item).
+        if (isInclusao) {
+          const incluido = (item.contexto as any)?.usuario_id;
+          responsaveis = incluido ? [incluido] : [];
+        }
+
+        if (!isComentario && !isInclusao && item.coordenacao_id) {
           const { data: cfgCoord } = await supabase
             .from("config_alertas_coordenacao")
             .select("tipos_alerta")
