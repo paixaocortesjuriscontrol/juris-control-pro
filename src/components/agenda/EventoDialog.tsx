@@ -133,9 +133,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
-  const travarDatas = datasBloqueadas && isEditing;
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((evento as any)?.coordenacao_id as string) || coordenacaoId || null, "EVENTO");
+  const travarDatas = datasBloqueadas && isEditing;
 
   const [titulo, setTitulo] = useState("");
   const [dataInicio, setDataInicio] = useState("");

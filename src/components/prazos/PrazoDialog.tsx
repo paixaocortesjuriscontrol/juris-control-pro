@@ -155,7 +155,6 @@ export function PrazoDialog({
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   // Perfis bloqueados e quem não pode reagendar não alteram datas de itens existentes.
-  const travarDatas = datasBloqueadas && !!prazo;
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
   // para mostrar no card esquerdo do dialog.
@@ -260,6 +259,7 @@ export function PrazoDialog({
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((prazo as any)?.coordenacao_id as string) || coordenacaoId || null, "PRAZO");
+  const travarDatas = datasBloqueadas && !!prazo;
   const [situacao, setSituacao] = useState<string>("pendente");
   const [situacaoInicial, setSituacaoInicial] = useState<string>("pendente");
   const [comentarioSituacao, setComentarioSituacao] = useState("");
