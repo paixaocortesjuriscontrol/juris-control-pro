@@ -29,9 +29,9 @@ interface Config {
 }
 
 const DEFAULT: Config = {
-  canal_email: true, canal_whatsapp: true, canal_in_app: true,
-  evento_mudanca_situacao: true, evento_prazo_perdido: true, evento_tarefa_nova: true,
-  evento_comentario: true, evento_reagendamento: true,
+  canal_email: false, canal_whatsapp: false, canal_in_app: false,
+  evento_mudanca_situacao: false, evento_prazo_perdido: false, evento_tarefa_nova: false,
+  evento_comentario: false, evento_reagendamento: false,
   janela_hora_inicio: 8, janela_hora_fim: 20,
   resumo_diario_ativo: false, resumo_diario_hora: 7,
   receber_proprias_alteracoes: false,
