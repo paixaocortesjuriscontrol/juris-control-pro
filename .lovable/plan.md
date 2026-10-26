@@ -1,29 +1,34 @@
-# Repescagem diária do DJEN Servidor às 23h30
+# DJEN Servidor: 4 horários e repescagem por horário
 
 ## Por que
-Em 23/10, as 3 rodadas automáticas (04h30, 10h00 e 17h00) consultaram o TRT24 sem erro, mas o DJEN não devolveu nenhuma publicação. A busca manual de hoje, para o mesmo dia, trouxe 25 publicações por advogado, entre elas a do Dr. Osmar. O DJEN liberou as publicações do TRT24 tarde, e as rodadas seguintes só procuram o dia corrente.
+Em 23/10, as 3 rodadas automáticas consultaram o TRT24 sem erro, mas o DJEN não devolveu nenhuma publicação. A busca manual de hoje, para o mesmo dia, trouxe 25 publicações por advogado, inclusive a do Dr. Osmar. O DJEN liberou as publicações tarde, e as rodadas seguintes só procuram o dia corrente.
 
-## Como vai funcionar
-- **Todo dia às 23h30 (Brasília)**, o DJEN Servidor faz uma busca completa: todos os termos, todos os tribunais e todas as coordenações.
-- **Dia buscado:** o último dia **anterior** em que houve busca automática. Os dias sem rodada, como sábado e domingo, nunca são buscados.
+## O que muda na tela (DJEN Servidor > DJEN Termos > Agendamento automático)
+- **Até 4 horários por dia.** Hoje o limite é 3. O botão "Adicionar horário" aparece enquanto houver menos de 4.
+- Cada horário ganha uma marcação **Normal / Repescagem**:
+  - **Normal:** busca o próprio dia, como hoje.
+  - **Repescagem:** busca o **último dia anterior em que houve busca normal**. Dias sem busca, como sábado e domingo, nunca são buscados.
+- Os dias da semana marcados continuam valendo para todos os horários.
+- Na lista de execuções, a rodada de repescagem aparece como **"Repescagem de dd/mm"**.
+
+Exemplo com os horários 04:30, 10:00 e 17:00 em Normal e 23:30 em Repescagem, de segunda a sexta:
 
 | Execução 23h30 | Dia buscado |
 |---|---|
+| Segunda | Sexta anterior |
 | Terça | Segunda |
-| Sábado | Sexta |
-| Domingo e segunda | Sexta (só se ainda não tiver sido repescada no sábado; se já foi, não roda) |
+| Sexta | Quinta |
 
-- Cada dia é repescado **uma única vez**.
-- O que já foi capturado não se repete, porque a regra de duplicidade atual continua valendo. Só entram as publicações que tinham ficado de fora.
-- Na tela de execuções, a rodada aparece como **"Repescagem de dd/mm"**.
-- Nada muda nos horários atuais (04h30, 10h00 e 17h00, de segunda a sexta).
+- Cada dia é repescado **uma única vez**. Se o mesmo dia já foi repescado, a rodada não roda de novo.
+- O que já foi capturado não se repete, porque a regra de duplicidade atual continua valendo.
+- Os 3 horários atuais continuam como **Normal**. Para ativar a rotina pedida, basta incluir o 23:30 marcado como **Repescagem**. Posso já deixar assim configurado.
 
 ## Detalhes técnicos
-- `supabase/functions/dispatcher-servidor/index.ts`: novo bloco para `djen_paralela_servidor` às 23h30 SP, todos os dias da semana.
-  - O dia alvo é o maior `date(agendado_para em BRT)` das execuções `djen_paralela_servidor` anteriores a hoje sem `payload.repescagem`.
-  - O bloco pula a execução se já existir uma com `payload.repescagem = true` e `payload.dataInicio` igual ao alvo.
-  - Enfileira com `p_payload: { dataInicio: alvo, dataFim: alvo, repescagem: true }` e `p_slot: "23:30"`.
-- O motor (`paralela.js`) já aceita `dataInicio`/`dataFim` no payload; não muda.
-- O horário 23h30 fica em `configuracoes_monitoramento_servidor.metadata.repescagem_horario` (padrão "23:30"), para poder ser ajustado depois sem código.
-- Mostrar o rótulo "Repescagem" no card de execuções (`DjenServidorParalelaCard.tsx`) quando `payload.repescagem`.
-- Teste Deno do cálculo do dia alvo: segunda → sexta; terça → segunda; domingo com sexta já repescada → não roda.
+- Configuração: `configuracoes_monitoramento_servidor` (tipo `djen_paralela_servidor`); `horarios_execucao` passa a aceitar até 4 itens. O modo de cada horário fica em `metadata.modos_horarios`, por exemplo `{ "23:30": "repescagem" }`; quando ausente, vale "normal". Não há mudança de estrutura no banco.
+- Tela: `src/components/djen/DjenServidorParalelaCard.tsx`, com limite 4 e um seletor Normal/Repescagem por horário, salvando em `metadata`.
+- Agendador: `supabase/functions/dispatcher-servidor/index.ts`.
+  - **Slot em modo repescagem:** o dia alvo é o maior dia (em Brasília) com execução `djen_paralela_servidor` normal anterior a hoje. O agendador pula se já houver execução com `payload.repescagem = true` e o mesmo `dataInicio`.
+  - Enfileira com `{ dataInicio, dataFim: alvo, repescagem: true }`.
+  - Também corrige a trava de "um disparo por slot", que hoje compara só a hora e impediria dois horários na mesma hora.
+- Motor (`paralela.js`): já aceita `dataInicio`/`dataFim`; não muda.
+- Teste Deno do cálculo do dia alvo: segunda → sexta, terça → segunda, dia já repescado → não roda.
