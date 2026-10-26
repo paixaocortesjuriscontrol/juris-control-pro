@@ -2373,6 +2373,7 @@ export type Database = {
           id: string
           janela_hora_fim: number
           janela_hora_inicio: number
+          receber_proprias_alteracoes: boolean
           resumo_diario_ativo: boolean
           resumo_diario_hora: number
           updated_at: string
@@ -2393,6 +2394,7 @@ export type Database = {
           id?: string
           janela_hora_fim?: number
           janela_hora_inicio?: number
+          receber_proprias_alteracoes?: boolean
           resumo_diario_ativo?: boolean
           resumo_diario_hora?: number
           updated_at?: string
@@ -2413,6 +2415,7 @@ export type Database = {
           id?: string
           janela_hora_fim?: number
           janela_hora_inicio?: number
+          receber_proprias_alteracoes?: boolean
           resumo_diario_ativo?: boolean
           resumo_diario_hora?: number
           updated_at?: string

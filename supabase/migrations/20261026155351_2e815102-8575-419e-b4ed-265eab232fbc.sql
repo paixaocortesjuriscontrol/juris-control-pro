@@ -1,0 +1,1 @@
+alter table public.config_notificacoes_usuario add column if not exists receber_proprias_alteracoes boolean not null default false;
