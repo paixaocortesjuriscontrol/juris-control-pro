@@ -1399,7 +1399,7 @@ export function TarefaAgendaPanel({
                   value={comentario}
                   onChange={setComentario}
                   rows={2}
-                  maxLength={2000}
+                  maxLength={10000}
                 />
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-muted-foreground">

@@ -38,7 +38,7 @@ import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 const formSchema = z.object({
   responsavel_id: z.string().min(1, "Selecione um responsável"),
   processo_id: z.string().min(1, "Selecione um processo"),
-  titulo: z.string().min(1, "Título é obrigatório").max(200),
+  titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
   descricao: z.string().optional(),
   data_vencimento: z.string().min(1, "Data de vencimento é obrigatória"),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
