@@ -197,7 +197,6 @@ export function TarefaAgendaPanel({
     if (t.includes("tarefa")) return "TAREFA";
     return "EVENTO";
   })();
-  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(null, tipoPermissao);
   const [sendingComment, setSendingComment] = useState(false);
   const [comentariosOpen, setComentariosOpen] = useState(true);
   const [detalhesOpen, setDetalhesOpen] = useState(true);
@@ -248,6 +247,7 @@ export function TarefaAgendaPanel({
       return ((data as any)?.coordenacao_id as string | null) ?? null;
     },
   });
+  const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(itemCoordenacaoId || null, tipoPermissao);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(
     itemCoordenacaoId || null,
     tarefa.origem === "tarefa" ? (editForm.tipo_tarefa || tarefa.tipo_tarefa || "TAREFA EQUIPE") : "OUTROS",
