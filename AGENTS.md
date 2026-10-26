@@ -19,3 +19,4 @@
 - Activity changes, participant additions and charges use one database notification queue for all item types; the channel worker applies each recipient's preferences, includes the actor, and skips sessionless maintenance instead of creating direct in-app alerts.
 - Special monitoring (judit-acompanhamento-especial) requests a fresh Judit crawl first and uses the Judit cache only as fallback, because the cache went weeks without updating and hid new movements.
 - Special-monitoring email party names are resolved from process fields with fallback to the already-fetched normalized parties, excluding lawyers and third parties; this avoids extra paid requests and preserves registered names.
+- DJEN Servidor schedule slots carry a mode in configuracoes_monitoramento_servidor.metadata.modos_horarios (normal|repescagem); repescagem re-runs the last prior day with a normal scheduled run, once per day, because DJEN sometimes indexes publications after the day's last run.
