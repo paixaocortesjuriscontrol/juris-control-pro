@@ -363,6 +363,10 @@ serve(async (req) => {
           if (ator) { atorNome = ator.nome ?? ator.email ?? "Usuário"; atorEmail = ator.email ?? null; }
         }
         responsaveis = responsaveis.filter((uid) => recebeComoAutor(cfgMap.get(uid), uid, atorId));
+        // Reenvio pontual: só para quem não tem preferência salva (os demais já receberam)
+        if (ctx.reenviar_somente_sem_config === true) {
+          responsaveis = responsaveis.filter((uid) => !cfgsUsuarios.has(uid));
+        }
         if (responsaveis.length === 0) {
           await supabase.from("notificacoes_fila").update({ processado: true, processado_em: new Date().toISOString() }).eq("id", item.id);
           continue;
