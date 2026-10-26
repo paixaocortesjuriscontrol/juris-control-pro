@@ -18,11 +18,11 @@ export function idsDestinatarios(
   return out;
 }
 
-/** cfg undefined = sem preferência salva (padrão desligado); null = coordenação desativada. */
+/** cfg undefined = sem preferência salva (padrão ligado); null = coordenação desativada. */
 export function canalAlertaPermitido(
   cfg: Record<string, any> | null | undefined,
   canal: "email" | "whatsapp",
 ): boolean {
-  if (!cfg || cfg.ativo === false) return false;
-  return cfg[`canal_${canal}`] !== false;
+  if (cfg === null || cfg?.ativo === false) return false;
+  return cfg?.[`canal_${canal}`] !== false;
 }
