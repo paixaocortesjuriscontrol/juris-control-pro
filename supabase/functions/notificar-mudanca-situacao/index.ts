@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
-import { canalPermitido, eventoPermitido } from "./regras.ts";
+import { canalPermitido, eventoPermitido, recebeComoAutor } from "./regras.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -361,6 +361,11 @@ serve(async (req) => {
         if (atorId) {
           const { data: ator } = await supabase.from("profiles").select("nome, email").eq("id", atorId).maybeSingle();
           if (ator) { atorNome = ator.nome ?? ator.email ?? "Usuário"; atorEmail = ator.email ?? null; }
+        }
+        responsaveis = responsaveis.filter((uid) => recebeComoAutor(cfgMap.get(uid), uid, atorId));
+        if (responsaveis.length === 0) {
+          await supabase.from("notificacoes_fila").update({ processado: true, processado_em: new Date().toISOString() }).eq("id", item.id);
+          continue;
         }
         const quandoIso = ctx.alterado_em ?? item.created_at;
         const quando = fmtBRT(quandoIso);

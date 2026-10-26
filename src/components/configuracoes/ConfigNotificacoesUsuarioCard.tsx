@@ -24,6 +24,7 @@ interface Config {
   janela_hora_fim: number;
   resumo_diario_ativo: boolean;
   resumo_diario_hora: number;
+  receber_proprias_alteracoes: boolean;
   ativo: boolean;
 }
 
@@ -33,6 +34,7 @@ const DEFAULT: Config = {
   evento_comentario: true, evento_reagendamento: true,
   janela_hora_inicio: 8, janela_hora_fim: 20,
   resumo_diario_ativo: false, resumo_diario_hora: 7,
+  receber_proprias_alteracoes: false,
   ativo: true,
 };
 
@@ -219,7 +221,8 @@ export function ConfigNotificacoesUsuarioCard() {
             <h4 className="text-sm font-semibold mb-3">Tipos de evento</h4>
             <div className="space-y-3">
               {[
-                ["evento_mudanca_situacao", "Alterações nos meus itens (incluindo as feitas por mim)"],
+                ["evento_mudanca_situacao", "Alterações nos meus itens"],
+                ["receber_proprias_alteracoes", "Receber avisos das alterações feitas por mim"],
                 ["evento_prazo_perdido", "Prazo perdido (lembrete diário)"],
                 ["evento_tarefa_nova", "Inclusão como responsável ou envolvido (todos os tipos)"],
                 ["evento_comentario", "Comentários, menções e cobranças nos meus itens"],
