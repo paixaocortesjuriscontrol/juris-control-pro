@@ -1022,7 +1022,7 @@ export function TarefaDetalhesDialog({
                       value={comentario}
                       onChange={setComentario}
                       rows={3}
-                      maxLength={2000}
+                      maxLength={10000}
                     />
                     <Button
                       size="sm"

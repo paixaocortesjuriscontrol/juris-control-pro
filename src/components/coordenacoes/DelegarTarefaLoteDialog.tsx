@@ -39,7 +39,7 @@ import { Badge } from "@/components/ui/badge";
 const formSchema = z.object({
   responsavel_id: z.string().min(1, "Selecione um responsável"),
   processos_ids: z.array(z.string()).min(1, "Selecione ao menos um processo"),
-  titulo: z.string().min(1, "Título é obrigatório").max(200),
+  titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
   descricao: z.string().optional(),
   data_vencimento: z.string().min(1, "Data de vencimento é obrigatória"),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),

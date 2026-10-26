@@ -78,7 +78,7 @@ import { parseDateSafe } from "@/utils/date";
 
 const formSchema = z.object({
   tipo_tarefa: z.string().min(1, "Tipo é obrigatório"),
-  titulo: z.string().min(1, "Título é obrigatório").max(200),
+  titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
   descricao: z.string().optional(),
   responsavel_id: z.string().min(1, "Responsável é obrigatório"),
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),

@@ -20,7 +20,7 @@ export function MentionInput({
   placeholder = "Digite seu comentário...",
   rows = 3,
   className,
-  maxLength = 2000,
+  maxLength = 10000,
 }: MentionInputProps) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [mentionSearch, setMentionSearch] = useState("");

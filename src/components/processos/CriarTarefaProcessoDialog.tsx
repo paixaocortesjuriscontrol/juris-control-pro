@@ -35,7 +35,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 const formSchema = z.object({
-  titulo: z.string().min(1, "Título é obrigatório").max(200),
+  titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
   descricao: z.string().optional(),
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),
   data_fatal: z.string().optional(),
