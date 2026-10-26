@@ -344,13 +344,13 @@ serve(async (req) => {
         const cfgsUsuarios = await carregarConfigsUsuarios(supabase, responsaveis);
         const DESLIGADO = {
           canal_in_app: false, canal_email: false, canal_whatsapp: false,
-          evento_mudanca_situacao: false, evento_comentario: false, evento_tarefa_nova: false,
+          evento_mudanca_situacao: false, evento_comentario: false,
         };
         const cfgMap = new Map<string, any>();
         for (const uid of responsaveis) {
           const r = resolverConfig(cfgsUsuarios, uid, item.coordenacao_id);
           if (r === null) cfgMap.set(uid, DESLIGADO);
-          else cfgMap.set(uid, r ?? DESLIGADO);
+          else if (r) cfgMap.set(uid, r);
         }
 
         // Ator (quem alterou)
@@ -506,7 +506,7 @@ serve(async (req) => {
 
         for (const p of profiles ?? []) {
           const cfg: any = cfgMap.get(p.id) ?? {
-            canal_email: false, canal_whatsapp: false, evento_mudanca_situacao: false, evento_comentario: false, evento_tarefa_nova: false,
+            canal_email: true, canal_whatsapp: true, evento_mudanca_situacao: true, evento_comentario: true,
             janela_hora_inicio: 8, janela_hora_fim: 20,
           };
           if (!eventoPermitido(cfg, item.tipo_evento, ctx.criacao === true)) continue;

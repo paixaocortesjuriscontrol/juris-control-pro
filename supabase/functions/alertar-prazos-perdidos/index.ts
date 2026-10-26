@@ -252,7 +252,7 @@ serve(async (req) => {
       const coordenacaoId = await coordenacaoDoUsuario(supabase, uid);
 
       const cfgsU = await carregarConfigsUsuarios(supabase, [uid]);
-      const c = resolverConfig(cfgsU, uid, null) ?? { canal_email: false, canal_whatsapp: false, canal_in_app: false, evento_prazo_perdido: false };
+      const c = resolverConfig(cfgsU, uid, null) ?? { canal_email: true, canal_whatsapp: true, evento_prazo_perdido: true };
       // Mantém só os itens das coordenações em que o usuário quer o lembrete
       itens = itens.filter((i: any) => {
         const r = resolverConfig(cfgsU, uid, i.coordenacao_id);
