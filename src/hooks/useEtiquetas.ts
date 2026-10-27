@@ -78,19 +78,30 @@ export const ETIQUETA_COLOR_PALETTE = [
  * coordenações do próprio usuário — assim ninguém "perde" suas etiquetas ao
  * abrir um item de outra equipe.
  */
-export function useEtiquetas(coordenacaoId?: string | null, modulo?: EtiquetaModulo) {
+export function useEtiquetas(
+  coordenacaoId?: string | null,
+  modulo?: EtiquetaModulo,
+  opts?: { estrito?: boolean },
+) {
   // Administrador pode usar qualquer etiqueta, de qualquer coordenação.
   const { role } = useUserRole();
   const isAdmin = role === "admin";
   const { coordenacoes } = useCoordenacoesDoUsuario();
   const minhasIds = coordenacoes.map((c) => c.id);
-  const permitidas = isAdmin
+  const estrito = !!opts?.estrito && !!coordenacaoId;
+  const permitidas = estrito
+    ? [coordenacaoId!]
+    : isAdmin
     ? null
     : coordenacaoId
       ? Array.from(new Set([coordenacaoId, ...minhasIds]))
       : null;
   return useQuery({
-    queryKey: ["etiquetas", permitidas ? permitidas.slice().sort().join(",") : "todas"],
+    queryKey: [
+      "etiquetas",
+      permitidas ? permitidas.slice().sort().join(",") : "todas",
+      estrito ? "estrito" : "amplo",
+    ],
     queryFn: async () => {
       let q = supabase
         .from("etiquetas")
