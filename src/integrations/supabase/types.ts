@@ -10957,6 +10957,10 @@ export type Database = {
           grupos: number
         }[]
       }
+      assistente_geral_pode_editar: {
+        Args: { _id: string; _tabela: string; _user_id: string }
+        Returns: boolean
+      }
       atualizar_cor_processo_tag: {
         Args: { _cor: string; _tag_id: string }
         Returns: {
@@ -11950,6 +11954,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
+      is_assistente_juridico_geral: {
+        Args: { _user_id: string }
+        Returns: boolean
+      }
       is_cliente: { Args: { _user_id: string }; Returns: boolean }
       is_member_of_coordenacao: {
         Args: { _coordenacao_id: string; _user_id: string }
