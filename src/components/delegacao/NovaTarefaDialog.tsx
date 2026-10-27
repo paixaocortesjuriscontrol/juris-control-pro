@@ -281,19 +281,23 @@ export function NovaTarefaDialog({
     queryFn: async () => {
       if (!coordenacaoId && searchProcesso.length < 3) return [];
 
+      // Filtra pela tabela de vínculos (inclui a coordenação principal e as adicionais),
+      // mesma regra da lista de processos — antes só olhava processos.coordenacao_id
+      // e os processos vinculados à coordenação não apareciam.
       let query = supabase
         .from("processos")
         .select(`
           id,
           numero,
           polo_ativo,
-          cliente:clientes!processos_cliente_id_fkey(nome)
+          cliente:clientes!processos_cliente_id_fkey(nome)${coordenacaoId ? `,
+          pcr:processos_coordenacoes_responsaveis!inner(coordenacao_id)` : ""}
         `)
         .order("created_at", { ascending: false })
         .limit(50);
 
       if (coordenacaoId) {
-        query = query.eq("coordenacao_id", coordenacaoId);
+        query = query.eq("pcr.coordenacao_id", coordenacaoId);
       }
 
       if (searchProcesso.length >= 3) {
