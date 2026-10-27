@@ -284,21 +284,29 @@ export function NovaTarefaDialog({
       // Filtra pela tabela de vínculos (inclui a coordenação principal e as adicionais),
       // mesma regra da lista de processos — antes só olhava processos.coordenacao_id
       // e os processos vinculados à coordenação não apareciam.
-      let query = supabase
-        .from("processos")
-        .select(`
-          id,
-          numero,
-          polo_ativo,
-          cliente:clientes!processos_cliente_id_fkey(nome)${coordenacaoId ? `,
-          pcr:processos_coordenacoes_responsaveis!inner(coordenacao_id)` : ""}
-        `)
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (coordenacaoId) {
-        query = query.eq("pcr.coordenacao_id", coordenacaoId);
-      }
+      let query = coordenacaoId
+        ? supabase
+            .from("processos")
+            .select(`
+              id,
+              numero,
+              polo_ativo,
+              cliente:clientes!processos_cliente_id_fkey(nome),
+              pcr:processos_coordenacoes_responsaveis!inner(coordenacao_id)
+            `)
+            .eq("pcr.coordenacao_id", coordenacaoId)
+            .order("created_at", { ascending: false })
+            .limit(50)
+        : supabase
+            .from("processos")
+            .select(`
+              id,
+              numero,
+              polo_ativo,
+              cliente:clientes!processos_cliente_id_fkey(nome)
+            `)
+            .order("created_at", { ascending: false })
+            .limit(50);
 
       if (searchProcesso.length >= 3) {
         // Busca tolerante a máscara CNJ: usa apenas dígitos para comparar com numero
