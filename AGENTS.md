@@ -1,6 +1,6 @@
 # Regras de arquitetura
 
-- Unified agenda pagination uses each source's fullness flag, never the merged page length, because combining sources and expanding recurrences changes that length and can omit later items from office totals.
+- Unified agenda pagination uses each source's final successful response (including fallback queries) for its fullness flag, never the merged page length; all consumers use that flag because combining sources and expanding recurrences changes page length and can omit later items from office totals. Failed sources must reject the page rather than silently show incomplete totals.
 
 - Pauta detail tabs reuse the existing Processos e Casos overview and the Judit analysis, cover, attachments and log panels; load the linked process by ID or CNJ variants only when opened, and allow cached Judit panels by CNJ without a linked process, to keep shared edits and research consistent without automatic paid queries.
 
