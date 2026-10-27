@@ -749,6 +749,7 @@ export default function ListaAtividadesView({
               <EtiquetaFilter
                 modulo="itens"
                 coordenacaoId={forcedCoordenacaoId && forcedCoordenacaoId !== "all" ? forcedCoordenacaoId : undefined}
+                estrito
                 value={etiquetasFiltro}
                 onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
               />
@@ -797,6 +798,7 @@ export default function ListaAtividadesView({
               <EtiquetaFilter
                 modulo="itens"
                 coordenacaoId={filters.coordenacaoId || undefined}
+                estrito
                 value={etiquetasFiltro}
                 onChange={(ids) => { setEtiquetasFiltro(ids); setPage(1); }}
               />

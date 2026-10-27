@@ -13,11 +13,13 @@ interface Props {
   value: string[];
   onChange: (ids: string[]) => void;
   className?: string;
+  /** Com coordenação selecionada, mostra só as etiquetas dela (inclusive para admin). */
+  estrito?: boolean;
 }
 
 /** Filtro por etiqueta (modelo Astrea): lista alfabética, busca e chips com "x". */
-export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, className }: Props) {
-  const { data: catalogo = [] } = useEtiquetas(coordenacaoId ?? undefined, modulo);
+export function EtiquetaFilter({ modulo, coordenacaoId, value, onChange, className, estrito }: Props) {
+  const { data: catalogo = [] } = useEtiquetas(coordenacaoId ?? undefined, modulo, { estrito });
   const [busca, setBusca] = useState("");
   const [open, setOpen] = useState(false);
 
