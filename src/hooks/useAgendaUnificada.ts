@@ -106,6 +106,8 @@ export interface AgendaUnificadaFilters {
   enabled?: boolean; // Se false, a query não é executada
 }
 
+import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
+
 const PAGE_SIZE = 1000; // Supabase default limit
 export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
 
@@ -1352,13 +1354,10 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
     queryKey: [AGENDA_INFINITE_QUERY_KEY, filters, user?.id],
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
-      // Defensive check: if lastPage is undefined or not an array, no more pages
-      if (!lastPage || !Array.isArray(lastPage) || lastPage.length === 0) {
+      if (!lastPage || !Array.isArray(lastPage)) {
         return undefined;
       }
-      // Se a última página retornou PAGE_SIZE itens, provavelmente há mais
-      if (lastPage.length === PAGE_SIZE) return allPages.length;
-      return undefined;
+      return proximaPaginaAgenda(lastPage, allPages.length);
     },
     queryFn: async ({ pageParam }) => fetchAgendaPage(filters, pageParam as number, user?.id),
     enabled: !!user && filters.enabled !== false,

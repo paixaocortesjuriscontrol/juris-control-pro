@@ -1,5 +1,9 @@
 # Roadmap — Considerações 02/09
 
+## Contagem de Atas no escritório
+- [x] Corrigir continuidade da paginação da agenda ao mesclar fontes, evitando omitir Atas das páginas seguintes; testes de regressão.
+- [ ] Conferir total na tela como admin — sessão autenticada indisponível no Supabase externo.
+
 ## E-mail de acompanhamento especial — partes
 - [x] Incluir nomes das partes no assunto e corpo; 3 testes aprovados e função publicada sem disparar consultas pagas ou e-mails de teste. Recebimento com os nomes será confirmado no próximo aviso real.
 

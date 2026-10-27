@@ -1,5 +1,7 @@
 # Regras de arquitetura
 
+- Unified agenda pagination uses each source's fullness flag, never the merged page length, because combining sources and expanding recurrences changes that length and can omit later items from office totals.
+
 - Pauta detail tabs reuse the existing Processos e Casos overview and the Judit analysis, cover, attachments and log panels; load the linked process by ID or CNJ variants only when opened, and allow cached Judit panels by CNJ without a linked process, to keep shared edits and research consistent without automatic paid queries.
 
 - As ações Tarefa, Prazo, Evento e Audiência do botão Adicionar na ficha do processo usam `NovoItemPanel` dentro de um painel lateral direito sobreposto, mantendo o conteúdo da ficha visível ao fundo.
