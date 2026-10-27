@@ -12124,6 +12124,7 @@ export type Database = {
         | "cliente"
         | "advogado_temporario"
         | "assistente_coordenador"
+        | "assistente_juridico_geral"
       area_atuacao: "civil" | "trabalhista" | "empresarial" | "direito_privado"
       classificacao_tst_enum: "POSITIVO" | "NEGATIVO" | "IMPEDIDA"
       djen_status: "encontrada" | "descartada" | "duplicada"
@@ -12291,6 +12292,7 @@ export const Constants = {
         "cliente",
         "advogado_temporario",
         "assistente_coordenador",
+        "assistente_juridico_geral",
       ],
       area_atuacao: ["civil", "trabalhista", "empresarial", "direito_privado"],
       classificacao_tst_enum: ["POSITIVO", "NEGATIVO", "IMPEDIDA"],
