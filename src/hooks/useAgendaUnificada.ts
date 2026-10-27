@@ -106,10 +106,10 @@ export interface AgendaUnificadaFilters {
   enabled?: boolean; // Se false, a query não é executada
 }
 
-import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
+import { fonteAgendaCheia, proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 
 const PAGE_SIZE = 1000; // Supabase default limit
-export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v1" as const;
+export const AGENDA_INFINITE_QUERY_KEY = "agenda-unificada-infinite-v2" as const;
 
 const normalizeDedupText = (value: string) => value.replace(/\s+/g, " ").trim().toLowerCase();
 
@@ -274,7 +274,6 @@ export async function fetchAgendaPage(
         queryEventos = queryEventos.range(from, to);
 
         let { data: eventos, error: eventosError } = await queryEventos;
-        if ((eventos?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (eventosError) {
           console.error("Erro ao buscar eventos:", eventosError);
@@ -322,6 +321,9 @@ export async function fetchAgendaPage(
           eventos = fallbackRes.data;
           eventosError = fallbackRes.error;
         }
+
+        if (eventosError) throw eventosError;
+        fonteCheia ||= fonteAgendaCheia(eventos, halfPage);
 
         if (!eventosError && eventos && eventos.length > 0) {
           const eventIds = eventos.map((e: any) => e.id);
@@ -651,7 +653,6 @@ export async function fetchAgendaPage(
         queryTarefas = queryTarefas.range(from, to);
 
         let { data: tarefas, error: tarefasError } = await queryTarefas;
-        if ((tarefas?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (tarefasError) {
           console.error("Erro ao buscar tarefas:", tarefasError);
@@ -697,12 +698,18 @@ export async function fetchAgendaPage(
             } else if (filters.statusNotIn && filters.statusNotIn.length > 0) {
               queryTarefasFallback = queryTarefasFallback.not("status", "in", `(${filters.statusNotIn.join(",")})`);
             }
-            queryTarefasFallback = queryTarefasFallback.range(from, to);
+            queryTarefasFallback = queryTarefasFallback
+              .order("data_vencimento", { ascending: true, nullsFirst: false })
+              .order("id", { ascending: true })
+              .range(from, to);
             const fallbackRes = await queryTarefasFallback;
             tarefas = fallbackRes.data;
             tarefasError = fallbackRes.error;
           }
         }
+
+        if (tarefasError) throw tarefasError;
+        fonteCheia ||= fonteAgendaCheia(tarefas, halfPage);
 
         if (!tarefasError && tarefas) {
           const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.some((t) => taskTypeFilters.includes(t));

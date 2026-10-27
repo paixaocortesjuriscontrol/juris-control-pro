@@ -1,4 +1,5 @@
 import { useSessionState } from "@/hooks/useSessionState";
+import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
@@ -752,7 +753,7 @@ export default function PainelControle() {
       for (let page = 0; page < 20; page++) {
         const pageItens = await fetchAgendaPage(drillFilters, page, user?.id);
         coletados.push(...pageItens);
-        if (pageItens.length < 1000) break;
+        if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
       }
       // A RPC do ranking usa, para cargas importadas, a data de cumprimento
       // original registrada na auditoria de criação. Enriquecer os mesmos itens
@@ -1477,7 +1478,7 @@ export default function PainelControle() {
         );
         for (const pageItens of paginas) {
           coletados.push(...pageItens);
-          if (pageItens.length < 1000) { acabou = true; break; }
+          if (proximaPaginaAgenda(pageItens, base + 1) === undefined) { acabou = true; break; }
         }
       }
       const vistos = new Set<string>();
@@ -1576,7 +1577,7 @@ export default function PainelControle() {
       for (let page = 0; page < 40; page++) {
         const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
         coletados.push(...pageItens);
-        if (pageItens.length === 0) break;
+        if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
       }
       const vistos = new Set<string>();
       baseItens = coletados
@@ -1927,7 +1928,7 @@ export default function PainelControle() {
     for (let page = 0; page < 40; page++) {
       const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
       coletados.push(...pageItens);
-      if (pageItens.length === 0) break;
+      if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
     }
     const vistos = new Set<string>();
     return coletados
