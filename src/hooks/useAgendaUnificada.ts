@@ -646,6 +646,9 @@ export async function fetchAgendaPage(
           queryTarefas = queryTarefas.lte("data_vencimento", dfStr);
         }
 
+        // Atas vêm numa consulta própria na 1ª página (são poucas); aqui ficam de fora
+        // para não chegarem só na última página e deixarem o card de Atas zerado.
+        queryTarefas = queryTarefas.or("tipo_tarefa.is.null,tipo_tarefa.neq.ATA");
         // Ordenar por data_vencimento para que os registros mais próximos cheguem primeiro
         queryTarefas = queryTarefas.order("data_vencimento", { ascending: true, nullsFirst: false });
 
@@ -698,6 +701,7 @@ export async function fetchAgendaPage(
             } else if (filters.statusNotIn && filters.statusNotIn.length > 0) {
               queryTarefasFallback = queryTarefasFallback.not("status", "in", `(${filters.statusNotIn.join(",")})`);
             }
+            queryTarefasFallback = queryTarefasFallback.or("tipo_tarefa.is.null,tipo_tarefa.neq.ATA");
             queryTarefasFallback = queryTarefasFallback
               .order("data_vencimento", { ascending: true, nullsFirst: false })
               .order("id", { ascending: true })
@@ -710,6 +714,29 @@ export async function fetchAgendaPage(
 
         if (tarefasError) throw tarefasError;
         fonteCheia ||= fonteAgendaCheia(tarefas, halfPage);
+
+        // Atas: todas do período na primeira página, numa consulta pequena e rápida.
+        if (page === 0) {
+          const dStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+          let qAta = buildTarefasQuery(true).eq("tipo_tarefa", "ATA");
+          if (filters.processoIds?.length) qAta = qAta.in("processo_id", filters.processoIds);
+          if (coordScopeIds.length > 0) qAta = qAta.in("coordenacao_id", coordScopeIds);
+          else if (!filters.fetchAll) {
+            qAta = qAta.or(buildTarefasOr(filters.responsavelIds?.length ? filters.responsavelIds.join(",") : user.id));
+          }
+          if (filters.status === "pendente") qAta = qAta.eq("status", "pendente");
+          else if (filters.status === "concluido") qAta = qAta.eq("status", "cumprido");
+          if (filters.statusIn?.length) qAta = qAta.in("status", filters.statusIn as any);
+          else if (filters.statusNotIn?.length) qAta = qAta.not("status", "in", `(${filters.statusNotIn.join(",")})`);
+          if (filters.dataInicio) qAta = qAta.or(`data_vencimento.gte.${dStr(filters.dataInicio)},recorrencia_tipo.not.is.null`);
+          if (filters.dataFim) qAta = qAta.lte("data_vencimento", dStr(filters.dataFim));
+          let { data: atas, error: atasError } = await qAta.order("data_vencimento", { ascending: true }).limit(1000);
+          if (atasError) throw atasError;
+          if (atas?.length) {
+            const ids = new Set((tarefas || []).map((t: any) => t.id));
+            tarefas = [...(atas as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
+          }
+        }
 
         if (!tarefasError && tarefas) {
           const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.some((t) => taskTypeFilters.includes(t));
