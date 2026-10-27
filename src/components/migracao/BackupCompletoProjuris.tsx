@@ -577,7 +577,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     }).select("id").single();
     if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(null); return; }
     const mid = (mig as any).id;
-    const log = async (it: any[]) => { for (let k = 0; k < it.length; k += 500) await supabase.from("migracoes_projuris_itens" as any).insert(it.slice(k, k + 500).map((x) => ({ migracao_id: mid, ...x }))); };
+    const log = async (it: any[]) => { for (let k = 0; k < it.length; k += 500) {
+      const { error: logError } = await supabase.from("migracoes_projuris_itens" as any).insert(it.slice(k, k + 500).map((x) => ({ migracao_id: mid, ...x })));
+      if (logError) throw logError;
+    } };
     const linhas = conf[mod];
     const puladas = linhas.filter((l) => l.motivo);
     const ok = linhas.filter((l) => !l.motivo);
@@ -810,7 +813,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             </div>
           )}
           {ignorados > 0 && (
-            <p className="text-xs text-muted-foreground">{ignorados} arquivo(s) ignorado(s): tabelas de configuração do Projuris (cidades, feriados, bancos, auditoria etc.), que não entram na migração.</p>
+            <p className="text-xs text-muted-foreground">{ignorados} arquivo(s) não utilizados nesta etapa.</p>
           )}
           <div className="flex items-center gap-3">
             <Button disabled={analisando || rodando !== null || lendo !== null || !tabelasRef.current.size} onClick={() => void analisar()}>
@@ -822,6 +825,25 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           </div>
           {info.some(t => t.nome === "processo") && info.some(t => t.nome === "processonumero") && (
             <div className="space-y-2 border-t pt-3">
+              <h4 className="text-sm font-semibold">Complementos disponíveis</h4>
+              <div className="divide-y text-sm">
+                {[
+                  ["Justiça e órgão judicial", ["processojustica", "processoorgao"]],
+                  ["Comarca e UF", ["cidade", "estado"]],
+                  ["Número e tipo de vara", ["processovaranumero", "processovaratipo"]],
+                  ["Classe, fase e área", ["classecnj", "processofase", "processoarea"]],
+                  ["Partes e tipos de participação", ["processoparticipacaotipo", "pessoa", "participacaotipo"]],
+                  ["Responsáveis de origem", ["reprocessousuario", "usuario", "pessoa"]],
+                  ["Campos personalizados", ["campodinamico", "campodinamicodado"]],
+                  ["Pedidos", ["processopedido"]],
+                ].map(([label, tables]) => {
+                  const missing = (tables as string[]).filter(n => !info.some(t => t.nome === n));
+                  return <div key={String(label)} className="flex flex-wrap items-start justify-between gap-2 py-2">
+                    <span>{String(label)}</span>
+                    <span className="max-w-full break-words text-xs text-muted-foreground">{missing.length ? `Arquivos ausentes: ${missing.map(n => `${n}.csv`).join(", ")}` : "Arquivos carregados"}</span>
+                  </div>;
+                })}
+              </div>
               <Button variant="outline" disabled={analisando || !!rodando || !!lendo} onClick={() => void recuperarComplementos()}>
                 {rodando === "complementos" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                 Recuperar complementos
@@ -839,7 +861,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               <CardDescription>Nada foi gravado ainda. Importe na ordem: Processos → Tarefas → Andamentos.</CardDescription></CardHeader>
             <CardContent className="space-y-3">
               <Secao titulo="1. Processos" ls={conf.processos} mod="processos" tipo="processos"
-                desc="Cadastra os processos pelo número CNJ. Não duplica; processos já cadastrados recebem a coordenação de destino como responsável." />
+                desc={`${conf.processos.filter(l => !l.motivo && Object.keys(l.complementos || {}).length > 0).length.toLocaleString("pt-BR")} processos com complementos disponíveis; campos preenchidos são preservados.`} />
               <Secao titulo="2. Tarefas" ls={conf.tarefas} mod="tarefas" tipo="tarefas"
                 desc={`A ligação tarefa → processo vem da tabela tarefavinculomodulo do Projuris (prioritária); sem ela, do Relatório de Atividades, dos fluxos e das intimações. Responsáveis vêm de retarefaeventousuario. ${conf.tarefas.filter((l) => l.procDig).length.toLocaleString("pt-BR")} tarefas do backup foram ligadas a processo.`} />
               <Secao titulo="3. Andamentos" ls={conf.andamentos} mod="andamentos" tipo="andamentos"
