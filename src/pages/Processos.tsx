@@ -809,6 +809,7 @@ const Processos = () => {
             <EtiquetaFilter
               modulo="processos"
               coordenacaoId={coordenacaoFilter !== "all" ? coordenacaoFilter : undefined}
+              estrito
               value={etiquetasFiltro}
               onChange={setEtiquetasFiltro}
               className="[&>button]:h-9"
