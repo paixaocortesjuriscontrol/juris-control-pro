@@ -5096,7 +5096,7 @@ const AnaliseDjen = () => {
         />
 
         {/* Admin: comparação de execuções do dia por coordenação */}
-        {isAdmin && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (
+        {isAdminReal && (dataDisponibilizacaoDebounced || dataPublicacaoDebounced) && (
           <ExecucoesDoDiaAdminCard
             dataYmd={dataDisponibilizacaoDebounced || dataPublicacaoDebounced}
           />
