@@ -19,7 +19,7 @@ export function useCoordenacoesFull() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const isAdmin = roleData?.role === "admin";
+      const isAdmin = roleData?.role === "admin" || roleData?.role === "assistente_juridico_geral";
 
       // Buscar IDs de coordenações do usuário (caso não seja admin)
       let coordenacoesIds: string[] | null = null;

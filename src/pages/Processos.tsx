@@ -96,7 +96,7 @@ const Processos = () => {
         .eq("user_id", user.id)
         .maybeSingle();
       
-      const isAdmin = roleData?.role === "admin";
+      const isAdmin = roleData?.role === "admin" || roleData?.role === "assistente_juridico_geral";
       
       if (isAdmin) {
         return { coordenacoesIds: [], isAdmin: true };

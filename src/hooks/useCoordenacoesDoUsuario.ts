@@ -27,7 +27,7 @@ export function useCoordenacoesDoUsuario() {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
-      const isAdmin = (roles || []).some((r: any) => r.role === "admin");
+      const isAdmin = (roles || []).some((r: any) => r.role === "admin" || r.role === "assistente_juridico_geral");
 
       if (isAdmin) {
         const { data: all } = await supabase

@@ -95,7 +95,7 @@ export default function Indicadores() {
   });
 
   const podeVerOutros =
-    isAdmin || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador");
+    isAdmin || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador" || r === "assistente_juridico_geral");
 
   // Coordenações disponíveis: admin = todas; coordenador = só as suas
   const coordenacoesDisponiveis = coordenacoes;

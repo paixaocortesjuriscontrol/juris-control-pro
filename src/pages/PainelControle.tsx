@@ -723,9 +723,22 @@ export default function PainelControle() {
   const [equipeSearch, setEquipeSearch] = useState("");
   const [equipePagina, setEquipePagina] = useState(1);
 
+  // Totais só aparecem com todas as páginas carregadas; antes mostravam números parciais
+  // (ex.: Atas do fim do mês ficavam em 0). Falha numa página: tenta de novo.
+  const totaisCarregando = agendaQuery.isLoading || agendaQuery.hasNextPage || agendaQuery.isFetchingNextPage;
+  const totalCard = (n: number) => (agendaQuery.isError ? "!" : totaisCarregando ? "…" : n);
+  useEffect(() => {
+    if (!agendaQuery.isError || agendaQuery.isFetching) return;
+    const t = setTimeout(() => {
+      if (agendaQuery.hasNextPage) agendaQuery.fetchNextPage();
+      else agendaQuery.refetch();
+    }, 3000);
+    return () => clearTimeout(t);
+  }, [agendaQuery.isError, agendaQuery.isFetching, agendaQuery.hasNextPage]);
+
   // Auto-fetch all pages
   useEffect(() => {
-    if (agendaQuery.hasNextPage && !agendaQuery.isFetchingNextPage) {
+    if (agendaQuery.hasNextPage && !agendaQuery.isFetchingNextPage && !agendaQuery.isError) {
       agendaQuery.fetchNextPage();
     }
   }, [agendaQuery.hasNextPage, agendaQuery.isFetchingNextPage, agendaQuery.fetchNextPage]);
@@ -2929,7 +2942,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{contagensPorClassificacao.tarefa}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{totalCard(contagensPorClassificacao.tarefa)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
                     </div>
                     <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-blue-500/50 flex-shrink-0" />
@@ -2953,7 +2966,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{contagensPorClassificacao.ata}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalCard(contagensPorClassificacao.ata)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-violet-600 dark:text-violet-400 truncate">Atas</p>
                     </div>
                     <FileText className="w-4 h-4 md:w-5 md:h-5 text-violet-500/50 flex-shrink-0" />
@@ -2977,7 +2990,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{contagensPorClassificacao.evento}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{totalCard(contagensPorClassificacao.evento)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-green-700 dark:text-green-400 truncate">Eventos</p>
                     </div>
                     <CalendarPlus className="w-4 h-4 md:w-5 md:h-5 text-green-500/50 flex-shrink-0" />
@@ -3001,7 +3014,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{contagensPorClassificacao.prazo}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{totalCard(contagensPorClassificacao.prazo)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-red-600 dark:text-red-400 truncate">Prazos</p>
                     </div>
                     <Clock className="w-4 h-4 md:w-5 md:h-5 text-red-500/50 flex-shrink-0" />
@@ -3025,7 +3038,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{contagensPorClassificacao.audiencia}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{totalCard(contagensPorClassificacao.audiencia)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
                     </div>
                     <Gavel className="w-4 h-4 md:w-5 md:h-5 text-yellow-500/50 flex-shrink-0" />
@@ -3049,7 +3062,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{contagensPorClassificacao.parcelamento}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{totalCard(contagensPorClassificacao.parcelamento)}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
                     </div>
                     <Coins className="w-4 h-4 md:w-5 md:h-5 text-emerald-500/50 flex-shrink-0" />
