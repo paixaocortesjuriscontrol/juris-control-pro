@@ -658,6 +658,9 @@ export default function MigracaoProjuris() {
             </div>
           </CardContent>
         </Card>
+        {modo === "importacoes" && user && (
+          <ComplementarPlanilhaProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+        )}
         {modo === "importacoes" && (
           <div className="flex flex-wrap gap-2">
             {MODULOS.map(([k, rot], i) => (
