@@ -52,7 +52,7 @@ export function useMinhasCoordenacoes() {
         .select("role")
         .eq("user_id", user.id);
 
-      const isAdmin = roles?.some(r => r.role === "admin");
+      const isAdmin = roles?.some(r => r.role === "admin" || r.role === "assistente_juridico_geral");
 
       if (isAdmin) {
         const { data, error } = await supabase

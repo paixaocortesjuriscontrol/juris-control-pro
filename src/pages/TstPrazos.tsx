@@ -30,7 +30,7 @@ export default function TstPrazos({ embedded = false }: TstPrazosProps = {}) {
         .from("user_roles")
         .select("role")
         .eq("user_id", userId);
-      const isAdmin = roleData?.some((r) => r.role === "admin") ?? false;
+      const isAdmin = roleData?.some((r) => r.role === "admin" || r.role === "assistente_juridico_geral") ?? false;
 
       if (isAdmin) {
         const { data } = await supabase.from("coordenacoes").select("id, nome").order("nome");
