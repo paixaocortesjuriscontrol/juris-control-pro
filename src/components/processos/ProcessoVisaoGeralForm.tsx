@@ -1,3 +1,4 @@
+import { SISTEMAS_JUDICIAIS } from "@/lib/projurisPlanilhaProcessos";
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
@@ -1654,6 +1655,18 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       value={responsaveis}
                       onChange={setResponsaveis}
                     />
+                  </FormField>
+                  <FormField label="Sistema Judicial">
+                    <Select value={form.sistema || "__vazio"} onValueChange={(v) => update("sistema", v === "__vazio" ? "" : v)}>
+                      <SelectTrigger className={cn(inputCls, jcls("sistema"))}><SelectValue placeholder="Selecione" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__vazio">—</SelectItem>
+                        {form.sistema && !SISTEMAS_JUDICIAIS.includes(form.sistema) && (
+                          <SelectItem value={form.sistema}>{form.sistema}</SelectItem>
+                        )}
+                        {SISTEMAS_JUDICIAIS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </FormField>
                   {!isNovo && tipoProcessoField}
                   <FormField label="Situação">
