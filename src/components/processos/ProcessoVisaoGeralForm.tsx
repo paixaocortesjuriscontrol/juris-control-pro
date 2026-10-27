@@ -1,3 +1,4 @@
+import { SISTEMAS_JUDICIAIS } from "@/lib/projurisPlanilhaProcessos";
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
