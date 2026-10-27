@@ -49,7 +49,9 @@ export function useUserRole() {
           ? "coordenador"
           : roles.includes("assistente_coordenador")
             ? "assistente_coordenador"
-            : roles[0] ?? null;
+            : roles.includes("assistente_juridico_geral")
+              ? "assistente_juridico_geral"
+              : roles[0] ?? null;
 
       if (error) {
         console.error("Error fetching user role:", error);
@@ -81,6 +83,9 @@ export function useUserRole() {
   const isAdmin = role === "admin";
   const isCoordinator = role === "coordenador" || role === "assistente_coordenador";
   const isAdminOrCoordinator = isAdmin || isCoordinator;
+  // Assistente Jurídico Geral: vê todas as coordenações, mas só edita itens delegados (regra garantida no banco).
+  const isAssistenteGeral = role === "assistente_juridico_geral";
+  const podeVerTodasCoordenacoes = isAdminOrCoordinator || isAssistenteGeral;
 
-  return { role, loading, isAdmin, isCoordinator, isAdminOrCoordinator };
+  return { role, loading, isAdmin, isCoordinator, isAdminOrCoordinator, isAssistenteGeral, podeVerTodasCoordenacoes };
 }
