@@ -76,7 +76,8 @@ export const ETIQUETA_COLOR_PALETTE = [
  * ao usuário (a RLS já limita às coordenações das quais ele é membro).
  * Com coordenacaoId, mostra as etiquetas daquela coordenação E também as das
  * coordenações do próprio usuário — assim ninguém "perde" suas etiquetas ao
- * abrir um item de outra equipe.
+ * abrir um item de outra equipe. Com `estrito`, mostra SOMENTE as etiquetas da
+ * coordenação informada (inclusive para admin) — usado nos filtros de listagem.
  */
 export function useEtiquetas(
   coordenacaoId?: string | null,
