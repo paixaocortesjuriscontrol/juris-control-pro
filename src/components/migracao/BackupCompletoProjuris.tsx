@@ -10,6 +10,7 @@ import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
+import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
 
 // Colunas mantidas de cada tabela do backup (o resto do CSV é ignorado).
 // Tabela sem lista = mantém todas as colunas (arquivo pequeno).
@@ -36,6 +37,7 @@ const TABELAS: Record<string, string[] | null> = {
   comentario: ["cdcomentario", "decomentario", "dtinclusao", "cdusuariocriador"],
   arquivo: ["cdarquivo", "dearquivo", "nmarquivoorigem", "deurlexterna", "decaminhoarquivo"],
   andamentotipo: null,
+  ...TABELAS_PROCESSOS_RELACIONADOS,
 };
 
 // Leitor de CSV com quebra de linha e aspas, feito em Web Worker para não travar a tela.
@@ -275,11 +277,13 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     return p.length === 1 ? p[0].id : null;
   };
 
+  const dadosRelacionados = () => Object.fromEntries(Array.from(tabelasRef.current.entries()).map(([nome, t]) => [nome, t.linhas.map(r => Object.fromEntries(t.colunas.map((c, i) => [c, r[i] ?? ""])))]));
+
   const recuperarComplementos = async () => {
     const proc = gu("processo"); const nums = gu("processonumero");
     if (!proc || !nums) { toast.error("Envie processo.csv e processonumero.csv do backup."); return; }
     const registros = (t: NonNullable<ReturnType<typeof gu>>) => t.linhas.map(r => Object.fromEntries(t.colunas.map(c => [c, t.g(r, c)])));
-    const { fontes, ambiguos } = fontesComplementosUnicas(registros(proc), registros(nums));
+    const { fontes, ambiguos } = fontesComplementosUnicas(registros(proc), registros(nums), criarEnriquecedorProjuris(dadosRelacionados()));
     if (!fontes.length) { toast.error("Nenhuma origem única disponível para recuperação."); return; }
     setRodando("complementos"); setRecuperacao(""); setProg({ feito: 0, total: fontes.length });
     let mid: string | undefined; let recuperados = 0; let ausentes = 0; let duplicados = ambiguos;
@@ -316,6 +320,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       setMsg("Cruzando processos...");
       await ceder();
       const procNum = new Map<string, { dig: string; sc: number }>();
+      const enriquecer = criarEnriquecedorProjuris(dadosRelacionados());
       const guNum = gu("processonumero");
       if (guNum) for (const r of guNum.linhas) {
         if (excluido(guNum.g(r, "flexclusaotipo"))) continue;
@@ -396,6 +401,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           cdprocesso: cd, dig, pasta: String(guProc.g(r, "nmpastacliente") || guProc.g(r, "nmpasta") || ""),
           assunto: String(guProc.g(r, "nmassunto") || ""), descricao: String(guProc.g(r, "descricao") || ""),
           distIso: paraData(guProc.g(r, "dtdistribuicao")), valor: valorNum(guProc.g(r, "vlacao")),
+          complementos: enriquecer(Object.fromEntries(guProc.colunas.map(c => [c, guProc.g(r, c)]))),
         };
         procRows.push(item);
         if (!motivo) procByCd.set(cd, { cdprocesso: cd, dig });
@@ -589,18 +595,19 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         const procDb = new Map<string, string>();
         for (let k = 0; k < ok.length; k += 100) {
           const parte = ok.slice(k, k + 100);
-          const { data, error: e } = await supabase.from("processos").select("id, numero").in("numero", parte.map((l) => formatarCnj(l.dig)));
+          const { data, error: e } = await supabase.from("processos").select("id, numero").in("numero", parte.flatMap(l => [l.dig, formatarCnj(l.dig)]));
           if (e) throw e;
           ((data as any[]) || []).forEach((p) => procDb.set(digitos(p.numero), p.id));
           await ceder();
         }
-        const existentesIds = Array.from(new Set(ok.filter((l) => procDb.has(l.dig)).map((l) => procDb.get(l.dig)!)));
+        const existentesIds = Array.from(new Set(ok.flatMap(l => { const id = procDb.get(l.dig); return id ? [id] : []; })));
         for (let k = 0; k < existentesIds.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;
-          await supabase.from("processos_coordenacoes_responsaveis").upsert(
+          const { error: vinculoErro } = await supabase.from("processos_coordenacoes_responsaveis").upsert(
             existentesIds.slice(k, k + LOTE).map((pid) => ({ processo_id: pid, coordenacao_id: coordId })) as any,
             { onConflict: "processo_id,coordenacao_id", ignoreDuplicates: true },
           );
+          if (vinculoErro) throw vinculoErro;
           setProg({ feito: Math.min(k + LOTE, existentesIds.length), total: existentesIds.length });
         }
         await log(existentesIds.map((pid) => {
@@ -608,18 +615,25 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           return { tipo: tipoItem, chave_externa: l?.chave || null, registro_id: pid, status: "existente", motivo: "Já cadastrado; coordenação vinculada", dados: { titulo: l?.dig ? formatarCnj(l.dig) : "" } };
         }));
         cont.vinculados = existentesIds.length;
+        const fontesExistentes = ok.filter(l => procDb.has(l.dig)).map(l => ({ cd: String(l.cdprocesso), cnj: l.dig, campos: l.complementos }));
+        for (let k = 0; k < fontesExistentes.length; k += LOTE) {
+          await esperar(); if (cancelado.current) break;
+          const { data: res, error: recErro } = await supabase.rpc("recuperar_complementos_projuris", { _migracao_id: mid, _fontes: fontesExistentes.slice(k, k + LOTE) });
+          if (recErro) throw recErro;
+          const resultado = res as { recuperados?: number } | null;
+          cont.recuperados = (cont.recuperados || 0) + (resultado?.recuperados || 0);
+          await ceder();
+        }
         const novos = ok.filter((l) => !procDb.has(l.dig));
         for (let k = 0; k < novos.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;
           const parte = novos.slice(k, k + LOTE);
           const { data, error: e } = await supabase.from("processos").insert(parte.map((l) => ({
             numero: formatarCnj(l.dig), area: "civil", status: "ativo", coordenacao_id: coordId,
-            identificador_projuris: String(l.cdprocesso), pasta_cliente: l.pasta || null,
-            assunto: l.assunto || null, valor_causa: l.valor, data_distribuicao: l.distIso,
-            observacoes_processo: l.descricao ? l.descricao.slice(0, 4000) : null,
+            identificador_projuris: String(l.cdprocesso), ...l.complementos,
           }) as any)).select("id, numero");
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: l.chave, status: "erro", motivo: e.message, dados: { titulo: formatarCnj(l.dig) } }))); }
-          await log(((data as any[]) || []).map((p) => ({ tipo: tipoItem, chave_externa: digitos(p.numero), registro_id: p.id, status: "criado" })));
+          await log(((data as any[]) || []).map((p) => ({ tipo: tipoItem, chave_externa: digitos(p.numero), registro_id: p.id, status: "criado", dados: { complementos: parte.find(l => l.dig === digitos(p.numero))?.complementos } })));
           cont.criados += ((data as any[]) || []).length;
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
