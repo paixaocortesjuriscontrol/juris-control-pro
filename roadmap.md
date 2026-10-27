@@ -1,9 +1,10 @@
 # Roadmap — Considerações 02/09
 
 ## Recuperação dos complementos Projuris
-- [ ] Conferir correspondência única entre backup e processos já migrados.
-- [ ] Recuperar descrições e complementos disponíveis, sem sobrescrever dados preenchidos, com auditoria.
-- [ ] Verificar totais e leitura dos dados recuperados.
+- [x] Conferir correspondência única entre backup e processos já migrados; fontes ambíguas rejeitadas.
+- [x] Recuperar 81 descrições já preservadas em Observações; conferidas 81/81, sem apagar conteúdo.
+- [x] Disponibilizar Recuperar complementos no backup, com RPC admin invoker, campos vazios e auditoria de conflitos; 8 testes aprovados.
+- [ ] Executar recuperação do restante do backup na tela e conferir os dados — sessão admin indisponível no Supabase externo; requer administrador conectado usando Recuperar complementos com processo.csv e processonumero.csv.
 
 ## Contagem de Atas no escritório
 - [x] Corrigir continuidade da paginação da agenda ao mesclar fontes, evitando omitir Atas das páginas seguintes; testes de regressão.
