@@ -10,7 +10,7 @@ import { fontesPlanilhaProcessos } from "@/lib/projurisPlanilhaProcessos";
 
 interface Props { coordId: string; nomeCoord: string; userId: string; onConcluido: () => void }
 type Fonte = ReturnType<typeof fontesPlanilhaProcessos>["fontes"][number];
-const LOTE = 200;
+const LOTE = 50;
 
 export function ComplementarPlanilhaProjuris({ coordId, nomeCoord, userId, onConcluido }: Props) {
   const [lendo, setLendo] = useState(false);
