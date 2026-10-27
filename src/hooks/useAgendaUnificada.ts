@@ -718,7 +718,8 @@ export async function fetchAgendaPage(
         // Atas: todas do período na primeira página, numa consulta pequena e rápida.
         if (page === 0) {
           const dStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-          let qAta = buildTarefasQuery(true).eq("tipo_tarefa", "ATA");
+          const montarAta = (comJoins: boolean) => {
+          let qAta = buildTarefasQuery(comJoins).eq("tipo_tarefa", "ATA");
           if (filters.processoIds?.length) qAta = qAta.in("processo_id", filters.processoIds);
           if (coordScopeIds.length > 0) qAta = qAta.in("coordenacao_id", coordScopeIds);
           else if (!filters.fetchAll) {
@@ -730,7 +731,10 @@ export async function fetchAgendaPage(
           else if (filters.statusNotIn?.length) qAta = qAta.not("status", "in", `(${filters.statusNotIn.join(",")})`);
           if (filters.dataInicio) qAta = qAta.or(`data_vencimento.gte.${dStr(filters.dataInicio)},recorrencia_tipo.not.is.null`);
           if (filters.dataFim) qAta = qAta.lte("data_vencimento", dStr(filters.dataFim));
-          let { data: atas, error: atasError } = await qAta.order("data_vencimento", { ascending: true }).limit(1000);
+          return qAta.order("data_vencimento", { ascending: true }).limit(1000);
+          };
+          let { data: atas, error: atasError } = await montarAta(true);
+          if (atasError) ({ data: atas, error: atasError } = await montarAta(false));
           if (atasError) throw atasError;
           if (atas?.length) {
             const ids = new Set((tarefas || []).map((t: any) => t.id));
