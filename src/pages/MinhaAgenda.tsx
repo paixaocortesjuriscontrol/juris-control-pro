@@ -151,7 +151,7 @@ const QUICK_DATE_OPTIONS: QuickDateOption[] = [
 
 export default function MinhaAgenda() {
   const { user } = useAuth();
-  const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
+  const { podeVerTodasCoordenacoes: isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

@@ -245,7 +245,7 @@ const textoBuscavelItem = (item: any): string => {
 
 export default function PainelControle() {
   const { user } = useAuth();
-  const { isAdmin, isAdminOrCoordinator } = useUserRole();
+  const { isAdmin, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();

@@ -86,7 +86,7 @@ const ordenacaoLabel: Record<string, string> = {
 export default function CentralDelegacao() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isAdminOrCoordinator, loading: roleLoading } = useUserRole();
+  const { podeVerTodasCoordenacoes: isAdminOrCoordinator, loading: roleLoading } = useUserRole();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
