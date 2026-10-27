@@ -117,15 +117,15 @@ export default function PautasTstPage() {
   }, []);
   useEffect(() => { carregarAutoInfo(); }, [carregarAutoInfo]);
   const { user } = useAuth();
-  const { isAdmin, loading: roleLoading } = useUserRole() as any;
+  const { isAdmin, isAssistenteGeral, loading: roleLoading } = useUserRole() as any;
 
   useEffect(() => {
     if (!user?.id || roleLoading) return;
-    if (isAdmin) { setAcesso(true); return; }
+    if (isAdmin || isAssistenteGeral) { setAcesso(true); return; }
     const sb: any = supabase;
     sb.from("membros_coordenacao").select("id").eq("usuario_id", user.id).eq("coordenacao_id", COORD_RENATA).limit(1)
       .then(({ data }: any) => setAcesso(!!data?.length));
-  }, [user?.id, isAdmin, roleLoading]);
+  }, [user?.id, isAdmin, isAssistenteGeral, roleLoading]);
   useEffect(() => { carregarMembrosRenata().then(setMembros); }, []);
 
   const carregarSemanas = useCallback(async () => {
