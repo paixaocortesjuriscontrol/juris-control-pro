@@ -62,7 +62,9 @@ export default function PainelEquipe() {
   const [selectedTarefa, setSelectedTarefa] = useState<Prazo | null>(null);
   const [detalhesDialogOpen, setDetalhesDialogOpen] = useState(false);
 
-  const { isAdmin } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral } = useUserRole();
+  // Assistente Jurídico Geral vê todas as coordenações como admin (edição barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
   const { data: coordenacoes, isLoading: loadingCoord } = useMinhasCoordenacoes();
 
   // IDs de coordenações autorizadas do usuário logado

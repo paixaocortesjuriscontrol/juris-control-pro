@@ -182,7 +182,9 @@ const getHojeBrtISO = (): string => {
 
 const AnaliseDjen = () => {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral } = useUserRole();
+  // Assistente Jurídico Geral vê todas as coordenações como admin (edição barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const routerLocation = useLocation();
@@ -5893,7 +5895,7 @@ const AnaliseDjen = () => {
                                             </Button>
                                           </DropdownMenuTrigger>
                                           <DropdownMenuContent align="end" className="w-56" onClick={(e) => e.stopPropagation()}>
-                                            {podeDistribuirPublicacaoGol(isAdmin, pub.coordenacao_id, pub.tipo_origem) && (
+                                            {podeDistribuirPublicacaoGol(isAdminReal, pub.coordenacao_id, pub.tipo_origem) && (
                                               <DropdownMenuItem onSelect={() => setTimeout(() => setPublicacaoDistribuicao(pub), 0)}>
                                                 <Share2 className="w-4 h-4 mr-2" /> Distribuir publicação
                                               </DropdownMenuItem>

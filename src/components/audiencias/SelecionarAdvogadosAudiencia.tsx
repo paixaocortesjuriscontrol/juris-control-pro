@@ -35,7 +35,9 @@ interface Props {
 
 export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionChange, lockedIds = [] }: Props) {
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral } = useUserRole();
+  // Assistente Jurídico Geral vê todas as coordenações como admin (edição barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
   const [coordenacaoFiltro, setCoordenacaoFiltro] = useState<string>("todas");
   const [coordenacaoFiltroTouched, setCoordenacaoFiltroTouched] = useState(false);
 

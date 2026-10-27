@@ -39,7 +39,9 @@ interface PainelAudienciasProps {
 export default function PainelAudiencias({ embedded = false, statusFilter: statusFilterProp, onStatusFilterChange }: PainelAudienciasProps = {}) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral } = useUserRole();
+  // Assistente Jurídico Geral vê todas as coordenações como admin (edição barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
 
   const [search, setSearch] = useState("");
   const [statusFilterLocal, setStatusFilterLocal] = useState("todos");

@@ -70,7 +70,9 @@ export function PeoplePicker({
 }: Props) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
-  const { isAdmin } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral } = useUserRole();
+  // Assistente Jurídico Geral vê todas as coordenações como admin (edição barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
   const { data: coordPadraoId } = useCoordenacaoPadrao();
   const [coordFiltro, setCoordFiltro] = useState<string>("todas");
   const [coordFiltroTouched, setCoordFiltroTouched] = useState(false);
