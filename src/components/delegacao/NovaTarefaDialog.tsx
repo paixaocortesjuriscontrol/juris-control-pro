@@ -277,9 +277,9 @@ export function NovaTarefaDialog({
 
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
-    queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso],
+    queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso, form.watch("processo_id")],
     queryFn: async () => {
-      if (!coordenacaoId && searchProcesso.length < 3) return [];
+      if (!coordenacaoId && searchProcesso.length < 3 && !form.getValues("processo_id")) return [];
 
       // Filtra pela tabela de vínculos (inclui a coordenação principal e as adicionais),
       // mesma regra da lista de processos — antes só olhava processos.coordenacao_id
