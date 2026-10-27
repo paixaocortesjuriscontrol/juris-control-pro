@@ -295,7 +295,6 @@ export default function NovaTarefa() {
       const { data, error } = await supabase
         .from("profiles_basic" as any)
         .select("id, nome")
-        .eq("ativo", true)
         .order("nome");
 
       if (error) throw error;
