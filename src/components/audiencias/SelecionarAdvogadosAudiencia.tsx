@@ -101,13 +101,8 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
 
   // Filtrar advogados por coordenação
   const advogadosFiltrados = useMemo(() => {
-    if (coordenacaoFiltro === "todas") {
-      if (!isAdmin) {
-        const ids = new Set(coordenacoes.flatMap((c) => (c.membros || []).map((m) => m.usuario_id)));
-        return todosAdvogados.filter((a) => ids.has(a.id));
-      }
-      return todosAdvogados;
-    }
+    // "todas" lista todos os usuários ativos, para vincular pessoas de outras coordenações
+    if (coordenacaoFiltro === "todas") return todosAdvogados;
 
     const coordenacao = coordenacoes.find(c => c.id === coordenacaoFiltro);
     if (!coordenacao) return isAdmin ? todosAdvogados : [];
@@ -192,9 +187,9 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
             <SelectValue placeholder="Filtrar por coordenação" />
           </SelectTrigger>
           <SelectContent>
-            {isAdmin && (
-              <SelectItem value="todas">Todas as coordenações</SelectItem>
-            )}
+            <SelectItem value="todas">
+              {isAdmin ? "Todas as coordenações" : "Todos os usuários (outras coordenações)"}
+            </SelectItem>
             {coordenacoes.map(coord => (
               <SelectItem key={coord.id} value={coord.id}>
                 {coord.nome} ({coord.membros.length} membros)
