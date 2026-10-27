@@ -291,19 +291,18 @@ export default function NovaTarefa() {
   const { data: membros } = useQuery({
     queryKey: ["membros-nova-tarefa", coordenacaoId],
     queryFn: async () => {
-      if (!coordenacaoId) return [];
+      // Lista todos os usuários ativos para permitir vincular pessoas de outras coordenações.
       const { data, error } = await supabase
-        .from("membros_coordenacao")
-        .select(`
-          id,
-          usuario:profiles!membros_coordenacao_usuario_id_fkey(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId);
+        .from("profiles_basic" as any)
+        .select("id, nome")
+        .order("nome");
 
       if (error) throw error;
-      return data || [];
+      return ((data as any[]) || []).map((p: any) => ({
+        id: p.id as string,
+        usuario: { id: p.id as string, nome: p.nome as string } as { id: string; nome: string } | null,
+      }));
     },
-    enabled: !!coordenacaoId,
   });
 
   // Fetch processo pré-selecionado (quando vem via URL)
