@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Recuperação dos complementos Projuris
+- [ ] Conferir correspondência única entre backup e processos já migrados.
+- [ ] Recuperar descrições e complementos disponíveis, sem sobrescrever dados preenchidos, com auditoria.
+- [ ] Verificar totais e leitura dos dados recuperados.
+
 ## Contagem de Atas no escritório
 - [x] Corrigir continuidade da paginação da agenda ao mesclar fontes, evitando omitir Atas das páginas seguintes; testes de regressão.
 - [ ] Conferir total na tela como admin — sessão autenticada indisponível no Supabase externo.
