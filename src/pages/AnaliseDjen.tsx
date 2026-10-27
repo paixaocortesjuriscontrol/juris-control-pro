@@ -578,7 +578,20 @@ const AnaliseDjen = () => {
     }
   };
   
-  const { data: coordenacoes } = useCoordenacoes();
+  const { data: coordenacoesFull } = useCoordenacoes();
+  // Lista simples (id, nome) de todas as coordenações: a lista completa acima depende
+  // de estatísticas que falham para perfis só de leitura e deixava o combo vazio.
+  const { data: coordenacoesTodas } = useQuery({
+    queryKey: ['analise-djen-coordenacoes-todas'],
+    enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.from('coordenacoes').select('id, nome').order('nome');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+  const coordenacoes = (isAdmin && coordenacoesTodas?.length ? coordenacoesTodas : coordenacoesFull) as any[] | undefined;
 
   // Filtrar coordenações para o combo: admin vê todas, usuário comum só as suas
   const coordenacoesDoCombo = useMemo(() => {

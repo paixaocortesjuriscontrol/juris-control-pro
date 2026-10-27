@@ -60,7 +60,7 @@ export function useCoordenacoesFull() {
       const { data: statsData, error: statsError } = await supabase
         .rpc('get_coordenacao_stats');
 
-      if (statsError) throw statsError;
+      if (statsError) console.warn('[useCoordenacoes] estatísticas indisponíveis:', statsError.message);
 
       // Criar mapa de estatísticas por coordenação
       const statsMap = new Map<string, { total: number; distribuidos: number; naoDistribuidos: number }>();
