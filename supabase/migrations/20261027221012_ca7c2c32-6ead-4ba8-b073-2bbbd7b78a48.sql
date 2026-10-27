@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.vincular_ata_processo_por_titulo() FROM PUBLIC, anon, authenticated;
