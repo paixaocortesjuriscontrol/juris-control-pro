@@ -726,7 +726,12 @@ export default function PainelControle() {
   // Totais só aparecem com todas as páginas carregadas; antes mostravam números parciais
   // (ex.: Atas do fim do mês ficavam em 0). Falha numa página: tenta de novo.
   const totaisCarregando = agendaQuery.isLoading || agendaQuery.hasNextPage || agendaQuery.isFetchingNextPage;
-  const totalCard = (n: number) => (agendaQuery.isError ? "!" : totaisCarregando ? "…" : n);
+  const totalCard = (n: number) =>
+    totaisCarregando || agendaQuery.isError ? (
+      <span title={agendaQuery.isError ? "Falha ao carregar parte da agenda; tentando de novo" : "Carregando o restante do mês"}>
+        {n}<span className="ml-0.5 text-xs opacity-60 animate-pulse">{agendaQuery.isError ? "!" : "…"}</span>
+      </span>
+    ) : n;
   useEffect(() => {
     if (!agendaQuery.isError || agendaQuery.isFetching) return;
     const t = setTimeout(() => {
