@@ -1,3 +1,4 @@
+import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -670,6 +671,7 @@ export default function MigracaoProjuris() {
             {user && (
               <>
                 <BackupCompletoProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} usuarios={todosUsuarios} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
+                <ComplementarPlanilhaProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
                 <AnexosBackupProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
               </>
             )}
