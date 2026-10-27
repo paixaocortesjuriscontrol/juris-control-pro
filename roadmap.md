@@ -1,6 +1,8 @@
 # Roadmap — Considerações 02/09
 
 ## Recuperação dos complementos Projuris
+- [ ] Ampliar a tela do backup para cruzar tabelas auxiliares e preencher o máximo de campos confiáveis nos processos novos e existentes.
+- [ ] Testar mapeamentos, preservação de campos preenchidos e conferência dos arquivos relacionados.
 - [x] Conferir correspondência única entre backup e processos já migrados; fontes ambíguas rejeitadas.
 - [x] Recuperar 81 descrições já preservadas em Observações; conferidas 81/81, sem apagar conteúdo.
 - [x] Disponibilizar Recuperar complementos no backup, com RPC admin invoker, campos vazios e auditoria de conflitos; 8 testes aprovados.
