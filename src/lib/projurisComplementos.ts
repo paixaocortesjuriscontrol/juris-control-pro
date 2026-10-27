@@ -5,6 +5,7 @@ export const COLUNAS_COMPLEMENTOS_PROJURIS = [
   "dtencerramento", "dttransitojulgado", "deencerramento", "nmsistema", "flprobabilidade", "flresultado",
   "cdareaprocesso", "cdcidade", "cdestado", "cdfaseprocesso", "cdprocessojustica", "cdprocessovaranumero", "cdprocessovaratipo",
   "cdsituacaoprocesso", "cdclasse", "cdprocessoorgaojudicial", "cdunidadeorganizacionalatual",
+  "nmcomplementovara",
 ];
 
 const texto = (v: unknown) => String(v ?? "").trim();

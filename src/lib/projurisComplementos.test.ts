@@ -27,3 +27,8 @@ test("duas versões idênticas do backup não tornam a origem ambígua", () => {
   const n = { cdprocesso: "1", flativo: "S", denumeroprocesso: "00002104320248160146" };
   assert.equal(fontesComplementosUnicas([row, row], [n, n]).fontes.length, 1);
 });
+test("sigilo e instância respeitam valores explícitos do Projuris e falso não é vazio", () => {
+  assert.deepEqual(complementosProjuris({ flsegredojustica: "S", flprocessoinstancia: "SEGUNDA_INSTANCIA" }), { instancia: "Segunda instância", segredo_justica: true });
+  assert.deepEqual(selecionarComplementos({ segredo_justica: false }, { segredo_justica: true }).preencher, {});
+  assert.equal(complementosProjuris({ flsegredojustica: "desconhecido" }).segredo_justica, undefined);
+});

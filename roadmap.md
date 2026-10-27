@@ -1,8 +1,8 @@
 # Roadmap — Considerações 02/09
 
 ## Recuperação dos complementos Projuris
-- [ ] Ampliar a tela do backup para cruzar tabelas auxiliares e preencher o máximo de campos confiáveis nos processos novos e existentes.
-- [ ] Testar mapeamentos, preservação de campos preenchidos e conferência dos arquivos relacionados.
+- [x] Ampliar a tela do backup com referências de justiça, órgão, comarca, UF, vara, classe, fase, área, partes, responsáveis textuais, pedidos e campos personalizados; novos processos recebem complementos e existentes preenchem apenas vazios.
+- [x] Testar mapeamentos e preservação (13 testes); cruzamento do backup real encontrou 15.195 fontes únicas e rejeitou 20 CNJs ambíguos; tela lista arquivos ausentes.
 - [x] Conferir correspondência única entre backup e processos já migrados; fontes ambíguas rejeitadas.
 - [x] Recuperar 81 descrições já preservadas em Observações; conferidas 81/81, sem apagar conteúdo.
 - [x] Disponibilizar Recuperar complementos no backup, com RPC admin invoker, campos vazios e auditoria de conflitos; 8 testes aprovados.

@@ -1,0 +1,7 @@
+DO $$ DECLARE sql text; BEGIN SELECT pg_get_functiondef('public.recuperar_complementos_projuris(uuid,jsonb)'::regprocedure) INTO sql;
+sql := replace(sql, '''valor_condenacao''];', '''valor_condenacao'',''identificador_projuris'',''sistema'',''probabilidade'',''resultado'',''data_encerramento'',''instancia'',''segredo_justica'',''justica'',''fase'',''classe'',''situacao_original'',''unidade_cliente'',''orgao_julgador'',''tribunal'',''comarca'',''uf'',''vara'',''area'',''responsaveis_projuris'',''polo_ativo'',''polo_passivo'',''pedidos''];');
+sql := replace(sql, 'mig.mapeamento->>''modulo'' <> ''recuperacao_complementos''', 'NOT (mig.mapeamento->>''modulo'' = ''recuperacao_complementos'' OR (mig.mapeamento->>''modulo'' = ''backup'' AND mig.mapeamento->>''tabela'' = ''Processos''))');
+sql := replace(sql, 'NOT IN (''string'',''number'')', 'NOT IN (''string'',''number'',''boolean'')');
+sql := replace(sql, 'USING jsonb_build_object(campo,valor),atual.id;', 'USING jsonb_build_object(campo,valor),atual.id; GET DIAGNOSTICS qtd = ROW_COUNT; IF qtd <> 1 THEN RAISE EXCEPTION ''Não foi possível confirmar o complemento gravado''; END IF;');
+IF sql NOT LIKE '%''polo_passivo''%' THEN RAISE EXCEPTION 'Falha ao ampliar campos'; END IF;
+EXECUTE sql; END $$;

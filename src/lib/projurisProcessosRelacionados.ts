@@ -58,7 +58,7 @@ export function criarEnriquecedorProjuris(tabelas: Tabelas) {
     if (cidade) out.comarca = str(cidade.nmcidade);
     const uf = str(estados.get(str(origem.cdestado) || str(cidade?.cdestado))?.nmsigla);
     if (uf) out.uf = uf;
-    const vara = [str(varasN.get(str(origem.cdprocessovaranumero))?.nmprocessovaranumero), str(varasT.get(str(origem.cdprocessovaratipo))?.nmprocessovaratipo)].filter(Boolean).join(" ");
+    const vara = [str(varasN.get(str(origem.cdprocessovaranumero))?.nmprocessovaranumero), str(varasT.get(str(origem.cdprocessovaratipo))?.nmprocessovaratipo), str(origem.nmcomplementovara)].filter(Boolean).join(" ");
     if (vara) out.vara = vara;
     const area = norm(areas.get(str(origem.cdareaprocesso))?.nmarea);
     const areaEnum: Record<string, string> = { civil: "civil", trabalhista: "trabalhista", "direito privado": "direito_privado", empresarial: "empresarial" };
@@ -81,7 +81,7 @@ export function criarEnriquecedorProjuris(tabelas: Tabelas) {
       if (str(r.cdmodulo) !== "3") continue;
       const def = defs.get(str(r.cdcampodinamico)); const label = str(def?.nmcampo); if (!label) continue;
       // Selection values require a linkage table; the boolean placeholder is not a selected option.
-      if (/LISTA/.test(str(r.flcampotipo))) continue;
+      if (/LISTA/.test(str(r.flcampotipo))) { notas.push(`${label}: seleção não exportada no vínculo dos campos personalizados (dado Projuris ${str(r.cddado)})`); continue; }
       const value = str(r.devalortexto) || str(r.devalornumero) || str(r.devalordata) || (/BOOLEAN/.test(str(r.flcampotipo)) ? str(r.devalorboolean) : "");
       if (!value) continue;
       if (norm(label) === "sistema judicial") out.sistema = value; else notas.push(`${label}: ${value}`);
