@@ -284,7 +284,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     setRodando("complementos"); setRecuperacao(""); setProg({ feito: 0, total: fontes.length });
     let mid: string | undefined; let recuperados = 0; let ausentes = 0; let duplicados = ambiguos;
     try {
-      const { data: mig, error } = await supabase.from("migracoes_projuris" as any).insert({
+      const { data: mig, error } = await supabase.from("migracoes_projuris").insert({
         coordenacao_id: coordId, criado_por: userId, nome: `Recuperação de complementos Projuris — ${nomeCoord}`,
         mapeamento: { modulo: "recuperacao_complementos", tabela: "Complementos", somente_vazios: true },
       }).select("id").single();
