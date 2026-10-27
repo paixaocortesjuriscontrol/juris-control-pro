@@ -149,14 +149,8 @@ export function PeoplePicker({
   };
 
   const filtrados = useMemo(() => {
-    if (coordFiltro === "todas") {
-      // Não-admin sem coordenação selecionada: restringe aos membros de suas coordenações
-      if (!isAdmin && coordenacoes.length > 0) {
-        const ids = new Set(coordenacoes.flatMap((c) => Array.from(membrosDe(c))));
-        return usuarios.filter((u) => ids.has(u.id));
-      }
-      return usuarios;
-    }
+    // "todas" lista todos os usuários ativos, para vincular pessoas de outras coordenações
+    if (coordFiltro === "todas") return usuarios;
     const c = coordenacoes.find((x) => x.id === coordFiltro);
     const ids = membrosDe(c);
     return usuarios.filter((u) => ids.has(u.id));
@@ -246,9 +240,9 @@ export function PeoplePicker({
                     <SelectValue placeholder="Filtrar por coordenação" />
                   </SelectTrigger>
                   <SelectContent className="z-[60]">
-                    {isAdmin && (
-                      <SelectItem value="todas">Todas as coordenações</SelectItem>
-                    )}
+                    <SelectItem value="todas">
+                      {isAdmin ? "Todas as coordenações" : "Todos os usuários (outras coordenações)"}
+                    </SelectItem>
                     {coordenacoes.map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.nome}
