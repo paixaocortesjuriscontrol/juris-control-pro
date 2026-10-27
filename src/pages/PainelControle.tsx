@@ -245,7 +245,9 @@ const textoBuscavelItem = (item: any): string => {
 
 export default function PainelControle() {
   const { user } = useAuth();
-  const { isAdmin, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const { isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  // Assistente Jurídico Geral enxerga o escritório como admin (só leitura; edição é barrada no banco).
+  const isAdmin = isAdminReal || isAssistenteGeral;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
