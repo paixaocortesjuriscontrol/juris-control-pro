@@ -460,6 +460,13 @@ export function useUpdateTarefa() {
         throw error;
       }
 
+      // Evita "sucesso falso": confirma que a situação pedida foi gravada.
+      if (updates.status !== undefined && (data as any)?.status !== updates.status) {
+        throw new Error(
+          `A situação não foi gravada (ficou "${(data as any)?.status}"). Tente novamente ou avise o suporte.`,
+        );
+      }
+
       await registrarAuditoriaTarefa({
         acao: "atualizar",
         sucesso: true,
