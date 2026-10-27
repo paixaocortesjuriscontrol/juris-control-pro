@@ -1,0 +1,1 @@
+ALTER FUNCTION public.recuperar_complementos_projuris(uuid,jsonb) SECURITY INVOKER;

@@ -9,11 +9,12 @@ import { AlertTriangle, CheckCircle2, Loader2, Pause, Play, Upload } from "lucid
 import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao } from "@/lib/migracaoProjuris";
+import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 
 // Colunas mantidas de cada tabela do backup (o resto do CSV é ignorado).
 // Tabela sem lista = mantém todas as colunas (arquivo pequeno).
 const TABELAS: Record<string, string[] | null> = {
-  processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso"],
+  processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso", ...COLUNAS_COMPLEMENTOS_PROJURIS],
   processonumero: ["cdprocessonumero", "flativo", "denumeroprocesso", "flprocessoinstancia", "flprincipal", "flexclusaotipo", "cdprocesso"],
   tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado"],
   tarefatipo: ["cdtarefatipo", "flativo", "detarefa"],
@@ -154,6 +155,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
   type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; msg?: string; quando: string };
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
+  const [recuperacao, setRecuperacao] = useState("");
   const pausado = useRef(false);
   const cancelado = useRef(false);
   const [pausa, setPausa] = useState(false);
@@ -271,6 +273,39 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     const t = k.split(" ");
     const p = usuarios.filter((u) => { const ut = norm(u.nome).split(" "); return ut[0] === t[0] && ut.includes(t[t.length - 1]); });
     return p.length === 1 ? p[0].id : null;
+  };
+
+  const recuperarComplementos = async () => {
+    const proc = gu("processo"); const nums = gu("processonumero");
+    if (!proc || !nums) { toast.error("Envie processo.csv e processonumero.csv do backup."); return; }
+    const registros = (t: NonNullable<ReturnType<typeof gu>>) => t.linhas.map(r => Object.fromEntries(t.colunas.map(c => [c, t.g(r, c)])));
+    const { fontes, ambiguos } = fontesComplementosUnicas(registros(proc), registros(nums));
+    if (!fontes.length) { toast.error("Nenhuma origem única disponível para recuperação."); return; }
+    setRodando("complementos"); setRecuperacao(""); setProg({ feito: 0, total: fontes.length });
+    let mid: string | undefined; let recuperados = 0; let ausentes = 0; let duplicados = ambiguos;
+    try {
+      const { data: mig, error } = await supabase.from("migracoes_projuris").insert({
+        coordenacao_id: coordId, criado_por: userId, nome: `Recuperação de complementos Projuris — ${nomeCoord}`,
+        mapeamento: { modulo: "recuperacao_complementos", tabela: "Complementos", somente_vazios: true },
+      }).select("id").single();
+      if (error || !mig) throw error ?? new Error("Não foi possível abrir a recuperação.");
+      mid = (mig as { id: string }).id;
+      for (let k = 0; k < fontes.length; k += LOTE) {
+        const { data, error: e } = await supabase.rpc("recuperar_complementos_projuris", { _migracao_id: mid, _fontes: fontes.slice(k, k + LOTE) });
+        if (e) throw e;
+        const r = data as { recuperados?: number; ausentes?: number; ambiguos?: number } | null;
+        recuperados += r?.recuperados ?? 0; ausentes += r?.ausentes ?? 0; duplicados += r?.ambiguos ?? 0;
+        setProg({ feito: Math.min(k + LOTE, fontes.length), total: fontes.length }); await ceder();
+      }
+      const { error: fim } = await supabase.from("migracoes_projuris" as any).update({ status: "concluida", contadores: { recuperados, ausentes, ambiguos: duplicados } }).eq("id", mid);
+      if (fim) throw fim;
+      setRecuperacao(`${recuperados.toLocaleString("pt-BR")} processos recuperados · ${ausentes.toLocaleString("pt-BR")} sem vínculo na migração desta coordenação · ${duplicados.toLocaleString("pt-BR")} ambíguos preservados`);
+      onConcluido(); toast.success("Recuperação concluída; informações preenchidas foram preservadas.");
+    } catch (e: unknown) {
+      if (mid) await supabase.from("migracoes_projuris" as any).update({ status: "erro", contadores: { recuperados, ausentes, ambiguos: duplicados } }).eq("id", mid);
+      toast.error(e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e));
+      onConcluido();
+    } finally { setRodando(null); }
   };
 
   const analisar = async () => {
@@ -771,6 +806,15 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               {analisando && <Button size="sm" variant="destructive" onClick={() => { cancelado.current = true; }}>Cancelar análise</Button>}
               {(analisando || msg) && <span className="text-xs text-muted-foreground">{msg || "Analisando..."}</span>}
           </div>
+          {info.some(t => t.nome === "processo") && info.some(t => t.nome === "processonumero") && (
+            <div className="space-y-2 border-t pt-3">
+              <Button variant="outline" disabled={analisando || !!rodando || !!lendo} onClick={() => void recuperarComplementos()}>
+                {rodando === "complementos" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Recuperar complementos
+              </Button>
+              {recuperacao && <p className="text-sm text-muted-foreground">{recuperacao}</p>}
+            </div>
+          )}
         </CardContent>
       </Card>
 

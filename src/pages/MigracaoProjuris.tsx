@@ -569,18 +569,20 @@ export default function MigracaoProjuris() {
   const baixarRelatorio = async (mid: string) => {
     const todos: any[] = [];
     for (let from = 0; ; from += 1000) {
-      const { data } = await supabase.from("migracoes_projuris_itens" as any).select("tipo, chave_externa, status, motivo, registro_id, dados").eq("migracao_id", mid).range(from, from + 999);
+      const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("tipo, chave_externa, status, motivo, registro_id, dados").eq("migracao_id", mid).order("id").range(from, from + 999);
+      if (error) { toast.error(error.message); return; }
       todos.push(...((data as any[]) || []));
       if (!data || data.length < 1000) break;
     }
     const wb = XLSX.utils.book_new();
-    for (const tipo of ["tarefa", "processo", "anexo", "comentario", "andamento"]) {
+    for (const tipo of ["tarefa", "processo", "anexo", "comentario", "andamento", "recuperacao_complemento"]) {
       const rows = todos.filter((t) => t.tipo === tipo).map((t) => ({
         "Identificação Projuris / arquivo": t.chave_externa, "Situação": t.status, "Motivo": t.motivo || "",
         "Título": t.dados?.titulo || "", "Tipo": t.dados?.tipo || "",
         "Data": t.dados?.data ? t.dados.data.split("-").reverse().join("/") : "", "ID no Juris Control": t.registro_id || "",
+        ...(tipo === "recuperacao_complemento" ? { "Processo": t.dados?.cnj || "", "Anterior": JSON.stringify(t.dados?.anterior ?? {}), "Recuperado": JSON.stringify(t.dados?.recuperado ?? {}), "Conflitos preservados": JSON.stringify(t.dados?.conflitos ?? {}) } : {}),
       }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), ({ tarefa: "Tarefas", processo: "Processos", anexo: "Anexos", comentario: "Comentarios", andamento: "Andamentos" } as Record<string, string>)[tipo]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), ({ tarefa: "Tarefas", processo: "Processos", anexo: "Anexos", comentario: "Comentarios", andamento: "Andamentos", recuperacao_complemento: "Complementos recuperados" } as Record<string, string>)[tipo]);
     }
     XLSX.writeFile(wb, `Relatorio_Migracao_Projuris_${mid.slice(0, 8)}.xlsx`);
   };
@@ -1002,6 +1004,9 @@ export default function MigracaoProjuris() {
                   if (c.vinculados) partes.push(`${c.vinculados} já existentes vinculados`);
                   if (c.pulados) partes.push(`${Number(c.pulados).toLocaleString("pt-BR")} pulados`);
                   if (c.erros) partes.push(`${c.erros} com erro`);
+                  if (c.recuperados) partes.push(`${c.recuperados} recuperados`);
+                  if (c.ausentes) partes.push(`${c.ausentes} sem vínculo`);
+                  if (c.ambiguos) partes.push(`${c.ambiguos} ambíguos`);
                   return (
                   <TableRow key={h.id}>
                     <TableCell className="whitespace-nowrap text-sm">{new Date(h.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}</TableCell>
@@ -1011,7 +1016,7 @@ export default function MigracaoProjuris() {
                     <TableCell className="text-sm">{partes.join(" · ")}</TableCell>
                     <TableCell className="flex gap-1">
                       <Button size="sm" variant="ghost" title="Baixar relatório" onClick={() => baixarRelatorio(h.id)}><Download className="h-4 w-4" /></Button>
-                      {h.status !== "desfeito" && <Button size="sm" variant="ghost" className="text-destructive" title="Desfazer lote" onClick={() => desfazer(h.id, `${etapaNome} de ${new Date(h.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`, Number(criados || 0))}><Undo2 className="h-4 w-4" /></Button>}
+                      {h.status !== "desfeito" && h.mapeamento?.modulo !== "recuperacao_complementos" && <Button size="sm" variant="ghost" className="text-destructive" title="Desfazer lote" onClick={() => desfazer(h.id, `${etapaNome} de ${new Date(h.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" })}`, Number(criados || 0))}><Undo2 className="h-4 w-4" /></Button>}
                     </TableCell>
                   </TableRow>
                   );
