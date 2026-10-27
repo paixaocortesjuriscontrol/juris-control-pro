@@ -13,7 +13,7 @@ mock.module("@/hooks/usePodeReagendar", () => ({
   },
 }));
 
-const { usePodeAlterarDatas } = await import("./usePodeAlterarDatas");
+const { usePodeAlterarDatas } = await import("../src/hooks/usePodeAlterarDatas");
 
 describe("alteração de datas segue Quem pode reagendar", () => {
   test("assistente liberado na coordenação pode alterar datas do prazo", () => {
