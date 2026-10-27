@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.bloquear_edicao_assistente_geral() FROM anon, authenticated, public;
