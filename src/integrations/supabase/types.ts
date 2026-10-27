@@ -12030,6 +12030,10 @@ export type Database = {
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
+      recuperar_complementos_projuris: {
+        Args: { _fontes: Json; _migracao_id: string }
+        Returns: Json
+      }
       relatorio_publicacoes_lidas: {
         Args: { p_coord?: string; p_fim: string; p_ini: string }
         Returns: {
