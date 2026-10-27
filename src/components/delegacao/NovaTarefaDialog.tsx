@@ -277,9 +277,9 @@ export function NovaTarefaDialog({
 
   // Fetch processos based on coordination and search
   const { data: processos, isLoading: loadingProcessos } = useQuery({
-    queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso],
+    queryKey: ["processos-nova-tarefa", coordenacaoId, searchProcesso, form.watch("processo_id")],
     queryFn: async () => {
-      if (!coordenacaoId && searchProcesso.length < 3) return [];
+      if (!coordenacaoId && searchProcesso.length < 3 && !form.getValues("processo_id")) return [];
 
       // Filtra pela tabela de vínculos (inclui a coordenação principal e as adicionais),
       // mesma regra da lista de processos — antes só olhava processos.coordenacao_id
@@ -311,15 +311,27 @@ export function NovaTarefaDialog({
       if (searchProcesso.length >= 3) {
         // Busca tolerante a máscara CNJ: usa apenas dígitos para comparar com numero
         const digits = searchProcesso.replace(/\D/g, "");
-        const numeroFilter = digits.length >= 3 ? `numero.ilike.%${digits}%,` : "";
+        // Número gravado com máscara (pontos/traço): curinga entre cada dígito.
+        const numeroFilter = digits.length >= 3 ? `numero.ilike.%${digits.split("").join("%")}%,` : "";
         query = query.or(`${numeroFilter}polo_ativo.ilike.%${searchProcesso}%`);
       }
 
       const { data, error } = await query;
       if (error) throw error;
-      return data || [];
+      const lista: any[] = data || [];
+      // Garante que o processo já vinculado (edição) apareça selecionado.
+      const atualId = form.getValues("processo_id");
+      if (atualId && !lista.some((p) => p.id === atualId)) {
+        const { data: atual } = await supabase
+          .from("processos")
+          .select("id, numero, polo_ativo, cliente:clientes!processos_cliente_id_fkey(nome)")
+          .eq("id", atualId)
+          .maybeSingle();
+        if (atual) lista.unshift(atual);
+      }
+      return lista;
     },
-    enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3),
+    enabled: tipoVinculo === "processo" && (!!coordenacaoId || searchProcesso.length >= 3 || !!form.getValues("processo_id")),
   });
 
   // Reset form when dialog opens — preenche para edição ou para nova
