@@ -1,5 +1,7 @@
 # Regras de arquitetura
 
+- DJEN statistics use publication coordination before monitoring coordination for filters, membership scope and grouping, matching the listing after distribution; content-key fallback stays shared with the listing to preserve deduplication identity.
+
 - Workflow coordination defaults reuse the user's default-coordination hook and validate it against accessible options; explicit filter choices are user-scoped and row names use the existing coordination join, avoiding new queries or permission changes.
 
 - Projuris workflow migration selects only enabled active originals and their exact current version, audits source IDs, and imports inactive templates without executions; inherited task-type settings take precedence when requested by the export, and unresolved responsibility/checklist configuration requires review before activation.
