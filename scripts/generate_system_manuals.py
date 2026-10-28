@@ -120,7 +120,7 @@ def cover(title: str, subtitle: str, topics: list[str]):
     items += [Spacer(1, 20 * mm), mark, Spacer(1, 8 * mm)]
     items += [Paragraph("Juris Control", ParagraphStyle("brand", parent=S["cover_title"], fontSize=24, leading=28)),
               Paragraph("PAIXÃO CORTES ADVOGADOS", ParagraphStyle("brand2", parent=S["small"], fontSize=9, textColor=GOLD, spaceAfter=13 * mm)),
-              Paragraph(title, S["cover_title"]), Spacer(1, 3 * mm), Paragraph(subtitle, S["cover_sub"]), Spacer(1, 12 * mm)]
+              Paragraph(title.replace("Manual Completo do Juris Control", "Manual Completo<br/>do Juris Control"), S["cover_title"]), Spacer(1, 3 * mm), Paragraph(subtitle, S["cover_sub"]), Spacer(1, 12 * mm)]
     for t in topics:
         items.append(Paragraph(f"<font color='#D9A91C'>•</font>  {escape(t)}", ParagraphStyle("ct", parent=S["body"], textColor=WHITE, fontSize=9.5, leading=14)))
     items += [Spacer(1, 38 * mm), Paragraph(f"Versão do sistema {VERSION}  •  {RELEASE_DATE}", ParagraphStyle("cv", parent=S["small"], textColor=colors.HexColor("#B9C2D3"))),
@@ -174,8 +174,13 @@ def toc(title: str, entries: list[str]):
 
 def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[str]]], notes: list[tuple[str, str, str]] | None = None):
     out = chapter(num, title, intro)
+    compact = sum(len(item) for _, item in subsections) > 18
     for subtitle, items in subsections:
-        out += [h2(subtitle)] + bullets(items)
+        if compact:
+            compact_style = ParagraphStyle("CompactBullet", parent=S["bullet"], fontSize=8.5, leading=12, spaceAfter=2)
+            out += [h2(subtitle)] + [Paragraph(f"• {escape(item)}", compact_style) for item in items]
+        else:
+            out += [h2(subtitle)] + bullets(items)
     for note in notes or []:
         out.append(callout(*note))
     out.append(PageBreak())
@@ -184,7 +189,7 @@ def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[
 
 def screenshot(name: str, caption: str):
     path = ROOT / "scripts" / "manual-painel-assets" / f"{name}.png"
-    image = Image(str(path), width=145 * mm, height=90.625 * mm)
+    image = Image(str(path), width=128 * mm, height=80 * mm)
     caption_style = ParagraphStyle("Caption", parent=S["small"], alignment=TA_CENTER, spaceBefore=3, spaceAfter=5)
     return [image, Paragraph(escape(caption), caption_style)]
 
@@ -276,7 +281,7 @@ def complete_manual():
 def painel_manual():
     title = "Manual do Painel de Controle"
     entries = ["Mapa da tela", "Escopo e cartões", "Agenda", "Lista e busca", "Kanban e Equipe", "Filtros completos", "Criar itens", "Preenchimento de Tarefa e Prazo", "Evento, Audiência e Parcelamento", "Workflow", "Edição, baixa e recorrência", "Comentários, atividades e cobranças", "Alertas", "Remanejar em lote", "Pessoas em lote", "Exportar atividades", "Relatório de audiências", "Exportar audiências", "Exemplos completos", "Dúvidas e boas práticas"]
-    st = cover(title, "Guia operacional ilustrado e completo", ["20 capítulos com exemplos passo a passo", "10 capturas ilustrativas da interface", "Filtros, criações, baixas, lotes e relatórios"])
+    st = cover(title, "Guia operacional ilustrado e completo", ["25 capítulos com exemplos passo a passo", "10 capturas ilustrativas da edição anterior", "Filtros, criações, baixas, lotes e relatórios"])
     entries += [CHAPTERS[i][0] for i in [0, 1, 2, 7, 9]]
     st += toc("As imagens são ilustrativas da edição anterior, com nomes e processos fictícios. Os rótulos e regras atuais estão no texto; consulte os capítulos adicionais para Atas, exportação e permissões.", entries)
     st += illustrated_section("1", entries[0], "O Painel reúne toda a rotina jurídica em quatro faixas: comandos, totalizadores, visões/filtros e área de trabalho.", "overview", "Figura 1 — Visão geral ilustrativa do Painel de Controle.", [
@@ -390,6 +395,7 @@ def painel_manual():
 def tst_manual():
     title = "Manual da Distribuição TST"
     entries = ["Visão geral e acesso", "Cards e responsáveis", "Filtros e seleção", "Ficha e edição", "Pendências e matérias", "Judit", "Ações em lote e delegação", "Relatórios e Carga Benner", "Admin. TST", "Duplicados, arquivamento e auditoria", "Roteiro e boas práticas"]
+    entries.append(CHAPTERS[8][0])
     st = cover(title, "Operação, conferência, importações e Carga Benner", ["Distribuições e responsáveis", "Matérias, pendências e Judit", "Admin. TST, relatórios e auditoria"])
     st += toc("Guia exclusivo da Distribuição TST e das ferramentas administrativas relacionadas.", entries)
     st += section("1", entries[0], "A Distribuição TST centraliza os processos distribuídos no Tribunal Superior do Trabalho e a preparação das informações que seguem para o Benner.", [
