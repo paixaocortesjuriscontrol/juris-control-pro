@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { complementosPlanilhaProcessos, fontesPlanilhaProcessos, normalizarSistemaJudicial } from "./projurisPlanilhaProcessos";
+import { complementosPlanilhaProcessos, fontesPlanilhaProcessos, normalizarSistemaJudicial, SISTEMAS_JUDICIAIS } from "./projurisPlanilhaProcessos";
+
+test("aceita CPE como Sistema Judicial para processos do STJ", () => {
+  assert.ok(SISTEMAS_JUDICIAIS.includes("CPE"));
+  assert.equal(normalizarSistemaJudicial("cpe"), "CPE");
+  assert.equal(complementosPlanilhaProcessos({ "Sistema Judicial": "CPE" }).sistema, "CPE");
+});
 
 test("ajusta grafias do Sistema Judicial à lista", () => {
   assert.equal(normalizarSistemaJudicial("Portal do Adv"), "Portal do Advogado");

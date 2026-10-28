@@ -2,7 +2,7 @@ import type { Complementos } from "./projurisComplementos";
 
 export const SISTEMAS_JUDICIAIS = [
   "Eproc", "Esaj", "Projudi", "PJE", "Portal de Serviços", "Portal do Advogado",
-  "JPE", "Próprio Site", "Tucujuris", "SEI",
+  "JPE", "Próprio Site", "Tucujuris", "SEI", "CPE",
 ];
 
 const norm = (v: unknown) =>
