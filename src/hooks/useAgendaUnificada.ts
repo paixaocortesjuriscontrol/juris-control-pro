@@ -193,7 +193,7 @@ export async function fetchAgendaPage(
 
       // Calculate pagination ranges for each source separately
       // When fetchAll (admin escritório), use larger page size to reduce round trips
-      const halfPage = filters.fetchAll ? PAGE_SIZE : Math.floor(PAGE_SIZE / 2);
+      const halfPage = filters.fetchAll || hasCoordScope ? PAGE_SIZE : Math.floor(PAGE_SIZE / 2);
       const from = page * halfPage;
       const to = from + halfPage - 1;
       // Marca se alguma fonte veio cheia (há mais páginas a buscar).

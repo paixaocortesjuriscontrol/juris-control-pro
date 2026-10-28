@@ -62,6 +62,7 @@ import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePainelTotais, type PainelTotais } from "@/hooks/usePainelTotais";
+import { escopoEscritorio } from "@/lib/escopoEscritorio";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
