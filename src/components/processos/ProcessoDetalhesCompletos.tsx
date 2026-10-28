@@ -1,3 +1,4 @@
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { sufixoHoraAudiencia } from "@/utils/date";
 import { FileSpreadsheet } from "lucide-react";
 import { RelatorioClienteTab } from "./RelatorioClienteTab";
@@ -1592,6 +1593,11 @@ export function ProcessoDetalhesCompletos({
                                       <p className="text-[11px] font-mono text-muted-foreground">
                                         Processo: {tarefa.processo?.numero || processo?.numero}
                                       </p>
+                                    )}
+                                    {processo?.id && (
+                                      <div onClick={(e) => e.stopPropagation()}>
+                                        <EtiquetaPicker entidade="processo" entidadeId={processo.id} coordenacaoId={processo.coordenacao_id || null} readOnly />
+                                      </div>
                                     )}
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                       {tarefa.data_vencimento && (

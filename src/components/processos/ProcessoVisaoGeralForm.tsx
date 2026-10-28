@@ -1472,6 +1472,12 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               </Button>
             </div>
             {/* Dados do processo em colunas */}
+            {processo?.id && (
+              <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Etiquetas</p>
+                <EtiquetaPicker entidade="processo" entidadeId={processo.id} coordenacaoId={form.coordenacao_id || processo.coordenacao_id || null} compact />
+              </div>
+            )}
             <div className="flex flex-wrap items-start gap-x-8 gap-y-3 border-t pt-3">
               {processo?.numero && (
                 <div>
