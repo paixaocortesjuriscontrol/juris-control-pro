@@ -2,7 +2,9 @@
 
 ## Publicações Kurier incompletas — Janaina
 - [x] Confirmar corte na captura comparando texto bruto e publicação do processo 0000340-48.2026.5.18.0052.
-- [ ] Corrigir fronteira do teor na captura e apresentação, testar e restaurar as publicações comprovadamente truncadas do exemplo.
+- [x] Corrigir fronteira do teor na captura e apresentação (helper compartilhado, 4 testes Deno aprovados e apresentação conferida); função publicada e duas cópias da publicação da imagem restauradas para 1.558 caracteres, incluindo a determinação de audiência.
+- [ ] Recuperar a outra intimação 3069626495 sem colidir com a publicação restaurada — bloqueada pelo índice único que considera apenas os primeiros 400 caracteres; requer estratégia que preserve registros e vínculos, sem desligar a proteção contra duplicidades.
+- [ ] Conferir publicação pela tela autenticada — Supabase externo sem sessão disponível; texto recuperado conferido no banco.
 
 ## Recuperação dos complementos Projuris
 - [x] Ampliar a tela do backup com referências de justiça, órgão, comarca, UF, vara, classe, fase, área, partes, responsáveis textuais, pedidos e campos personalizados; novos processos recebem complementos e existentes preenchem apenas vazios.
