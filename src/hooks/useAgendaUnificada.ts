@@ -641,11 +641,9 @@ export async function fetchAgendaPage(
         if (filters.dataInicio) {
           const di = filters.dataInicio;
           const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-          // Tarefas/prazos recorrentes cuja série começou antes da janela precisam
-          // ser trazidas para que as ocorrências futuras sejam expandidas.
-          queryTarefas = queryTarefas.or(
-            `data_vencimento.gte.${diStr},recorrencia_tipo.not.is.null`
-          );
+          // Recorrentes iniciadas antes da janela vêm numa consulta própria na 1ª página
+          // (são poucas). Um OR aqui impedia o uso do índice e varria a tabela inteira a cada página.
+          queryTarefas = queryTarefas.gte("data_vencimento", diStr);
         }
 
 
