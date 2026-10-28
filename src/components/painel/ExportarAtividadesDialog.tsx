@@ -152,6 +152,31 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
               </div>
             </div>
           )}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pessoas</p>
+            <PeoplePicker
+              selectedIds={pessoas}
+              onChange={setPessoas}
+              placeholder="Escolher pessoas"
+              emptyLabel="Todas as pessoas (sem filtro)"
+              icon="users"
+            />
+            {pessoas.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={papelResponsavel} onCheckedChange={(v) => setPapelResponsavel(!!v)} />
+                  Listar quando a pessoa for responsável
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={papelEnvolvido} onCheckedChange={(v) => setPapelEnvolvido(!!v)} />
+                  Listar quando a pessoa for envolvida
+                </label>
+                {!papelResponsavel && !papelEnvolvido && (
+                  <p className="text-[11px] text-muted-foreground">Nenhum papel marcado: lista se a pessoa for responsável ou envolvida.</p>
+                )}
+              </div>
+            )}
+          </div>
           {coordenacoes.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coordenações</p>
