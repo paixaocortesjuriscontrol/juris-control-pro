@@ -162,4 +162,5 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 ## Desempenho do Painel de Controle
 - [x] Remover consultas de resumos sem consumidores, adiar formulários fechados e consulta de exportação, reutilizar lista da agenda entre renderizações.
-- [ ] Validar regressões da paginação e verificar carregamento autenticado (Supabase externo sem sessão disponível).
+- [x] Validar regressões da paginação: 5 testes aprovados; prévia sem erros de compilação.
+- [ ] Medir carregamento autenticado — Supabase externo sem sessão disponível; navegador chega somente à tela de entrada.
