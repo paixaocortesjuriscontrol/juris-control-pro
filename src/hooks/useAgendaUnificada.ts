@@ -12,7 +12,6 @@ import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { leiturasAgendaEmParalelo } from "@/lib/agendaConcorrencia";
-import { limiteIdsVinculadosAgenda } from "@/lib/agendaLimiteUrl";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
