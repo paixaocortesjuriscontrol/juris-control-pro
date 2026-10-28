@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Loader2 } from "lucide-react";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 export const EXPORT_TIPOS = [
   { value: "tarefa", label: "Tarefas" },
@@ -19,7 +20,15 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** tipos vazio = todos */
-  onExportar: (inicio: string, fim: string, tipos: string[], coordIds: string[], situacoes: string[]) => Promise<void> | void;
+  onExportar: (
+    inicio: string,
+    fim: string,
+    tipos: string[],
+    coordIds: string[],
+    situacoes: string[],
+    pessoaIds: string[],
+    papeis: { responsavel: boolean; envolvido: boolean },
+  ) => Promise<void> | void;
   coordenacoes?: { id: string; nome: string }[];
   /** Situações disponíveis (valor pode conter vários status separados por "|") */
   situacoes?: { value: string; label: string }[];
@@ -37,6 +46,9 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
   const [tipos, setTipos] = useState<string[]>([]);
   const [coords, setCoords] = useState<string[]>([]);
   const [sits, setSits] = useState<string[]>([]);
+  const [pessoas, setPessoas] = useState<string[]>([]);
+  const [papelResponsavel, setPapelResponsavel] = useState(false);
+  const [papelEnvolvido, setPapelEnvolvido] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const todos = tipos.length === 0;
@@ -51,7 +63,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
     const [ini, fi] = modo === "hoje" ? [h, h] : modo === "periodo" ? [inicio, fim] : ["", ""];
     setLoading(true);
     try {
-      await onExportar(ini, fi, tipos, coords, sits);
+      await onExportar(ini, fi, tipos, coords, sits, pessoas, { responsavel: papelResponsavel, envolvido: papelEnvolvido });
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -70,7 +82,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
         <SheetHeader>
           <SheetTitle>Relatório de atividades (Excel)</SheetTitle>
           <SheetDescription>
-            Escolha a data, os tipos e as situações. O relatório segue os filtros do painel e traz um resumo por tipo e situação.
+            Escolha a data, os tipos, as situações e as pessoas. O relatório segue os filtros do painel e traz um resumo por tipo e situação.
           </SheetDescription>
         </SheetHeader>
 
@@ -140,6 +152,31 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
               </div>
             </div>
           )}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Pessoas</p>
+            <PeoplePicker
+              selectedIds={pessoas}
+              onChange={setPessoas}
+              placeholder="Escolher pessoas"
+              emptyLabel="Todas as pessoas (sem filtro)"
+              icon="users"
+            />
+            {pessoas.length > 0 && (
+              <div className="mt-2 space-y-1.5">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={papelResponsavel} onCheckedChange={(v) => setPapelResponsavel(!!v)} />
+                  Listar quando a pessoa for responsável
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <Checkbox checked={papelEnvolvido} onCheckedChange={(v) => setPapelEnvolvido(!!v)} />
+                  Listar quando a pessoa for envolvida
+                </label>
+                {!papelResponsavel && !papelEnvolvido && (
+                  <p className="text-[11px] text-muted-foreground">Nenhum papel marcado: lista se a pessoa for responsável ou envolvida.</p>
+                )}
+              </div>
+            )}
+          </div>
           {coordenacoes.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coordenações</p>

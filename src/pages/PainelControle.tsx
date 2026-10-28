@@ -1203,7 +1203,15 @@ export default function PainelControle() {
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
-  const exportarAtividades = async (inicio: string, fim: string, tipos: string[], coordIds: string[] = [], situacoesSel: string[] = []) => {
+  const exportarAtividades = async (
+    inicio: string,
+    fim: string,
+    tipos: string[],
+    coordIds: string[] = [],
+    situacoesSel: string[] = [],
+    pessoaIds: string[] = [],
+    papeisPessoas: { responsavel: boolean; envolvido: boolean } = { responsavel: false, envolvido: false },
+  ) => {
     const XLSX = await import("xlsx");
 
     const dataRefItem = (it: any) => {
@@ -1345,12 +1353,20 @@ export default function PainelControle() {
     };
     const respMap = new Map<string, string[]>();
     const envMap = new Map<string, string[]>();
-    ((tarefaResp.data as any[]) || []).forEach((r) => pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
-    ((tarefaEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
-    ((eventoResp.data as any[]) || []).forEach((r) => pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
-    ((eventoEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
-    ((audAdv.data as any[]) || []).forEach((r) => pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)));
-    ((audEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)));
+    const respIdsMap = new Map<string, Set<string>>();
+    const envIdsMap = new Map<string, Set<string>>();
+    const pushId = (map: Map<string, Set<string>>, key: string, id?: string | null) => {
+      if (!id) return;
+      const set = map.get(key) ?? new Set<string>();
+      set.add(String(id));
+      map.set(key, set);
+    };
+    ((tarefaResp.data as any[]) || []).forEach((r) => { pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)); pushId(respIdsMap, `t:${r.tarefa_id}`, r.usuario_id); });
+    ((tarefaEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `t:${r.tarefa_id}`, r.usuario_id); });
+    ((eventoResp.data as any[]) || []).forEach((r) => { pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)); pushId(respIdsMap, `e:${r.evento_id}`, r.usuario_id); });
+    ((eventoEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `e:${r.evento_id}`, r.usuario_id); });
+    ((audAdv.data as any[]) || []).forEach((r) => { pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)); pushId(respIdsMap, `a:${r.audiencia_id}`, r.advogado_id); });
+    ((audEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `a:${r.audiencia_id}`, r.usuario_id); });
 
     // Sempre em BRT: valores timestamptz voltam em UTC e mostravam a hora errada.
     const extractHora = (iso?: string | null) => horaBrt(iso);
@@ -1369,7 +1385,31 @@ export default function PainelControle() {
       (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
     }
 
-    const itensOrdenados = [...itensExport].sort((a, b) => {
+    // Filtro por pessoas: responsável e/ou envolvido nos itens exportados
+    const casaFiltroPessoas = (it: any) => {
+      if (pessoaIds.length === 0) return true;
+      const rawId = String(it.id);
+      const key = rawId.startsWith("audiencia-det-")
+        ? `a:${rawId.replace("audiencia-det-", "")}`
+        : it.origem === "tarefa"
+          ? `t:${rawId}`
+          : it.origem === "evento"
+            ? `e:${rawId.split("::")[0]}`
+            : "";
+      const respIds = new Set(respIdsMap.get(key) ?? []);
+      if (it.responsavel_id) respIds.add(String(it.responsavel_id));
+      (it.responsaveis_ids ?? []).forEach((id: string) => respIds.add(String(id)));
+      const envIds = new Set(envIdsMap.get(key) ?? []);
+      (it.participantes ?? []).forEach((p: any) => p?.usuario_id && envIds.add(String(p.usuario_id)));
+      const ehResp = Array.from(respIds).some((id) => pessoaIds.includes(id));
+      const ehEnv = Array.from(envIds).some((id) => pessoaIds.includes(id));
+      const { responsavel: querResp, envolvido: querEnv } = papeisPessoas;
+      if (querResp && !querEnv) return ehResp;
+      if (querEnv && !querResp) return ehEnv;
+      return ehResp || ehEnv;
+    };
+
+    const itensOrdenados = [...itensExport].filter(casaFiltroPessoas).sort((a, b) => {
       const da = String(a.data_vencimento ?? a.data_inicio ?? "").slice(0, 10);
       const db = String(b.data_vencimento ?? b.data_inicio ?? "").slice(0, 10);
       if (!da && !db) return 0;
