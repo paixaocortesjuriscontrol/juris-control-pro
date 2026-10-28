@@ -2,7 +2,8 @@
 
 ## Cartões Análise DJEN — publicações distribuídas
 - [x] Alinhar as duas versões da contagem à coordenação atual da publicação, preservando autorização e deduplicação.
-- [ ] Validar as quatro publicações e teste de regressão; conferência autenticada indisponível no Supabase externo.
+- [x] Confirmar quatro publicações na coordenação destino e aprovar teste SQL de escopo, agrupamento e fallback; prévia sem erros.
+- [ ] Conferir cartões pela tela autenticada — sessão indisponível no Supabase externo.
 
 ## Calendário — Altina Clemente
 - [x] Reduzir esperas sequenciais entre fontes e lotes da agenda com concorrência limitada; reaproveitar agenda por 60 segundos sem impedir invalidação após alterações; 10 testes de concorrência, paginação e indicadores aprovados, build OK, sem alterações no Supabase.
