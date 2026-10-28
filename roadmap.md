@@ -1,5 +1,9 @@
 # Roadmap — Considerações 02/09
 
+## Calendário — Altina Clemente
+- [x] Reduzir esperas sequenciais entre fontes e lotes da agenda com concorrência limitada; reaproveitar agenda por 60 segundos sem impedir invalidação após alterações; 10 testes de concorrência, paginação e indicadores aprovados, build OK, sem alterações no Supabase.
+- [ ] Medir tempo e conferir calendário com Altina conectada — Supabase externo não disponibiliza a sessão autenticada neste ambiente.
+
 ## Filtro de coordenação dos workflows
 - [x] Manter filtro visível, iniciar na coordenação padrão acessível do usuário (ou primeira disponível) e permitir outra ou todas; mostrar coordenação nas linhas; 4 testes aprovados e build OK, sem alterações no Supabase.
 - [ ] Conferir seleção e linhas pela tela autenticada — Supabase externo sem sessão disponível, navegação direcionada ao login.
