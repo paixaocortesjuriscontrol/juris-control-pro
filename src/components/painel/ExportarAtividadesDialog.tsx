@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Loader2 } from "lucide-react";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 export const EXPORT_TIPOS = [
   { value: "tarefa", label: "Tarefas" },
@@ -19,7 +20,15 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   /** tipos vazio = todos */
-  onExportar: (inicio: string, fim: string, tipos: string[], coordIds: string[], situacoes: string[]) => Promise<void> | void;
+  onExportar: (
+    inicio: string,
+    fim: string,
+    tipos: string[],
+    coordIds: string[],
+    situacoes: string[],
+    pessoaIds: string[],
+    papeis: { responsavel: boolean; envolvido: boolean },
+  ) => Promise<void> | void;
   coordenacoes?: { id: string; nome: string }[];
   /** Situações disponíveis (valor pode conter vários status separados por "|") */
   situacoes?: { value: string; label: string }[];
