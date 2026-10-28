@@ -565,10 +565,13 @@ export default function PainelControle() {
       if (error) throw error;
       return data || [];
     },
-    enabled: exportOpen && !!user?.id && !isAdmin && coordenacoesUsuario.length > 0,
+    enabled: !!user?.id && !isAdmin && coordenacoesUsuario.length > 0,
   });
 
-  // Membros da coordenação filtrada (admin) — inclui coordenador
+  // Coordenações no filtro do modo escritório: admin vê todas; demais, as suas.
+  const coordsFiltroEscritorio = isAdmin ? todasCoordenacoes : coordenacoesExport;
+
+  // Membros da coordenação filtrada — inclui coordenador
   const { data: membrosCoordFiltrada = [], isLoading: membrosFilterLoading } = useQuery({
     queryKey: ["painel-controle-membros-coord-filtrada", adminCoordFilter],
     queryFn: async () => {
@@ -586,7 +589,7 @@ export default function PainelControle() {
       if (coord?.coordenador_id) ids.add(coord.coordenador_id);
       return [...ids];
     },
-    enabled: isAdmin && adminCoordFilter !== "todas",
+    enabled: adminCoordFilter !== "todas",
   });
 
   // Intervalo do mês exibido no calendário
@@ -658,6 +661,18 @@ export default function PainelControle() {
         };
       }
       return { fetchAll: true, ...dateRange, ...statusScope };
+    }
+
+    // Não-admin com uma das suas coordenações escolhida no escritório
+    if (adminCoordFilter !== "todas" && coordenacoesUsuario.includes(adminCoordFilter)) {
+      return {
+        coordenacaoIds: [adminCoordFilter],
+        ...(membrosCoordFiltrada.length > 0
+          ? { responsavelIds: responsavelIdsSelecionados ?? membrosCoordFiltrada }
+          : { strictCoordenacaoIsolation: true }),
+        fetchAll: false,
+        ...dateRange, ...statusScope,
+      };
     }
 
     if (coordLoading || membrosLoading) {
@@ -1188,7 +1203,7 @@ export default function PainelControle() {
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
-  const exportarAtividades = async (inicio: string, fim: string, tipos: string[], coordIds: string[] = []) => {
+  const exportarAtividades = async (inicio: string, fim: string, tipos: string[], coordIds: string[] = [], situacoesSel: string[] = []) => {
     const XLSX = await import("xlsx");
 
     const dataRefItem = (it: any) => {
@@ -1204,7 +1219,11 @@ export default function PainelControle() {
     if (inicio || fim) {
       const dInicio = inicio ? new Date(inicio + "T00:00:00") : new Date(2015, 0, 1);
       const dFim = fim ? new Date(fim + "T23:59:59") : new Date(2100, 0, 1);
-      const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+      const statusEscolhidos = situacoesSel.flatMap((v) => v.split("|")).filter(Boolean);
+      const filtrosPeriodo = {
+        ...filters, dataInicio: dInicio, dataFim: dFim,
+        ...(statusEscolhidos.length > 0 ? { statusIn: Array.from(new Set(statusEscolhidos)) } : {}),
+      };
       const coletados: any[] = [];
       for (let page = 0; page < 40; page++) {
         const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
@@ -1225,6 +1244,7 @@ export default function PainelControle() {
     const recorrentesVistos = new Set<string>();
     const itensExport = baseItens.filter((it: any) => {
       if (tipos.length > 0 && !tipos.includes(classificarItem(it))) return false;
+      if (situacoesSel.length > 0 && !situacoesSel.some((v) => statusCasaSituacao(it.status, v))) return false;
       if (coordIds.length > 0) {
         const cid = it.coordenacao_id ?? it.processo?.coordenacao_id ?? null;
         if (!cid || !coordIds.includes(cid)) return false;
@@ -2381,7 +2401,7 @@ export default function PainelControle() {
               Limpar filtros
             </Button>
             {/* Filtro de coordenação para admin no modo escritório - desktop inline */}
-            {isAdmin && tabMode === "escritorio" && (
+            {tabMode === "escritorio" && coordsFiltroEscritorio.length > 0 && (
               <div className="block min-w-0">
                 <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
                   <SelectTrigger className="h-7 w-full max-w-[13rem] text-xs">
@@ -2389,7 +2409,7 @@ export default function PainelControle() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="todas">Todas as coordenações</SelectItem>
-                    {todasCoordenacoes.map((coord) => (
+                    {coordsFiltroEscritorio.map((coord) => (
                       <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
                     ))}
                   </SelectContent>
@@ -2406,7 +2426,7 @@ export default function PainelControle() {
                 title="Exportar atividades por período e tipo"
               >
                 <Download className="w-3.5 h-3.5" />
-                Exportar
+                Exportar Atividade
               </Button>
               <Button
                 size="sm"
@@ -2431,7 +2451,8 @@ export default function PainelControle() {
                 open={exportOpen}
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
-                coordenacoes={isAdmin ? todasCoordenacoes : coordenacoesExport}
+                coordenacoes={coordsFiltroEscritorio}
+                situacoes={situacoesOptions}
               />
               <Button
                 size="sm"
@@ -2493,7 +2514,7 @@ export default function PainelControle() {
             </div>
           </div>
           {/* Filtro de coordenação para admin no modo escritório - mobile linha separada */}
-          {isAdmin && tabMode === "escritorio" && (
+          {tabMode === "escritorio" && coordsFiltroEscritorio.length > 0 && (
             <div className="md:hidden">
               <Select value={adminCoordFilter} onValueChange={setAdminCoordFilter}>
                 <SelectTrigger className="h-8 w-full text-xs">
@@ -2501,7 +2522,7 @@ export default function PainelControle() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas as coordenações</SelectItem>
-                  {todasCoordenacoes.map((coord) => (
+                  {coordsFiltroEscritorio.map((coord) => (
                     <SelectItem key={coord.id} value={coord.id}>{coord.nome}</SelectItem>
                   ))}
                 </SelectContent>
