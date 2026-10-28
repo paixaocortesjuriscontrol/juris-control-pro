@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "9.7.2";
+export const APP_VERSION = "9.7.3";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "9.7.3", date: "2026-10-28", notes: "Painel de Controle: cartões com totais imediatos de itens em aberto; modo Escritório de assistentes, advogados e estagiários pelas suas coordenações, sem travar o carregamento; calendário mais rápido nas tarefas recorrentes e parcelamentos de volta; Workflows com filtro de coordenação sempre visível e coordenação em cada linha; modelos do Projuris Santander Cível importados inativos" },
   { version: "9.7.2", date: "2026-10-28", notes: "Ficha do processo: campo Sistema Judicial aceita CPE (sistema do STJ); pendências da Visão Geral passam a mostrar itens em revisão, como 'Minutado - Revisão', e só saem do quadro quando encerrados; Exportar Atividade do Painel de Controle filtra por responsáveis e/ou envolvidos; todos os TRTs (exceto TRT1, TRT2 e TRT15) nos 43 termos da Coordenação GOL" },
   { version: "9.7.1", date: "2026-10-28", notes: "Manuais oficiais atualizados; seleção de coordenações vinculadas no modo Escritório; Exportar Atividade com filtro de situação; partes do processo nos detalhes da agenda; melhorias em Atas, complementação Projuris, acesso do Assistente Jurídico Geral e preservação do teor das publicações Kurier" },
   { version: "1.0.0", date: "2026-01-30", notes: "Versão inicial com versionamento" },
