@@ -1,5 +1,8 @@
 # Roadmap — Considerações 02/09
 
+## Filtro de coordenação dos workflows
+- [ ] Manter filtro visível, iniciar na coordenação do usuário e permitir outra ou todas; mostrar coordenação nas linhas e testar seleção.
+
 ## Workflows Projuris — Santander Cível
 - [x] Separar 22 modelos reutilizáveis ativos/habilitados e suas 47 etapas da versão atual; 4 testes aprovados, prazos herdados preservados.
 - [x] Importar modelos inativos com auditoria e proteção contra duplicação, sem iniciar execuções ou criar tarefas; contagens e predecessores conferidos no banco.
