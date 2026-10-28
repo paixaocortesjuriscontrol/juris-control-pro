@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { consultarIndicadoresEmLotes } from "@/lib/consultaIndicadores";
 
 export type EscopoCobranca = "minhas" | "equipe";
 
@@ -64,6 +65,7 @@ export function useCobrancasItens(
   items: { id: string }[] | undefined,
   escopo: EscopoCobranca = "minhas",
 ) {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -86,12 +88,9 @@ export function useCobrancasItens(
     queryFn: async () => {
       const result = new Map<string, InfoCobranca>();
       if (escopo === "minhas" && !userId) return result;
-      const chunks: string[][] = [];
-      for (let i = 0; i < ids.length; i += 200) chunks.push(ids.slice(i, i + 200));
-
-      const linhas: any[] = [];
-      await Promise.all(
-        chunks.map(async (chunk) => {
+      const linhas = await consultarIndicadoresEmLotes<any>(
+        queryClient, COBRANCAS_QUERY_KEY, [escopo, userId], ids, 200, 20_000,
+        async (chunk) => {
           let q = (supabase as any)
             .from("item_cobrancas")
             .select("item_id, usuario_id, simbolo, created_at")
@@ -99,8 +98,8 @@ export function useCobrancasItens(
           if (escopo === "minhas" && userId) q = q.eq("usuario_id", userId);
           const { data, error } = await q;
           if (error) throw error;
-          linhas.push(...(data || []));
-        }),
+          return data || [];
+        },
       );
 
       // Nomes de quem cobrou (somente no escopo de equipe).
