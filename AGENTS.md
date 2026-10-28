@@ -8,6 +8,7 @@
 
 - Unified agenda pagination uses each source's final successful response (including fallback queries) for its fullness flag, never the merged page length; all consumers use that flag because combining sources and expanding recurrences changes page length and can omit later items from office totals. Failed sources must reject the page rather than silently show incomplete totals.
 - Unified agenda pages read sources sequentially (concurrency 1); parallel source reads shared mutable page state and left Painel counters empty.
+- Agenda task pages filter only by the date window; recurring tasks started before it load once on page 0 and are merged by ID, because an OR on recurrence defeated the date index on every page.
 
 - Pauta detail tabs reuse the existing Processos e Casos overview and the Judit analysis, cover, attachments and log panels; load the linked process by ID or CNJ variants only when opened, and allow cached Judit panels by CNJ without a linked process, to keep shared edits and research consistent without automatic paid queries.
 

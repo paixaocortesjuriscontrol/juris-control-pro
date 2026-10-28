@@ -641,11 +641,9 @@ export async function fetchAgendaPage(
         if (filters.dataInicio) {
           const di = filters.dataInicio;
           const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-          // Tarefas/prazos recorrentes cuja série começou antes da janela precisam
-          // ser trazidas para que as ocorrências futuras sejam expandidas.
-          queryTarefas = queryTarefas.or(
-            `data_vencimento.gte.${diStr},recorrencia_tipo.not.is.null`
-          );
+          // Recorrentes iniciadas antes da janela vêm numa consulta própria na 1ª página
+          // (são poucas). Um OR aqui impedia o uso do índice e varria a tabela inteira a cada página.
+          queryTarefas = queryTarefas.gte("data_vencimento", diStr);
         }
 
 
@@ -695,9 +693,7 @@ export async function fetchAgendaPage(
             if (filters.dataInicio) {
               const di = filters.dataInicio;
               const diStr = `${di.getFullYear()}-${String(di.getMonth() + 1).padStart(2, "0")}-${String(di.getDate()).padStart(2, "0")}`;
-              queryTarefasFallback = queryTarefasFallback.or(
-                `data_vencimento.gte.${diStr},recorrencia_tipo.not.is.null`
-              );
+              queryTarefasFallback = queryTarefasFallback.gte("data_vencimento", diStr);
             }
 
             if (filters.dataFim) {
@@ -748,6 +744,33 @@ export async function fetchAgendaPage(
           if (atas?.length) {
             const ids = new Set((tarefas || []).map((t: any) => t.id));
             tarefas = [...(atas as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
+          }
+
+          // Recorrentes (não-Ata) cuja série começou antes da janela: poucas, uma vez só.
+          if (filters.dataInicio) {
+            const montarRec = (comJoins: boolean) => {
+              let q = buildTarefasQuery(comJoins)
+                .not("recorrencia_tipo", "is", null)
+                .lt("data_vencimento", dStr(filters.dataInicio!))
+                .or("tipo_tarefa.is.null,tipo_tarefa.neq.ATA");
+              if (filters.processoIds?.length) q = q.in("processo_id", filters.processoIds);
+              if (coordScopeIds.length > 0) q = q.in("coordenacao_id", coordScopeIds);
+              else if (!filters.fetchAll) {
+                q = q.or(buildTarefasOr(filters.responsavelIds?.length ? filters.responsavelIds.join(",") : user.id));
+              }
+              if (filters.status === "pendente") q = q.eq("status", "pendente");
+              else if (filters.status === "concluido") q = q.eq("status", "cumprido");
+              if (filters.statusIn?.length) q = q.in("status", filters.statusIn as any);
+              else if (filters.statusNotIn?.length) q = q.not("status", "in", `(${filters.statusNotIn.join(",")})`);
+              return q.limit(1000);
+            };
+            let { data: recs, error: recError } = await montarRec(true);
+            if (recError) ({ data: recs, error: recError } = await montarRec(false));
+            if (recError) throw recError;
+            if (recs?.length) {
+              const ids = new Set((tarefas || []).map((t: any) => t.id));
+              tarefas = [...(recs as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
+            }
           }
         }
 
