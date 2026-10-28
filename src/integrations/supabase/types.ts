@@ -5944,6 +5944,36 @@ export type Database = {
           },
         ]
       }
+      manutencao_restauracao_kurier: {
+        Row: {
+          atualizado_em: string
+          concluida_em: string | null
+          conflitos: number
+          cursor_ate: string
+          id: number
+          limite_inicio: string
+          restauradas: number
+        }
+        Insert: {
+          atualizado_em?: string
+          concluida_em?: string | null
+          conflitos?: number
+          cursor_ate: string
+          id?: number
+          limite_inicio: string
+          restauradas?: number
+        }
+        Update: {
+          atualizado_em?: string
+          concluida_em?: string | null
+          conflitos?: number
+          cursor_ate?: string
+          id?: number
+          limite_inicio?: string
+          restauradas?: number
+        }
+        Relationships: []
+      }
       materias_benner: {
         Row: {
           ativo: boolean
@@ -12035,6 +12065,7 @@ export type Database = {
         Args: { _tarefa: string; _user: string }
         Returns: boolean
       }
+      processar_restauracao_kurier_lote: { Args: never; Returns: undefined }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
