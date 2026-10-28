@@ -79,7 +79,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
         <SheetHeader>
           <SheetTitle>Relatório de atividades (Excel)</SheetTitle>
           <SheetDescription>
-            Escolha a data, os tipos e as situações. O relatório segue os filtros do painel e traz um resumo por tipo e situação.
+            Escolha a data, os tipos, as situações e as pessoas. O relatório segue os filtros do painel e traz um resumo por tipo e situação.
           </SheetDescription>
         </SheetHeader>
 
