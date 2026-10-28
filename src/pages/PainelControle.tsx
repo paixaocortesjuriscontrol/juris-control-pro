@@ -680,7 +680,9 @@ export default function PainelControle() {
       return { responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined), fetchAll: false, pessoal: false, ...dateRange, ...statusScope };
     }
 
-    if (isAdminOrCoordinator && coordenacoesUsuario.length > 0) {
+    // Qualquer membro com coordenação filtra pela coordenação no banco (índice).
+    // Antes, assistentes buscavam por lista de pessoas e o endereço da busca estourava.
+    if (coordenacoesUsuario.length > 0) {
       return {
         responsavelIds: responsavelIdsSelecionados ?? (membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined),
         coordenacaoIds: coordenacoesUsuario,

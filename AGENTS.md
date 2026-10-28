@@ -36,3 +36,4 @@
 - Control-panel cards show exact open-item counts from the fully loaded unified agenda; while it loads (and only without extra client filters) they show `get_painel_totais` (SECURITY INVOKER) so cards appear immediately. Do not add other parallel legacy summary queries.
 - The unified agenda wrapper memoizes its flattened identity-deduplicated items by query data, so unrelated renders do not rebuild every downstream filter and calendar map.
 - Calendar indicator queries cache completed ID batches under the same invalidation prefix and user scope as their aggregate query, so loading subsequent agenda pages reuses previous requests without weakening access or mutation refreshes.
+- Painel Escritório scopes every member with coordinations by `coordenacao_id` in the database, and person-based task filters cap linked task IDs via `limiteIdsVinculadosAgenda`, because long person/ID lists exceeded the URL limit and made the agenda retry forever.
