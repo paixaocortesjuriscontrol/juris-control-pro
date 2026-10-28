@@ -12083,6 +12083,10 @@ export type Database = {
         Args: { _entidade: string; _entidade_id: string }
         Returns: string[]
       }
+      restaurar_conteudo_kurier_truncado: {
+        Args: { p_ate: string; p_de: string }
+        Returns: Json
+      }
       restaurar_dados_benner_arquivado: {
         Args: { _id: string }
         Returns: string
