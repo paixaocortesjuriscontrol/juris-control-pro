@@ -63,14 +63,14 @@ export function PendenciasProcessoCard({
     }
   };
 
-  // Um item só é pendência se o status for "pendente" E não houver marca de
-  // conclusão/tratamento (o status pode ficar desatualizado em fluxos antigos).
+  // Pendência = qualquer situação não encerrada (ex.: minutado_revisao) e sem
+  // marca de conclusão/tratamento (o status pode ficar desatualizado).
   const tarefaEmAberto = (t: any) =>
-    t.status === 'pendente' && !t.data_cumprimento && !t.tratado_em && !t.concluido_em;
+    situacaoEmAberto(t.status) && !t.data_cumprimento && !t.tratado_em && !t.concluido_em;
   const eventoEmAberto = (e: any) =>
-    e.status === 'pendente' && !e.concluido_em && !e.tratado_em && !e.data_cumprimento;
+    situacaoEmAberto(e.status) && !e.concluido_em && !e.tratado_em && !e.data_cumprimento;
 
-  const audienciasPendentes = audiencias.filter(a => a.status === 'pendente' && !a.concluido_em);
+  const audienciasPendentes = audiencias.filter(a => situacaoEmAberto(a.status) && !a.concluido_em);
   const intimacoesPendentes = intimacoes.filter(i => i.status === 'pendente');
   const prazosPendentes = tarefas.filter(t => tarefaEmAberto(t) && isPrazoTarefa(t.tipo_tarefa));
   const tarefasPendentes = tarefas.filter(t => tarefaEmAberto(t) && !isPrazoTarefa(t.tipo_tarefa));
