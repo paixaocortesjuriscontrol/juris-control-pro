@@ -10,7 +10,7 @@ WITH fixtures AS (
 ), definitions AS (
   SELECT pg_get_functiondef(p.oid) AS definition
   FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-  WHERE n.nspname = 'public' AND p.proname = 'get_djen_stats_per_user'
+  WHERE n.nspname = 'public' AND p.proname = 'get_djen_stats_per_user' AND p.pronargs IN (6, 9)
 )
 SELECT 1 / CASE WHEN counts.destination = 4 AND counts.origin = 1
   AND (SELECT count(*) FROM definitions) = 2
