@@ -1203,7 +1203,15 @@ export default function PainelControle() {
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
 
-  const exportarAtividades = async (inicio: string, fim: string, tipos: string[], coordIds: string[] = [], situacoesSel: string[] = []) => {
+  const exportarAtividades = async (
+    inicio: string,
+    fim: string,
+    tipos: string[],
+    coordIds: string[] = [],
+    situacoesSel: string[] = [],
+    pessoaIds: string[] = [],
+    papeisPessoas: { responsavel: boolean; envolvido: boolean } = { responsavel: false, envolvido: false },
+  ) => {
     const XLSX = await import("xlsx");
 
     const dataRefItem = (it: any) => {
