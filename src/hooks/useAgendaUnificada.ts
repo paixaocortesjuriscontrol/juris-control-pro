@@ -778,6 +778,31 @@ export async function fetchAgendaPage(
               tarefas = [...(recs as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
             }
           }
+
+          // Tarefas em que as pessoas são co-responsáveis/envolvidas: todas, em lotes de IDs.
+          if (tarefaIdsPorResponsavel.length > 0) {
+            const montarVinc = (comJoins: boolean) => (ids: string[]) => {
+              let q = buildTarefasQuery(comJoins).in("id", ids);
+              if (filters.processoIds?.length) q = q.in("processo_id", filters.processoIds);
+              if (filters.status === "pendente") q = q.eq("status", "pendente");
+              else if (filters.status === "concluido") q = q.eq("status", "cumprido");
+              if (filters.statusIn?.length) q = q.in("status", filters.statusIn as any);
+              else if (filters.statusNotIn?.length) q = q.not("status", "in", `(${filters.statusNotIn.join(",")})`);
+              if (filters.dataInicio) q = q.or(`data_vencimento.gte.${dStr(filters.dataInicio)},recorrencia_tipo.not.is.null`);
+              if (filters.dataFim) q = q.lte("data_vencimento", dStr(filters.dataFim));
+              return q;
+            };
+            let vinc: any[];
+            try {
+              vinc = await inChunks(montarVinc(true), tarefaIdsPorResponsavel);
+            } catch {
+              vinc = await inChunks(montarVinc(false), tarefaIdsPorResponsavel);
+            }
+            if (vinc.length) {
+              const ids = new Set((tarefas || []).map((t: any) => t.id));
+              tarefas = [...(tarefas || []), ...vinc.filter((t: any) => !ids.has(t.id))] as any;
+            }
+          }
         }
 
         if (!tarefasError && tarefas) {
