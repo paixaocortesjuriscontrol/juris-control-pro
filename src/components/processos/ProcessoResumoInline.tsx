@@ -86,7 +86,7 @@ export function ProcessoResumoInline({ processoId, className, defaultOpen = fals
 
   const { data: p, isLoading } = useQuery({
     queryKey: ["processo-resumo-inline", processoId],
-    enabled: !!processoId && aberto,
+    enabled: !!processoId,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
@@ -101,7 +101,7 @@ export function ProcessoResumoInline({ processoId, className, defaultOpen = fals
 
   const { data: cliente } = useQuery({
     queryKey: ["processo-resumo-inline-cliente", p?.cliente_id],
-    enabled: !!p?.cliente_id,
+    enabled: !!p?.cliente_id && aberto,
     staleTime: 300_000,
     queryFn: async () => {
       const { data } = await supabase
@@ -113,8 +113,17 @@ export function ProcessoResumoInline({ processoId, className, defaultOpen = fals
     },
   });
 
+  const poloAtivo = p ? txt(p.polo_ativo) || txt(p.reclamante) || txt(p.autor) : null;
+  const poloPassivo = p ? txt(p.polo_passivo) || txt(p.reclamados) || txt(p.requerido) : null;
+
   return (
     <div className={cn("space-y-2", className)}>
+      {(poloAtivo || poloPassivo) && (
+        <div className="space-y-0.5 px-1">
+          <Campo label="Polo ativo" valor={poloAtivo} />
+          <Campo label="Polo passivo" valor={poloPassivo} />
+        </div>
+      )}
       <Button
         type="button"
         variant="link"
