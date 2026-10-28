@@ -747,6 +747,33 @@ export async function fetchAgendaPage(
             const ids = new Set((tarefas || []).map((t: any) => t.id));
             tarefas = [...(atas as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
           }
+
+          // Recorrentes (não-Ata) cuja série começou antes da janela: poucas, uma vez só.
+          if (filters.dataInicio) {
+            const montarRec = (comJoins: boolean) => {
+              let q = buildTarefasQuery(comJoins)
+                .not("recorrencia_tipo", "is", null)
+                .lt("data_vencimento", dStr(filters.dataInicio!))
+                .or("tipo_tarefa.is.null,tipo_tarefa.neq.ATA");
+              if (filters.processoIds?.length) q = q.in("processo_id", filters.processoIds);
+              if (coordScopeIds.length > 0) q = q.in("coordenacao_id", coordScopeIds);
+              else if (!filters.fetchAll) {
+                q = q.or(buildTarefasOr(filters.responsavelIds?.length ? filters.responsavelIds.join(",") : user.id));
+              }
+              if (filters.status === "pendente") q = q.eq("status", "pendente");
+              else if (filters.status === "concluido") q = q.eq("status", "cumprido");
+              if (filters.statusIn?.length) q = q.in("status", filters.statusIn as any);
+              else if (filters.statusNotIn?.length) q = q.not("status", "in", `(${filters.statusNotIn.join(",")})`);
+              return q.limit(1000);
+            };
+            let { data: recs, error: recError } = await montarRec(true);
+            if (recError) ({ data: recs, error: recError } = await montarRec(false));
+            if (recError) throw recError;
+            if (recs?.length) {
+              const ids = new Set((tarefas || []).map((t: any) => t.id));
+              tarefas = [...(recs as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
+            }
+          }
         }
 
         if (!tarefasError && tarefas) {
