@@ -1,5 +1,7 @@
 # Regras de arquitetura
 
+- Projuris workflow migration selects only enabled active originals and their exact current version, audits source IDs, and imports inactive templates without executions; inherited task-type settings take precedence when requested by the export, and unresolved responsibility/checklist configuration requires review before activation.
+
 - Kurier capture and display share a conservative body-boundary helper; only uppercase headings after compact metadata may split a body, never decision words inside prose or institutional judicial text, to prevent losing publication content.
 
 - Unified agenda pagination uses each source's final successful response (including fallback queries) for its fullness flag, never the merged page length; all consumers use that flag because combining sources and expanding recurrences changes page length and can omit later items from office totals. Failed sources must reject the page rather than silently show incomplete totals.
