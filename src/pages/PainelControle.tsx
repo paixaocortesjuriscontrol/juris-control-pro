@@ -1385,7 +1385,31 @@ export default function PainelControle() {
       (coords || []).forEach((c: any) => c?.id && coordNomeById.set(c.id, c.nome));
     }
 
-    const itensOrdenados = [...itensExport].sort((a, b) => {
+    // Filtro por pessoas: responsável e/ou envolvido nos itens exportados
+    const casaFiltroPessoas = (it: any) => {
+      if (pessoaIds.length === 0) return true;
+      const rawId = String(it.id);
+      const key = rawId.startsWith("audiencia-det-")
+        ? `a:${rawId.replace("audiencia-det-", "")}`
+        : it.origem === "tarefa"
+          ? `t:${rawId}`
+          : it.origem === "evento"
+            ? `e:${rawId.split("::")[0]}`
+            : "";
+      const respIds = new Set(respIdsMap.get(key) ?? []);
+      if (it.responsavel_id) respIds.add(String(it.responsavel_id));
+      (it.responsaveis_ids ?? []).forEach((id: string) => respIds.add(String(id)));
+      const envIds = new Set(envIdsMap.get(key) ?? []);
+      (it.participantes ?? []).forEach((p: any) => p?.usuario_id && envIds.add(String(p.usuario_id)));
+      const ehResp = Array.from(respIds).some((id) => pessoaIds.includes(id));
+      const ehEnv = Array.from(envIds).some((id) => pessoaIds.includes(id));
+      const { responsavel: querResp, envolvido: querEnv } = papeisPessoas;
+      if (querResp && !querEnv) return ehResp;
+      if (querEnv && !querResp) return ehEnv;
+      return ehResp || ehEnv;
+    };
+
+    const itensOrdenados = [...itensExport].filter(casaFiltroPessoas).sort((a, b) => {
       const da = String(a.data_vencimento ?? a.data_inicio ?? "").slice(0, 10);
       const db = String(b.data_vencimento ?? b.data_inicio ?? "").slice(0, 10);
       if (!da && !db) return 0;
