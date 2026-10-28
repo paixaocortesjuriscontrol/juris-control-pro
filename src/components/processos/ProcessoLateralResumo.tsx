@@ -2,10 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, Scale, Building2, Users, Wallet, CalendarDays, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { cn } from "@/lib/utils";
 
 const CAMPOS = [
   "id",
+  "coordenacao_id",
   "numero",
   "polo_ativo",
   "polo_passivo",
@@ -198,6 +200,7 @@ export function ProcessoLateralResumo({ processoId }: Props) {
         {p.acompanhamento_especial && <Badge className="bg-amber-500 text-white">Acompanhamento especial</Badge>}
         {p.segredo_justica && <Badge variant="outline">Segredo de justiça</Badge>}
       </div>
+      <EtiquetaPicker entidade="processo" entidadeId={p.id} coordenacaoId={p.coordenacao_id || null} compact />
 
       <Secao titulo="Partes e cliente" icon={Users}>
         <Campo
