@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { consultarIndicadoresEmLotes } from "@/lib/consultaIndicadores";
 import { supabase } from "@/integrations/supabase/client";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
@@ -69,6 +70,7 @@ function dataOcorrenciaItem(item: ItemAgendaUnificado): string | null {
 export type InfoComentario = { ultimo: string | null; meu: boolean; outros: boolean; cobranca: boolean };
 
 export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined) {
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -108,7 +110,7 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
   }, [lookup]);
 
   return useQuery({
-    queryKey: ["itens-com-comentarios", idsPorTipo, userId],
+    queryKey: ["itens-com-comentarios", idsPorTipo, userId, Array.from(lookup.entries())],
     enabled: lookup.size > 0,
     staleTime: 30 * 1000,
     queryFn: async () => {
@@ -136,8 +138,6 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
         tipo: "tarefa" | "evento" | "audiencia"
       ) => {
         if (ids.length === 0) return;
-        const chunks: string[][] = [];
-        for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
         // ref (e ref|dia) -> info agregada
         const porRef = new Map<string, InfoComentario>();
         const porRefDia = new Map<string, InfoComentario>();
@@ -158,14 +158,18 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
           else atual.outros = true;
           if (cobranca) atual.cobranca = true;
         };
-        await Promise.all(
-          chunks.map(async (chunk) => {
+        const rows = await consultarIndicadoresEmLotes<any>(
+          queryClient, "itens-com-comentarios", [userId, tabela], ids, 100, 30_000,
+          async (chunk) => {
             const { data, error } = await (supabase as any)
               .from(tabela)
               .select(`${fk}, created_at, autor_id, is_cobranca`)
               .in(fk, chunk);
             if (error) throw error;
-            (data || []).forEach((row: any) => {
+            return data || [];
+          },
+        );
+        rows.forEach((row: any) => {
               const ref = row[fk];
               if (!ref || !row.created_at) return;
               const d = new Date(row.created_at);
@@ -177,9 +181,7 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
               const cobranca = !!row.is_cobranca;
               acumular(porRef, ref, iso, meu, cobranca);
               acumular(porRefDia, `${ref}|${dia}`, iso, meu, cobranca);
-            });
-          })
-        );
+        });
         lookup.forEach((info, chave) => {
           if (info.tipo !== tipo) return;
           // Item simples: basta existir comentário.

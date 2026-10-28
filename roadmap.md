@@ -161,6 +161,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [ ] Medir envio com zip real — acesso autenticado indisponível no Supabase externo deste projeto.
 
 ## Desempenho do Painel de Controle
+- [x] Reutilizar lotes já consultados de comentários, cobranças, publicações e workflows durante a paginação; 8 testes aprovados. Índices principais já existem; workflow tem apenas cerca de 417 linhas e consulta medida em 0,177 ms, sem justificativa para novo índice. Medição autenticada permanece pendente abaixo.
 - [x] Remover consultas de resumos sem consumidores, adiar formulários fechados e consulta de exportação, reutilizar lista da agenda entre renderizações.
 - [x] Validar regressões da paginação: 5 testes aprovados; prévia sem erros de compilação.
 - [ ] Medir carregamento autenticado — Supabase externo sem sessão disponível; navegador chega somente à tela de entrada.

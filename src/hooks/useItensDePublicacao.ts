@@ -1,14 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { consultarIndicadoresEmLotes } from "@/lib/consultaIndicadores";
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 
 type ItemBase = { id: string; origem?: string };
-
-async function emLotes<T>(ids: string[], fn: (lote: string[]) => Promise<T[]>) {
-  const out: T[] = [];
-  for (let i = 0; i < ids.length; i += 200) out.push(...(await fn(ids.slice(i, i + 200))));
-  return out;
-}
 
 /**
  * Retorna um Map de id "cru" (getItemRawId) → data da publicação (ISO) para os
@@ -16,6 +12,9 @@ async function emLotes<T>(ids: string[], fn: (lote: string[]) => Promise<T[]>) {
  * (tarefas/prazos e audiências). Itens sem vínculo não aparecem no Map.
  */
 export function useItensDePublicacao(itens: ItemBase[], enabled: boolean) {
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
   const tarefaIds = new Set<string>();
   const audIds = new Set<string>();
   for (const it of itens) {
@@ -24,21 +23,30 @@ export function useItensDePublicacao(itens: ItemBase[], enabled: boolean) {
     if (String(it.id).startsWith("audiencia-det-")) audIds.add(raw);
     else if (it.origem === "tarefa") tarefaIds.add(raw);
   }
-  const t = Array.from(tarefaIds).sort();
-  const a = Array.from(audIds).sort();
+  const t = Array.from(tarefaIds);
+  const a = Array.from(audIds);
 
   return useQuery({
-    queryKey: ["itens-de-publicacao", t.join(","), a.join(",")],
+    queryKey: ["itens-de-publicacao", t.join(","), a.join(","), userId],
     enabled: enabled && (t.length > 0 || a.length > 0),
     staleTime: 60_000,
     queryFn: async () => {
       const sb = supabase as any;
+      const emLotes = (ids: string[], tabela: string, campos: string, fk: string, excluirNulos = false) =>
+        consultarIndicadoresEmLotes<any>(queryClient, "itens-de-publicacao", [userId, tabela, campos, fk, excluirNulos], ids, 200, 60_000,
+          async (lote) => {
+            let query = sb.from(tabela).select(campos).in(fk, lote);
+            if (excluirNulos) query = query.not("publicacao_id", "is", null);
+            const { data, error } = await query;
+            if (error) throw error;
+            return data ?? [];
+          });
       const [tp, tpp, ap, app, ad] = await Promise.all([
-        emLotes(t, async (l) => (await sb.from("tarefas_publicacoes").select("tarefa_id, publicacao_id").in("tarefa_id", l)).data ?? []),
-        emLotes(t, async (l) => (await sb.from("tarefas_publicacoes_processos").select("tarefa_id, publicacao_processo_id").in("tarefa_id", l)).data ?? []),
-        emLotes(a, async (l) => (await sb.from("audiencias_publicacoes").select("audiencia_id, publicacao_id").in("audiencia_id", l)).data ?? []),
-        emLotes(a, async (l) => (await sb.from("audiencias_publicacoes_processos").select("audiencia_id, publicacao_processo_id").in("audiencia_id", l)).data ?? []),
-        emLotes(a, async (l) => (await sb.from("audiencias_detectadas").select("id, publicacao_id").in("id", l).not("publicacao_id", "is", null)).data ?? []),
+        emLotes(t, "tarefas_publicacoes", "tarefa_id, publicacao_id", "tarefa_id"),
+        emLotes(t, "tarefas_publicacoes_processos", "tarefa_id, publicacao_processo_id", "tarefa_id"),
+        emLotes(a, "audiencias_publicacoes", "audiencia_id, publicacao_id", "audiencia_id"),
+        emLotes(a, "audiencias_publicacoes_processos", "audiencia_id, publicacao_processo_id", "audiencia_id"),
+        emLotes(a, "audiencias_detectadas", "id, publicacao_id", "id", true),
       ]);
 
       // Vínculos item → publicação (publicacoes_djen) e item → publicacao_processo
@@ -56,9 +64,9 @@ export function useItensDePublicacao(itens: ItemBase[], enabled: boolean) {
       const dataPorPub = new Map<string, string>();
       const dataPorPubProc = new Map<string, string>();
       await Promise.all([
-        emLotes(pubIds, async (l) => (await sb.from("publicacoes_djen").select("id, data_publicacao, data_disponibilizacao").in("id", l)).data ?? [])
+        emLotes(pubIds, "publicacoes_djen", "id, data_publicacao, data_disponibilizacao", "id")
           .then((rows: any[]) => rows.forEach((r) => dataPorPub.set(String(r.id), r.data_publicacao ?? r.data_disponibilizacao))),
-        emLotes(pubProcIds, async (l) => (await sb.from("publicacoes_djen_processos").select("id, data_publicacao, data_disponibilizacao").in("id", l)).data ?? [])
+        emLotes(pubProcIds, "publicacoes_djen_processos", "id, data_publicacao, data_disponibilizacao", "id")
           .then((rows: any[]) => rows.forEach((r) => dataPorPubProc.set(String(r.id), r.data_publicacao ?? r.data_disponibilizacao))),
       ]);
 
