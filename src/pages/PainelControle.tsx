@@ -61,6 +61,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePainelTotais, type PainelTotais } from "@/hooks/usePainelTotais";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
@@ -739,15 +740,24 @@ export default function PainelControle() {
   const [equipeSearch, setEquipeSearch] = useState("");
   const [equipePagina, setEquipePagina] = useState(1);
 
-  // Totais só aparecem com todas as páginas carregadas; antes mostravam números parciais
-  // (ex.: Atas do fim do mês ficavam em 0). Falha numa página: tenta de novo.
+  // Totais exatos vêm da agenda com todas as páginas; enquanto carrega, mostra a
+  // contagem feita no banco (só sem filtros extras, que o banco não reproduz).
   const totaisCarregando = agendaQuery.isLoading || agendaQuery.hasNextPage || agendaQuery.isFetchingNextPage;
-  const totalCard = (n: number) =>
-    totaisCarregando || agendaQuery.isError ? (
+  const semFiltrosExtras =
+    painelFiltros.situacoes.length === 0 && painelFiltros.responsavelIds.length === 0 &&
+    !painelFiltros.souResponsavel && !painelFiltros.estouEnvolvido &&
+    (painelFiltros.comentarios ?? "todas") === "todas" && (painelFiltros.statusGroup ?? "todas") === "todas" &&
+    !somenteHoje && (!situacaoFilter || situacaoFilter === "todos") && !modoProtocoladosBaixados && !drill;
+  const painelTotaisQuery = usePainelTotais(filters, semFiltrosExtras && (totaisCarregando || agendaQuery.isError), user?.id);
+  const totalCard = (n: number, chave?: keyof PainelTotais) => {
+    if (!(totaisCarregando || agendaQuery.isError)) return n;
+    const doBanco = chave && semFiltrosExtras ? painelTotaisQuery.data?.[chave] : undefined;
+    return (
       <span title={agendaQuery.isError ? "Falha ao carregar parte da agenda; tentando de novo" : "Carregando o restante do mês"}>
-        {n}<span className="ml-0.5 text-xs opacity-60 animate-pulse">{agendaQuery.isError ? "!" : "…"}</span>
+        {doBanco ?? n}<span className="ml-0.5 text-xs opacity-60 animate-pulse">{agendaQuery.isError ? "!" : "…"}</span>
       </span>
-    ) : n;
+    );
+  };
   useEffect(() => {
     if (!agendaQuery.isError || agendaQuery.isFetching) return;
     const t = setTimeout(() => {
