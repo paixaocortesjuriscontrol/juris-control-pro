@@ -33,6 +33,6 @@
 - DJEN Servidor schedule slots carry a mode in configuracoes_monitoramento_servidor.metadata.modos_horarios (normal|repescagem); repescagem re-runs the last prior day with a normal scheduled run, once per day, because DJEN sometimes indexes publications after the day's last run.
 - The "assistente_juridico_geral" role reads all coordinations via dedicated SELECT policies, while edits to tasks, events and hearings are enforced by a DB trigger allowing only items where the user is responsible/involved; the UI uses `podeVerTodasCoordenacoes` only for viewing scope, so security never depends on the screen.
 
-- Control-panel totals use the unified agenda only; do not add parallel legacy summary queries or mount closed event/installment forms, because unused requests compete with agenda loading.
+- Control-panel cards show exact open-item counts from the fully loaded unified agenda; while it loads (and only without extra client filters) they show `get_painel_totais` (SECURITY INVOKER) so cards appear immediately. Do not add other parallel legacy summary queries.
 - The unified agenda wrapper memoizes its flattened identity-deduplicated items by query data, so unrelated renders do not rebuild every downstream filter and calendar map.
 - Calendar indicator queries cache completed ID batches under the same invalidation prefix and user scope as their aggregate query, so loading subsequent agenda pages reuses previous requests without weakening access or mutation refreshes.
