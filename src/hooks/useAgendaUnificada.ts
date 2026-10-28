@@ -12,7 +12,6 @@ import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { leiturasAgendaEmParalelo } from "@/lib/agendaConcorrencia";
-import { limiteIdsVinculadosAgenda } from "@/lib/agendaLimiteUrl";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -541,7 +540,7 @@ export async function fetchAgendaPage(
         const targetTaskUserIds =
           filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
         let tarefaIdsPorResponsavel: string[] = [];
-        if (!filters.fetchAll && coordScopeIds.length === 0) {
+        if (page === 0 && !filters.fetchAll && coordScopeIds.length === 0) {
           // IMPORTANTE: restringir ao período exibido. Sem isso a lista de ids
           // podia chegar a milhares e a URL do filtro `or(...)` estourava o
           // limite do servidor, fazendo a consulta falhar e "sumir tudo".
@@ -583,31 +582,36 @@ export async function fetchAgendaPage(
               `${df.getFullYear()}-${String(df.getMonth() + 1).padStart(2, "0")}-${String(df.getDate()).padStart(2, "0")}`,
             );
           }
-          const [{ data: vinculos }, { data: vinculosRecorrentes }, { data: vinculosEnv }] = await Promise.all([
-            vinculosQuery.limit(2000),
+          // Sem limite: lê todos os vínculos em páginas de 1.000 (só na 1ª página da agenda).
+          const lerTodos = async (q: any): Promise<any[]> => {
+            const out: any[] = [];
+            for (let i = 0; ; i++) {
+              const { data, error } = await q.range(i * 1000, i * 1000 + 999);
+              if (error) throw error;
+              out.push(...(data || []));
+              if (!data || data.length < 1000) return out;
+            }
+          };
+          const vinculos = await lerTodos(vinculosQuery);
+          const vinculosRecorrentes = await lerTodos(
             supabase
               .from("tarefa_responsaveis")
               .select("tarefa_id, tarefas!inner(recorrencia_tipo)")
               .in("usuario_id", targetTaskUserIds)
-              .not("tarefas.recorrencia_tipo", "is", null)
-              .limit(2000),
-            envolvidosQuery.limit(2000),
-          ]);
+              .not("tarefas.recorrencia_tipo", "is", null),
+          );
+          const vinculosEnv = await lerTodos(envolvidosQuery);
           tarefaIdsPorResponsavel = Array.from(
             new Set(
-              [...(vinculos || []), ...(vinculosRecorrentes || []), ...(vinculosEnv || [])]
+              [...vinculos, ...vinculosRecorrentes, ...vinculosEnv]
                 .map((v: any) => v.tarefa_id)
                 .filter(Boolean),
             )
-          ).slice(0, limiteIdsVinculadosAgenda(targetTaskUserIds.length));
+          );
         }
-        const buildTarefasOr = (ids: string) => {
-          const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
-          if (tarefaIdsPorResponsavel.length > 0) {
-            parts.push(`id.in.(${tarefaIdsPorResponsavel.join(",")})`);
-          }
-          return parts.join(",");
-        };
+        // Os IDs vinculados não entram no `or(...)`: são buscados em lotes na 1ª página,
+        // para o endereço da busca nunca passar do tamanho aceito pelo servidor.
+        const buildTarefasOr = (ids: string) => [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`].join(",");
 
         if (coordScopeIds.length > 0) {
           // Coordenação escolhida (inclusive admin no modo Escritório): filtrar no banco.
@@ -771,6 +775,31 @@ export async function fetchAgendaPage(
             if (recs?.length) {
               const ids = new Set((tarefas || []).map((t: any) => t.id));
               tarefas = [...(recs as any[]).filter((t: any) => !ids.has(t.id)), ...(tarefas || [])] as any;
+            }
+          }
+
+          // Tarefas em que as pessoas são co-responsáveis/envolvidas: todas, em lotes de IDs.
+          if (tarefaIdsPorResponsavel.length > 0) {
+            const montarVinc = (comJoins: boolean) => (ids: string[]) => {
+              let q = buildTarefasQuery(comJoins).in("id", ids);
+              if (filters.processoIds?.length) q = q.in("processo_id", filters.processoIds);
+              if (filters.status === "pendente") q = q.eq("status", "pendente");
+              else if (filters.status === "concluido") q = q.eq("status", "cumprido");
+              if (filters.statusIn?.length) q = q.in("status", filters.statusIn as any);
+              else if (filters.statusNotIn?.length) q = q.not("status", "in", `(${filters.statusNotIn.join(",")})`);
+              if (filters.dataInicio) q = q.or(`data_vencimento.gte.${dStr(filters.dataInicio)},recorrencia_tipo.not.is.null`);
+              if (filters.dataFim) q = q.lte("data_vencimento", dStr(filters.dataFim));
+              return q;
+            };
+            let vinc: any[];
+            try {
+              vinc = await inChunks(montarVinc(true), tarefaIdsPorResponsavel);
+            } catch {
+              vinc = await inChunks(montarVinc(false), tarefaIdsPorResponsavel);
+            }
+            if (vinc.length) {
+              const ids = new Set((tarefas || []).map((t: any) => t.id));
+              tarefas = [...(tarefas || []), ...vinc.filter((t: any) => !ids.has(t.id))] as any;
             }
           }
         }
