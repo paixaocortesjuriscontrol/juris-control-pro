@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "9.7.0";
+export const APP_VERSION = "9.7.1";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "9.7.1", date: "2026-10-28", notes: "Manuais oficiais atualizados; seleção de coordenações vinculadas no modo Escritório; Exportar Atividade com filtro de situação; partes do processo nos detalhes da agenda; melhorias em Atas, complementação Projuris, acesso do Assistente Jurídico Geral e preservação do teor das publicações Kurier" },
   { version: "1.0.0", date: "2026-01-30", notes: "Versão inicial com versionamento" },
   { version: "1.0.1", date: "2026-01-30", notes: "Correções no dashboard DJEN (destravamento/execução)" },
   { version: "1.0.2", date: "2026-01-31", notes: "Correção validação OAB+nome para advogados DJEN" },
