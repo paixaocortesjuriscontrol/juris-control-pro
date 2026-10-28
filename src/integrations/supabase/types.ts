@@ -11810,6 +11810,17 @@ export type Database = {
           total: number
         }[]
       }
+      get_painel_totais: {
+        Args: { filters?: Json }
+        Returns: {
+          ata: number
+          audiencia: number
+          evento: number
+          parcelamento: number
+          prazo: number
+          tarefa: number
+        }[]
+      }
       get_pedidos_por_dossie_agrupados: {
         Args: { p_limit?: number; p_offset?: number }
         Returns: {

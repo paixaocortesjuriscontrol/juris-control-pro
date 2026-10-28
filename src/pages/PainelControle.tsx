@@ -61,6 +61,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { usePainelTotais, type PainelTotais } from "@/hooks/usePainelTotais";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
@@ -739,15 +740,24 @@ export default function PainelControle() {
   const [equipeSearch, setEquipeSearch] = useState("");
   const [equipePagina, setEquipePagina] = useState(1);
 
-  // Totais só aparecem com todas as páginas carregadas; antes mostravam números parciais
-  // (ex.: Atas do fim do mês ficavam em 0). Falha numa página: tenta de novo.
+  // Totais exatos vêm da agenda com todas as páginas; enquanto carrega, mostra a
+  // contagem feita no banco (só sem filtros extras, que o banco não reproduz).
   const totaisCarregando = agendaQuery.isLoading || agendaQuery.hasNextPage || agendaQuery.isFetchingNextPage;
-  const totalCard = (n: number) =>
-    totaisCarregando || agendaQuery.isError ? (
+  const semFiltrosExtras =
+    painelFiltros.situacoes.length === 0 && painelFiltros.responsavelIds.length === 0 &&
+    !painelFiltros.souResponsavel && !painelFiltros.estouEnvolvido &&
+    (painelFiltros.comentarios ?? "todas") === "todas" && (painelFiltros.statusGroup ?? "todas") === "todas" &&
+    !somenteHoje && (!situacaoFilter || situacaoFilter === "todos") && !modoProtocoladosBaixados && !drill;
+  const painelTotaisQuery = usePainelTotais(filters, semFiltrosExtras && (totaisCarregando || agendaQuery.isError), user?.id);
+  const totalCard = (n: number, chave?: keyof PainelTotais) => {
+    if (!(totaisCarregando || agendaQuery.isError)) return n;
+    const doBanco = chave && semFiltrosExtras ? painelTotaisQuery.data?.[chave] : undefined;
+    return (
       <span title={agendaQuery.isError ? "Falha ao carregar parte da agenda; tentando de novo" : "Carregando o restante do mês"}>
-        {n}<span className="ml-0.5 text-xs opacity-60 animate-pulse">{agendaQuery.isError ? "!" : "…"}</span>
+        {doBanco ?? n}<span className="ml-0.5 text-xs opacity-60 animate-pulse">{agendaQuery.isError ? "!" : "…"}</span>
       </span>
-    ) : n;
+    );
+  };
   useEffect(() => {
     if (!agendaQuery.isError || agendaQuery.isFetching) return;
     const t = setTimeout(() => {
@@ -2620,7 +2630,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{totalCard(contagensPorClassificacao.tarefa)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{totalCard(contagensPorClassificacao.tarefa, "tarefa")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
                     </div>
                     <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-blue-500/50 flex-shrink-0" />
@@ -2644,7 +2654,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalCard(contagensPorClassificacao.ata)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalCard(contagensPorClassificacao.ata, "ata")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-violet-600 dark:text-violet-400 truncate">Atas</p>
                     </div>
                     <FileText className="w-4 h-4 md:w-5 md:h-5 text-violet-500/50 flex-shrink-0" />
@@ -2668,7 +2678,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{totalCard(contagensPorClassificacao.evento)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{totalCard(contagensPorClassificacao.evento, "evento")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-green-700 dark:text-green-400 truncate">Eventos</p>
                     </div>
                     <CalendarPlus className="w-4 h-4 md:w-5 md:h-5 text-green-500/50 flex-shrink-0" />
@@ -2692,7 +2702,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{totalCard(contagensPorClassificacao.prazo)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{totalCard(contagensPorClassificacao.prazo, "prazo")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-red-600 dark:text-red-400 truncate">Prazos</p>
                     </div>
                     <Clock className="w-4 h-4 md:w-5 md:h-5 text-red-500/50 flex-shrink-0" />
@@ -2716,7 +2726,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{totalCard(contagensPorClassificacao.audiencia)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{totalCard(contagensPorClassificacao.audiencia, "audiencia")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
                     </div>
                     <Gavel className="w-4 h-4 md:w-5 md:h-5 text-yellow-500/50 flex-shrink-0" />
@@ -2740,7 +2750,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{totalCard(contagensPorClassificacao.parcelamento)}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{totalCard(contagensPorClassificacao.parcelamento, "parcelamento")}</p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
                     </div>
                     <Coins className="w-4 h-4 md:w-5 md:h-5 text-emerald-500/50 flex-shrink-0" />
