@@ -24,3 +24,6 @@
 - Special-monitoring email party names are resolved from process fields with fallback to the already-fetched normalized parties, excluding lawyers and third parties; this avoids extra paid requests and preserves registered names.
 - DJEN Servidor schedule slots carry a mode in configuracoes_monitoramento_servidor.metadata.modos_horarios (normal|repescagem); repescagem re-runs the last prior day with a normal scheduled run, once per day, because DJEN sometimes indexes publications after the day's last run.
 - The "assistente_juridico_geral" role reads all coordinations via dedicated SELECT policies, while edits to tasks, events and hearings are enforced by a DB trigger allowing only items where the user is responsible/involved; the UI uses `podeVerTodasCoordenacoes` only for viewing scope, so security never depends on the screen.
+
+- Control-panel totals use the unified agenda only; do not add parallel legacy summary queries or mount closed event/installment forms, because unused requests compete with agenda loading.
+- The unified agenda wrapper memoizes its flattened identity-deduplicated items by query data, so unrelated renders do not rebuild every downstream filter and calendar map.

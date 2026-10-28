@@ -1,4 +1,5 @@
 import { mensagemBloqueioSituacao } from "@/hooks/usePodeAlterarItem";
+import { useMemo } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1409,15 +1410,18 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
 export function useAgendaUnificada(filters: AgendaUnificadaFilters = {}) {
   const infiniteQuery = useAgendaUnificadaPaginated(filters);
 
-  // Flatten all pages and deduplicate by business key (DJEN) / id fallback
-  const rawData = infiniteQuery.data?.pages?.flat() ?? [];
-  const seen = new Set<string>();
-  const data = rawData.filter((item) => {
-    const key = getAgendaDedupKey(item);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Reutiliza a lista entre renderizações; só recalcula quando as páginas mudam.
+  // A identidade é origem + id completo, preservando cada ocorrência recorrente.
+  const data = useMemo(() => {
+    const rawData = infiniteQuery.data?.pages?.flat() ?? [];
+    const seen = new Set<string>();
+    return rawData.filter((item) => {
+      const key = getAgendaDedupKey(item);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [infiniteQuery.data]);
 
   return {
     data,

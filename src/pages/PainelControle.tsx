@@ -264,6 +264,7 @@ export default function PainelControle() {
   const [mesAtual, setMesAtual] = useState(new Date());
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
   const [relatorioAudOpen, setRelatorioAudOpen] = useState(false);
   const [selectedEvento, setSelectedEvento] = useState<EventoAgenda | null>(null);
@@ -564,7 +565,7 @@ export default function PainelControle() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!user?.id,
+    enabled: exportOpen && !!user?.id && !isAdmin && coordenacoesUsuario.length > 0,
   });
 
   // Membros da coordenação filtrada (admin) — inclui coordenador
@@ -820,394 +821,6 @@ export default function PainelControle() {
   // Intervalo do mês em ISO (yyyy-MM-dd) — alinha totalizadores ao calendário
   const rangeInicioStr = useMemo(() => format(dataInicio, "yyyy-MM-dd"), [dataInicio]);
   const rangeFimStr = useMemo(() => format(dataFim, "yyyy-MM-dd"), [dataFim]);
-
-  const resumoStatsReady = useMemo(() => {
-    if (tabMode === "pessoal") return true;
-    if (isAdmin) return true;
-    if (coordLoading || membrosLoading) return false;
-    if (coordenacoesUsuario.length > 0 && membrosDasCoordenacoes.length === 0) return false;
-    return true;
-  }, [tabMode, isAdmin, coordLoading, membrosLoading, coordenacoesUsuario.length, membrosDasCoordenacoes.length]);
-
-  const membrosIdsParaResumo = useMemo(() => {
-    if (tabMode === "pessoal") return user?.id ? [user.id] : [];
-    if (isAdmin) {
-      if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) return membrosCoordFiltrada;
-      return [];
-    }
-    if (membrosDasCoordenacoes.length > 0) return membrosDasCoordenacoes;
-    return user?.id ? [user.id] : [];
-  }, [tabMode, isAdmin, adminCoordFilter, membrosCoordFiltrada, membrosDasCoordenacoes, user?.id]);
-
-  const { data: resumoStats } = useQuery({
-    queryKey: ["painel-controle-resumo-stats", tabMode, hoje_str, rangeInicioStr, rangeFimStr, membrosIdsParaResumo, isAdmin, isAdminOrCoordinator, adminCoordFilter, coordenacoesUsuario],
-    queryFn: async () => {
-      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-      if (!user?.id) return { tarefas: empty, audiencias: empty, compromissos: empty };
-
-      const baseSelect = "id, data_vencimento, data_fatal, tipo_tarefa, status, responsavel_id, criado_por";
-
-      // Ids de tarefas em que os membros filtrados são co-responsáveis
-      const idsMembros = membrosIdsParaResumo.length > 0 ? membrosIdsParaResumo : [user.id];
-      let tarefaIdsCoResp: string[] = [];
-      if (!(tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0)) {
-        const { data: vinculos } = await supabase
-          .from("tarefa_responsaveis")
-          .select("tarefa_id, tarefas!inner(status, data_vencimento)")
-          .in("usuario_id", idsMembros)
-          .not("tarefas.status", "in", "(cumprido,cancelado)")
-          .gte("tarefas.data_vencimento", rangeInicioStr)
-          .lte("tarefas.data_vencimento", rangeFimStr)
-          .limit(5000);
-        tarefaIdsCoResp = Array.from(new Set((vinculos || []).map((v: any) => v.tarefa_id).filter(Boolean)));
-      }
-      // Os ids de co-responsáveis NÃO vão na mesma URL (milhares de ids estouram o
-      // limite e a consulta inteira falhava, zerando o painel). Buscados em lotes abaixo.
-      const orClause = (ids: string) => [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`].join(",");
-
-      let q = supabase
-        .from("tarefas")
-        .select(baseSelect)
-        .not("status", "in", "(cumprido,cancelado)");
-
-      let usarCoResp = false;
-      if (tabMode === "escritorio" && isAdmin && adminCoordFilter !== "todas") {
-        q = supabase
-          .from("tarefas")
-          .select(`${baseSelect}, processo:processos!inner(coordenacao_id)`)
-          .eq("processo.coordenacao_id", adminCoordFilter)
-          .not("status", "in", "(cumprido,cancelado)");
-      } else if (tabMode === "escritorio" && isAdmin && membrosIdsParaResumo.length === 0) {
-        // Admin escritório sem filtro: vê tudo
-      } else if (membrosIdsParaResumo.length > 0) {
-        q = q.or(orClause(membrosIdsParaResumo.join(",")));
-        usarCoResp = true;
-      } else {
-        q = q.or(orClause(user.id));
-        usarCoResp = true;
-      }
-
-      const { data: tarefasBase, error } = await q;
-      if (error) {
-        console.error("[resumoStats] erro na query:", error);
-        return { tarefas: empty, audiencias: empty, compromissos: empty };
-      }
-      const tarefasMap = new Map<string, any>();
-      (tarefasBase || []).forEach((t: any) => tarefasMap.set(t.id, t));
-      if (usarCoResp && tarefaIdsCoResp.length > 0) {
-        const faltantes = tarefaIdsCoResp.filter((id) => !tarefasMap.has(id));
-        for (let i = 0; i < faltantes.length; i += 150) {
-          const { data: extra } = await supabase
-            .from("tarefas")
-            .select(baseSelect)
-            .in("id", faltantes.slice(i, i + 150))
-            .not("status", "in", "(cumprido,cancelado)");
-          (extra || []).forEach((t: any) => tarefasMap.set(t.id, t));
-        }
-      }
-      const tarefas = Array.from(tarefasMap.values());
-
-      const hoje_d = new Date(hoje_str + "T00:00:00");
-      // Filtra pelo intervalo do mês exibido (usa data_vencimento ?? data_fatal)
-      const inRange = (t: any) => {
-        const dateStr = (t.data_vencimento ?? t.data_fatal ?? "").slice(0, 10);
-        if (!dateStr) return false;
-        return dateStr >= rangeInicioStr && dateStr <= rangeFimStr;
-      };
-      const tarefasFiltradas = (tarefas || []).filter(inRange);
-      const calcStats = (items: any[]) => {
-        const atrasadas = items.filter(t => {
-          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
-          if (!dateStr) return false;
-          return new Date(dateStr + "T00:00:00") < hoje_d;
-        }).length;
-        const hoje_count = items.filter(t => {
-          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
-          return dateStr.slice(0, 10) === hoje_str;
-        }).length;
-        const futuras = items.filter(t => {
-          const dateStr = t.data_vencimento ?? t.data_fatal ?? "";
-          if (!dateStr) return false;
-          return new Date(dateStr + "T00:00:00") > hoje_d;
-        }).length;
-        return { atrasadas, hoje: hoje_count, futuras, total: items.length };
-      };
-
-      const all = tarefasFiltradas;
-      const audienciaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "AUDIÊNCIA" || u === "AUDIENCIA"; });
-      const eventoTarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "EVENTO"; });
-      const prazoItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u === "PRAZO"; });
-      const tarefaItems = all.filter(t => { const u = (t.tipo_tarefa ?? "").toUpperCase().trim(); return u !== "AUDIÊNCIA" && u !== "AUDIENCIA" && u !== "EVENTO" && u !== "PRAZO"; });
-
-      return {
-        tarefas: calcStats(tarefaItems),
-        prazos: calcStats(prazoItems),
-        audiencias: calcStats(audienciaItems),
-        eventosTarefa: calcStats(eventoTarefaItems),
-      };
-    },
-    enabled: !!user?.id && resumoStatsReady,
-    staleTime: 30000,
-  });
-
-  // Eventos e Parcelamentos a partir de eventos_agenda
-  // IDs dos processos das coordenações do usuário (para filtrar intimações,
-  // andamentos e eventos). Declarado antes de eventosStats pois é usado lá.
-  const { data: processosIds = [] } = useQuery({
-    queryKey: ["painel-controle-processos-ids", tabMode, coordenacoesUsuario, isAdmin, adminCoordFilter],
-    queryFn: async () => {
-      if (!user?.id) return [];
-
-      // Escritório: admin vê tudo ou filtra por coordenação selecionada
-      if (tabMode === "escritorio") {
-        if (isAdmin) {
-          if (adminCoordFilter !== "todas") {
-            const { data } = await supabase
-              .from("processos")
-              .select("id")
-              .eq("coordenacao_id", adminCoordFilter);
-            return (data || []).map((p) => p.id);
-          }
-          return []; // sem filtro
-        }
-
-        // Coordenador/usuário: filtra pelas coordenações vinculadas
-        if (coordenacoesUsuario.length > 0) {
-          const { data } = await supabase
-            .from("processos")
-            .select("id")
-            .in("coordenacao_id", coordenacoesUsuario);
-          return (data || []).map((p) => p.id);
-        }
-        return [];
-      }
-
-      // Pessoal: processos onde é responsável
-      const { data } = await supabase
-        .from("processos")
-        .select("id")
-        .eq("advogado_responsavel_id", user.id);
-      return (data || []).map((p) => p.id);
-    },
-    enabled: !!user?.id,
-  });
-
-  const { data: eventosStats } = useQuery({
-    queryKey: ["painel-controle-eventos-stats", tabMode, hoje_str, rangeInicioStr, rangeFimStr, membrosIdsParaResumo, isAdmin, adminCoordFilter, processosIds],
-    queryFn: async () => {
-      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-      if (!user?.id) return { eventos: empty, parcelamentos: empty };
-      let q = supabase
-        .from("eventos_agenda")
-        .select("data_inicio, tipo, status, criado_por, processo_id")
-        .not("status", "in", "(concluido,cancelado)")
-        .gte("data_inicio", rangeInicioStr)
-        .lte("data_inicio", rangeFimStr + "T23:59:59");
-      if (tabMode === "pessoal") {
-        q = q.eq("criado_por", user.id);
-      } else if (isAdmin && adminCoordFilter !== "todas") {
-        // Admin com coordenação selecionada: TODOS os eventos vinculados a
-        // processos da coordenação, independente de quem criou.
-        // Filtra pela coordenação do evento (lista de processos em URL estourava o limite).
-        q = q.eq("coordenacao_id", adminCoordFilter);
-      } else if (!isAdmin && membrosIdsParaResumo.length > 0) {
-        q = q.in("criado_por", membrosIdsParaResumo);
-      }
-      const { data, error } = await q;
-      if (error) return { eventos: empty, parcelamentos: empty };
-      const hoje_d = new Date(hoje_str + "T00:00:00");
-      const calc = (items: any[]) => {
-        const atrasadas = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") < hoje_d).length;
-        const hoje_count = items.filter(t => String(t.data_inicio ?? "").slice(0, 10) === hoje_str).length;
-        const futuras = items.filter(t => t.data_inicio && new Date(String(t.data_inicio).slice(0, 10) + "T00:00:00") > hoje_d).length;
-        return { atrasadas, hoje: hoje_count, futuras, total: items.length };
-      };
-      const rows = data || [];
-      const parcels = rows.filter(r => (r.tipo ?? "").toLowerCase() === "parcelamento");
-      const eventos = rows.filter(r => (r.tipo ?? "").toLowerCase() !== "parcelamento");
-      return { eventos: calc(eventos), parcelamentos: calc(parcels) };
-    },
-    enabled: !!user?.id && resumoStatsReady,
-    staleTime: 30000,
-  });
-
-  // Audiências vindas de audiencias_detectadas (fonte real do calendário)
-  const { data: audienciasDetStats } = useQuery({
-    queryKey: [
-      "painel-controle-audiencias-det-stats",
-      tabMode,
-      hoje_str,
-      rangeInicioStr,
-      rangeFimStr,
-      user?.id,
-      membrosIdsParaResumo,
-      isAdmin,
-      adminCoordFilter,
-      coordenacoesUsuario,
-    ],
-    queryFn: async () => {
-      const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-      if (!user?.id) return empty;
-
-      let q = supabase
-        .from("audiencias_detectadas")
-        .select("data_audiencia, status, criado_por, coordenacao_id, id")
-        .not("data_audiencia", "is", null)
-        .not("status", "in", "(tratado,cancelado,concluido)")
-        .gte("data_audiencia", rangeInicioStr)
-        .lte("data_audiencia", rangeFimStr + "T23:59:59");
-
-      if (tabMode === "escritorio") {
-        if (isAdmin) {
-          if (adminCoordFilter !== "todas") {
-            q = q.eq("coordenacao_id", adminCoordFilter);
-          }
-          // admin sem filtro: tudo
-        } else if (coordenacoesUsuario.length > 0) {
-          q = q.in("coordenacao_id", coordenacoesUsuario);
-        } else {
-          return empty;
-        }
-      } else {
-        // pessoal: criado por mim OU vinculado (advogado/envolvido)
-        const [{ data: audAdvs }, { data: audEnv }] = await Promise.all([
-          supabase.from("audiencias_advogados").select("audiencia_id").eq("advogado_id", user.id),
-          supabase.from("audiencia_envolvidos").select("audiencia_id").eq("usuario_id", user.id),
-        ]);
-        const ids = [
-          ...new Set([
-            ...(audAdvs ?? []).map((a: any) => a.audiencia_id),
-            ...(audEnv ?? []).map((a: any) => a.audiencia_id),
-          ]),
-        ];
-        if (ids.length > 0) {
-          q = q.or(`criado_por.eq.${user.id},id.in.(${ids.join(",")})`);
-        } else {
-          q = q.eq("criado_por", user.id);
-        }
-      }
-
-      const { data, error } = await q;
-      if (error) {
-        console.error("[audienciasDetStats] erro:", error);
-        return empty;
-      }
-      const hoje_d = new Date(hoje_str + "T00:00:00");
-      const rows = data || [];
-      const atrasadas = rows.filter((r: any) => r.data_audiencia && new Date(String(r.data_audiencia).slice(0, 10) + "T00:00:00") < hoje_d).length;
-      const hoje_count = rows.filter((r: any) => String(r.data_audiencia ?? "").slice(0, 10) === hoje_str).length;
-      const futuras = rows.filter((r: any) => r.data_audiencia && new Date(String(r.data_audiencia).slice(0, 10) + "T00:00:00") > hoje_d).length;
-      return { atrasadas, hoje: hoje_count, futuras, total: rows.length };
-    },
-    enabled: !!user?.id && resumoStatsReady,
-    staleTime: 30000,
-  });
-
-  // ===== CARDS DE RESUMO — usa resumoStats (query direta sem limite de página) =====
-  const resumo = useMemo(() => {
-    const empty = { atrasadas: 0, hoje: 0, futuras: 0, total: 0 };
-    if (!resumoStats) return { tarefas: empty, prazos: empty, audiencias: empty, eventosTarefa: empty };
-    const base = resumoStats as any;
-    return {
-      ...base,
-      audiencias: audienciasDetStats ?? base.audiencias ?? empty,
-    };
-  }, [resumoStats, audienciasDetStats]);
-
-  // Intimações pendentes — filtradas por processos da coordenação (ou todas para admin sem coordenação)
-  const { data: intimacoesPendentes = 0 } = useQuery({
-    queryKey: ["painel-controle-intimacoes", tabMode, user?.id, coordenacoesUsuario, isAdmin, adminCoordFilter, processosIds],
-    queryFn: async () => {
-      let q = supabase
-        .from("intimacoes_detectadas")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "pendente");
-
-      // Admin em modo escritório sem filtro: vê tudo
-      if (tabMode === "escritorio" && isAdmin && adminCoordFilter === "todas") {
-        const { count } = await q;
-        return count ?? 0;
-      }
-
-      // Filtrar pelos processos das coordenações do usuário (ou pessoal)
-      if (processosIds.length === 0) return 0;
-      // Em lotes: milhares de ids numa só URL fazem a consulta falhar.
-      let total = 0;
-      for (let i = 0; i < processosIds.length; i += 150) {
-        const { count } = await supabase
-          .from("intimacoes_detectadas")
-          .select("id", { count: "exact", head: true })
-          .eq("status", "pendente")
-          .in("processo_id", processosIds.slice(i, i + 150));
-        total += count ?? 0;
-      }
-      return total;
-    },
-    enabled: !!user?.id,
-  });
-
-  // Publicações DJEN não lidas — filtradas por coordenação (ou todas para admin sem coordenação)
-  const { data: andamentosNaoLidos = 0 } = useQuery({
-    queryKey: ["painel-controle-andamentos", tabMode, user?.id, coordenacoesUsuario, isAdmin, adminCoordFilter],
-    queryFn: async () => {
-      let q = supabase
-        .from("publicacoes_djen")
-        .select("id", { count: "exact", head: true })
-        .eq("lida", false);
-
-      // Admin em modo escritório sem filtro: vê tudo
-      if (tabMode === "escritorio" && isAdmin && adminCoordFilter === "todas") {
-        const { count } = await q;
-        return count ?? 0;
-      }
-
-      // Admin com filtro de coordenação
-      if (tabMode === "escritorio" && isAdmin && adminCoordFilter !== "todas") {
-        const { data: monitoramentos } = await supabase
-          .from("monitoramentos_djen")
-          .select("id")
-          .eq("coordenacao_id", adminCoordFilter);
-        const monIds = (monitoramentos || []).map((m) => m.id);
-        if (monIds.length > 0) {
-          q = q.in("monitoramento_id", monIds);
-        } else {
-          return 0;
-        }
-        const { count } = await q;
-        return count ?? 0;
-      }
-
-      // Filtrar por monitoramentos das coordenações do usuário
-      if (coordenacoesUsuario.length > 0) {
-        const { data: monitoramentos } = await supabase
-          .from("monitoramentos_djen")
-          .select("id")
-          .in("coordenacao_id", coordenacoesUsuario);
-        const monIds = (monitoramentos || []).map((m) => m.id);
-        if (monIds.length > 0) {
-          q = q.in("monitoramento_id", monIds);
-        } else {
-          return 0;
-        }
-      } else if (tabMode === "pessoal") {
-        // Pessoal: monitoramentos onde o usuário é responsável
-        const { data: monitoramentos } = await supabase
-          .from("monitoramentos_djen")
-          .select("id")
-          .eq("criado_por", user?.id ?? "");
-        const monIds = (monitoramentos || []).map((m) => m.id);
-        if (monIds.length > 0) {
-          q = q.in("monitoramento_id", monIds);
-        } else {
-          return 0;
-        }
-      }
-
-      const { count } = await q;
-      return count ?? 0;
-    },
-    enabled: !!user?.id,
-  });
 
   // ===== CALENDÁRIO MENSAL =====
   const diasDoCalendario = useMemo(() => {
@@ -1571,7 +1184,6 @@ export default function PainelControle() {
   };
 
   // ===== Exportação (Excel) com período e tipos selecionáveis =====
-  const [exportOpen, setExportOpen] = useState(false);
   const [pessoasLoteOpen, setPessoasLoteOpen] = useState(false);
   const [remanejamentoOpen, setRemanejamentoOpen] = useState(false);
   const [workflowOpen, setWorkflowOpen] = useState(false);
@@ -2819,7 +2431,7 @@ export default function PainelControle() {
                 open={exportOpen}
                 onOpenChange={setExportOpen}
                 onExportar={exportarAtividades}
-                coordenacoes={coordenacoesExport}
+                coordenacoes={isAdmin ? todasCoordenacoes : coordenacoesExport}
               />
               <Button
                 size="sm"
@@ -3757,24 +3369,24 @@ export default function PainelControle() {
       </ItemDrawer>
 
       {/* EventoDialog para edição de eventos */}
-      <EventoDialog
+      {dialogOpen && <EventoDialog
         open={dialogOpen}
         onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) setSelectedEvento(null);
         }}
         evento={selectedEvento}
-      />
+      />}
 
       {/* GerarParcelasDialog para parcelamentos */}
-      <GerarParcelasDialog
+      {parcelasDialogOpen && <GerarParcelasDialog
         open={parcelasDialogOpen}
         onOpenChange={(open) => {
           setParcelasDialogOpen(open);
           if (!open) setSelectedParcelamento(null);
         }}
         evento={selectedParcelamento}
-      />
+      />}
     </MainLayout>
   );
 }
