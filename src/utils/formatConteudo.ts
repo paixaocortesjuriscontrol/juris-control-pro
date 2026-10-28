@@ -1,4 +1,5 @@
 import React from "react";
+import { inicioTeorKurier } from "../../supabase/functions/_kurier-shared/inicioTeor";
 
 /**
  * Utilitário para normalizar conteúdo HTML de intimações/publicações jurídicas.
@@ -424,17 +425,6 @@ const KURIER_PARTY_LABELS = [
   "ADVOGADOS?",
 ];
 
-const KURIER_BODY_OPENERS = [
-  "D\\s+E\\s+C\\s+I\\s+S\\s+[ÃA]\\s+O",
-  "DECISÃO",
-  "DESPACHO",
-  "SENTENÇA",
-  "ACÓRDÃO",
-  "EMENTA",
-  "RELATÓRIO",
-  "VOTO",
-];
-
 const capitalizePapel = (s: string): string => {
   const lower = s.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
@@ -537,16 +527,12 @@ export function parseKurierBlob(
   let inteiroTeor = miolo;
 
   if (miolo) {
-    // Localiza início do corpo da decisão (primeiro DECISÃO/DESPACHO/etc.
-    // Também aceita "D E C I S Ã O", muito comum no TST/Kurier.
-    // PRECEDIDO de espaço, para não confundir com label "DECISÃO" colado).
-    const bodyOpenersAlt = KURIER_BODY_OPENERS.join("|");
-    const bodyRe = new RegExp(`\\s(?:${bodyOpenersAlt})\\b`, "i");
-    const bodyMatch = miolo.match(bodyRe);
+    // Share the same conservative boundary with capture: never cut prose.
+    const bodyIndex = inicioTeorKurier(miolo);
     let estrutBlock = miolo;
-    if (bodyMatch && bodyMatch.index !== undefined) {
-      estrutBlock = miolo.slice(0, bodyMatch.index);
-      inteiroTeor = miolo.slice(bodyMatch.index + 1); // +1 pula o espaço
+    if (bodyIndex !== null) {
+      estrutBlock = miolo.slice(0, bodyIndex);
+      inteiroTeor = miolo.slice(bodyIndex);
     } else {
       // sem opener: deixa o miolo inteiro como inteiro teor; sem extração estrut
       estrutBlock = "";

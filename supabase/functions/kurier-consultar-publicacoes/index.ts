@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { inicioTeorKurier } from "../_kurier-shared/inicioTeor.ts";
 
 // build: prd-publish
 function sha256(s: string): string {
@@ -68,10 +69,6 @@ const KURIER_PARTY_LABELS = [
   "AGRAVANTE", "AGRAVADO", "RECLAMANTE", "RECLAMADO", "AUTOR(?:A)?", "R[ÉE]U",
   "IMPETRANTE", "IMPETRADO", "REQUERENTE", "REQUERIDO", "EXEQUENTE", "EXECUTADO",
   "APELANTE", "APELADO", "INTERESSADO", "ADVOGADOS?",
-];
-
-const KURIER_BODY_OPENERS = [
-  "D\\s+E\\s+C\\s+I\\s+S\\s+[ÃA]\\s+O", "DECISÃO", "DESPACHO", "SENTENÇA", "ACÓRDÃO", "EMENTA", "RELATÓRIO", "VOTO",
 ];
 
 function capitalizePapel(s: string): string {
@@ -230,12 +227,11 @@ function parseKurierBlobForStorage(conteudo: string): { partes: string[]; advoga
   let inteiroTeor = miolo;
 
   if (miolo) {
-    const bodyRe = new RegExp(`\\s(?:${KURIER_BODY_OPENERS.join("|")})\\b`, "i");
-    const bodyMatch = miolo.match(bodyRe);
+    const bodyIndex = inicioTeorKurier(miolo);
     let estrutBlock = miolo;
-    if (bodyMatch && bodyMatch.index !== undefined) {
-      estrutBlock = miolo.slice(0, bodyMatch.index);
-      inteiroTeor = miolo.slice(bodyMatch.index + 1);
+    if (bodyIndex !== null) {
+      estrutBlock = miolo.slice(0, bodyIndex);
+      inteiroTeor = miolo.slice(bodyIndex);
     } else {
       estrutBlock = "";
     }
