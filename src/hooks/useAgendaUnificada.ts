@@ -11,6 +11,7 @@ import { dataInicioAudiencia } from "@/utils/date";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { leiturasAgendaEmParalelo } from "@/lib/agendaConcorrencia";
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -153,13 +154,16 @@ function addBusinessDays(d: Date, n: number): Date {
 }
 
 async function inChunks(build: (ids: string[]) => any, ids: string[], size = 150): Promise<any[]> {
-  const out: any[] = [];
+  const leituras: (() => Promise<any[]>)[] = [];
   for (let i = 0; i < ids.length; i += size) {
-    const { data, error } = await build(ids.slice(i, i + size));
-    if (error) console.error("[agenda] erro em lote:", error);
-    if (data) out.push(...data);
+    const lote = ids.slice(i, i + size);
+    leituras.push(async () => {
+      const { data, error } = await build(lote);
+      if (error) throw error;
+      return data ?? [];
+    });
   }
-  return out;
+  return (await leiturasAgendaEmParalelo(leituras)).flat();
 }
 
 export async function fetchAgendaPage(
@@ -217,6 +221,8 @@ export async function fetchAgendaPage(
         return supabase.from("tarefas").select(TAREFAS_SELECT_BASE) as any;
       };
 
+      await leiturasAgendaEmParalelo([
+        async () => {
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos && incluirEventosPorTipo) {
         let queryEventos = buildEventosQuery(true);
@@ -521,6 +527,8 @@ export async function fetchAgendaPage(
         }
       }
 
+        },
+        async () => {
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas && incluirTarefasPorTipo) {
         let queryTarefas = buildTarefasQuery(true);
@@ -939,6 +947,8 @@ export async function fetchAgendaPage(
         }
       }
 
+        },
+        async () => {
       // ========= BUSCAR PRAZOS FATAIS TST (processos com data_fatal) =========
       {
         let queryPrazos = supabase
@@ -971,6 +981,7 @@ export async function fetchAgendaPage(
         queryPrazos = queryPrazos.order("data_fatal", { ascending: true }).range(from, to);
 
         const { data: prazosTst, error: prazosError } = await queryPrazos;
+        if (prazosError) throw prazosError;
         if ((prazosTst?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (!prazosError && prazosTst) {
@@ -1023,6 +1034,8 @@ export async function fetchAgendaPage(
         }
       }
 
+        },
+        async () => {
       // ========= ORDENAR RESULTADOS =========
       // ========= BUSCAR AUDIÊNCIAS DETECTADAS (manuais e DJEN) =========
       const incluirAudiencias =
@@ -1112,6 +1125,7 @@ export async function fetchAgendaPage(
         queryAud = queryAud.range(from, to);
 
         const { data: audiencias, error: audError } = await queryAud;
+        if (audError) throw audError;
         if ((audiencias?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (!audError && audiencias) {
@@ -1161,6 +1175,8 @@ export async function fetchAgendaPage(
         }
       }
 
+        },
+        async () => {
       // Dedup final (por chave de negócio DJEN) antes de ordenar
       // ========= EXPANDIR PARCELAS (parcelas_evento) =========
       const incluirParcelas =
@@ -1187,7 +1203,8 @@ export async function fetchAgendaPage(
           queryParcelas = queryParcelas.lte("data_vencimento", dfStr);
         }
 
-        const { data: parcelas } = await queryParcelas;
+        const { data: parcelas, error: parcelasError } = await queryParcelas;
+        if (parcelasError) throw parcelasError;
 
         if (parcelas && parcelas.length > 0) {
           // Carrega eventos-pai que ainda não estão em resultItems
@@ -1316,6 +1333,9 @@ export async function fetchAgendaPage(
       }
 
 
+        },
+      ]);
+
       // ===== Baixa INDIVIDUAL de ocorrências recorrentes =====
       // Itens recorrentes são um único registro no banco. A situação gravada em
       // `ocorrencias_recorrentes_status` vale só para aquela data, sobrepondo a
@@ -1391,6 +1411,7 @@ export function useAgendaUnificadaPaginated(filters: AgendaUnificadaFilters = {}
     // Important: new key avoids React Query cache shape mismatch (array vs InfiniteData)
     // that can crash hasNextPage/getNextPageParam.
     queryKey: [AGENDA_INFINITE_QUERY_KEY, filters, user?.id],
+    staleTime: 60_000,
     initialPageParam: 0,
     getNextPageParam: (lastPage, allPages) => {
       if (!lastPage || !Array.isArray(lastPage)) {
