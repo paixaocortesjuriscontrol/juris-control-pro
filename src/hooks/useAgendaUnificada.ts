@@ -598,7 +598,7 @@ export async function fetchAgendaPage(
                 .map((v: any) => v.tarefa_id)
                 .filter(Boolean),
             )
-          ).slice(0, 400);
+          ).slice(0, limiteIdsVinculadosAgenda(targetTaskUserIds.length));
         }
         const buildTarefasOr = (ids: string) => {
           const parts = [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`];
@@ -1240,7 +1240,7 @@ export async function fetchAgendaPage(
           if (missingParentIds.length > 0) {
             let queryParents = supabase
               .from("eventos_agenda")
-              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, status, processo:processos(id,numero,coordenacao_id)")
+              .select("id, titulo, descricao, local, processo_id, criado_por, coordenacao_id, status, processo:processos!eventos_agenda_processo_id_fkey(id,numero,coordenacao_id)")
               .in("id", missingParentIds);
             const { data: parentsRaw } = await queryParents;
             let parents = (parentsRaw ?? []) as any[];
