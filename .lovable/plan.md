@@ -1,18 +1,20 @@
-# Calendário do Painel: sem limite de busca e com visão total do Assistente Jurídico Geral
+# Versão v9.7.3
 
-## O que muda para quem usa
-- O calendário volta a trazer **todas** as tarefas em que a pessoa é responsável, co-responsável ou envolvida, sem corte de quantidade.
-- O endereço de busca não fica mais grande demais, então a tela não volta a ficar presa tentando de novo.
-- O **Assistente Jurídico Geral** continua vendo todas as coordenações no modo Escritório, mesmo sem participar de nenhuma.
+## O que entra nas novidades (28/10/2026)
+- Painel de Controle: os cartões mostram os totais logo ao abrir (só itens em aberto), enquanto o calendário termina de carregar.
+- Painel no modo Escritório: assistentes, advogados e estagiários veem as atividades das suas coordenações. A tela não fica mais presa carregando.
+- O calendário ficou mais rápido para buscar as tarefas que se repetem.
+- Os parcelamentos voltam a aparecer no calendário.
+- Workflows: o filtro de coordenação fica sempre visível, já começa na coordenação do usuário e cada linha mostra a sua coordenação.
+- Workflows do Projuris (Santander Cível): 22 modelos importados como inativos, para revisão antes de ativar.
 
-## Como será feito
-1. **Tirar o limite** de tarefas vinculadas que entrou na última correção.
-2. **Dividir a busca em partes**: em vez de mandar todos os códigos de tarefa num pedido só, o calendário faz vários pedidos menores e junta os resultados, sem repetir itens. Assim nada fica de fora e nenhum pedido passa do tamanho aceito.
-3. **Assistente Jurídico Geral**: conferir que, no Escritório, esse perfil continua no caminho "ver todas as coordenações". Ele vem antes da regra de busca por coordenação, então quem não tem coordenação não recebe uma tela vazia. Também incluir um teste para isso.
-4. Manter a busca por coordenação para assistentes, advogados e estagiários que fazem parte de coordenações, porque foi isso que acabou com o loop da Altina.
+## O que será atualizado
+1. O número da versão no menu e o histórico de novidades passam para 9.7.3.
+2. Os manuais em PDF são gerados de novo como v9.7.3, com um capítulo sobre essas novidades. A Central de Manuais e o atalho da tela Termos DJEN passam a abrir esses novos arquivos.
+
+O ajuste para tirar o limite de tarefas fica para depois desta versão, como você pediu.
 
 ## Detalhes técnicos
-- `useAgendaUnificada.ts`: remover `limiteIdsVinculadosAgenda`. Separar a consulta de tarefas em duas leituras sequenciais (concorrência 1): (a) `responsavel_id.in` / `criado_por.in` das pessoas e (b) `id.in` dos IDs vinculados, divididos em lotes de cerca de 150 IDs com o `inChunks` que já existe. Mesclar por ID, mantendo a janela de datas, os filtros de status e a exclusão de ATA. Aplicar o mesmo na consulta de reserva (fallback). Na paginação, a parte (b) é lida inteira na página 0, e a página só conta como "cheia" pela parte (a).
-- Remover `src/lib/agendaLimiteUrl.ts` e o teste dele. Adicionar um teste da função que decide o escopo do Escritório: `assistente_juridico_geral` sem coordenação recebe `fetchAll`, e um assistente com coordenações recebe `coordenacaoIds`.
-- Atualizar a regra correspondente no `AGENTS.md`, sem mencionar limite de IDs.
-- Nenhuma mudança no banco nem nas permissões de acesso (RLS).
+- `src/constants/version.ts`: `APP_VERSION = "9.7.3"` e uma nova entrada no topo do histórico.
+- `scripts/manual_release_content.py`: `VERSION = "9.7.3"` e um novo capítulo de novidades. Rodar `scripts/generate_system_manuals.py` para gerar os PDFs v9.7.3 em `public/manuais`.
+- Trocar as referências v9.7.2 por v9.7.3 em `src/pages/ManualSistema.tsx` e `src/pages/TermosDjen.tsx`.
