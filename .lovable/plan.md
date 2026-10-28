@@ -6,7 +6,7 @@ Ela não baixa todos os registros para contar. Os números dos cartões vêm de 
 No Painel de Controle, os cartões só mostram os números depois que o calendário baixa todas as atividades do período, parte por parte. Por isso demora, e qualquer falha deixa os cartões em 0.
 
 ## Proposta
-1. Criar uma consulta de totais no banco para o Painel, que devolve de uma vez: Tarefas, Atas, Eventos, Prazos, Audiências e Parcelamentos (e o total de atrasados), com os mesmos filtros da tela: Pessoal/Escritório, coordenações, pessoas, período e situação.
+1. Criar uma consulta de totais no banco para o Painel, que devolve de uma vez: Tarefas, Atas, Eventos, Prazos, Audiências e Parcelamentos (e o total de atrasados). Ela conta **apenas as atividades em aberto**, como os cartões fazem hoje, e usa os mesmos filtros da tela: Pessoal/Escritório, coordenações, pessoas e período.
 2. Os cartões passam a usar essa consulta e aparecem logo, sem esperar o calendário.
 3. O calendário continua carregando como hoje, mas só o período que está na tela, sem travar os cartões.
 4. Conferir, em várias combinações de filtro, se os números dos cartões batem com o que a lista mostra, antes de trocar.
