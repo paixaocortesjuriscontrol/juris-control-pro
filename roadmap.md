@@ -1,9 +1,11 @@
 # Roadmap — Considerações 02/09
 
 ## Workflows Projuris — Santander Cível
-- [ ] Separar modelos reutilizáveis das cópias e validar etapas, prazos e condições dos arquivos enviados.
-- [ ] Importar modelos com auditoria e proteção contra duplicação, sem iniciar execuções ou criar tarefas.
-- [ ] Conferir os modelos e etapas gravados; verificação autenticada depende de sessão no Supabase externo.
+- [x] Separar 22 modelos reutilizáveis ativos/habilitados e suas 47 etapas da versão atual; 4 testes aprovados, prazos herdados preservados.
+- [x] Importar modelos inativos com auditoria e proteção contra duplicação, sem iniciar execuções ou criar tarefas; contagens e predecessores conferidos no banco.
+- [x] Comparar os 22 modelos e 47 etapas da migração com os dados preparados dos arquivos; aplicação sem erros de compilação.
+- [ ] Revisar responsáveis e checklists antes de ativar — arquivos não trazem os vínculos necessários; histórico de execuções não importado.
+- [ ] Conferir modelos na tela autenticada — sessão indisponível no Supabase externo.
 
 ## Versão e manuais v9.7.1
 - [x] Atualizar a versão exibida no menu e o identificador de atualização; versão servida v9.7.1 e build OK.
