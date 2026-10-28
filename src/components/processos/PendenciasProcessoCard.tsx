@@ -1,3 +1,4 @@
+import { situacaoEmAberto } from "@/lib/pendenciaEmAberto";
 import { sufixoHoraAudiencia } from "@/utils/date";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,14 +64,14 @@ export function PendenciasProcessoCard({
     }
   };
 
-  // Um item só é pendência se o status for "pendente" E não houver marca de
-  // conclusão/tratamento (o status pode ficar desatualizado em fluxos antigos).
+  // Pendência = qualquer situação não encerrada (ex.: minutado_revisao) e sem
+  // marca de conclusão/tratamento (o status pode ficar desatualizado).
   const tarefaEmAberto = (t: any) =>
-    t.status === 'pendente' && !t.data_cumprimento && !t.tratado_em && !t.concluido_em;
+    situacaoEmAberto(t.status) && !t.data_cumprimento && !t.tratado_em && !t.concluido_em;
   const eventoEmAberto = (e: any) =>
-    e.status === 'pendente' && !e.concluido_em && !e.tratado_em && !e.data_cumprimento;
+    situacaoEmAberto(e.status) && !e.concluido_em && !e.tratado_em && !e.data_cumprimento;
 
-  const audienciasPendentes = audiencias.filter(a => a.status === 'pendente' && !a.concluido_em);
+  const audienciasPendentes = audiencias.filter(a => situacaoEmAberto(a.status) && !a.concluido_em);
   const intimacoesPendentes = intimacoes.filter(i => i.status === 'pendente');
   const prazosPendentes = tarefas.filter(t => tarefaEmAberto(t) && isPrazoTarefa(t.tipo_tarefa));
   const tarefasPendentes = tarefas.filter(t => tarefaEmAberto(t) && !isPrazoTarefa(t.tipo_tarefa));
@@ -338,6 +339,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
+                    {t.status && t.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(t.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className="text-[10px] h-5 px-1.5 font-semibold bg-destructive/15 text-destructive border border-destructive/30">
@@ -395,6 +397,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
+                    {t.status && t.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(t.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
@@ -459,6 +462,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
+                    {ev.status && ev.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(ev.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
@@ -512,6 +516,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
+                    {ev.status && ev.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(ev.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
