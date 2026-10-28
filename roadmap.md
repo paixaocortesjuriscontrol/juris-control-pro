@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Versão e manuais v9.7.1
+- [ ] Atualizar a versão exibida no menu e o identificador de atualização.
+- [ ] Consolidar no manual as funcionalidades e melhorias realizadas até esta versão, preservando os capítulos anteriores.
+- [ ] Atualizar os PDFs oficiais e os atalhos correspondentes; conferir conteúdo e apresentação de todas as páginas.
+
 ## Publicações Kurier incompletas — Janaina
 - [x] Confirmar corte na captura comparando texto bruto e publicação do processo 0000340-48.2026.5.18.0052.
 - [x] Corrigir fronteira do teor na captura e apresentação (helper compartilhado, 4 testes Deno aprovados e apresentação conferida); função publicada e duas cópias da publicação da imagem restauradas para 1.558 caracteres, incluindo a determinação de audiência.
