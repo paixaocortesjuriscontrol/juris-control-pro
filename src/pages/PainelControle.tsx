@@ -641,60 +641,18 @@ export default function PainelControle() {
       };
     }
 
-    // Admin no escritório
-    if (isAdmin) {
-      if (adminCoordFilter !== "todas" && membrosCoordFiltrada.length > 0) {
-        // Mesmo conjunto que o coordenador vê no perfil dele: itens da coordenação
-        // MAIS itens em que os membros são responsáveis/participantes (inclusive sem processo).
-        return {
-          coordenacaoId: adminCoordFilter,
-          responsavelIds: responsavelIdsSelecionados ?? membrosCoordFiltrada,
-          fetchAll: false,
-          ...dateRange, ...statusScope,
-        };
-      }
-      if (adminCoordFilter !== "todas" && membrosFilterLoading) {
-        return {
-          coordenacaoId: adminCoordFilter,
-          strictCoordenacaoIsolation: true,
-          fetchAll: false,
-          ...dateRange, ...statusScope,
-        };
-      }
-      return { fetchAll: true, ...dateRange, ...statusScope };
-    }
-
-    // Não-admin com uma das suas coordenações escolhida no escritório
-    if (adminCoordFilter !== "todas" && coordenacoesUsuario.includes(adminCoordFilter)) {
+    // Escritório: o mês inteiro das coordenações, sem filtrar por responsável/envolvido.
+    // Exceção: Protocolados/Baixados com pessoas escolhidas mantém o filtro por pessoas.
+    const escopo = escopoEscritorio({
+      verTodas: isAdmin,
+      coordEscolhida: adminCoordFilter,
+      coordenacoesUsuario,
+      coordLoading,
+    });
+    if (escopo) {
       return {
-        coordenacaoIds: [adminCoordFilter],
-        ...(membrosCoordFiltrada.length > 0
-          ? { responsavelIds: responsavelIdsSelecionados ?? membrosCoordFiltrada }
-          : { strictCoordenacaoIsolation: true }),
-        fetchAll: false,
-        ...dateRange, ...statusScope,
-      };
-    }
-
-    if (coordLoading || membrosLoading) {
-      return { responsavelIds: responsavelIdsSelecionados ?? (user?.id ? [user.id] : undefined), fetchAll: false, pessoal: false, ...dateRange, ...statusScope };
-    }
-
-    // Qualquer membro com coordenação filtra pela coordenação no banco (índice).
-    // Antes, assistentes buscavam por lista de pessoas e o endereço da busca estourava.
-    if (coordenacoesUsuario.length > 0) {
-      return {
-        responsavelIds: responsavelIdsSelecionados ?? (membrosDasCoordenacoes.length > 0 ? membrosDasCoordenacoes : undefined),
-        coordenacaoIds: coordenacoesUsuario,
-        fetchAll: false,
-        ...dateRange, ...statusScope,
-      };
-    }
-
-    if (membrosDasCoordenacoes.length > 0) {
-      return {
-        responsavelIds: responsavelIdsSelecionados ?? membrosDasCoordenacoes,
-        fetchAll: false,
+        ...escopo,
+        ...(responsavelIdsSelecionados ? { responsavelIds: responsavelIdsSelecionados, strictCoordenacaoIsolation: false } : {}),
         ...dateRange, ...statusScope,
       };
     }
