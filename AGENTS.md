@@ -1,5 +1,7 @@
 # Regras de arquitetura
 
+- Workflow coordination defaults reuse the user's default-coordination hook and validate it against accessible options; explicit filter choices are user-scoped and row names use the existing coordination join, avoiding new queries or permission changes.
+
 - Projuris workflow migration selects only enabled active originals and their exact current version, audits source IDs, and imports inactive templates without executions; inherited task-type settings take precedence when requested by the export, and unresolved responsibility/checklist configuration requires review before activation.
 
 - Kurier capture and display share a conservative body-boundary helper; only uppercase headings after compact metadata may split a body, never decision words inside prose or institutional judicial text, to prevent losing publication content.

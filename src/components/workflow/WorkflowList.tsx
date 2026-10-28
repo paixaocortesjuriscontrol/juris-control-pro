@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,11 +33,13 @@ import {
   useDeleteWorkflow,
 } from "@/hooks/useWorkflows";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+import { useAuth } from "@/contexts/AuthContext";
+import { resolverFiltroCoordenacaoWorkflow } from "@/lib/filtroCoordenacaoWorkflow";
 import { IniciarWorkflowDialog } from "./IniciarWorkflowDialog";
 import {
   Plus,
   Search,
-  SlidersHorizontal,
   CircleDot,
   CheckCircle2,
   XCircle,
@@ -56,17 +58,20 @@ interface WorkflowListProps {
 }
 
 export function WorkflowList({ onSelect }: WorkflowListProps) {
-  const { coordenacoes, isAdmin, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
-  const [filtroCoordenacao, setFiltroCoordenacao] = useState<string>("todas");
+  const { user } = useAuth();
+  const { coordenacoes, unicaCoordenacaoId, isLoading: carregandoCoordenacoes } = useCoordenacoesDoUsuario();
+  const { data: coordenacaoPadraoId, isLoading: carregandoPadrao } = useCoordenacaoPadrao();
+  const [escolhaCoordenacao, setEscolhaCoordenacao] = useState<{ userId?: string; valor: string } | null>(null);
+  const filtroCoordenacao = resolverFiltroCoordenacaoWorkflow(
+    escolhaCoordenacao?.userId === user?.id ? escolhaCoordenacao?.valor : undefined,
+    coordenacoes,
+    coordenacaoPadraoId,
+  );
+  const setFiltroCoordenacao = (valor: string) => setEscolhaCoordenacao({ userId: user?.id, valor });
   const [buscaInput, setBuscaInput] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroAtivo, setFiltroAtivo] = useState<"todos" | "ativos" | "inativos">("todos");
-  const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [iniciandoId, setIniciandoId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isAdmin && unicaCoordenacaoId) setFiltroCoordenacao(unicaCoordenacaoId);
-  }, [isAdmin, unicaCoordenacaoId]);
 
   const { data: workflows = [], isLoading, refetch } = useWorkflows({
     coordenacaoId: filtroCoordenacao !== "todas" ? filtroCoordenacao : undefined,
@@ -220,18 +225,6 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
           </Button>
         </div>
 
-        <Button
-          variant="outline"
-          onClick={() => setMostrarFiltros((v) => !v)}
-          className="gap-2"
-        >
-          <SlidersHorizontal className="h-4 w-4" />
-          Filtros
-          <Badge variant="secondary" className="rounded-full px-1.5">
-            {filtroCoordenacao !== "todas" ? 1 : 0}
-          </Badge>
-        </Button>
-
         <div className="flex items-center rounded-md border border-border overflow-hidden">
           {[
             { key: "todos", label: "Todos", Icon: CircleDot },
@@ -256,13 +249,10 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
         </div>
       </div>
 
-      {mostrarFiltros && (
-        <Card>
-          <CardContent className="p-4 grid gap-3 sm:grid-cols-3">
-            <div className="space-y-1.5">
-              <Label>Coordenação</Label>
+      <div className="space-y-1.5 w-full sm:max-w-md">
+              <Label htmlFor="workflow-filtro-coordenacao">Coordenação</Label>
               <Select value={filtroCoordenacao} onValueChange={setFiltroCoordenacao}>
-                <SelectTrigger>
+                <SelectTrigger id="workflow-filtro-coordenacao" disabled={carregandoCoordenacoes || carregandoPadrao}>
                   <SelectValue placeholder="Coordenação" />
                 </SelectTrigger>
                 <SelectContent>
@@ -274,14 +264,11 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      </div>
 
       {/* Lista compacta com cabeçalho único (padrão Projuris) */}
       <Card className="overflow-hidden">
-        {isLoading ? (
+        {isLoading || carregandoCoordenacoes || carregandoPadrao ? (
           <CardContent className="p-6 text-muted-foreground">
             Carregando fluxos...
           </CardContent>
@@ -292,9 +279,10 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
         ) : (
           <div className="text-sm">
             {/* Cabeçalho */}
-            <div className="hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_70px_110px_120px_90px_100px] items-center gap-3 px-4 py-2 bg-muted/50 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="hidden md:grid md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_50px_85px_85px_90px_65px] items-center gap-3 px-4 py-2 bg-muted/50 border-b border-border text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
               <span>Título</span>
               <span>Descrição</span>
+              <span>Coordenação</span>
               <span className="text-center">Etapas</span>
               <span>Criação</span>
               <span>Atualização</span>
@@ -307,7 +295,7 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
               {listaFiltrada.map((wf: any) => (
                 <div key={wf.id}>
                   <div
-                    className="grid grid-cols-1 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_70px_110px_120px_90px_100px] items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-accent/40 cursor-pointer"
+                    className="grid grid-cols-1 md:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_50px_85px_85px_90px_65px] items-center gap-x-3 gap-y-1 px-4 py-2 hover:bg-accent/40 cursor-pointer"
                     onClick={() => onSelect?.(wf.id)}
                   >
                     <div className="min-w-0">
@@ -320,6 +308,12 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
                       <p className="md:hidden text-[10px] text-muted-foreground uppercase">Descrição</p>
                       <p className="text-sm text-muted-foreground line-clamp-1" title={wf.descricao || ""}>
                         {wf.descricao || "Não informado"}
+                      </p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="md:hidden text-[10px] text-muted-foreground uppercase">Coordenação</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 break-words" title={wf.coordenacao?.nome || coordenacoes.find((c) => c.id === wf.coordenacao_id)?.nome || ""}>
+                        {wf.coordenacao?.nome || coordenacoes.find((c) => c.id === wf.coordenacao_id)?.nome || "Não informado"}
                       </p>
                     </div>
                     <div className="text-center">
