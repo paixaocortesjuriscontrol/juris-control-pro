@@ -1,6 +1,7 @@
 from pathlib import Path
 from xml.sax.saxutils import escape
 import subprocess
+from manual_release_content import CHAPTERS, RELEASE_DATE, VERSION
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -106,23 +107,23 @@ class ManualDoc(BaseDocTemplate):
         canvas.line(18 * mm, 13 * mm, A4[0] - 18 * mm, 13 * mm)
         canvas.setFillColor(MUTED)
         canvas.setFont("Sans", 7)
-        canvas.drawString(18 * mm, 9 * mm, "Paixão Cortes Advogados  •  Uso interno  •  v7.4.0")
+        canvas.drawString(18 * mm, 9 * mm, f"Paixão Cortes Advogados  •  Uso interno  •  v{VERSION}")
         canvas.drawRightString(A4[0] - 18 * mm, 9 * mm, str(doc.page - 1))
         canvas.restoreState()
 
 
 def cover(title: str, subtitle: str, topics: list[str]):
     items = []
-    data = [[Paragraph("⚖", ParagraphStyle("mark", fontName="Serif-Bold", fontSize=26, alignment=TA_CENTER, textColor=NAVY))]]
+    data = [[Paragraph("JC", ParagraphStyle("mark", fontName="Serif-Bold", fontSize=26, alignment=TA_CENTER, textColor=NAVY))]]
     mark = Table(data, colWidths=[23 * mm], rowHeights=[23 * mm])
     mark.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), GOLD), ("VALIGN", (0, 0), (-1, -1), "MIDDLE")]))
     items += [Spacer(1, 20 * mm), mark, Spacer(1, 8 * mm)]
     items += [Paragraph("Juris Control", ParagraphStyle("brand", parent=S["cover_title"], fontSize=24, leading=28)),
               Paragraph("PAIXÃO CORTES ADVOGADOS", ParagraphStyle("brand2", parent=S["small"], fontSize=9, textColor=GOLD, spaceAfter=13 * mm)),
-              Paragraph(title, S["cover_title"]), Spacer(1, 3 * mm), Paragraph(subtitle, S["cover_sub"]), Spacer(1, 12 * mm)]
+              Paragraph(title.replace("Manual Completo do Juris Control", "Manual Completo<br/>do Juris Control"), S["cover_title"]), Spacer(1, 3 * mm), Paragraph(subtitle, S["cover_sub"]), Spacer(1, 12 * mm)]
     for t in topics:
         items.append(Paragraph(f"<font color='#D9A91C'>•</font>  {escape(t)}", ParagraphStyle("ct", parent=S["body"], textColor=WHITE, fontSize=9.5, leading=14)))
-    items += [Spacer(1, 38 * mm), Paragraph("Versão do sistema 7.4.0  •  28 de setembro de 2026", ParagraphStyle("cv", parent=S["small"], textColor=colors.HexColor("#B9C2D3"))),
+    items += [Spacer(1, 38 * mm), Paragraph(f"Versão do sistema {VERSION}  •  {RELEASE_DATE}", ParagraphStyle("cv", parent=S["small"], textColor=colors.HexColor("#B9C2D3"))),
               Paragraph("Documento de circulação interna — Paixão Cortes Advogados", ParagraphStyle("cv2", parent=S["small"], textColor=colors.HexColor("#B9C2D3"))), PageBreak()]
     return items
 
@@ -136,7 +137,7 @@ def chapter(num: str, title: str, intro: str | None = None):
 
 
 def h2(text: str):
-    return Paragraph(escape(text), S["h2"])
+    return Paragraph(escape(text), ParagraphStyle("H2Keep", parent=S["h2"], keepWithNext=True))
 
 
 def h3(text: str):
@@ -173,8 +174,13 @@ def toc(title: str, entries: list[str]):
 
 def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[str]]], notes: list[tuple[str, str, str]] | None = None):
     out = chapter(num, title, intro)
+    compact = sum(len(item) for _, item in subsections) > 18
     for subtitle, items in subsections:
-        out += [h2(subtitle)] + bullets(items)
+        if compact:
+            compact_style = ParagraphStyle("CompactBullet", parent=S["bullet"], fontSize=8.5, leading=12, spaceAfter=2)
+            out += [h2(subtitle)] + [Paragraph(f"• {escape(item)}", compact_style) for item in items]
+        else:
+            out += [h2(subtitle)] + bullets(items)
     for note in notes or []:
         out.append(callout(*note))
     out.append(PageBreak())
@@ -183,7 +189,7 @@ def section(num: str, title: str, intro: str, subsections: list[tuple[str, list[
 
 def screenshot(name: str, caption: str):
     path = ROOT / "scripts" / "manual-painel-assets" / f"{name}.png"
-    image = Image(str(path), width=145 * mm, height=90.625 * mm)
+    image = Image(str(path), width=128 * mm, height=80 * mm)
     caption_style = ParagraphStyle("Caption", parent=S["small"], alignment=TA_CENTER, spaceBefore=3, spaceAfter=5)
     return [image, Paragraph(escape(caption), caption_style)]
 
@@ -212,8 +218,9 @@ def complete_manual():
         "Banco de Teses, Peças IA e repositório", "Distribuição TST e Benner", "Administração e ferramentas especializadas",
         "Fluxos integrados e boas práticas",
     ]
+    entries += [item[0] for item in CHAPTERS]
     st = cover(title, "Guia atualizado dos módulos operacionais e administrativos", ["Operação diária e prazos", "Processos, publicações e monitoramento", "TST, Benner, auditoria e inteligência jurídica"])
-    st += toc("Este manual apresenta o sistema na versão 7.4.0. Recursos restritos aparecem identificados no texto.", entries)
+    st += toc(f"Este manual apresenta o sistema na versão {VERSION}, atualizado em {RELEASE_DATE}. Os capítulos 12 a 22 consolidam os recursos e ajustes recentes; consulte-os para as regras atuais. Recursos restritos aparecem identificados no texto.", entries)
     st += section("1", entries[0], "O Juris Control centraliza a rotina jurídica, os processos, publicações, prazos, audiências, documentos e controles especializados do escritório.", [
         ("Perfis e permissões", ["O menu e os dados exibidos dependem do perfil, das coordenações vinculadas e das permissões individuais.", "Administradores acessam configurações e ferramentas globais; coordenadores acompanham suas equipes; os demais perfis trabalham dentro do escopo autorizado.", "O perfil Advogado Temporário possui um menu reduzido para atividades de conferência."]),
         ("Estrutura da tela", ["A barra lateral reúne os módulos disponíveis; o cabeçalho mostra pesquisa, novidades, alertas e usuário.", "A pesquisa superior localiza processos, clientes, tarefas e outros registros acessíveis ao usuário.", "O número ao lado de alertas indica mensagens ou pendências ainda não lidas."]),
@@ -266,22 +273,25 @@ def complete_manual():
         ("Novo processo", ["Confirme o número CNJ, consulte a Judit, revise partes e dados e defina cliente, coordenação e responsáveis.", "Cadastre pedidos, documentos e etiquetas necessários.", "Ative monitoramentos aplicáveis e acompanhe movimentações e publicações."]),
         ("Boas práticas", ["Use filtros antes de ações em lote e confira a quantidade selecionada.", "Não repita importações ou consultas pagas sem necessidade.", "Revise relatórios e rejeições antes de enviar dados a sistemas externos.", "Mantenha datas em DD/MM/AAAA nas planilhas e confira o escopo da coordenação."]),
     ])
-    build("Manual_Juris_Control_v7.4.0.pdf", title, st)
+    for number, (heading, intro, subsections) in enumerate(CHAPTERS, 12):
+        st += section(str(number), heading, intro, subsections)
+    build(f"Manual_Juris_Control_v{VERSION}.pdf", title, st)
 
 
 def painel_manual():
     title = "Manual do Painel de Controle"
     entries = ["Mapa da tela", "Escopo e cartões", "Agenda", "Lista e busca", "Kanban e Equipe", "Filtros completos", "Criar itens", "Preenchimento de Tarefa e Prazo", "Evento, Audiência e Parcelamento", "Workflow", "Edição, baixa e recorrência", "Comentários, atividades e cobranças", "Alertas", "Remanejar em lote", "Pessoas em lote", "Exportar atividades", "Relatório de audiências", "Exportar audiências", "Exemplos completos", "Dúvidas e boas práticas"]
-    st = cover(title, "Guia operacional ilustrado e completo", ["20 capítulos com exemplos passo a passo", "10 capturas ilustrativas da interface", "Filtros, criações, baixas, lotes e relatórios"])
-    st += toc("As imagens reproduzem fielmente a interface, com nomes e processos fictícios para não expor informações de clientes.", entries)
+    st = cover(title, "Guia operacional ilustrado e completo", ["25 capítulos com exemplos passo a passo", "10 capturas ilustrativas da edição anterior", "Filtros, criações, baixas, lotes e relatórios"])
+    entries += [CHAPTERS[i][0] for i in [0, 1, 2, 7, 9]]
+    st += toc("As imagens são ilustrativas da edição anterior, com nomes e processos fictícios. Os rótulos e regras atuais estão no texto; consulte os capítulos adicionais para Atas, exportação e permissões.", entries)
     st += illustrated_section("1", entries[0], "O Painel reúne toda a rotina jurídica em quatro faixas: comandos, totalizadores, visões/filtros e área de trabalho.", "overview", "Figura 1 — Visão geral ilustrativa do Painel de Controle.", [
-        ("Faixa superior", ["O olho mostra ou oculta totalizadores; o ícone de ajustes mostra ou oculta a faixa de filtros.", "Rel. Audiências abre o relatório por usuário e situação; Exportar Audiências abre a exportação operacional.", "A faixa seguinte contém Pessoal/Escritório, situação, limpar, Exportar, Alertas, Remanejar, Pessoas em lote e Adicionar."]),
+        ("Faixa superior", ["O olho mostra ou oculta totalizadores; o ícone de ajustes mostra ou oculta a faixa de filtros.", "Rel. Audiências abre o relatório por usuário e situação; Exportar Audiências abre a exportação operacional.", "A faixa seguinte contém Pessoal/Escritório, situação, limpar, Exportar Atividade, Alertas, Remanejar, Pessoas em lote e Adicionar."]),
         ("Tipos e símbolos", ["Tarefa organiza trabalho; Evento registra compromisso; Prazo controla datas prevista e fatal; Audiência acrescenta dados processuais próprios; Parcelamento gera ocorrências.", "P indica origem em publicação; W indica workflow. Indicadores também mostram comentários, cobranças e atividades.", "Itens cumpridos ou concluídos permanecem legíveis; não use o aspecto visual como substituto da situação registrada."]),
     ], [("Privacidade", "Todas as imagens deste manual usam dados fictícios. A aparência pode variar conforme perfil, coordenação e tamanho da tela.", "gold")])
     st += section("2", entries[1], "Antes de interpretar números, confirme o escopo e os filtros ativos.", [
         ("Pessoal", ["Mostra sua rotina conforme responsabilidade, envolvimento, criação e demais filtros.", "Use para começar e encerrar o trabalho individual."]),
-        ("Escritório", ["Mostra o escopo coletivo permitido. Administradores podem escolher uma coordenação ou Todas as coordenações.", "Coordenadores veem suas equipes; outros perfis permanecem limitados às autorizações recebidas."]),
-        ("Totalizadores", ["O cartão da data abre as atividades do dia.", "Os cartões Tarefas, Eventos, Prazos, Audiências e Parcelamentos mostram contagens do recorte e funcionam como filtros rápidos.", "Um anel no cartão indica filtro ativo. Clique novamente ou use Limpar filtros para desfazer."]),
+        ("Escritório", ["Mostra o escopo coletivo permitido e permite escolher entre as coordenações vinculadas ao usuário.", "Administradores e Assistentes Jurídicos Gerais podem consultar todas as coordenações; visualização não concede permissão de alteração."]),
+        ("Totalizadores", ["O cartão da data abre as atividades do dia.", "Tarefas, Atas, Eventos, Prazos, Audiências e Parcelamentos contabilizam pendências em aberto do recorte e funcionam como filtros rápidos; encerrados ficam fora da soma de abertos.", "Durante o carregamento, a contagem parcial pode aumentar. Aguarde o término para comparar.", "Um anel no cartão indica filtro ativo. Clique novamente ou use Limpar filtros para desfazer."]),
         ("Exemplo", ["Para conferir os cinco prazos exibidos no cartão vermelho: confirme Pessoal/Escritório, clique em Prazos e abra Lista para ler um por linha.", "Se o total parecer menor, verifique período, responsável, situação e origem antes de concluir que faltam registros."]),
     ])
     st += illustrated_section("3", entries[2], "Agenda é a visão mensal e a melhor opção para localizar concentração de compromissos por dia.", "overview", "Figura 2 — Calendário mensal, totalizadores e atalhos de tipo.", [
@@ -329,7 +339,7 @@ def painel_manual():
         ("Edição", ["Altere os campos permitidos e salve. A auditoria registra mudanças relevantes.", "Use reagendamento quando a data efetivamente mudou; registre o motivo em comentário.", "Em recorrências, confirme se a alteração vale para uma ocorrência ou para a série."]),
         ("Baixa rápida", ["Escolha a situação final, informe a data real de cumprimento e comentário quando exigido.", "Para recorrentes, selecione somente esta ocorrência ou toda a série.", "Cancelar e ocultar preserva o registro, mas o remove da agenda operacional."]),
         ("Exemplo", ["Uma parcela de setembro foi paga: abra somente a ocorrência de setembro, registre a data do pagamento e conclua essa ocorrência; não encerre as parcelas futuras."]),
-    ], [("Regra visual", "Cumpridos e concluídos permanecem sem tachado. Protocolado e baixado podem usar risco visual conforme a situação.", "gold")])
+    ], [("Regra visual", "Cancelado, protocolado e baixado recebem risquinho, preservando a cor do tipo. Concluído com sucesso recebe verde mais escuro e indicação de conclusão, sem tachado.", "gold")])
     st += section("12", entries[11], "O detalhe do item concentra comunicação e atividades menores vinculadas.", [
         ("Comentários", ["Registre decisões e fatos úteis ao histórico.", "Use @nome para mencionar colegas; a menção gera notificação conforme as configurações.", "Comentários ainda não vistos recebem destaque."]),
         ("Atividades", ["Atividades internas podem ter data e responsável próprios.", "Elas aparecem na data correta mesmo quando o item-pai já foi concluído.", "Concluir uma atividade não conclui automaticamente todo o item."]),
@@ -350,8 +360,8 @@ def painel_manual():
         ("Três passos", ["1. Informe período, tipos, coordenação, pessoa atual, situações e busca; clique Listar itens.", "2. Selecione itens e, opcionalmente, atividades internas específicas.", "3. Escolha novos responsáveis e/ou envolvidos, revise e aplique."]),
         ("Exemplo", ["Para incluir uma advogada de apoio em audiências de outubro: filtre Audiências + coordenação + período, confira cada resultado, selecione e acrescente-a como envolvida.", "Se uma pessoa deve ser substituída, use a edição individual ou Remanejar quando houver a opção Trocar por."]),
     ])
-    st += section("16", entries[15], "Exportar gera uma planilha de atividades para conferência ou trabalho externo.", [
-        ("Passo a passo", ["Clique Exportar.", "Informe Data inicial e Data final; campos vazios incluem todas as datas.", "Marque Tarefas, Eventos, Prazos, Audiências e/ou Parcelamentos. Tipos vazios significam Todos.", "Clique Exportar e aguarde o download."]),
+    st += section("16", entries[15], "Exportar Atividade gera uma planilha de atividades para conferência ou trabalho externo.", [
+        ("Passo a passo", ["Clique Exportar Atividade.", "Informe Data inicial e Data final; campos vazios incluem todas as datas.", "Marque os tipos e uma ou várias coordenações disponíveis. Tipos vazios significam Todos.", "Em Situação, selecione uma ou várias opções. Nenhuma situação marcada inclui todas as situações.", "Confirme a exportação e aguarde o download."]),
         ("Escopo", ["A exportação obedece ao acesso do usuário e aos filtros aplicáveis do Painel.", "Antes de compartilhar, confira se a planilha contém somente a coordenação e o período desejados."]),
         ("Exemplo", ["Para uma agenda semanal, informe 28/09/2026 a 02/10/2026 e selecione Prazos + Audiências. Abra o Excel e confira o total antes de encaminhar."]),
     ])
@@ -376,12 +386,16 @@ def painel_manual():
         ("Boas práticas", ["Use títulos objetivos e vincule o processo correto.", "Registre data real na baixa e explique reagendamentos.", "Não conclua toda uma série quando somente uma ocorrência terminou.", "Revise quantidades e amostras antes de ações em lote ou exportações.", "Use menções somente para pessoas que precisam agir ou tomar ciência."]),
         ("Suporte", ["Ao relatar problema, informe tela, escopo, coordenação, filtros, CNJ e ação realizada.", "Não envie senha nem dados sigilosos em capturas. Oculte nomes e documentos quando compartilhar fora do escritório."]),
     ])
-    build("Manual_Painel_de_Controle.pdf", title, st)
+    for number, index in enumerate([0, 1, 2, 7, 9], 21):
+        heading, intro, subsections = CHAPTERS[index]
+        st += section(str(number), heading, intro, subsections)
+    build(f"Manual_Painel_de_Controle_v{VERSION}.pdf", title, st)
 
 
 def tst_manual():
     title = "Manual da Distribuição TST"
     entries = ["Visão geral e acesso", "Cards e responsáveis", "Filtros e seleção", "Ficha e edição", "Pendências e matérias", "Judit", "Ações em lote e delegação", "Relatórios e Carga Benner", "Admin. TST", "Duplicados, arquivamento e auditoria", "Roteiro e boas práticas"]
+    entries.append(CHAPTERS[8][0])
     st = cover(title, "Operação, conferência, importações e Carga Benner", ["Distribuições e responsáveis", "Matérias, pendências e Judit", "Admin. TST, relatórios e auditoria"])
     st += toc("Guia exclusivo da Distribuição TST e das ferramentas administrativas relacionadas.", entries)
     st += section("1", entries[0], "A Distribuição TST centraliza os processos distribuídos no Tribunal Superior do Trabalho e a preparação das informações que seguem para o Benner.", [
@@ -430,7 +444,7 @@ def tst_manual():
     ])
     st += section("10", entries[9], "Registros não são apagados como primeira opção: o sistema preserva histórico por arquivamento.", [
         ("Duplicados", ["O card e o filtro Duplicados exibem o grupo completo por número normalizado.", "Arquivar duplicados mantém o registro com mais TAGs; em empate, considera preenchimento e atualização.", "A Base PCA está protegida contra novas duplicidades, mas duplicados antigos devem ser conferidos."]),
-        ("Arquivamento", ["Usuários autorizados podem arquivar selecionados.", "Arquivados deixam a lista operacional e permanecem disponíveis em tela própria.", "Restauração é exclusiva de administrador."]),
+        ("Arquivamento", ["Usuários autorizados podem arquivar selecionados.", "Arquivados deixam a lista operacional e permanecem disponíveis em tela própria.", "Restauração é exclusiva de administrador; a tela Arquivados permite restaurar em lote por planilha de dossiês/processos e aplicar etiqueta existente ou nova.", "Os cartões Não arquivados e Arquivados distinguem os conjuntos para conferência."]),
         ("Auditoria", ["Auditoria da Distribuição mostra criação, alteração e exclusão, usuário, data e valores.", "Auditoria de Importações em Lote registra tipo de operação, arquivo e processos afetados.", "Use o histórico da ficha para conferir um registro específico."]),
     ])
     st += section("11", entries[10], "A sequência abaixo reduz retrabalho e evita envio de dados incompletos.", [
@@ -439,13 +453,36 @@ def tst_manual():
         ("Envio", ["Filtre Pronto sem pendência ou selecione o conjunto validado.", "Gere a Carga Benner e examine Rejeições.", "Transmita o arquivo e marque o lote como planilhado/enviado conforme o fluxo.", "Mantenha relatórios e auditoria para conferência posterior."]),
         ("Boas práticas", ["Datas de planilha devem usar DD/MM/AAAA.", "Dossiês com barra são aceitos; não normalize manualmente.", "Não remova matérias oficiais sem revisar impactos.", "Use arquivamento, não exclusão, para manter rastreabilidade."]),
     ])
-    build("Manual_Distribuicao_TST.pdf", title, st)
+    heading, intro, subsections = CHAPTERS[8]
+    st += section("12", heading, intro, subsections)
+    build(f"Manual_Distribuicao_TST_v{VERSION}.pdf", title, st)
+
+
+def focused_manual(filename, title, indices, initial_sections=None):
+    sections = (initial_sections or []) + [CHAPTERS[index] for index in indices]
+    st = cover(title, "Guia operacional atualizado", [heading for heading, _, _ in sections[:3]])
+    st += toc(f"Edição {VERSION}. Consulte as opções disponíveis para seu perfil e confira os dados antes de salvar.", [heading for heading, _, _ in sections])
+    for number, (heading, intro, subsections) in enumerate(sections, 1):
+        st += section(str(number), heading, intro, subsections)
+    build(f"{filename}_v{VERSION}.pdf", title, st)
 
 
 if __name__ == "__main__":
     complete_manual()
     painel_manual()
     tst_manual()
+    focused_manual("Manual_Processos_e_Casos", "Manual de Processos e Casos", [3, 1, 2, 8], [
+        ("Cadastrar, consultar e acompanhar", "Use Processos e Casos para consultar o cadastro e o histórico jurídico.", [
+            ("Cadastrar", ["Escolha Novo Processo, informe o tipo e o número CNJ; use Novo Caso para atendimentos sem número.", "Quando necessário, solicite a consulta Judit e revise partes, tribunal, órgão, datas e demais campos retornados antes de salvar.", "Defina cliente, coordenação e responsáveis e confira todos os campos. Consultas externas podem gerar custo e não garantem todos os dados."]),
+            ("Consultar a ficha", ["Busque por CNJ, cliente ou parte e use os filtros de área, situação, coordenação e etiquetas.", "Visão Geral permite edição direta; as abas reúnem atividades, andamentos, publicações, documentos, pedidos, cobrança, partes, comentários, auditoria e distribuições.", "A aba Peças IA oferece minutas que exigem revisão humana antes da exportação em Word.", "Na Análise Judit, consulte capa, partes, movimentações, anexos e análises disponíveis. Para documentos via PJe, configure suas credenciais autorizadas; a disponibilidade depende do tribunal."]),
+        ]),
+    ])
+    focused_manual("Manual_Termos_DJEN", "Manual de Termos DJEN", [5, 6, 7], [
+        ("Cadastrar termos e conferir execuções", "O monitoramento deve ser configurado no escopo correto da coordenação.", [
+            ("Configuração", ["Abra Termos DJEN e selecione a coordenação. Use Novo Monitoramento para cadastrar o critério disponível: parte, advogado/OAB ou processo.", "Confira tribunais, UF, termo, variações, exclusões e situação ativa antes de salvar. Para nomes amplos, use exclusões para reduzir resultados indevidos.", "Não use uma busca por parte para validar advogado ou vice-versa. Para processo, confira os 20 dígitos do CNJ."]),
+            ("Conferência", ["Use os filtros para consultar monitoramentos e os relatórios para revisar o conjunto.", "Nas ferramentas de execução autorizadas, confira período, progresso, publicações encontradas e erros. Compare o mesmo escopo e data antes de concluir que falta captura.", "Consulte as publicações na Análise DJEN, revise o teor e vincule o processo antes de criar atividade ou workflow.", "DJEN não substitui acesso aos autos. Movimentações públicas e documentos judiciais possuem fontes e limitações diferentes."]),
+        ]),
+    ])
     for path in sorted(OUT.glob("Manual_*")):
         if path.suffix.lower() == ".pdf":
             print(path.name, path.stat().st_size)

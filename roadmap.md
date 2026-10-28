@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Versão e manuais v9.7.1
+- [x] Atualizar a versão exibida no menu e o identificador de atualização; versão servida v9.7.1 e build OK.
+- [x] Consolidar no manual as funcionalidades e melhorias realizadas até esta versão, preservando os capítulos anteriores; assuntos recentes conferidos no texto extraído.
+- [x] Atualizar os cinco PDFs oficiais e os atalhos correspondentes; todas as páginas revisadas visualmente, capa corrigida e downloads confirmados. Tela autenticada não verificada por ausência de sessão no Supabase externo.
+
 ## Publicações Kurier incompletas — Janaina
 - [x] Confirmar corte na captura comparando texto bruto e publicação do processo 0000340-48.2026.5.18.0052.
 - [x] Corrigir fronteira do teor na captura e apresentação (helper compartilhado, 4 testes Deno aprovados e apresentação conferida); função publicada e duas cópias da publicação da imagem restauradas para 1.558 caracteres, incluindo a determinação de audiência.
