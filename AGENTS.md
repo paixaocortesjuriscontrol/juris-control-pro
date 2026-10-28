@@ -7,7 +7,7 @@
 - Kurier capture and display share a conservative body-boundary helper; only uppercase headings after compact metadata may split a body, never decision words inside prose or institutional judicial text, to prevent losing publication content.
 
 - Unified agenda pagination uses each source's final successful response (including fallback queries) for its fullness flag, never the merged page length; all consumers use that flag because combining sources and expanding recurrences changes page length and can omit later items from office totals. Failed sources must reject the page rather than silently show incomplete totals.
-- Unified agenda pages run independent source reads with bounded concurrency, apply recurrence overrides only after all sources finish, and keep a short freshness window; this reduces serialized network waits without skipping pages or weakening mutation invalidation.
+- Unified agenda pages read sources sequentially (concurrency 1); parallel source reads shared mutable page state and left Painel counters empty.
 
 - Pauta detail tabs reuse the existing Processos e Casos overview and the Judit analysis, cover, attachments and log panels; load the linked process by ID or CNJ variants only when opened, and allow cached Judit panels by CNJ without a linked process, to keep shared edits and research consistent without automatic paid queries.
 

@@ -163,7 +163,7 @@ async function inChunks(build: (ids: string[]) => any, ids: string[], size = 150
       return data ?? [];
     });
   }
-  return (await leiturasAgendaEmParalelo(leituras)).flat();
+  return (await leiturasAgendaEmParalelo(leituras, 1)).flat();
 }
 
 export async function fetchAgendaPage(
@@ -1334,7 +1334,7 @@ export async function fetchAgendaPage(
 
 
         },
-      ]);
+      ], 1);
 
       // ===== Baixa INDIVIDUAL de ocorrências recorrentes =====
       // Itens recorrentes são um único registro no banco. A situação gravada em
