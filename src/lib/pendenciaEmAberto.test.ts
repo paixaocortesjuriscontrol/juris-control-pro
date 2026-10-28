@@ -1,8 +1,7 @@
-import { describe, it, expect } from "vitest";
+import { test } from "node:test";
+import { strict as assert } from "node:assert";
 import { situacaoEmAberto } from "./pendenciaEmAberto";
 
-describe("situacaoEmAberto", () => {
-  it("minutado_revisao continua pendência", () => expect(situacaoEmAberto("minutado_revisao")).toBe(true));
-  it("cumprido não é pendência", () => expect(situacaoEmAberto("cumprido")).toBe(false));
-  it("baixado não é pendência", () => expect(situacaoEmAberto("baixado")).toBe(false));
-});
+test("minutado_revisao continua pendência", () => assert.equal(situacaoEmAberto("minutado_revisao"), true));
+test("cumprido não é pendência", () => assert.equal(situacaoEmAberto("cumprido"), false));
+test("baixado não é pendência", () => assert.equal(situacaoEmAberto("baixado"), false));
