@@ -1,5 +1,8 @@
 # Roadmap — Considerações 02/09
 
+## Calendário — Altina Clemente
+- [ ] Reduzir espera por páginas do mês sem perder itens, totais ou permissões; testar regressões e verificar disponibilidade da sessão.
+
 ## Filtro de coordenação dos workflows
 - [x] Manter filtro visível, iniciar na coordenação padrão acessível do usuário (ou primeira disponível) e permitir outra ou todas; mostrar coordenação nas linhas; 4 testes aprovados e build OK, sem alterações no Supabase.
 - [ ] Conferir seleção e linhas pela tela autenticada — Supabase externo sem sessão disponível, navegação direcionada ao login.
