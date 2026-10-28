@@ -338,6 +338,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
+                    {t.status && t.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(t.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className="text-[10px] h-5 px-1.5 font-semibold bg-destructive/15 text-destructive border border-destructive/30">
@@ -395,6 +396,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{t.titulo}</span>
+                    {t.status && t.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(t.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
@@ -459,6 +461,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
+                    {ev.status && ev.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(ev.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
@@ -512,6 +515,7 @@ export function PendenciasProcessoCard({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-semibold text-foreground truncate">{ev.titulo}</span>
+                    {ev.status && ev.status !== "pendente" && <span className="text-[10px] rounded border px-1 text-muted-foreground shrink-0">{String(ev.status).replace(/_/g, " ")}</span>}
                     <div className="flex items-center gap-1.5 shrink-0">
                       {days && (
                         <Badge className={cn(
