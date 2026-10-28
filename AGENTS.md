@@ -27,3 +27,4 @@
 
 - Control-panel totals use the unified agenda only; do not add parallel legacy summary queries or mount closed event/installment forms, because unused requests compete with agenda loading.
 - The unified agenda wrapper memoizes its flattened identity-deduplicated items by query data, so unrelated renders do not rebuild every downstream filter and calendar map.
+- Calendar indicator queries cache completed ID batches under the same invalidation prefix and user scope as their aggregate query, so loading subsequent agenda pages reuses previous requests without weakening access or mutation refreshes.
