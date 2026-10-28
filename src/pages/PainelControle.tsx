@@ -1353,12 +1353,20 @@ export default function PainelControle() {
     };
     const respMap = new Map<string, string[]>();
     const envMap = new Map<string, string[]>();
-    ((tarefaResp.data as any[]) || []).forEach((r) => pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
-    ((tarefaEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)));
-    ((eventoResp.data as any[]) || []).forEach((r) => pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
-    ((eventoEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)));
-    ((audAdv.data as any[]) || []).forEach((r) => pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)));
-    ((audEnv.data as any[]) || []).forEach((r) => pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)));
+    const respIdsMap = new Map<string, Set<string>>();
+    const envIdsMap = new Map<string, Set<string>>();
+    const pushId = (map: Map<string, Set<string>>, key: string, id?: string | null) => {
+      if (!id) return;
+      const set = map.get(key) ?? new Set<string>();
+      set.add(String(id));
+      map.set(key, set);
+    };
+    ((tarefaResp.data as any[]) || []).forEach((r) => { pushNome(respMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)); pushId(respIdsMap, `t:${r.tarefa_id}`, r.usuario_id); });
+    ((tarefaEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `t:${r.tarefa_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `t:${r.tarefa_id}`, r.usuario_id); });
+    ((eventoResp.data as any[]) || []).forEach((r) => { pushNome(respMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)); pushId(respIdsMap, `e:${r.evento_id}`, r.usuario_id); });
+    ((eventoEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `e:${r.evento_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `e:${r.evento_id}`, r.usuario_id); });
+    ((audAdv.data as any[]) || []).forEach((r) => { pushNome(respMap, `a:${r.audiencia_id}`, nomeById.get(r.advogado_id)); pushId(respIdsMap, `a:${r.audiencia_id}`, r.advogado_id); });
+    ((audEnv.data as any[]) || []).forEach((r) => { pushNome(envMap, `a:${r.audiencia_id}`, nomeById.get(r.usuario_id)); pushId(envIdsMap, `a:${r.audiencia_id}`, r.usuario_id); });
 
     // Sempre em BRT: valores timestamptz voltam em UTC e mostravam a hora errada.
     const extractHora = (iso?: string | null) => horaBrt(iso);
