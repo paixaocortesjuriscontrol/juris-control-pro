@@ -147,8 +147,6 @@ export function ProcessoResumoInline({ processoId, className, defaultOpen = fals
           )}
           {!isLoading && p && (
             <div className="grid grid-cols-1 gap-x-4 gap-y-1.5 sm:grid-cols-2">
-              <Campo label="Polo ativo" valor={txt(p.polo_ativo) || txt(p.reclamante) || txt(p.autor)} />
-              <Campo label="Polo passivo" valor={txt(p.polo_passivo) || txt(p.reclamados) || txt(p.requerido)} />
               <Campo label="Terceiro envolvido" valor={txt(p.terceiro_envolvido)} />
               <Campo label="Cliente" valor={txt(cliente?.nome)} />
               <Campo label="Valor da causa" valor={fmtMoeda(p.valor_causa)} />
