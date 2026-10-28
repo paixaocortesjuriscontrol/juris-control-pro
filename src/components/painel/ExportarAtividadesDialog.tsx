@@ -46,6 +46,9 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
   const [tipos, setTipos] = useState<string[]>([]);
   const [coords, setCoords] = useState<string[]>([]);
   const [sits, setSits] = useState<string[]>([]);
+  const [pessoas, setPessoas] = useState<string[]>([]);
+  const [papelResponsavel, setPapelResponsavel] = useState(false);
+  const [papelEnvolvido, setPapelEnvolvido] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const todos = tipos.length === 0;
@@ -60,7 +63,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
     const [ini, fi] = modo === "hoje" ? [h, h] : modo === "periodo" ? [inicio, fim] : ["", ""];
     setLoading(true);
     try {
-      await onExportar(ini, fi, tipos, coords, sits);
+      await onExportar(ini, fi, tipos, coords, sits, pessoas, { responsavel: papelResponsavel, envolvido: papelEnvolvido });
       onOpenChange(false);
     } finally {
       setLoading(false);
