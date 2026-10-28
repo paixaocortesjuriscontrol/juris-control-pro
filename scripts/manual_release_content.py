@@ -1,9 +1,13 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.7.2"
+VERSION = "9.7.3"
 RELEASE_DATE = "28 de outubro de 2026"
 
 CHAPTERS = [
+    ("Novidades da versão 9.7.3", "Ajustes de desempenho do Painel de Controle e melhorias nos Workflows.", [
+        ("Painel de Controle", ["Os cartões de pendências mostram os totais logo ao abrir, contando apenas itens em aberto; enquanto o calendário termina de carregar, o número aparece com reticências e depois é substituído pela contagem exata.", "No modo Escritório, assistentes, advogados e estagiários veem as atividades das coordenações às quais estão vinculados. Administradores e Assistentes Jurídicos Gerais continuam consultando todas.", "O calendário busca as tarefas recorrentes de forma mais rápida e os parcelamentos voltaram a ser exibidos."]),
+        ("Workflows", ["O filtro de coordenação fica sempre visível e já começa na coordenação do usuário; é possível escolher outra ou todas.", "Cada linha da lista mostra a coordenação do workflow.", "Os modelos importados do Projuris (Santander Cível) chegam inativos; revise responsáveis e checklists antes de ativá-los."]),
+    ]),
     ("Coordenações, perfis e permissões", "O acesso de consulta e a permissão para alterar um registro são coisas diferentes.", [
         ("Assistente Jurídico Geral", ["Este perfil acompanha todas as coordenações, com seleção global no Painel de Controle, Processos e Casos, Análise DJEN e demais telas compatíveis.", "Também possui acesso à tela Pautas de Julgamento. A visualização global não concede poderes administrativos.", "Em tarefas, prazos, atas, eventos e audiências, só pode alterar ou excluir itens em que esteja como responsável ou envolvido; outras permissões da operação continuam sendo respeitadas."]),
         ("Selecionar a coordenação", ["No Painel, clique em Escritório e escolha uma das coordenações às quais está vinculado. Administradores e Assistentes Jurídicos Gerais podem consultar todas.", "Confira a seleção antes de interpretar os números, exportar ou executar ações em lote.", "A gestão de uma coordenação abre em painel lateral sobre a lista; o cargo de membro e o perfil geral do usuário são configurações diferentes."]),
