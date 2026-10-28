@@ -191,3 +191,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 - [x] Remover consultas de resumos sem consumidores, adiar formulários fechados e consulta de exportação, reutilizar lista da agenda entre renderizações.
 - [x] Validar regressões da paginação: 5 testes aprovados; prévia sem erros de compilação.
 - [ ] Medir carregamento autenticado — Supabase externo sem sessão disponível; navegador chega somente à tela de entrada.
+
+- [x] Cartões do Painel: totais em aberto calculados no banco enquanto a agenda carrega
+- [ ] Conferir cartões e tempo com a sessão da Altina (sem login no preview)
