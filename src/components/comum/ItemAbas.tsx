@@ -1,6 +1,7 @@
 import { forwardRef, useCallback, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ItemAtividades, useSubatividades, type TipoItemAtividade } from "./ItemAtividades";
+import { ItemChecklist, useChecklistItem } from "./ItemChecklist";
 import { ItemComentarios } from "./ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle, type ItemAnexosTipo } from "./ItemAnexos";
 import { ItemHistorico } from "./ItemHistorico";
@@ -26,6 +27,7 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
   ({ tipo, tipoComentario, itemId, processoId, mostrarAnexos = true }, anexosRef) => {
     const { data: atividades = [] } = useSubatividades(tipo, itemId);
     const concluidas = atividades.filter((a) => a.situacao === "concluida").length;
+    const { data: checklist = [] } = useChecklistItem(tipo, itemId);
     const { data: totalComentarios = 0 } = useContagemComentarios(tipoComentario, itemId);
     const [contagemAnexos, setContagemAnexos] = useState(0);
     const aoMudarAnexos = useCallback((total: number) => setContagemAnexos(total), []);
@@ -35,6 +37,9 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
         <TabsList className="w-full justify-start flex-wrap h-auto">
           <TabsTrigger value="atividades">
             Atividades{atividades.length > 0 ? ` ${concluidas}/${atividades.length}` : ""}
+          </TabsTrigger>
+          <TabsTrigger value="checklist">
+            Checklist{checklist.length > 0 ? ` ${checklist.filter((c) => c.marcado).length}/${checklist.length}` : ""}
           </TabsTrigger>
           <TabsTrigger value="comentarios">
             Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
@@ -48,6 +53,12 @@ export const ItemAbas = forwardRef<ItemAnexosHandle, ItemAbasProps>(
         <TabsContent value="atividades" className="mt-3">
           <TabErrorBoundary area="as atividades">
             <ItemAtividades tipo={tipo} itemId={itemId} />
+          </TabErrorBoundary>
+        </TabsContent>
+
+        <TabsContent value="checklist" className="mt-3">
+          <TabErrorBoundary area="o checklist">
+            <ItemChecklist tipo={tipo} itemId={itemId} />
           </TabErrorBoundary>
         </TabsContent>
 

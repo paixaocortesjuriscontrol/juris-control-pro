@@ -1,3 +1,4 @@
+import { aplicarModeloChecklist } from "@/components/comum/ItemChecklist";
 import { supabase } from "@/integrations/supabase/client";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { format, addDays, addBusinessDays, addWeeks, addMonths, addYears } from "date-fns";
@@ -264,6 +265,12 @@ export async function criarItemWorkflow(
       }
     } catch (err) {
       console.error("Erro ao criar atividades da etapa do workflow:", err);
+    }
+    try {
+      const modeloId = (etapa as any).checklist_modelo_id;
+      if (modeloId) await aplicarModeloChecklist(modeloId, String(resultado.tipo).toLowerCase(), resultado.id, userId);
+    } catch (err) {
+      console.error("Erro ao aplicar checklist da etapa do workflow:", err);
     }
     return resultado;
   };
