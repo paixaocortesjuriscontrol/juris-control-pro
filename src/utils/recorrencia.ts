@@ -119,7 +119,14 @@ export function agruparSerieRecorrente<T extends Record<string, any>>(
   const chaveDe = opts.chaveDe ?? ((r: T) => String(r.id));
 
   const linhas: LinhaSerie<T>[] = [];
-  for (const registro of registros) {
+  // Aceita também listas antigas com clones já expandidos: cada registro-pai
+  // deve ser expandido uma única vez, nunca uma vez por ocorrência recebida.
+  const originais = new Map<string, T>();
+  for (const item of registros) {
+    const original = (item._registro_pai ?? item) as T;
+    originais.set(chaveDe(original), original);
+  }
+  for (const registro of originais.values()) {
     const regra = opts.regra(registro);
     const base = opts.dataBase(registro);
     if (!regra || !regra.tipo || !base) {
