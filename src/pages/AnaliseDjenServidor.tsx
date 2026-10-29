@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { aliasesTribunalDjen } from "@/lib/filtroTribunalDjen";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition, PageBreak, ExternalHyperlink } from "docx";
 import {
   FileText,
