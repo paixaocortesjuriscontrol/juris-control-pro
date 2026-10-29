@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { resolverModoBuscaAgenda } from "./agendaModoBusca";
+import { resolverModoBuscaAgenda, tiposParaBuscaAgenda } from "./agendaModoBusca";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 const OUTRA = "22222222-2222-4222-8222-222222222222";
@@ -108,3 +108,25 @@ test("mais de uma pessoa selecionada mantém a consulta antiga", () => {
 test("sem usuário identificável mantém a consulta antiga", () => {
   assert.deepEqual(resolverModoBuscaAgenda(periodo, undefined), { modo: "legado" });
 });
+
+test("filtrar só por tarefa delegada também busca tarefas", () => {
+  assert.deepEqual(tiposParaBuscaAgenda(["tarefa_delegada"]), ["tarefa_delegada", "tarefa"]);
+});
+
+test("tarefa delegada junto com tarefa não muda a lista", () => {
+  assert.deepEqual(tiposParaBuscaAgenda(["tarefa", "tarefa_delegada", "prazo"]), [
+    "tarefa",
+    "tarefa_delegada",
+    "prazo",
+  ]);
+});
+
+test("lista sem tarefa delegada permanece igual", () => {
+  assert.deepEqual(tiposParaBuscaAgenda(["prazo", "audiencia"]), ["prazo", "audiencia"]);
+});
+
+test("sem filtro de tipos não se envia nada", () => {
+  assert.equal(tiposParaBuscaAgenda(undefined), undefined);
+  assert.deepEqual(tiposParaBuscaAgenda([]), []);
+});
+
