@@ -7,7 +7,7 @@
 
 ## Checklists no estilo Projuris
 - [x] Modelos de checklist com itens copiados para a tarefa, tela de gestão de modelos e escolha do modelo na etapa do workflow; importação dos checklists antigos em Migração Projuris.
-- [x] Colocar "Modelos de checklist" no menu lateral, abaixo de Workflow; a gravação continua bloqueada por permissão no banco.
+- [x] Colocar "Modelos de checklist" no menu lateral na 5ª posição (abaixo de Análise DJEN), visível sem rolar; a gravação continua bloqueada por permissão no banco.
 - [ ] Rodar a importação dos checklists das tarefas antigas e conferir a tela autenticada — Supabase externo sem sessão neste ambiente.
 
 ## Análise DJEN — filtro de tribunal Kurier
