@@ -23,7 +23,7 @@ WITH definitions AS (
 SELECT 1 / CASE WHEN
   (SELECT count(*) FROM definitions) = 2
   -- Both searches run with the caller's own rights and the same access rules.
-  AND NOT EXISTS (SELECT 1 FROM definitions WHERE prosecdef OR volatile <> 's')
+  AND NOT EXISTS (SELECT 1 FROM definitions WHERE prosecdef OR provolatile <> 's')
   AND NOT EXISTS (SELECT 1 FROM definitions WHERE definition NOT LIKE '%set search_path = public%')
   -- Only signed-in people may run them.
   AND NOT EXISTS (SELECT 1 FROM definitions WHERE anon_can_run)
