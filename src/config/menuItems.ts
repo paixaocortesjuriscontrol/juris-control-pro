@@ -47,6 +47,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Radar, label: "Monitoramento", path: "/monitoramento", highlight: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
+  { icon: ClipboardList, label: "Modelos de checklist", path: "/modelos-checklist" },
   { icon: ShieldCheck, label: "Minhas credenciais PJe", path: "/credenciais-pje" },
   { icon: Gavel, label: "Pautas de Julgamento", path: "/pautas-julgamento", restrictedCoordenacoes: ["Coordenação Dra. Renata Oficial"] },
   { icon: BarChart3, label: "Indicadores", path: "/indicadores" },
