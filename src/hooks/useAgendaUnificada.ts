@@ -12,6 +12,9 @@ import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { leiturasAgendaEmParalelo } from "@/lib/agendaConcorrencia";
+import { resolverModoBuscaAgenda } from "@/lib/agendaModoBusca";
+import { lerFonteAgendaPorTipo } from "@/lib/agendaRpc";
+
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -174,6 +177,20 @@ export async function fetchAgendaPage(
   const user = userId ? { id: userId } : null;
   if (!user?.id) return [];
 
+  // Modo de busca: as buscas prontas do banco (pessoal / escritório) evitam que
+  // o navegador precise mandar listas enormes de identificadores de itens.
+  const modoBusca = resolverModoBuscaAgenda(filters, user.id);
+  const usandoRpc = modoBusca.modo !== "legado";
+  const filtrosRpc = {
+    dataInicio: filters.dataInicio ?? new Date(),
+    dataFim: filters.dataFim ?? new Date(),
+    tipos: filters.tipos,
+    status: filters.status,
+    statusIn: filters.statusIn,
+    statusNotIn: filters.statusNotIn,
+  };
+
+
       const resultItems: ItemAgendaUnificado[] = [];
       const seenIds = new Set<string>(); // Dedup: track seen IDs
       const today = startOfDay(new Date());
@@ -225,7 +242,15 @@ export async function fetchAgendaPage(
         async () => {
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos && incluirEventosPorTipo) {
+        let eventos: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "eventos", filtrosRpc, from, halfPage);
+          eventos = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        eventos = await (async () => {
         let queryEventos = buildEventosQuery(true);
+
         if (filters.processoIds?.length) queryEventos = queryEventos.in("processo_id", filters.processoIds);
 
         if (!filters.fetchAll && !hasCoordScope) {
@@ -331,16 +356,26 @@ export async function fetchAgendaPage(
 
         if (eventosError) throw eventosError;
         fonteCheia ||= fonteAgendaCheia(eventos, halfPage);
+        return eventos;
+        })();
 
-        if (!eventosError && eventos && eventos.length > 0) {
+        }
+
+        if (eventos && eventos.length > 0) {
+
           const eventIds = eventos.map((e: any) => e.id);
-          const participanteRows = await inChunks(
-            (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
-            eventIds,
-          );
+          const participanteRows: any[] = usandoRpc
+            ? (eventos as any[]).flatMap((e: any) =>
+                (e.participantes ?? []).map((p: any) => ({ ...p, evento_id: e.id })),
+              )
+            : await inChunks(
+                (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
+                eventIds,
+              );
+
 
           const eventProcessCoordIds = new Map<string, string[]>();
-          if (hasCoordScope) {
+          if (!usandoRpc && hasCoordScope) {
             const eventoProcessosRows = await inChunks(
               (c) => (supabase as any).from("evento_processos").select("evento_id, processo:processos(coordenacao_id)").in("evento_id", c),
               eventIds,
@@ -360,7 +395,7 @@ export async function fetchAgendaPage(
           );
 
           const profilesById = new Map<string, { id: string; nome: string }>();
-          if (participantUserIds.length > 0) {
+          if (!usandoRpc && participantUserIds.length > 0) {
             const participantesUsuarios = await inChunks(
               (c) => supabase.from("profiles").select("id, nome").in("id", c),
               participantUserIds,
@@ -372,11 +407,11 @@ export async function fetchAgendaPage(
 
           const participantes = (participanteRows || []).map((p: any) => ({
             ...p,
-            usuario: profilesById.get(p.usuario_id),
+            usuario: p.usuario ?? profilesById.get(p.usuario_id),
           }));
 
           let eventosFiltered = eventos;
-          if (!hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
+          if (!usandoRpc && !hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
             eventosFiltered = eventos.filter((evento: any) => {
               const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
               const participantIds = eventParticipants.map((p) => p.usuario_id);
@@ -387,7 +422,8 @@ export async function fetchAgendaPage(
             });
           }
 
-          if (hasCoordScope) {
+          if (!usandoRpc && hasCoordScope) {
+
             eventosFiltered = eventosFiltered.filter((evento: any) => {
               const direct = (evento as any).coordenacao_id;
               if (direct) return coordScopeIds.includes(direct);
@@ -531,6 +567,14 @@ export async function fetchAgendaPage(
         async () => {
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas && incluirTarefasPorTipo) {
+        let tarefaIdsPorResponsavel: string[] = [];
+        let tarefas: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "tarefas", filtrosRpc, from, halfPage);
+          tarefas = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        tarefas = await (async () => {
         let queryTarefas = buildTarefasQuery(true);
         if (filters.processoIds?.length) queryTarefas = queryTarefas.in("processo_id", filters.processoIds);
 
@@ -539,8 +583,8 @@ export async function fetchAgendaPage(
         // apareciam para o responsável "principal" (tarefas.responsavel_id).
         const targetTaskUserIds =
           filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
-        let tarefaIdsPorResponsavel: string[] = [];
         if (page === 0 && !filters.fetchAll && coordScopeIds.length === 0) {
+
           // IMPORTANTE: restringir ao período exibido. Sem isso a lista de ids
           // podia chegar a milhares e a URL do filtro `or(...)` estourava o
           // limite do servidor, fazendo a consulta falhar e "sumir tudo".
@@ -803,8 +847,12 @@ export async function fetchAgendaPage(
             }
           }
         }
+        return tarefas;
+        })();
+        }
 
-        if (!tarefasError && tarefas) {
+        if (tarefas) {
+
           const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.some((t) => taskTypeFilters.includes(t));
 
           if (incluirTipoTarefa) {
@@ -851,8 +899,18 @@ export async function fetchAgendaPage(
             // Buscar todos os responsáveis (multi-responsáveis) das tarefas exibidas
             const respMap: Record<string, string[]> = {};
             const envMap: Record<string, string[]> = {};
+            const criadoresMap: Record<string, { id: string; nome: string }> = {};
             const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
-            if (tarefaIdsExibidas.length > 0) {
+            if (usandoRpc) {
+              // As linhas já chegam do banco com responsáveis, envolvidos e criador.
+              for (const t of tarefasFiltradas as any[]) {
+                respMap[t.id] = Array.isArray(t.responsaveis) ? t.responsaveis : [];
+                envMap[t.id] = Array.isArray(t.envolvidos) ? t.envolvidos : [];
+                if (t.criador?.id) criadoresMap[t.criador.id] = t.criador;
+              }
+            }
+            if (!usandoRpc && tarefaIdsExibidas.length > 0) {
+
               // Em lotes: listas grandes de ids estouram o tamanho da URL e a consulta falha.
               const chunks: string[][] = [];
               for (let i = 0; i < tarefaIdsExibidas.length; i += 150) chunks.push(tarefaIdsExibidas.slice(i, i + 150));
@@ -873,14 +931,14 @@ export async function fetchAgendaPage(
                 (envMap[r.tarefa_id] ||= []).push(r.usuario_id);
               });
             }
-            let criadoresMap: Record<string, { id: string; nome: string }> = {};
-            if (criadorIds.length > 0) {
+            if (!usandoRpc && criadorIds.length > 0) {
+
               const { data: criadores } = await supabase
                 .from("profiles")
                 .select("id,nome")
                 .in("id", criadorIds);
               if (criadores) {
-                criadoresMap = Object.fromEntries(criadores.map(c => [c.id, c]));
+                Object.assign(criadoresMap, Object.fromEntries(criadores.map((c: any) => [c.id, c])));
               }
             }
 
@@ -1004,7 +1062,15 @@ export async function fetchAgendaPage(
         async () => {
       // ========= BUSCAR PRAZOS FATAIS TST (processos com data_fatal) =========
       {
+        let prazosTst: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "prazos_tst", filtrosRpc, from, halfPage);
+          prazosTst = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        prazosTst = await (async () => {
         let queryPrazos = supabase
+
           .from("processos")
           .select("id, numero, polo_ativo, polo_passivo, data_fatal, coordenacao_id, criado_por_tst, responsavel_tst_id, responsavel_tst, equipe_tst, decisao_tst, status, prazo_fatal_conferido")
           .not("data_fatal", "is", null);
@@ -1036,17 +1102,28 @@ export async function fetchAgendaPage(
         const { data: prazosTst, error: prazosError } = await queryPrazos;
         if (prazosError) throw prazosError;
         if ((prazosTst?.length ?? 0) >= halfPage) fonteCheia = true;
+        return prazosTst;
+        })();
+        }
 
-        if (!prazosError && prazosTst) {
+        if (prazosTst) {
+
           // Fetch responsável names
           const respIds = [...new Set(prazosTst.map((p: any) => p.responsavel_tst_id).filter(Boolean))] as string[];
           const criadorIds = [...new Set(prazosTst.map((p: any) => p.criado_por_tst).filter(Boolean))] as string[];
           const allUserIds = [...new Set([...respIds, ...criadorIds])];
-          let usersMap: Record<string, { id: string; nome: string }> = {};
-          if (allUserIds.length > 0) {
+          const usersMap: Record<string, { id: string; nome: string }> = {};
+          if (usandoRpc) {
+            // As linhas já trazem responsável e criador com nome.
+            for (const p of prazosTst as any[]) {
+              if (p.responsavel?.id) usersMap[p.responsavel.id] = p.responsavel;
+              if (p.criador?.id) usersMap[p.criador.id] = p.criador;
+            }
+          } else if (allUserIds.length > 0) {
             const { data: users } = await supabase.from("profiles").select("id,nome").in("id", allUserIds);
-            if (users) usersMap = Object.fromEntries(users.map(u => [u.id, u]));
+            if (users) Object.assign(usersMap, Object.fromEntries(users.map((u: any) => [u.id, u])));
           }
+
 
           for (const prazo of prazosTst) {
             const prazoId = `prazo-tst-${prazo.id}`;
@@ -1098,8 +1175,16 @@ export async function fetchAgendaPage(
       if (incluirAudiencias) {
         const AUD_SELECT =
           "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)";
+        let audiencias: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "audiencias", filtrosRpc, from, halfPage);
+          audiencias = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        audiencias = await (async () => {
         let audIdsVinculados: string[] = [];
         let queryAud = supabase
+
           .from("audiencias_detectadas")
           .select(AUD_SELECT)
           .not("data_audiencia", "is", null);
@@ -1200,8 +1285,12 @@ export async function fetchAgendaPage(
           }
         }
         if ((audiencias?.length ?? 0) >= halfPage) fonteCheia = true;
+        return audiencias;
+        })();
+        }
 
-        if (!audError && audiencias) {
+        if (audiencias) {
+
           for (const aud of audiencias as any[]) {
             const audKey = `audiencia-det-${aud.id}`;
             if (seenIds.has(audKey)) continue;
@@ -1260,7 +1349,15 @@ export async function fetchAgendaPage(
         // Buscar parcelas direto pela data de vencimento (o evento-pai pode
         // estar em outro mês — ex.: parcelamento criado em junho com parcelas
         // que se estendem por julho/agosto).
+        let parcelas: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "parcelas", filtrosRpc, from, halfPage);
+          parcelas = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        parcelas = await (async () => {
         let queryParcelas = supabase
+
           .from("parcelas_evento")
           .select("id, evento_id, numero, data_vencimento, valor, status, observacoes, created_at, updated_at")
           .order("data_vencimento", { ascending: true });
@@ -1278,15 +1375,42 @@ export async function fetchAgendaPage(
 
         const { data: parcelas, error: parcelasError } = await queryParcelas;
         if (parcelasError) throw parcelasError;
+        return parcelas;
+        })();
+        }
 
         if (parcelas && parcelas.length > 0) {
+
           // Carrega eventos-pai que ainda não estão em resultItems
           const parentMap = new Map(
             resultItems
               .filter((it) => it.tipo === "parcelamento")
               .map((it) => [it.id, it])
           );
-          const missingParentIds = [...new Set((parcelas as any[]).map(p => p.evento_id))].filter(id => !parentMap.has(id));
+          if (usandoRpc) {
+            // O banco já devolve o parcelamento-pai junto com cada parcela.
+            for (const p of parcelas as any[]) {
+              const pe = p.parent;
+              if (!pe || parentMap.has(pe.id)) continue;
+              parentMap.set(pe.id, {
+                id: pe.id,
+                titulo: pe.titulo,
+                descricao: pe.descricao,
+                tipo: "parcelamento",
+                origem: "evento",
+                local: pe.local,
+                processo_id: pe.processo_id,
+                coordenacao_id: pe.coordenacao_id ?? null,
+                processo: pe.processo ?? null,
+                criado_por: pe.criado_por,
+                status: pe.status ?? null,
+              } as any);
+            }
+          }
+          const missingParentIds = usandoRpc
+            ? []
+            : [...new Set((parcelas as any[]).map((p) => p.evento_id))].filter((id) => !parentMap.has(id));
+
           if (missingParentIds.length > 0) {
             let queryParents = supabase
               .from("eventos_agenda")

@@ -1,6 +1,12 @@
 # Roadmap — Considerações 02/09
 
+## Calendário — buscas prontas por tipo
+- [x] Criar `get_agenda_pessoal` (uma pessoa) e `get_agenda_escritorio` (coordenações), ambas SECURITY INVOKER e uma fonte por vez, e ligar o calendário a elas pela escolha de modo em `resolverModoBuscaAgenda`; 18 testes da escolha de modo e dos tipos, teste SQL `supabase/tests/agenda_por_tipo.sql` aprovado no banco, digitação sem erros e build OK.
+- [x] Conferir no banco as contagens sem duplicar itens: Janaina (pessoal) 845 tarefas, 22 eventos, 103 audiências; Altina (escritório, 2 coordenações) 4.483 tarefas, 62 eventos, 208 audiências.
+- [ ] Conferir calendário e cartões pela tela autenticada — Supabase externo sem sessão disponível neste ambiente.
+
 ## Versão v9.7.4
+
 - [x] Registrar a release: número da versão, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`.
 - [x] Selecionar capítulos dos manuais de módulo por título, para que um novo capítulo não desloque o conteúdo dos demais.
 - [ ] Publicar e conferir nas contas de Janaina, Altina e Ana Caroline — Supabase externo sem sessão autenticada neste ambiente.

@@ -1,0 +1,2 @@
+GRANT EXECUTE ON FUNCTION public.get_agenda_pessoal(uuid, date, date, timestamptz, timestamptz, text[], text[], text, text[], text[], integer, integer) TO supabase_read_only_user;
+GRANT EXECUTE ON FUNCTION public.get_agenda_escritorio(uuid[], date, date, timestamptz, timestamptz, text[], text[], text, text[], text[], integer, integer) TO supabase_read_only_user;
