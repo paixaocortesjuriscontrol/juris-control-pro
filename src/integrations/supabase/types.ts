@@ -11313,6 +11313,40 @@ export type Database = {
           tribunal: string
         }[]
       }
+      get_agenda_escritorio: {
+        Args: {
+          p_coordenacoes: string[]
+          p_fim: string
+          p_fim_ts?: string
+          p_fontes?: string[]
+          p_inicio: string
+          p_inicio_ts?: string
+          p_limit?: number
+          p_offset?: number
+          p_status?: string
+          p_status_in?: string[]
+          p_status_not_in?: string[]
+          p_tipos?: string[]
+        }
+        Returns: Json
+      }
+      get_agenda_pessoal: {
+        Args: {
+          p_fim: string
+          p_fim_ts?: string
+          p_fontes?: string[]
+          p_inicio: string
+          p_inicio_ts?: string
+          p_limit?: number
+          p_offset?: number
+          p_status?: string
+          p_status_in?: string[]
+          p_status_not_in?: string[]
+          p_tipos?: string[]
+          p_usuario: string
+        }
+        Returns: Json
+      }
       get_cliente_ids_for_user: {
         Args: { _user_id: string }
         Returns: string[]
