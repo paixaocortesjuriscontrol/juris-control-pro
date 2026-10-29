@@ -15,6 +15,8 @@ export const CHAVES_ITENS_AGENDA: string[] = [
   "tarefas-paginated",
   "tarefas-stats",
   "tarefas-processo",
+  "baixas-recorrentes-processo",
+  "processo-itens-lateral-v3",
   "atividades-delegacao",
   "eventos-agenda",
   "eventos-agenda-processo",
