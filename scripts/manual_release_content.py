@@ -1,7 +1,7 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.7.3"
-RELEASE_DATE = "28 de outubro de 2026"
+VERSION = "9.7.4"
+RELEASE_DATE = "29 de outubro de 2026"
 
 CHAPTERS = [
     ("Novidades da versão 9.7.3", "Ajustes de desempenho do Painel de Controle e melhorias nos Workflows.", [
