@@ -12,6 +12,9 @@ import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { parseOcorrenciaId, salvarBaixaOcorrencia, removerBaixaOcorrencia } from "@/lib/baixaOcorrencia";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { leiturasAgendaEmParalelo } from "@/lib/agendaConcorrencia";
+import { resolverModoBuscaAgenda } from "@/lib/agendaModoBusca";
+import { lerFonteAgendaPorTipo } from "@/lib/agendaRpc";
+
 
 // Interface unificada que representa tanto eventos quanto tarefas
 export interface ItemAgendaUnificado {
@@ -174,6 +177,20 @@ export async function fetchAgendaPage(
   const user = userId ? { id: userId } : null;
   if (!user?.id) return [];
 
+  // Modo de busca: as buscas prontas do banco (pessoal / escritório) evitam que
+  // o navegador precise mandar listas enormes de identificadores de itens.
+  const modoBusca = resolverModoBuscaAgenda(filters, user.id);
+  const usandoRpc = modoBusca.modo !== "legado";
+  const filtrosRpc = {
+    dataInicio: filters.dataInicio ?? new Date(),
+    dataFim: filters.dataFim ?? new Date(),
+    tipos: filters.tipos,
+    status: filters.status,
+    statusIn: filters.statusIn,
+    statusNotIn: filters.statusNotIn,
+  };
+
+
       const resultItems: ItemAgendaUnificado[] = [];
       const seenIds = new Set<string>(); // Dedup: track seen IDs
       const today = startOfDay(new Date());
@@ -225,7 +242,15 @@ export async function fetchAgendaPage(
         async () => {
       // ========= BUSCAR EVENTOS =========
       if (incluirEventos && incluirEventosPorTipo) {
+        let eventos: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "eventos", filtrosRpc, from, halfPage);
+          eventos = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        eventos = await (async () => {
         let queryEventos = buildEventosQuery(true);
+
         if (filters.processoIds?.length) queryEventos = queryEventos.in("processo_id", filters.processoIds);
 
         if (!filters.fetchAll && !hasCoordScope) {
@@ -331,16 +356,24 @@ export async function fetchAgendaPage(
 
         if (eventosError) throw eventosError;
         fonteCheia ||= fonteAgendaCheia(eventos, halfPage);
+        })();
+        }
 
-        if (!eventosError && eventos && eventos.length > 0) {
+        if (eventos && eventos.length > 0) {
+
           const eventIds = eventos.map((e: any) => e.id);
-          const participanteRows = await inChunks(
-            (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
-            eventIds,
-          );
+          const participanteRows: any[] = usandoRpc
+            ? (eventos as any[]).flatMap((e: any) =>
+                (e.participantes ?? []).map((p: any) => ({ ...p, evento_id: e.id })),
+              )
+            : await inChunks(
+                (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
+                eventIds,
+              );
+
 
           const eventProcessCoordIds = new Map<string, string[]>();
-          if (hasCoordScope) {
+          if (!usandoRpc && hasCoordScope) {
             const eventoProcessosRows = await inChunks(
               (c) => (supabase as any).from("evento_processos").select("evento_id, processo:processos(coordenacao_id)").in("evento_id", c),
               eventIds,
@@ -360,7 +393,7 @@ export async function fetchAgendaPage(
           );
 
           const profilesById = new Map<string, { id: string; nome: string }>();
-          if (participantUserIds.length > 0) {
+          if (!usandoRpc && participantUserIds.length > 0) {
             const participantesUsuarios = await inChunks(
               (c) => supabase.from("profiles").select("id, nome").in("id", c),
               participantUserIds,
@@ -372,11 +405,11 @@ export async function fetchAgendaPage(
 
           const participantes = (participanteRows || []).map((p: any) => ({
             ...p,
-            usuario: profilesById.get(p.usuario_id),
+            usuario: p.usuario ?? profilesById.get(p.usuario_id),
           }));
 
           let eventosFiltered = eventos;
-          if (!hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
+          if (!usandoRpc && !hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
             eventosFiltered = eventos.filter((evento: any) => {
               const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
               const participantIds = eventParticipants.map((p) => p.usuario_id);
@@ -387,7 +420,8 @@ export async function fetchAgendaPage(
             });
           }
 
-          if (hasCoordScope) {
+          if (!usandoRpc && hasCoordScope) {
+
             eventosFiltered = eventosFiltered.filter((evento: any) => {
               const direct = (evento as any).coordenacao_id;
               if (direct) return coordScopeIds.includes(direct);
