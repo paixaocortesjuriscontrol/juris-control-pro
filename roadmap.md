@@ -1,7 +1,7 @@
 # Roadmap — Considerações 02/09
 
 ## Ficha do processo — tarefas repetidas e baixa (Janaina)
-- [ ] Identificar repetição e baixa na ficha do processo 0000951-58.2026.5.10.0105, preservar registros e corrigir a causa com testes.
+- [x] Confirmar um único registro da tarefa recorrente e baixa de 25/10/2026 já gravada; remover expansão duplicada na consulta da ficha, proteger agrupamento por registro-pai e invalidar situações por ocorrência/lista lateral. 25 testes aprovados e prévia sem erros; nenhum registro ou permissão alterado.
 - [ ] Conferir a baixa na tela autenticada — Supabase externo sem sessão disponível neste ambiente.
 
 ## Novos cartões somente no modo Lista
