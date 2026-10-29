@@ -61,3 +61,15 @@ CHAPTERS = [
         ("Operações extensas", ["Importações, administração e conferência de planilhas são mais indicadas no computador.", "A agenda evita buscas repetidas de comentários, cobranças, publicações e workflows; os símbolos continuam identificando esses vínculos.", "Antes de reportar ausência, confira perfil, coordenação, período, situação, tipo e busca; antes de repetir uma gravação, confira se o resultado já aparece.", "Relatórios devem ser conferidos antes de envio externo. Datas de planilhas usam DD/MM/AAAA e horários informados pelo escritório devem ser lidos no horário de Brasília."]),
     ]),
 ]
+
+def capitulo(prefixe: str):
+    """Devolve o capítulo cujo título começa com o prefixo informado."""
+    for cap in CHAPTERS:
+        if cap[0].startswith(prefixe):
+            return cap
+    raise KeyError(f"Capítulo não encontrado: {prefixe}")
+
+
+def capitulos(*prefixes: str):
+    """Devolve os capítulos na ordem dos prefixos, sem depender de posição na lista."""
+    return [capitulo(p) for p in prefixes]
