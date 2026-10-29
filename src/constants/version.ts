@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "9.7.4";
+export const APP_VERSION = "9.7.5";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "9.7.5", date: "2026-10-29", notes: "Painel de Controle: calendário busca cada tipo de item direto no banco, uma consulta por vez, sem as buscas longas que travavam a tela; Ficha do processo: tarefa recorrente aparece uma única vez e a baixa da ocorrência atualiza a tela na hora; Análise DJEN: filtro de Tribunal reconhece as publicações do Kurier (TRT 3_DJEN ao escolher TRT3), para todos os tribunais; Acompanhamento Especial: processo marcado recebe a etiqueta CAPTURA e perde a etiqueta ao ser desmarcado, inclusive quando ligado ainda no cadastro de um processo novo" },
   { version: "9.7.4", date: "2026-10-29", notes: "Painel de Controle: modo Escritório monta o mês inteiro pelas coordenações do usuário, sem depender de responsável ou envolvido; modo Pessoal traz todas as atividades em que a pessoa é co-responsável ou envolvida, buscadas em lotes e sem corte de quantidade, corrigindo a tela que ficava sem prazos, tarefas e eventos; Análise DJEN: cartões contam as publicações pela coordenação atual, acompanhando as publicações distribuídas" },
   { version: "9.7.3", date: "2026-10-28", notes: "Painel de Controle: cartões com totais imediatos de itens em aberto; modo Escritório de assistentes, advogados e estagiários pelas suas coordenações, sem travar o carregamento; calendário mais rápido nas tarefas recorrentes e parcelamentos de volta; Workflows com filtro de coordenação sempre visível e coordenação em cada linha; modelos do Projuris Santander Cível importados inativos" },
   { version: "9.7.2", date: "2026-10-28", notes: "Ficha do processo: campo Sistema Judicial aceita CPE (sistema do STJ); pendências da Visão Geral passam a mostrar itens em revisão, como 'Minutado - Revisão', e só saem do quadro quando encerrados; Exportar Atividade do Painel de Controle filtra por responsáveis e/ou envolvidos; todos os TRTs (exceto TRT1, TRT2 e TRT15) nos 43 termos da Coordenação GOL" },

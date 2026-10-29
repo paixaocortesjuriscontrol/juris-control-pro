@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Versão v9.7.5
+- [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.7.5.
+- [x] Conferir nos PDFs: capítulo das novidades presente no Manual Completo e no do Painel; regra da etiqueta CAPTURA e do filtro de Tribunal do Kurier nos capítulos fixos (Termos DJEN inclui ambos).
+- [ ] Publicar e conferir o número v9.7.5 no menu e os downloads na tela autenticada — Supabase externo sem sessão neste ambiente.
+
 ## Análise DJEN — filtro de tribunal Kurier
 - [x] Alinhar nomes regionais Kurier nas quatro RPCs de lista/totais, filtros locais e contagem direta; atualizar chave de cache dos totais. Publicações e permissões preservadas.
 - [x] Validar TRT3: seis publicações Kurier/GOL capturadas em 29/10/2026, três testes locais aprovados e teste SQL de quatro RPCs/regiões aprovado; prévia sem erros.
