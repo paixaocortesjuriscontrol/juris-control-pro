@@ -1096,11 +1096,12 @@ export async function fetchAgendaPage(
         (!filters.origens || filters.origens.includes("evento") || filters.origens.includes("tarefa"));
 
       if (incluirAudiencias) {
+        const AUD_SELECT =
+          "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)";
+        let audIdsVinculados: string[] = [];
         let queryAud = supabase
           .from("audiencias_detectadas")
-          .select(
-            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)"
-          )
+          .select(AUD_SELECT)
           .not("data_audiencia", "is", null);
         if (filters.statusIn && filters.statusIn.length > 0) {
           queryAud = queryAud.in("status", filters.statusIn as any);
