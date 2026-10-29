@@ -1,3 +1,4 @@
+import { ImportarChecklistsProjuris } from "@/components/migracao/ImportarChecklistsProjuris";
 import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -658,6 +659,7 @@ export default function MigracaoProjuris() {
             </div>
           </CardContent>
         </Card>
+        {user && <ImportarChecklistsProjuris userId={user.id} />}
         {modo === "importacoes" && user && (
           <ComplementarPlanilhaProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} userId={user.id} onConcluido={() => { carregarHistorico(); void contarMigrados(); }} />
         )}
