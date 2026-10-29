@@ -1,7 +1,7 @@
 from pathlib import Path
 from xml.sax.saxutils import escape
 import subprocess
-from manual_release_content import CHAPTERS, RELEASE_DATE, VERSION
+from manual_release_content import CHAPTERS, RELEASE_DATE, VERSION, capitulo, capitulos
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
@@ -26,6 +26,11 @@ from reportlab.platypus import (
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "public" / "manuais"
 OUT.mkdir(parents=True, exist_ok=True)
+
+# Capítulos extras do manual do Painel, escolhidos por título para não depender da ordem da lista.
+PAINEL_CAPITULOS = capitulos(
+    "Novidades", "Coordenações", "Atas", "Acompanhamento especial", "Pautas de Julgamento"
+)
 
 NAVY = colors.HexColor("#111B34")
 NAVY_2 = colors.HexColor("#1A294C")
@@ -282,7 +287,7 @@ def painel_manual():
     title = "Manual do Painel de Controle"
     entries = ["Mapa da tela", "Escopo e cartões", "Agenda", "Lista e busca", "Kanban e Equipe", "Filtros completos", "Criar itens", "Preenchimento de Tarefa e Prazo", "Evento, Audiência e Parcelamento", "Workflow", "Edição, baixa e recorrência", "Comentários, atividades e cobranças", "Alertas", "Remanejar em lote", "Pessoas em lote", "Exportar atividades", "Relatório de audiências", "Exportar audiências", "Exemplos completos", "Dúvidas e boas práticas"]
     st = cover(title, "Guia operacional ilustrado e completo", ["25 capítulos com exemplos passo a passo", "10 capturas ilustrativas da edição anterior", "Filtros, criações, baixas, lotes e relatórios"])
-    entries += [CHAPTERS[i][0] for i in [0, 1, 2, 7, 9]]
+    entries += [cap[0] for cap in PAINEL_CAPITULOS]
     st += toc("As imagens são ilustrativas da edição anterior, com nomes e processos fictícios. Os rótulos e regras atuais estão no texto; consulte os capítulos adicionais para Atas, exportação e permissões.", entries)
     st += illustrated_section("1", entries[0], "O Painel reúne toda a rotina jurídica em quatro faixas: comandos, totalizadores, visões/filtros e área de trabalho.", "overview", "Figura 1 — Visão geral ilustrativa do Painel de Controle.", [
         ("Faixa superior", ["O olho mostra ou oculta totalizadores; o ícone de ajustes mostra ou oculta a faixa de filtros.", "Rel. Audiências abre o relatório por usuário e situação; Exportar Audiências abre a exportação operacional.", "A faixa seguinte contém Pessoal/Escritório, situação, limpar, Exportar Atividade, Alertas, Remanejar, Pessoas em lote e Adicionar."]),
@@ -386,8 +391,7 @@ def painel_manual():
         ("Boas práticas", ["Use títulos objetivos e vincule o processo correto.", "Registre data real na baixa e explique reagendamentos.", "Não conclua toda uma série quando somente uma ocorrência terminou.", "Revise quantidades e amostras antes de ações em lote ou exportações.", "Use menções somente para pessoas que precisam agir ou tomar ciência."]),
         ("Suporte", ["Ao relatar problema, informe tela, escopo, coordenação, filtros, CNJ e ação realizada.", "Não envie senha nem dados sigilosos em capturas. Oculte nomes e documentos quando compartilhar fora do escritório."]),
     ])
-    for number, index in enumerate([0, 1, 2, 7, 9], 21):
-        heading, intro, subsections = CHAPTERS[index]
+    for number, (heading, intro, subsections) in enumerate(PAINEL_CAPITULOS, 21):
         st += section(str(number), heading, intro, subsections)
     build(f"Manual_Painel_de_Controle_v{VERSION}.pdf", title, st)
 
@@ -395,7 +399,7 @@ def painel_manual():
 def tst_manual():
     title = "Manual da Distribuição TST"
     entries = ["Visão geral e acesso", "Cards e responsáveis", "Filtros e seleção", "Ficha e edição", "Pendências e matérias", "Judit", "Ações em lote e delegação", "Relatórios e Carga Benner", "Admin. TST", "Duplicados, arquivamento e auditoria", "Roteiro e boas práticas"]
-    entries.append(CHAPTERS[8][0])
+    entries.append(capitulo("Notificações")[0])
     st = cover(title, "Operação, conferência, importações e Carga Benner", ["Distribuições e responsáveis", "Matérias, pendências e Judit", "Admin. TST, relatórios e auditoria"])
     st += toc("Guia exclusivo da Distribuição TST e das ferramentas administrativas relacionadas.", entries)
     st += section("1", entries[0], "A Distribuição TST centraliza os processos distribuídos no Tribunal Superior do Trabalho e a preparação das informações que seguem para o Benner.", [
@@ -453,13 +457,13 @@ def tst_manual():
         ("Envio", ["Filtre Pronto sem pendência ou selecione o conjunto validado.", "Gere a Carga Benner e examine Rejeições.", "Transmita o arquivo e marque o lote como planilhado/enviado conforme o fluxo.", "Mantenha relatórios e auditoria para conferência posterior."]),
         ("Boas práticas", ["Datas de planilha devem usar DD/MM/AAAA.", "Dossiês com barra são aceitos; não normalize manualmente.", "Não remova matérias oficiais sem revisar impactos.", "Use arquivamento, não exclusão, para manter rastreabilidade."]),
     ])
-    heading, intro, subsections = CHAPTERS[8]
+    heading, intro, subsections = capitulo("Notificações")
     st += section("12", heading, intro, subsections)
     build(f"Manual_Distribuicao_TST_v{VERSION}.pdf", title, st)
 
 
-def focused_manual(filename, title, indices, initial_sections=None):
-    sections = (initial_sections or []) + [CHAPTERS[index] for index in indices]
+def focused_manual(filename, title, titulos, initial_sections=None):
+    sections = (initial_sections or []) + capitulos(*titulos)
     st = cover(title, "Guia operacional atualizado", [heading for heading, _, _ in sections[:3]])
     st += toc(f"Edição {VERSION}. Consulte as opções disponíveis para seu perfil e confira os dados antes de salvar.", [heading for heading, _, _ in sections])
     for number, (heading, intro, subsections) in enumerate(sections, 1):
@@ -471,13 +475,13 @@ if __name__ == "__main__":
     complete_manual()
     painel_manual()
     tst_manual()
-    focused_manual("Manual_Processos_e_Casos", "Manual de Processos e Casos", [3, 1, 2, 8], [
+    focused_manual("Manual_Processos_e_Casos", "Manual de Processos e Casos", ["Exportar Atividade", "Coordenações", "Atas", "Notificações"], [
         ("Cadastrar, consultar e acompanhar", "Use Processos e Casos para consultar o cadastro e o histórico jurídico.", [
             ("Cadastrar", ["Escolha Novo Processo, informe o tipo e o número CNJ; use Novo Caso para atendimentos sem número.", "Quando necessário, solicite a consulta Judit e revise partes, tribunal, órgão, datas e demais campos retornados antes de salvar.", "Defina cliente, coordenação e responsáveis e confira todos os campos. Consultas externas podem gerar custo e não garantem todos os dados."]),
             ("Consultar a ficha", ["Busque por CNJ, cliente ou parte e use os filtros de área, situação, coordenação e etiquetas.", "Visão Geral permite edição direta; as abas reúnem atividades, andamentos, publicações, documentos, pedidos, cobrança, partes, comentários, auditoria e distribuições.", "A aba Peças IA oferece minutas que exigem revisão humana antes da exportação em Word.", "Na Análise Judit, consulte capa, partes, movimentações, anexos e análises disponíveis. Para documentos via PJe, configure suas credenciais autorizadas; a disponibilidade depende do tribunal."]),
         ]),
     ])
-    focused_manual("Manual_Termos_DJEN", "Manual de Termos DJEN", [5, 6, 7], [
+    focused_manual("Manual_Termos_DJEN", "Manual de Termos DJEN", ["Migração Projuris", "Publicações DJEN", "Acompanhamento especial"], [
         ("Cadastrar termos e conferir execuções", "O monitoramento deve ser configurado no escopo correto da coordenação.", [
             ("Configuração", ["Abra Termos DJEN e selecione a coordenação. Use Novo Monitoramento para cadastrar o critério disponível: parte, advogado/OAB ou processo.", "Confira tribunais, UF, termo, variações, exclusões e situação ativa antes de salvar. Para nomes amplos, use exclusões para reduzir resultados indevidos.", "Não use uma busca por parte para validar advogado ou vice-versa. Para processo, confira os 20 dígitos do CNJ."]),
             ("Conferência", ["Use os filtros para consultar monitoramentos e os relatórios para revisar o conjunto.", "Nas ferramentas de execução autorizadas, confira período, progresso, publicações encontradas e erros. Compare o mesmo escopo e data antes de concluir que falta captura.", "Consulte as publicações na Análise DJEN, revise o teor e vincule o processo antes de criar atividade ou workflow.", "DJEN não substitui acesso aos autos. Movimentações públicas e documentos judiciais possuem fontes e limitações diferentes."]),
