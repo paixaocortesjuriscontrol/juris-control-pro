@@ -7,7 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
-  processoId: string;
+  processoId: string | null | undefined;
+  /** Processo ainda não salvo: guarda a escolha para gravar junto no cadastro. */
+  onLocalChange?: (patch: Record<string, unknown>) => void;
   acompanhamentoEspecial?: boolean;
   frequenciaDiaria?: number;
   comAnexos?: boolean;
@@ -18,6 +20,7 @@ export function AcompanhamentoEspecialToggle({
   acompanhamentoEspecial = false,
   frequenciaDiaria = 1,
   comAnexos = false,
+  onLocalChange,
 }: Props) {
   const { toast } = useToast();
   const [ativo, setAtivo] = useState(acompanhamentoEspecial);
@@ -51,6 +54,10 @@ export function AcompanhamentoEspecialToggle({
   }, [acompanhamentoEspecial, frequenciaDiaria, comAnexos]);
 
   const save = async (patch: Record<string, unknown>) => {
+    if (!processoId) {
+      onLocalChange?.(patch);
+      return true;
+    }
     setSaving(true);
     try {
       const { data, error } = await supabase
@@ -84,6 +91,7 @@ export function AcompanhamentoEspecialToggle({
       return;
     }
     lastSavedRef.current.ativo = checked;
+    if (!processoId) return;
     toast({
       title: checked ? "Acompanhamento Especial ativado" : "Acompanhamento Especial desativado",
       description: checked
