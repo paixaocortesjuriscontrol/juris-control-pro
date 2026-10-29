@@ -1,6 +1,6 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.7.4"
+VERSION = "9.7.5"
 RELEASE_DATE = "29 de outubro de 2026"
 
 CHAPTERS = [
