@@ -19,7 +19,7 @@ export function ImportarChecklistsProjuris({ userId }: { userId: string }) {
   const escolher = (fs: FileList | null) => {
     const m = { ...arquivos };
     for (const f of Array.from(fs || [])) {
-      const n = f.name.toLowerCase().replace(/(-\d+)?\.csv$/, "");
+      const n = f.name.toLowerCase().replace(/\.csv$/, "").replace(/[\s_-]*(\(\d+\)|-\d+|_\d+|\d+)?\s*$/, "").trim();
       if ((ARQS as readonly string[]).includes(n)) m[n] = f;
     }
     setArquivos(m);
