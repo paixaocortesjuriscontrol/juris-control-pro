@@ -66,3 +66,16 @@ export function resolverModoBuscaAgenda(
   if (!usuario) return { modo: "legado" };
   return { modo: "pessoal", usuario };
 }
+
+/**
+ * Vocabulário de tipos que as buscas do banco aceitam. A busca de tarefas só
+ * conhece "tarefa"; "tarefa_delegada" é a mesma categoria vista por quem foi
+ * delegado, então ela precisa vir acompanhada de "tarefa" — senão a lista de
+ * tarefas ficaria vazia ao filtrar só por "Delegada".
+ */
+export function tiposParaBuscaAgenda(tipos?: string[]): string[] | undefined {
+  if (!tipos?.length) return tipos;
+  if (tipos.includes("tarefa_delegada") && !tipos.includes("tarefa")) return [...tipos, "tarefa"];
+  return tipos;
+}
+

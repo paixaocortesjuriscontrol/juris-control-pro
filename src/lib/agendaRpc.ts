@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { FonteAgenda, ModoBuscaAgenda } from "@/lib/agendaModoBusca";
+import { tiposParaBuscaAgenda, type FonteAgenda, type ModoBuscaAgenda } from "@/lib/agendaModoBusca";
 
 /** Data no formato `AAAA-MM-DD` (a coluna do banco é `date`). */
 const dStr = (d: Date) =>
@@ -37,7 +37,7 @@ export async function lerFonteAgendaPorTipo(
     p_fim: dStr(filtros.dataFim),
     p_inicio_ts: filtros.dataInicio.toISOString(),
     p_fim_ts: filtros.dataFim.toISOString(),
-    p_tipos: filtros.tipos?.length ? filtros.tipos : null,
+    p_tipos: tiposParaBuscaAgenda(filtros.tipos) ?? null,
     p_status: filtros.status && filtros.status !== "todas" ? filtros.status : null,
     p_status_in: filtros.statusIn?.length ? filtros.statusIn : null,
     p_status_not_in: filtros.statusNotIn?.length ? filtros.statusNotIn : null,
