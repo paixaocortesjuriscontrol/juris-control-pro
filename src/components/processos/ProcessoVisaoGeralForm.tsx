@@ -1,5 +1,5 @@
 import { SISTEMAS_JUDICIAIS } from "@/lib/projurisPlanilhaProcessos";
-import { useState, useEffect, useMemo, forwardRef, useImperativeHandle } from "react";
+import { useState, useEffect, useMemo, forwardRef, useImperativeHandle, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -362,6 +362,8 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
     } catch { /* storage cheio: ignora */ }
   }, [isNovo, form, juditSessionFields]);
 
+  // Acompanhamento Especial escolhido antes do primeiro Salvar (modo criação).
+  const acompNovoRef = useRef<Record<string, unknown>>({});
   const update = (field: string, value: any) =>
     setForm((prev) => ({ ...prev, [field]: value }));
 
@@ -520,6 +522,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
         for (const k of Object.keys(payload)) {
           if (payload[k] === null || payload[k] === undefined) delete payload[k];
         }
+        Object.assign(payload, acompNovoRef.current);
         const { data: novo, error: errInsert } = await supabase
           .from("processos")
           .insert(payload as any)
@@ -2171,6 +2174,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
               acompanhamentoEspecial={!!(processo as any).acompanhamento_especial}
               frequenciaDiaria={(processo as any).acompanhamento_freq_diaria ?? 1}
               comAnexos={!!(processo as any).acompanhamento_com_anexos}
+              onLocalChange={(patch) => Object.assign(acompNovoRef.current, patch)}
             />
           </div>
         </div>
