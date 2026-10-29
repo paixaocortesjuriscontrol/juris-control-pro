@@ -58,7 +58,6 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Bell, label: "Config. Notificações", path: "/notificacoes" },
   { icon: FileText, label: "Rel. Auditoria", path: "/auditoria-itens", adminOrCoordOnly: true },
   { icon: Workflow, label: "Workflow", path: "/workflow" },
-  { icon: ClipboardList, label: "Modelos de checklist", path: "/modelos-checklist" },
   { icon: Gavel, label: "Banco de Teses", path: "/banco-teses", adminOrCoordOnly: true },
   { icon: ArrowRightLeft, label: "Comparar DJEN", path: "/comparar-dj-santander", highlight: true, adminOnly: true },
   { icon: BookOpen, label: "Termos DJEN", path: "/termos-djen", highlight: true, adminOrCoordOnly: true },
