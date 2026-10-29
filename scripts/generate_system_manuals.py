@@ -29,7 +29,7 @@ OUT.mkdir(parents=True, exist_ok=True)
 
 # Capítulos extras do manual do Painel, escolhidos por título para não depender da ordem da lista.
 PAINEL_CAPITULOS = capitulos(
-    "Novidades", "Coordenações", "Atas", "Acompanhamento especial", "Pautas de Julgamento"
+    "Novidades", "Coordenações", "Atas", "Checklists", "Acompanhamento especial", "Pautas de Julgamento"
 )
 
 NAVY = colors.HexColor("#111B34")
@@ -225,7 +225,7 @@ def complete_manual():
     ]
     entries += [item[0] for item in CHAPTERS]
     st = cover(title, "Guia atualizado dos módulos operacionais e administrativos", ["Operação diária e prazos", "Processos, publicações e monitoramento", "TST, Benner, auditoria e inteligência jurídica"])
-    st += toc(f"Este manual apresenta o sistema na versão {VERSION}, atualizado em {RELEASE_DATE}. Os capítulos 12 a 22 consolidam os recursos e ajustes recentes; consulte-os para as regras atuais. Recursos restritos aparecem identificados no texto.", entries)
+    st += toc(f"Este manual apresenta o sistema na versão {VERSION}, atualizado em {RELEASE_DATE}. Os capítulos 12 a {11 + len(CHAPTERS)} consolidam os recursos e ajustes recentes; consulte-os para as regras atuais. Recursos restritos aparecem identificados no texto.", entries)
     st += section("1", entries[0], "O Juris Control centraliza a rotina jurídica, os processos, publicações, prazos, audiências, documentos e controles especializados do escritório.", [
         ("Perfis e permissões", ["O menu e os dados exibidos dependem do perfil, das coordenações vinculadas e das permissões individuais.", "Administradores acessam configurações e ferramentas globais; coordenadores acompanham suas equipes; os demais perfis trabalham dentro do escopo autorizado.", "O perfil Advogado Temporário possui um menu reduzido para atividades de conferência."]),
         ("Estrutura da tela", ["A barra lateral reúne os módulos disponíveis; o cabeçalho mostra pesquisa, novidades, alertas e usuário.", "A pesquisa superior localiza processos, clientes, tarefas e outros registros acessíveis ao usuário.", "O número ao lado de alertas indica mensagens ou pendências ainda não lidas."]),
