@@ -98,6 +98,7 @@ import ConsumoIA from "./pages/ConsumoIA";
 import ConsumoJudit from "./pages/ConsumoJudit";
 import RelatorioDuplicados from "./pages/RelatorioDuplicados";
 import Workflow from "./pages/Workflow";
+import ModelosChecklist from "./pages/ModelosChecklist";
 import BancoTeses from "./pages/BancoTeses";
 import AdminTst from "./pages/AdminTst";
 import AdminTstImportacoes from "./pages/AdminTstImportacoes";
@@ -161,6 +162,7 @@ function App() {
               <Route path="/usabilidade-sistema" element={<ProtectedRoute><UsabilidadeSistema /></ProtectedRoute>} />
               <Route path="/monitoramento" element={<ProtectedRoute><Monitoramento /></ProtectedRoute>} />
               <Route path="/workflow" element={<ProtectedRoute><Workflow /></ProtectedRoute>} />
+              <Route path="/modelos-checklist" element={<ProtectedRoute><ModelosChecklist /></ProtectedRoute>} />
               <Route path="/banco-teses" element={<ProtectedRoute><BancoTeses /></ProtectedRoute>} />
               {/* Redirect central-delegacao to unified agenda */}
             <Route path="/central-delegacao" element={<Navigate to="/minha-agenda" replace />} />
