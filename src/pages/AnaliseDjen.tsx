@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { aliasesTribunalDjen, correspondeTribunalDjen } from "@/lib/filtroTribunalDjen";
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, BorderStyle, ShadingType, Tab, TabStopType, TabStopPosition, PageBreak, ExternalHyperlink } from "docx";
 import {
   FileText,
@@ -709,7 +710,7 @@ const AnaliseDjen = () => {
       if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       if (readStatus === 'nao_lidas') q = q.eq('lida', false);
       else if (readStatus === 'lidas') q = q.eq('lida', true);
-      if (tribunalFiltro) q = q.eq('tribunal', tribunalFiltro);
+      if (tribunalFiltro) q = q.in('tribunal', aliasesTribunalDjen(tribunalFiltro));
       if (monitoramentoId) q = q.eq('monitoramento_id', monitoramentoId);
       if (termoBuscaDebounced) {
         const digits = termoBuscaDebounced.replace(/\D/g, '');
@@ -4052,14 +4053,7 @@ const AnaliseDjen = () => {
       });
     }
     if (tribunalFiltro) {
-      const alvo = tribunalFiltro.toUpperCase();
-      result = result.filter(pub => {
-        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
-        if (!t) return false;
-        // Match exato por sigla (TRT10 não casa com TRT1)
-        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
-        return re.test(t);
-      });
+      result = result.filter(pub => correspondeTribunalDjen(pub.tribunal || pub.fonte, tribunalFiltro));
     }
     // A lista sempre mostra todas as publicações do dia — selecionar uma
     // execução no card de execuções não filtra mais a listagem.
@@ -4081,13 +4075,7 @@ const AnaliseDjen = () => {
       });
     }
     if (tribunalFiltro) {
-      const alvo = tribunalFiltro.toUpperCase();
-      base = base.filter(pub => {
-        const t = (pub.tribunal || pub.fonte || "").toString().toUpperCase();
-        if (!t) return false;
-        const re = new RegExp(`(?:^|[^A-Z0-9])${alvo}(?:[^A-Z0-9]|$)`);
-        return re.test(t);
-      });
+      base = base.filter(pub => correspondeTribunalDjen(pub.tribunal || pub.fonte, tribunalFiltro));
     }
     return Math.max(0, base.length - allPublicacoes.length);
   }, [ocultarDuplicadas, mergedPublicacoes, dataDisponibilizacao, tribunalFiltro, tipoOrigem, allPublicacoes.length]);

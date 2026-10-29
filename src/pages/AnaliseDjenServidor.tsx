@@ -618,7 +618,7 @@ const AnaliseDjenServidor = () => {
       if (coordenacaoFiltroEfetivo) q = q.eq('coordenacao_id', coordenacaoFiltroEfetivo);
       if (readStatus === 'nao_lidas') q = q.eq('lida', false);
       else if (readStatus === 'lidas') q = q.eq('lida', true);
-      if (tribunalFiltro) q = q.eq('tribunal', tribunalFiltro);
+      if (tribunalFiltro) q = q.in('tribunal', aliasesTribunalDjen(tribunalFiltro));
       if (apenasHojeEfetivo) {
         const hojeBrt = getHojeBrtISO();
         q = q.gte('created_at', dateLocalToUTCRange(hojeBrt, false))
@@ -778,7 +778,7 @@ const AnaliseDjenServidor = () => {
         query = query.in('coordenacao_id', userCoordenacaoIds);
       }
       if (monitoramentoId) query = query.eq('monitoramento_id', monitoramentoId);
-      if (tribunalFiltro) query = query.ilike('tribunal', `%${tribunalFiltro}%`);
+      if (tribunalFiltro) query = query.in('tribunal', aliasesTribunalDjen(tribunalFiltro));
 
       const { data, error } = await query.limit(10000);
       if (error) throw error;
