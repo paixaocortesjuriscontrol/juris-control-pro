@@ -49,7 +49,7 @@ export default function ModelosChecklist() {
   };
 
   return (
-    <MainLayout>
+    <MainLayout title="Modelos de checklist">
       <div className="p-4 grid gap-4 md:grid-cols-[320px_1fr]">
         <Card>
           <CardHeader><CardTitle>Modelos de checklist</CardTitle></CardHeader>
