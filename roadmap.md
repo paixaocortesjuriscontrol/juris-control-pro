@@ -5,6 +5,11 @@
 - [x] Conferir nos PDFs: capítulo das novidades presente no Manual Completo e no do Painel; regra da etiqueta CAPTURA e do filtro de Tribunal do Kurier nos capítulos fixos (Termos DJEN inclui ambos).
 - [ ] Publicar e conferir o número v9.7.5 no menu e os downloads na tela autenticada — Supabase externo sem sessão neste ambiente.
 
+## Checklists no estilo Projuris
+- [x] Modelos de checklist com itens copiados para a tarefa, tela de gestão de modelos e escolha do modelo na etapa do workflow; importação dos checklists antigos em Migração Projuris.
+- [x] Colocar "Modelos de checklist" no menu lateral, abaixo de Workflow; a gravação continua bloqueada por permissão no banco.
+- [ ] Rodar a importação dos checklists das tarefas antigas e conferir a tela autenticada — Supabase externo sem sessão neste ambiente.
+
 ## Análise DJEN — filtro de tribunal Kurier
 - [x] Alinhar nomes regionais Kurier nas quatro RPCs de lista/totais, filtros locais e contagem direta; atualizar chave de cache dos totais. Publicações e permissões preservadas.
 - [x] Validar TRT3: seis publicações Kurier/GOL capturadas em 29/10/2026, três testes locais aprovados e teste SQL de quatro RPCs/regiões aprovado; prévia sem erros.
