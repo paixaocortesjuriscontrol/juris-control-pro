@@ -1,10 +1,11 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { lerCsvPontoVirgula, montarItensChecklist } from "./checklistProjuris";
 
 describe("checklist Projuris", () => {
   it("lê campos com aspas e quebra de linha", () => {
     const r = lerCsvPontoVirgula('a;b\n1;"x;\ny"\n');
-    expect(r).toEqual([{ a: "1", b: "x;\ny" }]);
+    assert.deepEqual(r, [{ a: "1", b: "x;\ny" }]);
   });
   it("mantém ordem e marcado S/N e liga à tarefa do módulo 4", () => {
     const { itens, semTarefa } = montarItensChecklist(
@@ -16,7 +17,7 @@ describe("checklist Projuris", () => {
       ],
       [{ cdchecklist: "1", cdmodulo: "4", cdregistrovinculo: "500" }, { cdchecklist: "2", cdmodulo: "39", cdregistrovinculo: "9" }],
     );
-    expect(itens).toEqual([{ chave: "10", tarefaChave: "500", ordem: 3, marcado: true, titulo: "A", nomeChecklist: "SIMULADOR" }]);
-    expect(semTarefa).toBe(1);
+    assert.deepEqual(itens, [{ chave: "10", tarefaChave: "500", ordem: 3, marcado: true, titulo: "A", nomeChecklist: "SIMULADOR" }]);
+    assert.equal(semTarefa, 1);
   });
 });
