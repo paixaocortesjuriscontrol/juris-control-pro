@@ -1567,6 +1567,138 @@ export type Database = {
         }
         Relationships: []
       }
+      checklist_itens: {
+        Row: {
+          chave_externa: string | null
+          created_at: string
+          criado_por: string | null
+          id: string
+          item_id: string
+          marcado: boolean
+          marcado_em: string | null
+          marcado_por: string | null
+          modelo_id: string | null
+          ordem: number
+          tipo_item: string
+          titulo: string
+          updated_at: string
+        }
+        Insert: {
+          chave_externa?: string | null
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          item_id: string
+          marcado?: boolean
+          marcado_em?: string | null
+          marcado_por?: string | null
+          modelo_id?: string | null
+          ordem?: number
+          tipo_item: string
+          titulo: string
+          updated_at?: string
+        }
+        Update: {
+          chave_externa?: string | null
+          created_at?: string
+          criado_por?: string | null
+          id?: string
+          item_id?: string
+          marcado?: boolean
+          marcado_em?: string | null
+          marcado_por?: string | null
+          modelo_id?: string | null
+          ordem?: number
+          tipo_item?: string
+          titulo?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_itens_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_modelos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_modelo_itens: {
+        Row: {
+          created_at: string
+          id: string
+          modelo_id: string
+          ordem: number
+          titulo: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          modelo_id: string
+          ordem?: number
+          titulo: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          modelo_id?: string
+          ordem?: number
+          titulo?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_modelo_itens_modelo_id_fkey"
+            columns: ["modelo_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_modelos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checklist_modelos: {
+        Row: {
+          ativo: boolean
+          chave_externa: string | null
+          coordenacao_id: string | null
+          created_at: string
+          criado_por: string | null
+          descricao: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          chave_externa?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          chave_externa?: string | null
+          coordenacao_id?: string | null
+          created_at?: string
+          criado_por?: string | null
+          descricao?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checklist_modelos_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       classificacao_relatores_tst: {
         Row: {
           cargo: string | null
@@ -10651,6 +10783,7 @@ export type Database = {
       workflow_etapas: {
         Row: {
           campos_item: Json
+          checklist_modelo_id: string | null
           condicao: string
           created_at: string
           descricao: string | null
@@ -10671,6 +10804,7 @@ export type Database = {
         }
         Insert: {
           campos_item?: Json
+          checklist_modelo_id?: string | null
           condicao?: string
           created_at?: string
           descricao?: string | null
@@ -10691,6 +10825,7 @@ export type Database = {
         }
         Update: {
           campos_item?: Json
+          checklist_modelo_id?: string | null
           condicao?: string
           created_at?: string
           descricao?: string | null
@@ -10710,6 +10845,13 @@ export type Database = {
           workflow_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "workflow_etapas_checklist_modelo_id_fkey"
+            columns: ["checklist_modelo_id"]
+            isOneToOne: false
+            referencedRelation: "checklist_modelos"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "workflow_etapas_etapa_anterior_id_fkey"
             columns: ["etapa_anterior_id"]
