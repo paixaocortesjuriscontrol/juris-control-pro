@@ -1096,11 +1096,12 @@ export async function fetchAgendaPage(
         (!filters.origens || filters.origens.includes("evento") || filters.origens.includes("tarefa"));
 
       if (incluirAudiencias) {
+        const AUD_SELECT =
+          "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)";
+        let audIdsVinculados: string[] = [];
         let queryAud = supabase
           .from("audiencias_detectadas")
-          .select(
-            "id, titulo, tipo_audiencia, processo_id, processo_numero, data_audiencia, hora, hora_fim, status, observacoes, local_audiencia, forum, sala_forum, modalidade, criado_por, coordenacao_id, created_at, updated_at, documentos(count)"
-          )
+          .select(AUD_SELECT)
           .not("data_audiencia", "is", null);
         if (filters.statusIn && filters.statusIn.length > 0) {
           queryAud = queryAud.in("status", filters.statusIn as any);
@@ -1149,7 +1150,9 @@ export async function fetchAgendaPage(
               `and(criado_por.in.(${targetUserIds.join(",")}),or(origem.is.null,origem.not.in.(importacao,pauta_excel)))`
             );
           }
-          if (audIds.length > 0) orParts.push(`id.in.(${audIds.join(",")})`);
+          // Os IDs vinculados (advogado/envolvido) não entram no `or(...)`: centenas de
+          // IDs estouravam o tamanho do endereço e a agenda inteira falhava em loop.
+          audIdsVinculados = audIds;
 
           if (orParts.length > 0) {
             queryAud = queryAud.or(orParts.join(","));
@@ -1177,8 +1180,25 @@ export async function fetchAgendaPage(
 
         queryAud = queryAud.range(from, to);
 
-        const { data: audiencias, error: audError } = await queryAud;
+        let { data: audiencias, error: audError } = await queryAud;
         if (audError) throw audError;
+
+        // Audiências vinculadas à pessoa: todas, em lotes de IDs, só na 1ª página.
+        if (page === 0 && audIdsVinculados.length > 0) {
+          const vincAud = await inChunks((ids) => {
+            let q = supabase.from("audiencias_detectadas").select(AUD_SELECT).not("data_audiencia", "is", null).in("id", ids);
+            if (filters.statusIn?.length) q = q.in("status", filters.statusIn as any);
+            else if (filters.statusNotIn?.length) q = q.or(`status.is.null,status.not.in.(${filters.statusNotIn.join(",")})`);
+            if (filters.processoIds?.length) q = q.in("processo_id", filters.processoIds);
+            if (filters.dataInicio) q = q.gte("data_audiencia", filters.dataInicio.toISOString());
+            if (filters.dataFim) q = q.lte("data_audiencia", filters.dataFim.toISOString());
+            return q;
+          }, audIdsVinculados);
+          if (vincAud.length) {
+            const ids = new Set((audiencias || []).map((a: any) => a.id));
+            audiencias = [...(audiencias || []), ...vincAud.filter((a: any) => !ids.has(a.id))] as any;
+          }
+        }
         if ((audiencias?.length ?? 0) >= halfPage) fonteCheia = true;
 
         if (!audError && audiencias) {
