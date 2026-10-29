@@ -103,6 +103,7 @@ export function ItemChecklist({ tipo, itemId }: { tipo: string; itemId?: string 
           <SelectContent>{modelos.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}</SelectContent>
         </Select>
       )}
+      <a href="/modelos-checklist" target="_blank" rel="noreferrer" className="block text-xs text-primary underline">Gerenciar modelos de checklist</a>
     </div>
   );
 }

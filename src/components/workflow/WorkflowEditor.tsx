@@ -1,3 +1,5 @@
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -214,6 +216,10 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
   const deleteEtapa = useDeleteWorkflowEtapa();
   const { data: respMap = {} } = useWorkflowEtapasResponsaveis(workflowId);
   const { data: atividadesMap = {} } = useWorkflowEtapasAtividades(workflowId);
+  const { data: modelosChecklist = [] } = useQuery({
+    queryKey: ["checklist-modelos"],
+    queryFn: async () => (await (supabase as any).from("checklist_modelos").select("id,nome").eq("ativo", true).order("nome")).data || [],
+  });
   const { coordenacoes } = useCoordenacoesDoUsuario();
   const [coordSelecionada, setCoordSelecionada] = useState<string>("");
   const coordEfetiva = coordSelecionada || workflow?.coordenacao_id || "";
@@ -697,6 +703,24 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                   onCheckedChange={(v) => setForm({ ...form, exibir_kanban: v })}
                 />
                 <Label htmlFor="kanban">Exibir no Kanban</Label>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Modelo de checklist</Label>
+                  <a href="/modelos-checklist" target="_blank" rel="noreferrer" className="text-xs text-primary underline">Gerenciar modelos</a>
+                </div>
+                <Select
+                  value={(form as any).checklist_modelo_id || "nenhum"}
+                  onValueChange={(v) => setForm((prev: any) => ({ ...prev, checklist_modelo_id: v === "nenhum" ? null : v }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Sem checklist" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nenhum">Sem checklist</SelectItem>
+                    {modelosChecklist.map((m: any) => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Os itens do modelo são copiados para o item criado por esta etapa.</p>
               </div>
 
               <div className="space-y-2 rounded-md border p-3">
