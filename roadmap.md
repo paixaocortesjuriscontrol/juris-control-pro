@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Versão v9.7.4
+- [x] Registrar a release: número da versão, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`.
+- [x] Selecionar capítulos dos manuais de módulo por título, para que um novo capítulo não desloque o conteúdo dos demais.
+- [ ] Publicar e conferir nas contas de Janaina, Altina e Ana Caroline — Supabase externo sem sessão autenticada neste ambiente.
+
 ## Cartões Análise DJEN — publicações distribuídas
 - [x] Alinhar as duas versões da contagem à coordenação atual da publicação, preservando autorização e deduplicação.
 - [x] Confirmar quatro publicações na coordenação destino e aprovar teste SQL de escopo, agrupamento e fallback; prévia sem erros.
