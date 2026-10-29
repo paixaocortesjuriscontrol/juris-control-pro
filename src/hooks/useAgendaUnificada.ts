@@ -356,7 +356,9 @@ export async function fetchAgendaPage(
 
         if (eventosError) throw eventosError;
         fonteCheia ||= fonteAgendaCheia(eventos, halfPage);
+        return eventos;
         })();
+
         }
 
         if (eventos && eventos.length > 0) {

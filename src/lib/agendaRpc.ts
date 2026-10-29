@@ -45,10 +45,15 @@ export async function lerFonteAgendaPorTipo(
     p_limit: limit,
   };
 
+  if (modo.modo === "legado") {
+    throw new Error(`A busca por tipo não se aplica a esta combinação de filtros (${fonte}).`);
+  }
+
   const { data, error } =
     modo.modo === "escritorio"
       ? await supabase.rpc("get_agenda_escritorio", { p_coordenacoes: modo.coordenacoes, ...parametros })
       : await supabase.rpc("get_agenda_pessoal", { p_usuario: modo.usuario, ...parametros });
+
 
   if (error) {
     throw new Error(`Falha ao carregar ${fonte}: ${error.message}`);
