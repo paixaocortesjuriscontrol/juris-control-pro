@@ -1,8 +1,9 @@
 # Roadmap — Considerações 02/09
 
 ## Análise DJEN — filtro de tribunal Kurier
-- [ ] Alinhar nomes de tribunais Kurier à sigla selecionada na lista e nos totais, sem confundir regiões nem alterar publicações/permissões.
-- [ ] Validar TRT3 com publicações reais e testes; conferência autenticada indisponível no Supabase externo.
+- [x] Alinhar nomes regionais Kurier nas quatro RPCs de lista/totais, filtros locais e contagem direta; atualizar chave de cache dos totais. Publicações e permissões preservadas.
+- [x] Validar TRT3: seis publicações Kurier/GOL capturadas em 29/10/2026, três testes locais aprovados e teste SQL de quatro RPCs/regiões aprovado; prévia sem erros.
+- [ ] Conferir filtro na tela autenticada — Supabase externo sem sessão disponível neste ambiente.
 
 ## Ficha do processo — tarefas repetidas e baixa (Janaina)
 - [x] Confirmar um único registro da tarefa recorrente e baixa de 25/10/2026 já gravada; remover expansão duplicada na consulta da ficha, proteger agrupamento por registro-pai e invalidar situações por ocorrência/lista lateral. 25 testes aprovados e prévia sem erros; nenhum registro ou permissão alterado.

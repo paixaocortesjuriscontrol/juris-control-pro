@@ -1,5 +1,7 @@
 # Regras de arquitetura
 
+- DJEN tribunal filters share regional token matching (TRT/TRF plus optional spaces/hyphen before the full region number) in list/stat RPCs and client filtering; direct Kurier counts use exact aliases, preserving region boundaries and original publication values.
+
 - Process-detail task queries return original records; only the detail list expands recurring series, and shared item invalidation refreshes occurrence-status and process-side-list queries so saved occurrences display immediately without duplicate expansion.
 
 - DJEN statistics use publication coordination before monitoring coordination for filters, membership scope and grouping, matching the listing after distribution; content-key fallback stays shared with the listing to preserve deduplication identity.

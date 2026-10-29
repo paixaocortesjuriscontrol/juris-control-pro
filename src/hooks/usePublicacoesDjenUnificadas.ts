@@ -445,6 +445,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
         tipoOrigem: filtros.tipoOrigem ?? null,
         termoBusca: filtros.termoBusca ?? null,
         monitoramentoId: filtros.monitoramentoId ?? null,
+        tribunal: filtros.tribunal ?? null,
         readStatus,
       },
     ],
