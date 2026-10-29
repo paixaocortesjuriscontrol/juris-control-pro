@@ -531,6 +531,14 @@ export async function fetchAgendaPage(
         async () => {
       // ========= BUSCAR TAREFAS =========
       if (incluirTarefas && incluirTarefasPorTipo) {
+        let tarefaIdsPorResponsavel: string[] = [];
+        let tarefas: any[] | null = null;
+        if (usandoRpc) {
+          const leitura = await lerFonteAgendaPorTipo(modoBusca, "tarefas", filtrosRpc, from, halfPage);
+          tarefas = leitura.linhas;
+          fonteCheia ||= leitura.temMais;
+        } else {
+        tarefas = await (async () => {
         let queryTarefas = buildTarefasQuery(true);
         if (filters.processoIds?.length) queryTarefas = queryTarefas.in("processo_id", filters.processoIds);
 
@@ -539,8 +547,8 @@ export async function fetchAgendaPage(
         // apareciam para o responsável "principal" (tarefas.responsavel_id).
         const targetTaskUserIds =
           filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
-        let tarefaIdsPorResponsavel: string[] = [];
         if (page === 0 && !filters.fetchAll && coordScopeIds.length === 0) {
+
           // IMPORTANTE: restringir ao período exibido. Sem isso a lista de ids
           // podia chegar a milhares e a URL do filtro `or(...)` estourava o
           // limite do servidor, fazendo a consulta falhar e "sumir tudo".
@@ -803,8 +811,12 @@ export async function fetchAgendaPage(
             }
           }
         }
+        return tarefas;
+        })();
+        }
 
-        if (!tarefasError && tarefas) {
+        if (tarefas) {
+
           const incluirTipoTarefa = !filters.tipos || filters.tipos.length === 0 || filters.tipos.some((t) => taskTypeFilters.includes(t));
 
           if (incluirTipoTarefa) {
@@ -851,8 +863,18 @@ export async function fetchAgendaPage(
             // Buscar todos os responsáveis (multi-responsáveis) das tarefas exibidas
             const respMap: Record<string, string[]> = {};
             const envMap: Record<string, string[]> = {};
+            const criadoresMap: Record<string, { id: string; nome: string }> = {};
             const tarefaIdsExibidas = tarefasFiltradas.map((t: any) => t.id as string);
-            if (tarefaIdsExibidas.length > 0) {
+            if (usandoRpc) {
+              // As linhas já chegam do banco com responsáveis, envolvidos e criador.
+              for (const t of tarefasFiltradas as any[]) {
+                respMap[t.id] = Array.isArray(t.responsaveis) ? t.responsaveis : [];
+                envMap[t.id] = Array.isArray(t.envolvidos) ? t.envolvidos : [];
+                if (t.criador?.id) criadoresMap[t.criador.id] = t.criador;
+              }
+            }
+            if (!usandoRpc && tarefaIdsExibidas.length > 0) {
+
               // Em lotes: listas grandes de ids estouram o tamanho da URL e a consulta falha.
               const chunks: string[][] = [];
               for (let i = 0; i < tarefaIdsExibidas.length; i += 150) chunks.push(tarefaIdsExibidas.slice(i, i + 150));
@@ -873,14 +895,14 @@ export async function fetchAgendaPage(
                 (envMap[r.tarefa_id] ||= []).push(r.usuario_id);
               });
             }
-            let criadoresMap: Record<string, { id: string; nome: string }> = {};
-            if (criadorIds.length > 0) {
+            if (!usandoRpc && criadorIds.length > 0) {
+
               const { data: criadores } = await supabase
                 .from("profiles")
                 .select("id,nome")
                 .in("id", criadorIds);
               if (criadores) {
-                criadoresMap = Object.fromEntries(criadores.map(c => [c.id, c]));
+                Object.assign(criadoresMap, Object.fromEntries(criadores.map((c: any) => [c.id, c])));
               }
             }
 
