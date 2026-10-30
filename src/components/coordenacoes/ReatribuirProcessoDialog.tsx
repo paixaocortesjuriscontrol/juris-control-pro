@@ -72,23 +72,29 @@ export function ReatribuirProcessoDialog({
   const { data: processosAtribuidos } = useQuery({
     queryKey: ["processos-atribuidos", coordenacaoId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select(`
-          id, 
-          numero, 
-          polo_ativo,
-          area,
-          advogado_responsavel_id,
-          cliente_id,
-          advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
+      const todos: any[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select(`
+            id, 
+            numero, 
+            polo_ativo,
+            area,
+            advogado_responsavel_id,
+            cliente_id,
+            advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+            cliente:clientes(id, nome)
+          `)
+          .eq("coordenacao_id", coordenacaoId)
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(de, de + 999);
+        if (error) throw error;
+        todos.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      return todos;
     },
     enabled: open,
   });
