@@ -222,22 +222,26 @@ export function AtribuirProcessoDialog({
     }
   }
 
+  const selecionados = form.watch("processos");
+  const selecionadosSet = useMemo(() => new Set(selecionados), [selecionados]);
+
   const handleSelectAll = () => {
     const allIds = processosFiltrados.map((p) => p.id);
     const currentSelected = form.getValues("processos");
-    const allSelected = allIds.every((id) => currentSelected.includes(id));
+    const atual = new Set(currentSelected);
+    const allSelected = allIds.every((id) => atual.has(id));
 
     if (allSelected) {
-      form.setValue("processos", currentSelected.filter((id) => !allIds.includes(id)));
+      const remover = new Set(allIds);
+      form.setValue("processos", currentSelected.filter((id) => !remover.has(id)), { shouldValidate: true });
     } else {
-      const newSelection = [...new Set([...currentSelected, ...allIds])];
-      form.setValue("processos", newSelection);
+      form.setValue("processos", [...new Set([...currentSelected, ...allIds])], { shouldValidate: true });
     }
   };
 
   const allFilteredSelected =
     processosFiltrados.length > 0 &&
-    processosFiltrados.every((p) => form.watch("processos").includes(p.id));
+    processosFiltrados.every((p) => selecionadosSet.has(p.id));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -361,43 +365,40 @@ export function AtribuirProcessoDialog({
                   {processosFiltrados.length > 0 ? (
                     <ScrollArea className="h-[250px] border rounded-md p-3">
                       <div className="space-y-3">
-                        {processosFiltrados.map((processo) => (
-                          <FormField
-                            key={processo.id}
-                            control={form.control}
-                            name="processos"
-                            render={({ field }) => (
-                              <FormItem className="flex items-start space-x-3 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(processo.id)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, processo.id])
-                                        : field.onChange(
-                                            field.value?.filter((v) => v !== processo.id)
-                                          );
-                                    }}
-                                  />
-                                </FormControl>
-                                <div className="space-y-1 leading-none flex-1 min-w-0">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-mono">{processo.numero}</p>
-                                    <Badge variant="outline" className="text-xs">
-                                      {areaLabels[processo.area] || processo.area}
-                                    </Badge>
-                                  </div>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {processo.cliente?.nome || processo.polo_ativo || processo.assunto || "Sem descrição"}
-                                  </p>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    Responsável: {(processo as any).responsavel?.nome || "Sem responsável"}
-                                  </p>
-                                </div>
-                              </FormItem>
-                            )}
-                          />
+                        {processosFiltrados.slice(0, LIMITE_VISIVEL).map((processo) => (
+                          <label key={processo.id} className="flex items-start space-x-3 cursor-pointer">
+                            <Checkbox
+                              checked={selecionadosSet.has(processo.id)}
+                              onCheckedChange={(checked) => {
+                                const atual = form.getValues("processos");
+                                form.setValue(
+                                  "processos",
+                                  checked ? [...atual, processo.id] : atual.filter((v) => v !== processo.id),
+                                  { shouldValidate: true },
+                                );
+                              }}
+                            />
+                            <div className="space-y-1 leading-none flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-mono">{processo.numero}</p>
+                                <Badge variant="outline" className="text-xs">
+                                  {areaLabels[processo.area] || processo.area}
+                                </Badge>
+                              </div>
+                              <p className="text-xs text-muted-foreground truncate">
+                                {processo.cliente?.nome || processo.polo_ativo || processo.assunto || "Sem descrição"}
+                              </p>
+                              <p className="text-xs text-muted-foreground truncate">
+                                Responsável: {(processo as any).responsavel?.nome || "Sem responsável"}
+                              </p>
+                            </div>
+                          </label>
                         ))}
+                        {processosFiltrados.length > LIMITE_VISIVEL && (
+                          <p className="text-xs text-muted-foreground text-center pt-2">
+                            Mostrando {LIMITE_VISIVEL} de {processosFiltrados.length}. Use a busca ou os filtros para achar os demais — "Selecionar todos" inclui todos os {processosFiltrados.length}.
+                          </p>
+                        )}
                       </div>
                     </ScrollArea>
                   ) : processosNaoAtribuidos && processosNaoAtribuidos.length > 0 ? (
