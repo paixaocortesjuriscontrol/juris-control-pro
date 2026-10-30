@@ -681,7 +681,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             await Promise.all(corrigir.slice(k, k + 10).map((l) => (supabase as any).from("tarefas")
               .update({ titulo: String(l.titulo).slice(0, 500), ...(l.descricao ? { descricao: l.descricao } : {}) })
               .eq("coordenacao_id", coordId).eq("origem", "projuris").eq("identificador_projuris", String(l.chave))));
-            if (k % 500 === 0) setMsg(`Corrigindo títulos das tarefas já migradas: ${k} de ${corrigir.length}`);
+            setProg({ feito: Math.min(k + 10, corrigir.length), total: corrigir.length });
           }
         }
         const procId = new Map<string, string>();
