@@ -651,7 +651,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         // Tarefas já migradas antes: grava o tipo original nelas também
         {
           const porModelo = new Map<string, string[]>();
-          for (const l of tarefasRowsRef.current) { const m = modeloDe(l); if (m) { if (!porModelo.has(m)) porModelo.set(m, []); porModelo.get(m)!.push(String(l.chave)); } }
+          for (const l of linhas as any[]) { const m = modeloDe(l); if (m) { if (!porModelo.has(m)) porModelo.set(m, []); porModelo.get(m)!.push(String(l.chave)); } }
           for (const [mid, chaves] of porModelo) for (let k = 0; k < chaves.length; k += 100) {
             await (supabase as any).from("tarefas").update({ modelo_tarefa_id: mid }).eq("coordenacao_id", coordId).eq("origem", "projuris").is("modelo_tarefa_id", null).in("identificador_projuris", chaves.slice(k, k + 100));
           }
