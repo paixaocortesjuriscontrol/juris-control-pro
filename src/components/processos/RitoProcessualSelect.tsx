@@ -67,7 +67,7 @@ export function RitoProcessualSelect({ value, onChange, className }: {
     }}>
       <SelectTrigger className={className}><SelectValue placeholder="Selecione" /></SelectTrigger>
       <SelectContent>
-        <SelectItem value="__vazio">—</SelectItem>
+        <SelectItem value="__vazio">Selecione</SelectItem>
         {value && !ritos.includes(value) && <SelectItem value={value}>{value}</SelectItem>}
         {ritos.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
         <SelectItem value="__novo">+ Adicionar novo rito</SelectItem>
