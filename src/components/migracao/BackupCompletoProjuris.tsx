@@ -658,6 +658,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             await (supabase as any).from("tarefas").update({ modelo_tarefa_id: mid }).eq("coordenacao_id", coordId).eq("origem", "projuris").is("modelo_tarefa_id", null).in("identificador_projuris", chaves.slice(k, k + 100));
           }
         }
+        // Tarefas já migradas antes: título passa a ser o tipo de tarefa e o texto vai para a descrição
+        {
+          const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
+          for (let k = 0; k < corrigir.length; k += 10) {
+            if (cancelado.current) break;
+            await Promise.all(corrigir.slice(k, k + 10).map((l) => (supabase as any).from("tarefas")
+              .update({ titulo: String(l.titulo).slice(0, 500), ...(l.descricao ? { descricao: l.descricao } : {}) })
+              .eq("coordenacao_id", coordId).eq("origem", "projuris").eq("identificador_projuris", String(l.chave))));
+            if (k % 500 === 0) setMsg(`Corrigindo títulos das tarefas já migradas: ${k} de ${corrigir.length}`);
+          }
+        }
         const procId = new Map<string, string>();
         const dgs = Array.from(new Set(ok.map((l) => l.procDig).filter(Boolean))) as string[];
         for (let k = 0; k < dgs.length; k += 100) {
