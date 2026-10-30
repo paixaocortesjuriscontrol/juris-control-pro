@@ -760,6 +760,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   };
   const Secao = ({ titulo, desc, ls, mod, tipo }: { titulo: string; desc: string; ls: LinhaConf[]; mod: "processos" | "tarefas" | "andamentos"; tipo: string }) => {
     const ok = ls.filter((l) => !l.motivo).length;
+    const corrigiveis = mod === "tarefas" ? ls.filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)").length : 0;
     return (
       <div className="space-y-2 rounded-md border p-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -795,9 +796,9 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           );
         })()}
         <div className="flex items-center gap-2">
-          <Button size="sm" disabled={!!rodando || !ok || !conf} onClick={() => void importar(mod)}>
+          <Button size="sm" disabled={!!rodando || (!ok && !corrigiveis) || !conf} onClick={() => void importar(mod)}>
             {rodando === mod ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            Importar {ok.toLocaleString("pt-BR")} {tipo}
+            {ok ? `Importar ${ok.toLocaleString("pt-BR")} ${tipo}` : `Corrigir títulos de ${corrigiveis.toLocaleString("pt-BR")} ${tipo} já migradas`}
           </Button>
           {rodando === mod && (
             <>
