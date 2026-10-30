@@ -2,7 +2,7 @@ import { BookOpen } from "lucide-react";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, ArrowLeft, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { CoordenacaoDialog } from "@/components/coordenacoes/CoordenacaoDialog";
@@ -255,6 +254,7 @@ const Coordenacoes = () => {
       title="Coordenações" 
       subtitle="Gestão de equipes e distribuição de processos"
     >
+      {!selectedCoord && (
       <section className="space-y-5">
         <div className="flex flex-col gap-3 border-b border-border pb-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -312,7 +312,7 @@ const Coordenacoes = () => {
                   areaColors[coord.area as keyof typeof areaColors]
                 )}
                 style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
-                onClick={() => setSelectedCoord(coord)}
+                onClick={() => { setSelectedCoord(coord); window.scrollTo(0, 0); }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
@@ -346,15 +346,13 @@ const Coordenacoes = () => {
           </div>
         )}
       </section>
+      )}
 
-      <Sheet open={!!selectedCoord} onOpenChange={(open) => { if (!open) setSelectedCoord(null); }}>
-        <SheetContent side="right" className="w-full overflow-y-auto p-0 sm:max-w-[min(920px,calc(100vw-3rem))]">
           {selectedCoord && (
-            <div className="space-y-5 p-5 pr-6 sm:p-7 sm:pr-8">
-              <SheetHeader className="pr-8">
-                <SheetTitle className="sr-only">{selectedCoord.nome}</SheetTitle>
-                <SheetDescription className="sr-only">Dados e gestão da equipe selecionada</SheetDescription>
-              </SheetHeader>
+            <div className="space-y-8">
+              <Button variant="ghost" size="sm" className="-ml-2" onClick={() => setSelectedCoord(null)}>
+                <ArrowLeft className="w-4 h-4 mr-1.5" />Voltar para coordenações
+              </Button>
             {/* Coordinator Info */}
             <Card className="animate-fade-in">
               <CardHeader>
@@ -417,130 +415,90 @@ const Coordenacoes = () => {
             </Card>
 
             {/* Team Members */}
+            {(() => {
+              const semMembros = selectedCoord.membros.length === 0;
+              type Ferr = { label: string; icon: any; desc: string; onClick?: () => void; to?: string; precisaMembros?: boolean; show?: boolean };
+              const grupos: { titulo: string; descricao: string; itens: Ferr[] }[] = [
+                {
+                  titulo: "Distribuição de processos",
+                  descricao: "Atribuição e redistribuição dos processos entre os membros da equipe.",
+                  itens: [
+                    { label: "Atribuir", icon: Briefcase, desc: "Atribui processos a um membro da equipe.", onClick: () => setAtribuirDialog(true), precisaMembros: true },
+                    { label: "Reatribuir", icon: RefreshCw, desc: "Move processos de um membro para outro.", onClick: () => setReatribuirDialog(true), precisaMembros: true },
+                    { label: "Importar Processos", icon: Upload, desc: "Importa processos para esta coordenação.", onClick: () => setImportDialog(true), show: selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID },
+                    { label: "Envio em lote de processos", icon: Upload, desc: "Cadastra vários processos a partir da planilha modelo.", onClick: () => setLoteDialog(true), show: coordenacaoPermiteLote(selectedCoord.nome) },
+                  ],
+                },
+                {
+                  titulo: "Tarefas e agenda",
+                  descricao: "Delegação de atividades, pautas e modelos.",
+                  itens: [
+                    { label: "Delegar Tarefa", icon: ClipboardList, desc: "Cria e delega uma tarefa a um membro.", onClick: () => setDelegarTarefaDialog(true), precisaMembros: true },
+                    { label: "Tarefa em Lote", icon: ListChecks, desc: "Cria a mesma tarefa para vários processos.", onClick: () => setDelegarTarefaLoteDialog(true), precisaMembros: true },
+                    { label: "Pautas Excel", icon: FileSpreadsheet, desc: "Importa pautas a partir de planilha Excel.", onClick: () => setPautasExcelDialog(true) },
+                    { label: "Responsáveis Fixos", icon: Users, desc: "Define quem entra automaticamente em cada tipo de tarefa.", onClick: () => setRespFixosDialog(true) },
+                    { label: "Modelos de tarefas", icon: FileType, desc: "Tipos e modelos de tarefa da coordenação.", to: "/modelos-tarefa" },
+                    { label: "Assuntos", icon: BookOpen, desc: "Lista de assuntos (objeto da ação) da coordenação.", onClick: () => setAssuntosDialog(true) },
+                  ],
+                },
+                {
+                  titulo: "Permissões e configurações",
+                  descricao: "Regras de quem pode alterar o quê nesta coordenação.",
+                  itens: [
+                    { label: "Permissões de Situação", icon: ShieldCheck, desc: "Quem pode alterar cada situação.", onClick: () => setPermSituacaoDialog(true) },
+                    { label: "Quem Pode Reagendar", icon: RefreshCw, desc: "Define quem pode reagendar itens.", onClick: () => setPermReagendamentoDialog(true) },
+                    { label: "Alterar Itens de Outros", icon: ShieldCheck, desc: "Quem pode alterar itens de outros membros.", onClick: () => setAltTerceirosDialog(true) },
+                    { label: "Acompanhamento Especial", icon: ShieldCheck, desc: "Configurações do acompanhamento especial.", onClick: () => setConfigAcompDialog(true) },
+                  ],
+                },
+              ];
+              return grupos.map((g) => {
+                const itens = g.itens.filter((i) => i.show !== false);
+                if (!itens.length) return null;
+                return (
+                  <section key={g.titulo} className="space-y-3">
+                    <div className="flex items-baseline justify-between gap-4 border-b border-border/60 pb-2">
+                      <div>
+                        <h2 className="text-lg font-semibold text-foreground">{g.titulo}</h2>
+                        <p className="mt-0.5 text-xs text-muted-foreground">{g.descricao}</p>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted-foreground">{itens.length} {itens.length === 1 ? "ferramenta" : "ferramentas"}</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {itens.map((i) => {
+                        const desabilitado = i.precisaMembros && semMembros;
+                        const conteudo = (
+                          <Card className={cn("h-full border-border transition-all", desabilitado ? "opacity-50" : "hover:-translate-y-0.5 hover:border-accent hover:shadow-md")}>
+                            <CardContent className="flex items-start gap-4 p-5">
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
+                                <i.icon className="h-5 w-5" />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className="font-semibold text-foreground">{i.label}</h3>
+                                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{desabilitado ? "Adicione membros à equipe para usar." : i.desc}</p>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                        return i.to ? (
+                          <Link key={i.label} to={i.to} className="group text-left">{conteudo}</Link>
+                        ) : (
+                          <button key={i.label} type="button" disabled={desabilitado} onClick={i.onClick} className="group text-left disabled:cursor-not-allowed">{conteudo}</button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              });
+            })()}
+
             <Card className="animate-slide-up" style={{ animationDelay: "100ms" }}>
               <CardHeader>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                   <CardTitle className="font-serif text-lg">Membros da Equipe</CardTitle>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedCoord.membros.length > 0 && (
-                      <>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setAtribuirDialog(true)}
-                        >
-                          <Briefcase className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Atribuir</span>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setReatribuirDialog(true)}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Reatribuir</span>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDelegarTarefaDialog(true)}
-                        >
-                          <ClipboardList className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Delegar Tarefa</span>
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          onClick={() => setDelegarTarefaLoteDialog(true)}
-                        >
-                          <ListChecks className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Tarefa em Lote</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPautasExcelDialog(true)}
-                        >
-                          <FileSpreadsheet className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Pautas Excel</span>
-                        </Button>
-                        {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => setImportDialog(true)}
-                          >
-                            <Upload className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Importar Processos</span>
-                          </Button>
-                        )}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setRespFixosDialog(true)}
-                        >
-                          <Users className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Responsáveis Fixos</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPermSituacaoDialog(true)}
-                        >
-                          <ShieldCheck className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Permissões de Situação</span>
-                        </Button>
-                        {coordenacaoPermiteLote(selectedCoord.nome) && (
-                          <Button size="sm" variant="outline" onClick={() => setLoteDialog(true)}>
-                            <Upload className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Envio em lote de processos</span>
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" onClick={() => setAssuntosDialog(true)}>
-                          <BookOpen className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Assuntos</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setPermReagendamentoDialog(true)}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Quem Pode Reagendar</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setAltTerceirosDialog(true)}
-                        >
-                          <ShieldCheck className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Alterar Itens de Outros</span>
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setConfigAcompDialog(true)}
-                        >
-                          <ShieldCheck className="w-4 h-4 mr-1" />
-                          <span className="hidden sm:inline">Acompanhamento Especial</span>
-                        </Button>
-                        <Button size="sm" variant="outline" asChild>
-                          <Link to="/modelos-tarefa">
-                            <FileType className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Modelos de tarefas</span>
-                          </Link>
-                        </Button>
-                      </>
-                    )}
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setMembroDialog(true)}
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      <span className="hidden sm:inline">Adicionar</span>
-                    </Button>
-                  </div>
+                  <Button size="sm" variant="outline" onClick={() => setMembroDialog(true)}>
+                    <Plus className="w-4 h-4 mr-1" />Adicionar membro
+                  </Button>
                 </div>
               </CardHeader>
               <CardContent>
@@ -715,8 +673,6 @@ const Coordenacoes = () => {
             </Card>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
 
       {/* Dialogs */}
       <CoordenacaoDialog 
