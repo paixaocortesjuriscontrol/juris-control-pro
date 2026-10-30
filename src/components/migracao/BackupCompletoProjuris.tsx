@@ -605,10 +605,21 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     const cont: Record<string, number> = { criados: 0, pulados: puladas.length, erros: 0 };
     const contadores: Record<string, number> = { ...cont };
     try {
-      await log(puladas.map((l) => ({
-        tipo: tipoItem, chave_externa: l.chave || null, status: "pulado", motivo: l.motivo,
-        dados: { titulo: (l.titulo || l.texto || "").slice(0, 200), data: l.data || null },
-      })));
+      // Registro dos pulados (sem os já migrados, que já estão no histórico) com progresso visível
+      {
+        const reg = puladas.filter((l) => l.motivo !== "Já migrada antes");
+        setMsg("Registrando itens pulados no histórico...");
+        for (let k = 0; k < reg.length; k += 2000) {
+          if (cancelado.current) break;
+          const bloco = reg.slice(k, k + 2000);
+          await Promise.all([0, 500, 1000, 1500].map((o) => log(bloco.slice(o, o + 500).map((l) => ({
+            tipo: tipoItem, chave_externa: l.chave || null, status: "pulado", motivo: l.motivo,
+            dados: { titulo: (l.titulo || l.texto || "").slice(0, 200), data: l.data || null },
+          })))));
+          setProg({ feito: Math.min(k + 2000, reg.length), total: reg.length });
+        }
+        setMsg("");
+      }
       setProg({ feito: 0, total: ok.length });
       if (mod === "processos") {
         const existentes = ok.filter((l) => l.dig && conf.processos.find((x) => x.chave === l.chave));
@@ -665,24 +676,25 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           for (const m of mods || []) { const cd = m.padroes?.projuris_cd; if (cd) modeloPorCd.set(String(cd), m.id); }
         }
         const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(l.cdTipo)) || null;
-        // Tarefas já migradas antes: grava o tipo original nelas também
-        {
-          const porModelo = new Map<string, string[]>();
-          for (const l of linhas as any[]) { const m = modeloDe(l); if (m) { if (!porModelo.has(m)) porModelo.set(m, []); porModelo.get(m)!.push(String(l.chave)); } }
-          for (const [mid, chaves] of porModelo) for (let k = 0; k < chaves.length; k += 100) {
-            await (supabase as any).from("tarefas").update({ modelo_tarefa_id: mid }).eq("coordenacao_id", coordId).eq("origem", "projuris").is("modelo_tarefa_id", null).in("identificador_projuris", chaves.slice(k, k + 100));
-          }
-        }
-        // Tarefas já migradas antes: título passa a ser o tipo de tarefa e o texto vai para a descrição
+        // Tarefas já migradas antes: título = tipo de tarefa, texto antigo na descrição e modelo original — em lote no banco
         {
           const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
-          for (let k = 0; k < corrigir.length; k += 10) {
-            if (cancelado.current) break;
-            await Promise.all(corrigir.slice(k, k + 10).map((l) => (supabase as any).from("tarefas")
-              .update({ titulo: String(l.titulo).slice(0, 500), ...(l.descricao ? { descricao: l.descricao } : {}) })
-              .eq("coordenacao_id", coordId).eq("origem", "projuris").eq("identificador_projuris", String(l.chave))));
-            setProg({ feito: Math.min(k + 10, corrigir.length), total: corrigir.length });
+          setMsg("Corrigindo títulos das tarefas já migradas...");
+          let corrigidas = 0;
+          for (let k = 0; k < corrigir.length; k += 1000) {
+            await esperar(); if (cancelado.current) break;
+            const bloco = corrigir.slice(k, k + 1000);
+            const partes = [bloco.slice(0, 500), bloco.slice(500)].filter((x) => x.length);
+            const res = await Promise.all(partes.map((pt) => (supabase as any).rpc("corrigir_titulos_tarefas_projuris", {
+              _coordenacao_id: coordId,
+              _itens: pt.map((l: any) => ({ chave: String(l.chave), titulo: String(l.titulo), descricao: l.descricao || null, modelo_id: modeloDe(l) })),
+            })));
+            const falha = res.find((r: any) => r.error); if (falha) throw falha.error;
+            corrigidas += res.reduce((s2: number, r: any) => s2 + (Number(r.data) || 0), 0);
+            setProg({ feito: Math.min(k + 1000, corrigir.length), total: corrigir.length });
           }
+          cont.vinculados = corrigidas;
+          setMsg("");
         }
         const procId = new Map<string, string>();
         const dgs = Array.from(new Set(ok.map((l) => l.procDig).filter(Boolean))) as string[];

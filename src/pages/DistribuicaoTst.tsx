@@ -2495,7 +2495,7 @@ export default function DistribuicaoTst() {
                     </DropdownMenuItem>
                   </>
                 )}
-                <DropdownMenuItem onSelect={() => window.open("/manuais/Manual_Distribuicao_TST_v9.8.0.pdf", "_blank", "noopener,noreferrer")}>
+                <DropdownMenuItem onSelect={() => window.open("/manuais/Manual_Distribuicao_TST_v9.8.1.pdf", "_blank", "noopener,noreferrer")}>
                   <FileText className="w-4 h-4 mr-2" /> Manual de Instruções
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
