@@ -186,6 +186,7 @@ export function NovaTarefaDialog({
   const secondaryClickedRef = useRef(false);
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
   const modeloPadroesRef = useRef<Record<string, string> | null>(null);
+  const checklistModeloRef = useRef<string | null>(null);
   const tertiaryClickedRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
@@ -791,6 +792,17 @@ export function NovaTarefaDialog({
 
       if (error) throw error;
 
+      // Modelo de tarefa com checklist: copia os itens para a nova tarefa
+      if (novaTarefa?.id && checklistModeloRef.current) {
+        try {
+          const { aplicarModeloChecklist } = await import("@/components/comum/ItemChecklist");
+          const uid = userData?.id || (await supabase.auth.getUser()).data.user?.id;
+          if (uid) await aplicarModeloChecklist(checklistModeloRef.current, "tarefa", novaTarefa.id, uid);
+        } catch (e) {
+          console.error("Falha ao aplicar checklist do modelo", e);
+        }
+      }
+
       // Item aberto a partir de uma publicação: sempre grava o vínculo
       if (novaTarefa?.id && publicacao?.id) {
         try {
@@ -1152,6 +1164,7 @@ export function NovaTarefaDialog({
                             ...p,
                             ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
                           };
+                          checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
 
                         }}
                         />
