@@ -13,6 +13,8 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useEffect } from "react";
 import { PadroesModeloEditor } from "@/components/modelos/PadroesModeloEditor";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 const TIPOS: { value: TipoModelo; label: string }[] = [
   { value: "tarefa", label: "Tarefa" }, { value: "prazo", label: "Prazo" },
@@ -37,6 +39,10 @@ export default function ModelosTitulo() {
   });
   const salvar = useSaveModeloTitulo();
   const remover = useDeleteModeloTitulo();
+  const { data: checklists = [] } = useQuery({
+    queryKey: ["checklist-modelos-ativos"],
+    queryFn: async () => ((await (supabase as any).from("checklist_modelos").select("id,nome").eq("ativo", true).order("nome")).data || []),
+  });
 
   const modelosPorTipo = useMemo(() => {
     const map = new Map<TipoModelo, ModeloTitulo[]>();
@@ -127,6 +133,29 @@ export default function ModelosTitulo() {
                 <label className="text-xs text-muted-foreground">Descrição template</label>
                 <Textarea rows={3} value={editando.descricao ?? ""} onChange={(e) => setEditando((s) => ({ ...s!, descricao: e.target.value }))} />
               </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Modelo de checklist</label>
+                <Select
+                  value={((editando.padroes as any)?.checklist_modelo_id as string) || "__none__"}
+                  onValueChange={(v) => setEditando((s) => {
+                    const p = { ...((s!.padroes ?? {}) as Record<string, any>) };
+                    if (v === "__none__") delete p.checklist_modelo_id; else p.checklist_modelo_id = v;
+                    return { ...s!, padroes: p };
+                  })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    {checklists.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground">Cor</label>
+                <Input type="color" className="h-10 w-20 p-1"
+                  value={((editando.padroes as any)?.cor as string) || "#64748b"}
+                  onChange={(e) => setEditando((s) => ({ ...s!, padroes: { ...((s!.padroes ?? {}) as any), cor: e.target.value } }))} />
+              </div>
               <div className="md:col-span-2">
                 <PadroesModeloEditor
                   tipo={(editando.tipo ?? "tarefa") as TipoModelo}
@@ -153,9 +182,13 @@ export default function ModelosTitulo() {
               </CardHeader>
               <CardContent className="grid gap-2">
                 {list.map((m) => (
-                  <div key={m.id} className="flex items-start justify-between border rounded p-2 gap-2">
+                  <div key={m.id} className="flex items-start justify-between border rounded p-2 gap-2"
+                    style={(m.padroes as any)?.cor ? { borderLeft: `4px solid ${(m.padroes as any).cor}` } : undefined}>
                     <div className="min-w-0">
-                      <div className="font-medium text-sm truncate">{m.nome}</div>
+                      <div className="font-medium text-sm truncate">
+                        {m.nome}
+                        {(m.padroes as any)?.checklist_modelo_id && <Badge variant="outline" className="ml-2 text-[10px]">Checklist</Badge>}
+                      </div>
                       <div className="text-xs text-muted-foreground truncate">{m.titulo}</div>
                       {m.descricao && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.descricao}</div>}
                     </div>
