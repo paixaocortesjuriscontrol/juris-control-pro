@@ -1,4 +1,5 @@
 import { BookOpen } from "lucide-react";
+import { RemoverMembroDialog } from "@/components/coordenacoes/RemoverMembroDialog";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 import { useState, useEffect } from "react";
@@ -825,22 +826,14 @@ const Coordenacoes = () => {
       />
 
       {/* Confirm Remove Member Dialog */}
-      <AlertDialog open={!!removeMembroId} onOpenChange={() => setRemoveMembroId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remover membro da equipe?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação irá remover o membro desta coordenação. Os processos atribuídos a ele permanecerão sob sua responsabilidade.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveMembro} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Remover
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {selectedCoord && (
+        <RemoverMembroDialog
+          membro={removeMembroId ? (selectedCoord.membros || []).find((m: any) => m.id === removeMembroId) || null : null}
+          coordenacaoId={selectedCoord.id}
+          membros={selectedCoord.membros || []}
+          onClose={() => setRemoveMembroId(null)}
+        />
+      )}
 
       {/* Confirm Delete Coordination Dialog */}
       <AlertDialog open={!!deleteCoordId} onOpenChange={() => setDeleteCoordId(null)}>
