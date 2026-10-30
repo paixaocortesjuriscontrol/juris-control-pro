@@ -473,7 +473,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const data = prevista || limite || base;
           if (!motivo && !data) motivo = "Sem data de vencimento";
           if (!motivo && migradas.has(chave)) motivo = "Já migrada antes";
-          if (!motivo && (existentes.has(`${norm(det)}|${data}`) || (!migradas.has(chave) && false))) motivo = "Já cadastrada nesta coordenação (mesmo título e data)";
+          if (!motivo && (existentes.has(`${norm(det)}|${data}`) || existentes.has(`${norm(tt.titulo)}|${data}`))) motivo = "Já cadastrada nesta coordenação (mesmo título e data)";
           if (!motivo && vistosTe.has(chave)) motivo = "Repetida no backup";
           vistosTe.add(chave);
           const concluido = norm(guTe.g(r, "flconcluido")) === "s" || !!paraData(guTe.g(r, "dtconclusao"));
