@@ -55,6 +55,8 @@ const areaLabels: Record<string, string> = {
   administrativo: "Administrativo",
 };
 
+const LIMITE_VISIVEL = 200;
+
 export function AtribuirProcessoDialog({ 
   open, 
   onOpenChange, 
