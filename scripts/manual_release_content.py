@@ -5,12 +5,9 @@ RELEASE_DATE = "30 de outubro de 2026"
 
 CHAPTERS = [
     ("Novidades da versão 9.8.1", "Rito Processual, assuntos por coordenação, nova página das coordenações e melhorias na migração do Projuris.", [
-        "Ficha do processo: campo Rito Processual (Juizado Especial Cível ou Vara Cível), com opção de adicionar novo rito; lido da planilha de importação e disponível nos filtros avançados.",
-        "Objeto da ação (assunto): pode ser digitado ou escolhido da lista de assuntos da coordenação, mantida no botão Assuntos de cada coordenação.",
-        "Coordenações: cada coordenação abre em página própria com ferramentas em cartões; Santander Cível e Santander Trabalhista têm Envio em lote de processos.",
-        "Atribuir e Reatribuir processos não travam mais em coordenações grandes.",
-        "Migração Projuris: tarefas recebem o tipo de tarefa como título; as já migradas são corrigidas em lote, com barra de progresso.",
-        "Formulário de tarefa: quando não for possível salvar, aparece o motivo.",
+        ("Processos e Casos", ["A ficha do processo tem o campo Rito Processual (Juizado Especial Cível ou Vara Cível), com a opção Adicionar novo rito; o campo é opcional e começa em Selecione.", "A planilha de importação lê a coluna Rito Processual (aceita JEC e VC) e os filtros avançados permitem contar os casos por rito.", "O Objeto da ação (assunto) pode ser digitado ou escolhido da lista de assuntos da coordenação."]),
+        ("Coordenações", ["Cada coordenação abre em página própria, com as ferramentas agrupadas em cartões e o botão Voltar para coordenações.", "O botão Assuntos mantém a lista de assuntos da coordenação; Santander Cível e Santander Trabalhista têm Envio em lote de processos por planilha, com prévia antes de gravar.", "Atribuir e Reatribuir processos não travam mais em coordenações grandes: a lista mostra até 200 processos e a busca encontra os demais."]),
+        ("Migração Projuris e tarefas", ["As tarefas do Projuris recebem o tipo de tarefa como título e o texto original vai para a descrição; as já migradas são corrigidas em lote na etapa Tarefas do Backup completo, com barra de progresso.", "A leitura do zip do backup mostra quantos MB foram lidos e não fica parada quando um arquivo falha.", "No formulário de tarefa, quando não for possível salvar, aparece uma mensagem com o motivo."]),
     ]),
     ("Novidades da versão 9.8.0", "Checklists com modelos próprios, Modelos de tarefas com os tipos do Projuris, cor e tipo no calendário e marcadores do Projuris virando etiquetas.", [
         ("Checklists nas atividades", ["Toda tarefa, prazo, ata, evento, audiência ou parcela tem a aba Checklist, ao lado de Atividades; o nome da aba mostra quantos itens estão marcados, por exemplo 5/21.", "Os modelos de checklist têm tela própria no menu lateral e podem ser aplicados a qualquer item já salvo; a etapa do workflow pode ligar um modelo, cujos itens entram automaticamente na tarefa criada.", "Na tela Migração Projuris, o quadro Checklists do Projuris traz os checklists das tarefas antigas, com as caixinhas marcadas ou não como estavam."]),
