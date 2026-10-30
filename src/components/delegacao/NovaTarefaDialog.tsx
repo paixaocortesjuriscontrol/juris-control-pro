@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { toast as toastSonner } from "sonner";
 import { Loader2, X, Upload, FileText, Trash2, Sparkles, CheckCircle2, Eye, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
@@ -1093,7 +1094,7 @@ export function NovaTarefaDialog({
             </div>
           )}
           <Form {...form}>
-            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toast.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
+            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
               <FormField
                 control={form.control}
                 name="titulo"
