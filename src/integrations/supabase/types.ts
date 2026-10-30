@@ -6108,6 +6108,33 @@ export type Database = {
           },
         ]
       }
+      logs_tentativas_formulario: {
+        Row: {
+          created_at: string
+          detalhes: Json | null
+          etapa: string
+          formulario: string
+          id: string
+          usuario_id: string
+        }
+        Insert: {
+          created_at?: string
+          detalhes?: Json | null
+          etapa: string
+          formulario: string
+          id?: string
+          usuario_id?: string
+        }
+        Update: {
+          created_at?: string
+          detalhes?: Json | null
+          etapa?: string
+          formulario?: string
+          id?: string
+          usuario_id?: string
+        }
+        Relationships: []
+      }
       manutencao_restauracao_kurier: {
         Row: {
           atualizado_em: string
