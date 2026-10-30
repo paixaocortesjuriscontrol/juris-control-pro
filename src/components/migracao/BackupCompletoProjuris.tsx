@@ -80,10 +80,10 @@ const WORKER_SRC = [
   "      total++;",
   "      if (batch.length >= 2000) emit();",
   "    };",
-  "    let pos = 0, inQ = false;",
+  "    let pos = 0, inQ = false, lidos = 0, ultimo = 0;",
   "    while (true) {",
   "      const { done, value } = await reader.read();",
-  "      if (value) pending += dec.decode(value, { stream: true });",
+  "      if (value) { lidos += value.length; pending += dec.decode(value, { stream: true }); if (lidos - ultimo > 8388608) { ultimo = lidos; self.postMessage({ type: 'prog', id, bytes: lidos, linhas: total }); } }",
   "      let start = 0;",
   "      for (; pos < pending.length; pos++) {",
   "        const c = pending.charCodeAt(pos);",
@@ -188,16 +188,31 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const t = tabelasRef.current.get(base)!;
           if (keepDe(base) === null && d.colunas) t.colunas = d.colunas;
           else t.colunas = keepDe(base) || (d.colunas || []);
-          t.arquivos.push(arquivo);
-          w.removeEventListener("message", onMsg);
-          resolve();
+          fim();
+        } else if (d.type === "prog") {
+          setLendo(`${arquivo} — ${(d.bytes / 1048576).toFixed(0)} MB lidos, ${Number(d.linhas).toLocaleString("pt-BR")} linhas`);
         } else if (d.type === "erro") {
           toast.error(`${arquivo}: ${d.msg}`);
-          w.removeEventListener("message", onMsg);
-          resolve();
+          fim();
         }
       };
+      const onErr = () => {
+        toast.error(`${arquivo}: o navegador não conseguiu ler este arquivo (memória insuficiente ou arquivo corrompido). Os demais seguem.`);
+        try { w.terminate(); } catch { /* */ }
+        workerRef.current = null;
+        fim();
+      };
+      const fim = () => {
+        w.removeEventListener("message", onMsg);
+        w.removeEventListener("error", onErr);
+        w.removeEventListener("messageerror", onErr);
+        const t = tabelasRef.current.get(base)!;
+        if (!t.arquivos.includes(arquivo)) t.arquivos.push(arquivo);
+        resolve();
+      };
       w.addEventListener("message", onMsg);
+      w.addEventListener("error", onErr);
+      w.addEventListener("messageerror", onErr);
       w.postMessage({ id, file: blob, keep: TABELAS[base] });
     });
 
