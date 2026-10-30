@@ -10,6 +10,8 @@ import { Plus, Trash2, Save, X } from "lucide-react";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useModelosTitulo, useSaveModeloTitulo, useDeleteModeloTitulo, type TipoModelo, type ModeloTitulo } from "@/hooks/useModelosTitulo";
 import { useUserRole } from "@/hooks/useUserRole";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useEffect } from "react";
 import { PadroesModeloEditor } from "@/components/modelos/PadroesModeloEditor";
 
 const TIPOS: { value: TipoModelo; label: string }[] = [
@@ -20,7 +22,12 @@ const TIPOS: { value: TipoModelo; label: string }[] = [
 export default function ModelosTitulo() {
   const { isAdminOrCoordinator } = useUserRole();
   const { data: coords = [] } = useCoordenacoesFull();
+  const { isAdmin, coordenacoes: minhas } = useCoordenacoesDoUsuario();
   const [coordId, setCoordId] = useState<string>("");
+  useEffect(() => { if (!coordId && !isAdmin && minhas.length) setCoordId(minhas[0].id); }, [coordId, isAdmin, minhas]);
+  const minhasIds = useMemo(() => new Set(minhas.map((c) => c.id)), [minhas]);
+  const podeEditar = (cid?: string | null) => isAdminOrCoordinator && (isAdmin || (!!cid && minhasIds.has(cid)));
+  const coordsEditaveis = isAdmin ? coords : coords.filter((c: any) => minhasIds.has(c.id));
   const [tipo, setTipo] = useState<string>("");
   const [editando, setEditando] = useState<Partial<ModeloTitulo> | null>(null);
 
@@ -38,7 +45,7 @@ export default function ModelosTitulo() {
   }, [modelos]);
 
   function novo() {
-    setEditando({ coordenacao_id: coordId || coords[0]?.id, tipo: (tipo || "tarefa") as TipoModelo, nome: "", titulo: "", descricao: "", prioridade: "media", padroes: {} });
+    setEditando({ coordenacao_id: (coordId && podeEditar(coordId) ? coordId : coordsEditaveis[0]?.id), tipo: (tipo || "tarefa") as TipoModelo, nome: "", titulo: "", descricao: "", prioridade: "media", padroes: {} });
   }
 
   async function submit() {
@@ -54,10 +61,10 @@ export default function ModelosTitulo() {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <h1 className="text-xl font-semibold">Modelos de tarefas</h1>
-            <p className="text-sm text-muted-foreground">Padronize títulos e descrições reutilizáveis no botão Adicionar.</p>
+            <p className="text-sm text-muted-foreground">Cada coordenação cria e altera os seus modelos; os de outras coordenações aparecem só para leitura.</p>
           </div>
           {isAdminOrCoordinator && (
-            <Button onClick={novo} disabled={!coords.length}><Plus className="h-4 w-4 mr-1" /> Novo modelo</Button>
+            <Button onClick={novo} disabled={!coordsEditaveis.length}><Plus className="h-4 w-4 mr-1" /> Novo modelo</Button>
           )}
         </div>
 
@@ -86,7 +93,7 @@ export default function ModelosTitulo() {
                 <label className="text-xs text-muted-foreground">Coordenação</label>
                 <Select value={editando.coordenacao_id ?? ""} onValueChange={(v) => setEditando((e) => ({ ...e!, coordenacao_id: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{coords.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
+                  <SelectContent>{coordsEditaveis.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>
@@ -152,7 +159,7 @@ export default function ModelosTitulo() {
                       <div className="text-xs text-muted-foreground truncate">{m.titulo}</div>
                       {m.descricao && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.descricao}</div>}
                     </div>
-                    {isAdminOrCoordinator && (
+                    {podeEditar(m.coordenacao_id) && (
                       <div className="flex gap-1 flex-shrink-0">
                         <Button size="sm" variant="ghost" onClick={() => setEditando(m)}>Editar</Button>
                         <Button size="sm" variant="ghost" onClick={() => remover.mutate(m.id)}>

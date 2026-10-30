@@ -13,7 +13,7 @@ import { allMenuItems } from "@/config/menuItems";
 
 const TELAS_COMPUTADOR = [
   "/migracao-projuris", "/admin", "/carga-benner", "/planilha-tst", "/dados-benner", "/corrigir-planilha",
-  "/importar", "/configuracoes", "/distribuicao-tst", "/relatorio", "/workflow", "/modelos-titulo",
+  "/importar", "/configuracoes", "/distribuicao-tst", "/relatorio", "/workflow", "/modelos-titulo", "/modelos-tarefa",
 ];
 
 export interface MainLayoutProps {
