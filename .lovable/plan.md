@@ -4,6 +4,7 @@
 Os **Modelos de títulos** já fazem o que o tipo de tarefa do Projuris faz: cada coordenação cria os seus, cada modelo tem nome, título, descrição, prioridade e valores padrão que entram sozinhos ao criar o item, e eles já aparecem na criação de tarefas e nas etapas do workflow. Então não criaremos um cadastro novo: os tipos do Projuris viram Modelos de títulos da Coordenação Santander Cível.
 
 ## O que vamos fazer
+0. **Novo nome: "Modelos de tarefas"** — o nome "Modelos de títulos" passa a ser "Modelos de tarefas" no menu, no título da tela, nos seletores da criação de itens, no editor de etapas do workflow, nas mensagens e nos manuais. O endereço antigo da tela continua abrindo, para não quebrar atalhos salvos.
 1. **Importar os tipos do Projuris como Modelos de títulos** — novo quadro em Migração Projuris: você envia `tarefatipo` e `tarefaprazotipo`, e os 212 tipos ativos entram **só na Coordenação Santander Cível**. As demais coordenações seguem criando os seus na tela de Modelos de títulos, como já fazem.
    - Os 198 tipos "TAREFA" viram modelos de Tarefa; os 14 "COMPROMISSO" viram modelos de Evento.
    - Título do modelo = nome do tipo (ex.: "APRESENTAR CÁLCULOS").
