@@ -187,6 +187,7 @@ export function NovaTarefaDialog({
   /** Padrões aplicados pelo último modelo escolhido (para limpar ao trocar) */
   const modeloPadroesRef = useRef<Record<string, string> | null>(null);
   const checklistModeloRef = useRef<string | null>(null);
+  const modeloIdRef = useRef<string | null>(null);
   const tertiaryClickedRef = useRef(false);
   const submitInFlightRef = useRef(false);
   const [searchProcesso, setSearchProcesso] = useState("");
@@ -766,6 +767,7 @@ export function NovaTarefaDialog({
         responsavel_id: responsavelPrincipal,
         ...(tipoTarefa ? { tipo_tarefa: tipoTarefa } : {}),
         titulo: values.titulo,
+        ...(modeloIdRef.current ? { modelo_tarefa_id: modeloIdRef.current } : {}),
         descricao: values.descricao || null,
         data_base: values.data_base || null,
         data_vencimento: values.data_vencimento,
@@ -1165,6 +1167,7 @@ export function NovaTarefaDialog({
                             ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
                           };
                           checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
+                          modeloIdRef.current = (m as any).id || null;
 
                         }}
                         />
