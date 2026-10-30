@@ -484,7 +484,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const cpVinc = tarefaVincProc.get(String(guTe.g(r, "cdtarefa") || ""));
           const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
-            chave, motivo, ident, procDig,
+            chave, motivo, ident, procDig, cdTipo: String(guTe.g(r, "cdtarefatipo") || "").trim(),
             titulo: det || "(sem título)", tipo: classificarTipo(det, tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || ""),
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
@@ -641,6 +641,21 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
       } else if (mod === "tarefas") {
+        // Tipo original do Projuris → Modelo de tarefa (padroes.projuris_cd) da coordenação
+        const modeloPorCd = new Map<string, string>();
+        {
+          const { data: mods } = await (supabase as any).from("modelos_titulo_coordenacao").select("id,padroes").eq("coordenacao_id", coordId);
+          for (const m of mods || []) { const cd = m.padroes?.projuris_cd; if (cd) modeloPorCd.set(String(cd), m.id); }
+        }
+        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(l.cdTipo)) || null;
+        // Tarefas já migradas antes: grava o tipo original nelas também
+        {
+          const porModelo = new Map<string, string[]>();
+          for (const l of linhas as any[]) { const m = modeloDe(l); if (m) { if (!porModelo.has(m)) porModelo.set(m, []); porModelo.get(m)!.push(String(l.chave)); } }
+          for (const [mid, chaves] of porModelo) for (let k = 0; k < chaves.length; k += 100) {
+            await (supabase as any).from("tarefas").update({ modelo_tarefa_id: mid }).eq("coordenacao_id", coordId).eq("origem", "projuris").is("modelo_tarefa_id", null).in("identificador_projuris", chaves.slice(k, k + 100));
+          }
+        }
         const procId = new Map<string, string>();
         const dgs = Array.from(new Set(ok.map((l) => l.procDig).filter(Boolean))) as string[];
         for (let k = 0; k < dgs.length; k += 100) {
@@ -659,7 +674,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
             prioridade: "media", processo_id: (l.procDig && procId.get(l.procDig)) || null, coordenacao_id: coordId,
             responsavel_id: l.responsavelId || userId, criado_por: userId, origem: "projuris",
-            identificador_projuris: String(l.chave),
+            identificador_projuris: String(l.chave), modelo_tarefa_id: modeloDe(l),
             observacoes: [l.procDig && procId.get(l.procDig) ? "" : l.procDig ? `Processo ${formatarCnj(l.procDig)} não cadastrado no Juris Control (importe os processos antes)` : `Sem processo vinculado no Relatório de Atividades`, l.ident ? `Identificador Projuris: ${l.ident}` : "", l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : ""].filter(Boolean).join("\n") || null,
           }) as any)).select("id");
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: e.message, dados: { titulo: String(l.titulo).slice(0, 200) } }))); }

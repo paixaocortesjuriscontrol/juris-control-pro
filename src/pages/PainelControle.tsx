@@ -99,6 +99,7 @@ import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensR
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
 import { horaBrt, dataInicioAudiencia } from "@/utils/date";
+import { useModeloTarefaItens } from "@/hooks/useModeloTarefaItens";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
@@ -607,6 +608,7 @@ export default function PainelControle() {
     }
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
   }, [mesAtual, drill?.ate, drill?.metrica]);
+  const { data: modeloPorTarefa } = useModeloTarefaItens(dataInicio, dataFim);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
@@ -3188,12 +3190,18 @@ export default function PainelControle() {
                                       ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
                                       : TIPO_CORES[corKeyItem(item)] || "bg-muted border border-border text-muted-foreground"
                                   )}
-
+                                  style={(() => {
+                                    const cor = modeloPorTarefa?.get(getItemRawId(item.id))?.cor;
+                                    return cor && !isCancelado ? { borderLeft: `3px solid ${cor}` } : undefined;
+                                  })()}
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleItemClick(item);
                                   }}
-                                  title={item.titulo}
+                                  title={(() => {
+                                    const nomeModelo = modeloPorTarefa?.get(getItemRawId(item.id))?.nome;
+                                    return nomeModelo ? `${item.titulo} — Tipo: ${nomeModelo}` : item.titulo;
+                                  })()}
                                 >
                                   {isConcluido ? (
                                     <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" />
