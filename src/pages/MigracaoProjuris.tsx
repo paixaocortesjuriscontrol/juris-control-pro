@@ -1,4 +1,5 @@
 import { ImportarChecklistsProjuris } from "@/components/migracao/ImportarChecklistsProjuris";
+import { CorrigirTitulosProjuris } from "@/components/migracao/CorrigirTitulosProjuris";
 import { ImportarTiposTarefaProjuris } from "@/components/migracao/ImportarTiposTarefaProjuris";
 import { ImportarMarcadoresProjuris } from "@/components/migracao/ImportarMarcadoresProjuris";
 import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
@@ -661,6 +662,7 @@ export default function MigracaoProjuris() {
             </div>
           </CardContent>
         </Card>
+        {user && <CorrigirTitulosProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} />}
         {user && <ImportarChecklistsProjuris userId={user.id} />}
         {user && <ImportarMarcadoresProjuris userId={user.id} />}
         {user && <ImportarTiposTarefaProjuris userId={user.id} />}
