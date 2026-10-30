@@ -55,6 +55,8 @@ const areaLabels: Record<string, string> = {
   empresarial: "Empresarial",
 };
 
+const LIMITE_VISIVEL = 200;
+
 export function ReatribuirProcessoDialog({
   open, 
   onOpenChange, 
@@ -72,23 +74,29 @@ export function ReatribuirProcessoDialog({
   const { data: processosAtribuidos } = useQuery({
     queryKey: ["processos-atribuidos", coordenacaoId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("processos")
-        .select(`
-          id, 
-          numero, 
-          polo_ativo,
-          area,
-          advogado_responsavel_id,
-          cliente_id,
-          advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome),
-          cliente:clientes(id, nome)
-        `)
-        .eq("coordenacao_id", coordenacaoId)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-      return data || [];
+      const todos: any[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await supabase
+          .from("processos")
+          .select(`
+            id, 
+            numero, 
+            polo_ativo,
+            area,
+            advogado_responsavel_id,
+            cliente_id,
+            advogado:profiles!processos_advogado_responsavel_id_fkey(id, nome),
+            cliente:clientes(id, nome)
+          `)
+          .eq("coordenacao_id", coordenacaoId)
+          .order("created_at", { ascending: false })
+          .order("id")
+          .range(de, de + 999);
+        if (error) throw error;
+        todos.push(...(data || []));
+        if (!data || data.length < 1000) break;
+      }
+      return todos;
     },
     enabled: open,
   });
@@ -242,18 +250,22 @@ export function ReatribuirProcessoDialog({
   const handleSelectAll = () => {
     const allIds = processosFiltrados.map(p => p.id);
     const currentSelected = form.getValues("processos");
-    const allSelected = allIds.every(id => currentSelected.includes(id));
+    const atual = new Set(currentSelected);
+    const allSelected = allIds.every(id => atual.has(id));
     
     if (allSelected) {
-      form.setValue("processos", currentSelected.filter(id => !allIds.includes(id)));
+      const remover = new Set(allIds);
+      form.setValue("processos", currentSelected.filter(id => !remover.has(id)), { shouldValidate: true });
     } else {
       const newSelection = [...new Set([...currentSelected, ...allIds])];
-      form.setValue("processos", newSelection);
+      form.setValue("processos", newSelection, { shouldValidate: true });
     }
   };
 
-  const allFilteredSelected = processosFiltrados.length > 0 && 
-    processosFiltrados.every(p => form.watch("processos").includes(p.id));
+  const selecionados = form.watch("processos");
+  const selecionadosSet = useMemo(() => new Set(selecionados), [selecionados]);
+  const allFilteredSelected = processosFiltrados.length > 0 &&
+    processosFiltrados.every(p => selecionadosSet.has(p.id));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -387,52 +399,43 @@ export function ReatribuirProcessoDialog({
                   {processosFiltrados && processosFiltrados.length > 0 ? (
                     <ScrollArea className="h-[250px] border rounded-md">
                       <div className="space-y-3 p-3">
-                        {processosFiltrados.map((processo) => (
-                          <FormField
-                            key={processo.id}
-                            control={form.control}
-                            name="processos"
-                            render={({ field }) => (
-                              <FormItem className="flex items-start space-x-3 space-y-0">
-                                <FormControl>
-                                  <Checkbox
-                                    checked={field.value?.includes(processo.id)}
-                                    onCheckedChange={(checked) => {
-                                      return checked
-                                        ? field.onChange([...field.value, processo.id])
-                                        : field.onChange(
-                                            field.value?.filter((v) => v !== processo.id)
-                                          );
-                                    }}
-                                  />
-                                </FormControl>
-                                <div className="space-y-1 leading-none flex-1">
-                                  <div className="flex items-center gap-2 flex-wrap">
-                                    <p className="text-sm font-mono">{processo.numero}</p>
-                                    <Badge variant="outline" className="text-xs">
-                                      {areaLabels[processo.area] || processo.area}
-                                    </Badge>
-                                    {processo.advogado && (
-                                      <div className="flex items-center gap-1.5">
-                                        <Avatar className="w-5 h-5">
-                                          <AvatarFallback className="text-[10px] bg-secondary">
-                                            {getInitials(processo.advogado.nome)}
-                                          </AvatarFallback>
-                                        </Avatar>
-                                        <span className="text-xs text-muted-foreground">
-                                          {processo.advogado.nome}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground truncate">
-                                    {processo.polo_ativo || "Sem descrição"}
-                                  </p>
+                        {processosFiltrados.slice(0, LIMITE_VISIVEL).map((processo) => {
+                          const marcado = selecionadosSet.has(processo.id);
+                          return (
+                            <label key={processo.id} className="flex items-start space-x-3 cursor-pointer">
+                              <Checkbox
+                                checked={marcado}
+                                onCheckedChange={(checked) => {
+                                  const atual = form.getValues("processos");
+                                  form.setValue(
+                                    "processos",
+                                    checked ? [...atual, processo.id] : atual.filter((v) => v !== processo.id),
+                                    { shouldValidate: true },
+                                  );
+                                }}
+                              />
+                              <div className="space-y-1 leading-none flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-mono">{processo.numero}</p>
+                                  <Badge variant="outline" className="text-xs">
+                                    {areaLabels[processo.area] || processo.area}
+                                  </Badge>
+                                  {processo.advogado && (
+                                    <span className="text-xs text-muted-foreground">{processo.advogado.nome}</span>
+                                  )}
                                 </div>
-                              </FormItem>
-                            )}
-                          />
-                        ))}
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {processo.polo_ativo || "Sem descrição"}
+                                </p>
+                              </div>
+                            </label>
+                          );
+                        })}
+                        {processosFiltrados.length > LIMITE_VISIVEL && (
+                          <p className="text-xs text-muted-foreground text-center pt-2">
+                            Mostrando {LIMITE_VISIVEL} de {processosFiltrados.length}. Use a busca ou os filtros para achar os demais — "Selecionar todos" inclui todos os {processosFiltrados.length}.
+                          </p>
+                        )}
                       </div>
                     </ScrollArea>
                   ) : (
