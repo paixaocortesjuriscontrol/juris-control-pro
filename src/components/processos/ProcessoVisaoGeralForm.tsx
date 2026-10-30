@@ -1,3 +1,4 @@
+import { RitoProcessualSelect } from "./RitoProcessualSelect";
 import { SISTEMAS_JUDICIAIS } from "@/lib/projurisPlanilhaProcessos";
 import { useState, useEffect, useMemo, forwardRef, useImperativeHandle, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -137,7 +138,7 @@ export type ProcessoVisaoGeralFormHandle = {
 // Lista de campos editáveis (whitelist) - todos da tabela processos
 const FIELDS = [
   // Identificação
-  "assunto", "tipo_processo", "classe", "natureza", "area", "fase", "status",
+  "assunto", "tipo_processo", "rito_processual", "classe", "natureza", "area", "fase", "status",
   // Tribunal / órgão
   "tribunal", "justica", "instancia", "esfera", "sistema",
   "orgao_julgador", "vara", "comarca", "uf", "materia",
@@ -1683,6 +1684,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </Select>
                   </FormField>
                   {!isNovo && tipoProcessoField}
+                  <FormField label="Rito Processual">
+                    <RitoProcessualSelect value={form.rito_processual} onChange={(v) => update("rito_processual", v)} className={cn(inputCls, jcls("rito_processual"))} />
+                  </FormField>
                   <FormField label="Situação">
                     <Select value={form.status || "ativo"} onValueChange={(v) => update("status", v)}>
                       <SelectTrigger className={cn(inputCls, jcls("status"))}><SelectValue /></SelectTrigger>
