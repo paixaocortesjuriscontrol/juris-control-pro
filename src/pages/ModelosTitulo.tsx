@@ -15,6 +15,7 @@ import { useEffect } from "react";
 import { PadroesModeloEditor } from "@/components/modelos/PadroesModeloEditor";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const TIPOS: { value: TipoModelo; label: string }[] = [
   { value: "tarefa", label: "Tarefa" }, { value: "prazo", label: "Prazo" },
@@ -56,9 +57,17 @@ export default function ModelosTitulo() {
 
   async function submit() {
     if (!editando) return;
-    if (!editando.coordenacao_id || !editando.nome || !editando.titulo || !editando.tipo) return;
-    await salvar.mutateAsync(editando as any);
-    setEditando(null);
+    const nome = String(editando.nome || "").trim();
+    const titulo = String(editando.titulo || "").trim() || nome;
+    const faltando = [!editando.coordenacao_id && "Coordenação", !nome && "Nome do modelo", !editando.tipo && "Tipo"].filter(Boolean);
+    if (faltando.length) { toast.error(`Preencha: ${faltando.join(", ")}`); return; }
+    try {
+      await salvar.mutateAsync({ ...editando, nome, titulo } as any);
+      toast.success("Modelo salvo");
+      setEditando(null);
+    } catch (e: any) {
+      toast.error(`Não foi possível salvar o modelo: ${e?.message || e}`);
+    }
   }
 
   return (
