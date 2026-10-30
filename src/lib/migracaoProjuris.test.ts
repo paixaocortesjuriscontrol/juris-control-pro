@@ -19,3 +19,9 @@ test("preparação continua sendo tarefa e não audiência", () => {
   assert.equal(classificarTipo("Preparação para audiência", "AUDIÊNCIA"), "PREPARAÇÃO AUDIÊNCIA");
   assert.notEqual(classificarTipo("Preparar documentos", "PREPARAÇÃO AUDIÊNCIA"), "AUDIÊNCIA");
 });
+test("título da tarefa Projuris vem do tipo e a descrição vai para a descrição", async () => {
+  const { tituloTarefaProjuris } = await import("./migracaoProjuris");
+  assert.deepEqual(tituloTarefaProjuris("Contestação", "", "Elaborar defesa do banco"), { titulo: "Contestação", descricao: "Elaborar defesa do banco" });
+  assert.deepEqual(tituloTarefaProjuris("", "Recurso", "Texto"), { titulo: "Recurso", descricao: "Texto" });
+  assert.deepEqual(tituloTarefaProjuris("", "", "Só descrição"), { titulo: "Só descrição", descricao: null });
+});

@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
-import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao } from "@/lib/migracaoProjuris";
+import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
 
@@ -465,13 +465,15 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
           if (!motivo && !det) motivo = "Sem título";
+          const tipoNomeTe = tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || "";
+          const tt = tituloTarefaProjuris(tipoNomeTe, String(guTe.g(r, "detitulo") || ""), String(guTe.g(r, "detarefa") || ""));
           const prevista = paraData(guTe.g(r, "dtconclusaoprevista"));
           const limite = paraData(guTe.g(r, "dtlimite"));
           const base = paraData(guTe.g(r, "dtbase"));
           const data = prevista || limite || base;
           if (!motivo && !data) motivo = "Sem data de vencimento";
           if (!motivo && migradas.has(chave)) motivo = "Já migrada antes";
-          if (!motivo && existentes.has(`${norm(det)}|${data}`)) motivo = "Já cadastrada nesta coordenação (mesmo título e data)";
+          if (!motivo && (existentes.has(`${norm(det)}|${data}`) || existentes.has(`${norm(tt.titulo)}|${data}`))) motivo = "Já cadastrada nesta coordenação (mesmo título e data)";
           if (!motivo && vistosTe.has(chave)) motivo = "Repetida no backup";
           vistosTe.add(chave);
           const concluido = norm(guTe.g(r, "flconcluido")) === "s" || !!paraData(guTe.g(r, "dtconclusao"));
@@ -485,7 +487,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
             chave, motivo, ident, procDig, cdTipo: String(guTe.g(r, "cdtarefatipo") || "").trim(),
-            titulo: det || "(sem título)", tipo: classificarTipo(det, tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || ""),
+            titulo: tt.titulo || "(sem título)", descricao: tt.descricao, tipo: classificarTipo(det, tipoNomeTe),
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
           });
@@ -656,6 +658,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             await (supabase as any).from("tarefas").update({ modelo_tarefa_id: mid }).eq("coordenacao_id", coordId).eq("origem", "projuris").is("modelo_tarefa_id", null).in("identificador_projuris", chaves.slice(k, k + 100));
           }
         }
+        // Tarefas já migradas antes: título passa a ser o tipo de tarefa e o texto vai para a descrição
+        {
+          const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
+          for (let k = 0; k < corrigir.length; k += 10) {
+            if (cancelado.current) break;
+            await Promise.all(corrigir.slice(k, k + 10).map((l) => (supabase as any).from("tarefas")
+              .update({ titulo: String(l.titulo).slice(0, 500), ...(l.descricao ? { descricao: l.descricao } : {}) })
+              .eq("coordenacao_id", coordId).eq("origem", "projuris").eq("identificador_projuris", String(l.chave))));
+            if (k % 500 === 0) setMsg(`Corrigindo títulos das tarefas já migradas: ${k} de ${corrigir.length}`);
+          }
+        }
         const procId = new Map<string, string>();
         const dgs = Array.from(new Set(ok.map((l) => l.procDig).filter(Boolean))) as string[];
         for (let k = 0; k < dgs.length; k += 100) {
@@ -668,7 +681,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           await esperar(); if (cancelado.current) break;
           const parte = ok.slice(k, k + LOTE);
           const { data, error: e } = await supabase.from("tarefas").insert(parte.map((l) => ({
-            titulo: String(l.titulo).slice(0, 500), tipo_tarefa: l.tipo,
+            titulo: String(l.titulo).slice(0, 500), descricao: l.descricao || null, tipo_tarefa: l.tipo,
             tipo_registro: l.tipo === "PRAZO" ? "prazo" : "tarefa",
             data_vencimento: l.data, data_prevista: l.data, data_fatal: l.fatal,
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
