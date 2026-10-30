@@ -1668,6 +1668,9 @@ export default function ImportarProcessos() {
     let processed = 0;
     const totalToProcess = allIndices.length || 1;
 
+    for (const rito of new Set(updated.map((u) => u.rito).filter(Boolean) as string[])) {
+      try { await garantirRito(rito, []); } catch { /* rito já existe */ }
+    }
     // 4) INSERT em lotes (novos na coordenação)
     for (let i = 0; i < toInsertIndices.length; i += BATCH_SIZE) {
       if (projurisCancelledRef.current) break;
