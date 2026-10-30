@@ -21,3 +21,13 @@ describe("checklist Projuris", () => {
     assert.equal(semTarefa, 1);
   });
 });
+
+import { chavesCandidatasTarefa } from "./checklistProjuris";
+describe("chavesCandidatasTarefa", () => {
+  it("usa código do backup e identificador TAR da planilha", () => {
+    expect(chavesCandidatasTarefa("50636740", new Map([["50636740", "TAR.123"]]))).toEqual(["50636740", "TAR.123", "123"]);
+  });
+  it("sem identificador usa só o código", () => {
+    expect(chavesCandidatasTarefa("1")).toEqual(["1"]);
+  });
+});
