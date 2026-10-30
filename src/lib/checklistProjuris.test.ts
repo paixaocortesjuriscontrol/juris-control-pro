@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { lerCsvPontoVirgula, montarItensChecklist } from "./checklistProjuris";
+import { chavesCandidatasTarefa, lerCsvPontoVirgula, montarItensChecklist } from "./checklistProjuris";
 
 describe("checklist Projuris", () => {
   it("lê campos com aspas e quebra de linha", () => {
@@ -22,12 +22,11 @@ describe("checklist Projuris", () => {
   });
 });
 
-import { chavesCandidatasTarefa } from "./checklistProjuris";
 describe("chavesCandidatasTarefa", () => {
   it("usa código do backup e identificador TAR da planilha", () => {
-    expect(chavesCandidatasTarefa("50636740", new Map([["50636740", "TAR.123"]]))).toEqual(["50636740", "TAR.123", "123"]);
+    assert.deepEqual(chavesCandidatasTarefa("50636740", new Map([["50636740", "TAR.123"]])), ["50636740", "TAR.123", "123"]);
   });
   it("sem identificador usa só o código", () => {
-    expect(chavesCandidatasTarefa("1")).toEqual(["1"]);
+    assert.deepEqual(chavesCandidatasTarefa("1"), ["1"]);
   });
 });
