@@ -55,6 +55,7 @@ import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AssuntoPicker } from "@/components/processos/AssuntoPicker";
 import {
   Command,
   CommandEmpty,
@@ -1635,6 +1636,10 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                     </>
                   )}
                   <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
+                    <AssuntoPicker
+                      coordenacaoIds={isUserAdmin ? (form.coordenacao_id ? [form.coordenacao_id] : []) : membrosCoordenacoes}
+                      onSelect={(v) => update("assunto", v)}
+                    />
                     <Textarea
                       rows={3}
                       className={cn("text-sm min-h-[72px] resize-y overflow-hidden", jcls("assunto"))}
