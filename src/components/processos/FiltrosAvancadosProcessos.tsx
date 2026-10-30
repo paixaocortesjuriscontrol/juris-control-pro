@@ -1,3 +1,4 @@
+import { useRitosProcessuais } from "./RitoProcessualSelect";
 import { useState } from "react";
 import { Filter, Calendar, User, X, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export interface FiltrosAvancados {
   instancia: "1" | "2" | "superior" | "todos";
   testemunhaNome?: string;
   comTestemunha?: boolean;
+  rito?: string;
 }
 
 interface FiltrosAvancadosProcessosProps {
@@ -88,6 +90,7 @@ export function FiltrosAvancadosProcessos({
     filtros.periodoFim ||
     filtros.responsavelId ||
     filtros.instancia !== "todos" ||
+    !!filtros.rito ||
     !!filtros.testemunhaNome ||
     !!filtros.comTestemunha;
 
@@ -235,6 +238,18 @@ export function FiltrosAvancadosProcessos({
                   <Label htmlFor="tipo-todos" className="text-sm font-normal cursor-pointer">Todos</Label>
                 </div>
               </RadioGroup>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase">Rito processual:</Label>
+              <Select value={filtros.rito || "__todos"} onValueChange={(v) => onFiltrosChange({ ...filtros, rito: v === "__todos" ? undefined : v })}>
+                <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__todos">Todos</SelectItem>
+                  {ritos.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                  <SelectItem value="__sem">Sem rito</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Grau do Processo */}
