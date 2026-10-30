@@ -173,6 +173,22 @@ export async function criarItemWorkflow(
   } catch {
     responsaveisEtapa = [];
   }
+  // Usuários inativados não recebem itens novos do workflow
+  if (responsaveisEtapa.length > 0) {
+    try {
+      const { data: inativos } = await supabase
+        .from("profiles")
+        .select("id")
+        .in("id", responsaveisEtapa)
+        .eq("ativo", false);
+      const setInativos = new Set(((inativos as any[]) || []).map((p) => p.id));
+      if (setInativos.size > 0) {
+        responsaveisEtapa = responsaveisEtapa.filter((id) => !setInativos.has(id));
+      }
+    } catch {
+      /* mantém a lista original */
+    }
+  }
   const responsavelPrincipal = responsavelId || responsaveisEtapa[0] || null;
   const todosResponsaveis = Array.from(
     new Set([...(responsavelPrincipal ? [responsavelPrincipal] : []), ...responsaveisEtapa])
