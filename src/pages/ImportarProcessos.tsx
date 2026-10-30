@@ -1,3 +1,6 @@
+import { normalizarRitoProcessual } from "@/lib/ritoProcessual";
+import { garantirRito } from "@/components/processos/RitoProcessualSelect";
+const lerRitoLinha = (row: any) => normalizarRitoProcessual(row?.["Rito Processual"] ?? row?.["Rito processual"] ?? row?.["RITO PROCESSUAL"]);
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useImport } from "@/contexts/ImportContext";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -56,6 +59,7 @@ interface ProcessoImport {
   instancia: string | null;
   orgao: string | null;
   orgaoJulgador: string | null;
+  rito?: string | null;
   sistema: string | null;
   area: string | null;
   fase: string | null;
@@ -529,6 +533,7 @@ export default function ImportarProcessos() {
           instancia: row["Instância"] || row["Instancia"] || null,
           orgao: row["Órgão (Comarca / Tribunal)"] || row["Orgao (Comarca / Tribunal)"] || null,
           orgaoJulgador: row["Órgão Julgador (Vara / Câmara)"] || row["Orgao Julgador (Vara / Camara)"] || null,
+          rito: lerRitoLinha(row),
           sistema: row["Sistema"] || null,
           area: row["Área"] || row["Area"] || null,
           fase: row["Fase"] || null,
@@ -704,6 +709,7 @@ export default function ImportarProcessos() {
             }
           }
           
+          if (processo.rito) updateData.rito_processual = await garantirRito(processo.rito, []);
           if (Object.keys(updateData).length > 0) {
             await supabase.from("processos").update(updateData).eq("id", existingProcesso.id);
           }
@@ -721,6 +727,7 @@ export default function ImportarProcessos() {
             situacao_original: getSituacaoOriginal(processo.situacao),
             tribunal: processo.orgao,
             vara: processo.orgaoJulgador,
+            ...(processo.rito ? { rito_processual: await garantirRito(processo.rito, []) } : {}),
             comarca: processo.cidade,
             classe: processo.classeCNJ,
             data_distribuicao: parseDate(processo.dataDistribuicao),
@@ -1327,6 +1334,7 @@ export default function ImportarProcessos() {
             instancia: instancia,
             orgao: orgao,
             orgaoJulgador: orgaoJulgador || tipoOrgaoJulgador,
+            rito: lerRitoLinha(row),
             sistema: null,
             area: area,
             fase: fase,
@@ -1617,6 +1625,7 @@ export default function ImportarProcessos() {
     };
 
     const buildPayload = (p: ProcessoImport) => ({
+      ...(p.rito ? { rito_processual: p.rito } : {}),
       numero: p.numero.trim(),
       assunto: p.assunto,
       descricao: p.descricao,
@@ -6615,7 +6624,7 @@ export default function ImportarProcessos() {
                 <Alert>
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    <strong>Colunas reconhecidas:</strong> Número CNJ, Assunto, Situação, Órgão, Órgão julgador, Área, Data distribuição, Valor ação, Partes ativas, Partes passivas, Estado, Cidade, Clientes.
+                    <strong>Colunas reconhecidas:</strong> Número CNJ, Assunto, Situação, Órgão, Órgão julgador, Rito Processual, Área, Data distribuição, Valor ação, Partes ativas, Partes passivas, Estado, Cidade, Clientes.
                   </AlertDescription>
                 </Alert>
               </CardContent>
