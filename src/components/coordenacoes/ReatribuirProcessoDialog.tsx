@@ -55,6 +55,8 @@ const areaLabels: Record<string, string> = {
   empresarial: "Empresarial",
 };
 
+const LIMITE_VISIVEL = 200;
+
 export function ReatribuirProcessoDialog({
   open, 
   onOpenChange, 
