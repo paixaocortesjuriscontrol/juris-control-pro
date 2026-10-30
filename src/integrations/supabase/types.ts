@@ -7850,6 +7850,7 @@ export type Database = {
           risco: string | null
           risco_anterior: string | null
           risco_atual: string | null
+          rito_processual: string | null
           segredo_justica: boolean | null
           setor: string | null
           sigla_unidade: string | null
@@ -8058,6 +8059,7 @@ export type Database = {
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
+          rito_processual?: string | null
           segredo_justica?: boolean | null
           setor?: string | null
           sigla_unidade?: string | null
@@ -8266,6 +8268,7 @@ export type Database = {
           risco?: string | null
           risco_anterior?: string | null
           risco_atual?: string | null
+          rito_processual?: string | null
           segredo_justica?: boolean | null
           setor?: string | null
           sigla_unidade?: string | null
@@ -9951,6 +9954,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ritos_processuais: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+        }
+        Relationships: []
       }
       situacoes_envio_carga: {
         Row: {
