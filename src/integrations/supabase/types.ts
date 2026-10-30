@@ -12093,6 +12093,7 @@ export type Database = {
           _periodo_fim?: string
           _periodo_inicio?: string
           _responsavel_id?: string
+          _rito?: string
           _search?: string
           _segredo_justica?: boolean
           _status?: string
