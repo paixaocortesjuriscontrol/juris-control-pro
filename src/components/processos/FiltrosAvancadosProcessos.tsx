@@ -49,6 +49,7 @@ export function FiltrosAvancadosProcessos({
   coordenacaoId,
 }: FiltrosAvancadosProcessosProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { data: ritos = [] } = useRitosProcessuais();
   const [responsavelSearch, setResponsavelSearch] = useState("");
 
   // Fetch members of the selected coordination OR all profiles if no coordination selected
