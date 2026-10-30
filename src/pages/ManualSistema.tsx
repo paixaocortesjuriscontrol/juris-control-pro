@@ -11,33 +11,33 @@ type Manual = {
 
 const manuais: Manual[] = [
   {
-    titulo: "Manual Completo do Juris Control (v9.8.1)",
+    titulo: "Manual Completo do Juris Control (v9.8.2)",
     descricao:
       "Guia atualizado dos módulos, incluindo Atas, Pautas de Julgamento, migração Projuris, perfis, notificações e uso no celular.",
-    arquivo: "/manuais/Manual_Juris_Control_v9.8.1.pdf",
+    arquivo: "/manuais/Manual_Juris_Control_v9.8.2.pdf",
   },
   {
-    titulo: "Manual do Painel de Controle (v9.8.1)",
+    titulo: "Manual do Painel de Controle (v9.8.2)",
     descricao:
       "Guia completo de filtros, visões, criação e baixa de itens, recorrências, ações em lote, relatórios e exportação de audiências.",
-    arquivo: "/manuais/Manual_Painel_de_Controle_v9.8.1.pdf",
+    arquivo: "/manuais/Manual_Painel_de_Controle_v9.8.2.pdf",
   },
   {
-    titulo: "Manual da Distribuição TST (v9.8.1)",
+    titulo: "Manual da Distribuição TST (v9.8.2)",
     descricao:
       "Guia de distribuições, filtros, matérias, pendências, Judit, delegação, Carga Benner, Admin. TST, arquivamento e auditoria.",
-    arquivo: "/manuais/Manual_Distribuicao_TST_v9.8.1.pdf",
+    arquivo: "/manuais/Manual_Distribuicao_TST_v9.8.2.pdf",
   },
   {
-    titulo: "Manual de Termos DJEN (v9.8.1)",
+    titulo: "Manual de Termos DJEN (v9.8.2)",
     descricao:
       "Como cadastrar, monitorar e auditar termos, OABs e processos no monitoramento do DJEN.",
-    arquivo: "/manuais/Manual_Termos_DJEN_v9.8.1.pdf",
+    arquivo: "/manuais/Manual_Termos_DJEN_v9.8.2.pdf",
   },
   {
-    titulo: "Manual de Processos e Casos (v9.8.1)",
+    titulo: "Manual de Processos e Casos (v9.8.2)",
     descricao: "Cadastro, partes, Sistema Judicial, relatórios de cliente, Judit, documentos e atividades vinculadas.",
-    arquivo: "/manuais/Manual_Processos_e_Casos_v9.8.1.pdf",
+    arquivo: "/manuais/Manual_Processos_e_Casos_v9.8.2.pdf",
   },
 ];
 

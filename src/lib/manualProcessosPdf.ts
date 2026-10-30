@@ -289,5 +289,5 @@ export function construirManualProcessosPdf(): jsPDF {
 }
 
 export function gerarManualProcessosPdf() {
-  window.open("/manuais/Manual_Processos_e_Casos_v9.8.1.pdf", "_blank", "noopener,noreferrer");
+  window.open("/manuais/Manual_Processos_e_Casos_v9.8.2.pdf", "_blank", "noopener,noreferrer");
 }
