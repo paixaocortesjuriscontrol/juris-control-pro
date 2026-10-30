@@ -1045,7 +1045,7 @@ export function NovaTarefaDialog({
           {!ocultarSituacao && (
             <Button
               type="submit"
-              form="nova-tarefa-form"
+              form="nova-tarefa-form" onClickCapture={() => logTentativa("clique_salvar")}
               size="sm"
               disabled={loading || uploadingAnexos}
             >
@@ -1078,7 +1078,7 @@ export function NovaTarefaDialog({
             {!ocultarSituacao && (
               <Button
                 type="submit"
-                form="nova-tarefa-form"
+                form="nova-tarefa-form" onClickCapture={() => logTentativa("clique_salvar")}
                 size="sm"
                 disabled={loading || uploadingAnexos}
               >
@@ -1103,7 +1103,7 @@ export function NovaTarefaDialog({
             </div>
           )}
           <Form {...form}>
-            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { logTentativa("invalido", Object.fromEntries(Object.entries(errs).map(([k, e]: any) => [k, e?.message || String(e?.type || "")]))); const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
+            <form id="nova-tarefa-form" onInvalidCapture={(e) => logTentativa("campo_invalido_navegador", { campo: (e.target as any)?.name || (e.target as any)?.id || (e.target as any)?.tagName })} onSubmit={form.handleSubmit(onSubmit, (errs) => { logTentativa("invalido", Object.fromEntries(Object.entries(errs).map(([k, e]: any) => [k, e?.message || String(e?.type || "")]))); const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
               <FormField
                 control={form.control}
                 name="titulo"
@@ -1749,7 +1749,7 @@ export function NovaTarefaDialog({
           )}
           <Button
             type="submit"
-            form="nova-tarefa-form"
+            form="nova-tarefa-form" onClickCapture={() => logTentativa("clique_salvar")}
             disabled={loading || uploadingAnexos}
             className="w-full sm:w-auto"
             onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
@@ -1760,7 +1760,7 @@ export function NovaTarefaDialog({
           {secondarySave && !tarefaParaEditar?.id && (
             <Button
               type="submit"
-              form="nova-tarefa-form"
+              form="nova-tarefa-form" onClickCapture={() => logTentativa("clique_salvar")}
               disabled={loading || uploadingAnexos}
               variant="secondary"
               className="w-full sm:w-auto"
@@ -1773,7 +1773,7 @@ export function NovaTarefaDialog({
           {tertiarySave && !tarefaParaEditar?.id && (
             <Button
               type="submit"
-              form="nova-tarefa-form"
+              form="nova-tarefa-form" onClickCapture={() => logTentativa("clique_salvar")}
               disabled={loading || uploadingAnexos}
               variant="secondary"
               className="w-full sm:w-auto"
