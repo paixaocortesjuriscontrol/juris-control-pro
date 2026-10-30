@@ -49,11 +49,11 @@ export default function ModelosTitulo() {
   }
 
   return (
-    <MainLayout title="Modelos de Título">
+    <MainLayout title="Modelos de tarefas">
       <div className="p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h1 className="text-xl font-semibold">Modelos de Título</h1>
+            <h1 className="text-xl font-semibold">Modelos de tarefas</h1>
             <p className="text-sm text-muted-foreground">Padronize títulos e descrições reutilizáveis no botão Adicionar.</p>
           </div>
           {isAdminOrCoordinator && (

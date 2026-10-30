@@ -181,7 +181,8 @@ function App() {
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
               <Route path="/reatribuir-processos" element={<AdminOrCoordRoute><ReatribuirProcessos /></AdminOrCoordRoute>} />
-              <Route path="/modelos-titulo" element={<ProtectedRoute><ModelosTitulo /></ProtectedRoute>} />
+              <Route path="/modelos-tarefa" element={<ProtectedRoute><ModelosTitulo /></ProtectedRoute>} />
+              <Route path="/modelos-titulo" element={<Navigate to="/modelos-tarefa" replace />} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />
               <Route path="/relatorios" element={<ProtectedRoute><Relatorios /></ProtectedRoute>} />
               <Route path="/admin" element={<AdminRoute><Administracao /></AdminRoute>} />

@@ -19,6 +19,7 @@ const MODALIDADE = [
 const UNIDADE = [
   { value: "uteis", label: "Dias úteis" },
   { value: "corridos", label: "Dias corridos" },
+  { value: "inverso", label: "Prazo inverso (dias úteis antes)" },
 ];
 
 const RECORRENCIA = [
