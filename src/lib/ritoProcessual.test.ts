@@ -1,10 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { test } from "node:test";
+import { strict as assert } from "node:assert";
 import { normalizarRitoProcessual } from "./ritoProcessual";
 
-describe("normalizarRitoProcessual", () => {
-  it("JEC vira Juizado Especial Cível", () => expect(normalizarRitoProcessual("JEC")).toBe("Juizado Especial Cível"));
-  it("vc vira Vara Cível", () => expect(normalizarRitoProcessual("vc")).toBe("Vara Cível"));
-  it("vara civel sem acento vira Vara Cível", () => expect(normalizarRitoProcessual("vara civel")).toBe("Vara Cível"));
-  it("vazio vira null", () => expect(normalizarRitoProcessual("  ")).toBeNull());
-  it("rito novo é mantido", () => expect(normalizarRitoProcessual("Rito Sumário")).toBe("Rito Sumário"));
-});
+test("JEC vira Juizado Especial Cível", () => assert.equal(normalizarRitoProcessual("JEC"), "Juizado Especial Cível"));
+test("vc vira Vara Cível", () => assert.equal(normalizarRitoProcessual("vc"), "Vara Cível"));
+test("vara civel sem acento vira Vara Cível", () => assert.equal(normalizarRitoProcessual("vara civel"), "Vara Cível"));
+test("vazio vira null", () => assert.equal(normalizarRitoProcessual("  "), null));
+test("rito novo é mantido", () => assert.equal(normalizarRitoProcessual("Rito Sumário"), "Rito Sumário"));

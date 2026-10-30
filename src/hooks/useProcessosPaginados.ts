@@ -16,6 +16,7 @@ interface ProcessosPaginadosFilters {
   coordenacoesRestritas?: string[];
   responsavel_id?: string;
   instancia?: string;
+  rito?: string;
   comMovimento?: boolean;
   comPublicacaoDjen?: boolean;
   comAudiencia?: boolean;
@@ -69,6 +70,7 @@ export function buildProcessosRpcParams(
     _segredo_justica: filters.segredoJustica ?? false,
     _etiqueta_ids:
       filters.etiquetaIds && filters.etiquetaIds.length > 0 ? filters.etiquetaIds : null,
+    _rito: filters.rito || null,
   };
 }
 
@@ -142,6 +144,7 @@ export function useProcessosPaginados(filters: ProcessosPaginadosFilters = {}) {
         _acompanhamento_especial: filters.acompanhamentoEspecial ?? false,
         _segredo_justica: filters.segredoJustica ?? false,
         _etiqueta_ids: filters.etiquetaIds && filters.etiquetaIds.length > 0 ? filters.etiquetaIds : null,
+        _rito: filters.rito || null,
       };
 
       // Se há restrição de coordenações (não-admin com "Todas" selecionado)

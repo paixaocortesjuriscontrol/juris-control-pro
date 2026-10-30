@@ -394,6 +394,7 @@ const Processos = () => {
       coordenacao_id: coordenacaoFilter,
       responsavel_id: filtrosAplicados.responsavelId,
       instancia: filtrosAplicados.instancia,
+      rito: filtrosAplicados.rito,
       comMovimento: comAndamentos,
       comPublicacaoDjen: comPublicacaoDjen,
       comAudiencia: comAudiencias,
@@ -547,6 +548,7 @@ const Processos = () => {
     filtrosAplicados.periodoFim ||
     filtrosAplicados.responsavelId ||
     filtrosAplicados.instancia !== "todos" ||
+    !!filtrosAplicados.rito ||
     comPublicacaoDjen ||
     comAndamentos ||
     comAudiencias ||

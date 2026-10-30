@@ -236,3 +236,6 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 - [x] Cartões do Painel: totais em aberto calculados no banco enquanto a agenda carrega
 - [ ] Conferir cartões e tempo com a sessão da Altina (sem login no preview)
+
+## Rito Processual
+- [x] Campo, importação e filtro (JEC / Vara Cível / novos ritos)
