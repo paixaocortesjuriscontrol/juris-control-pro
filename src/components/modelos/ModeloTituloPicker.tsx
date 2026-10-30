@@ -45,8 +45,19 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
     [coordenacoes],
   );
 
-  const daCoordenacao = coordenacaoId ? modelos.filter((m) => m.coordenacao_id === coordenacaoId) : [];
-  const outros = coordenacaoId ? modelos.filter((m) => m.coordenacao_id !== coordenacaoId) : modelos;
+  // Coordenações que têm modelos visíveis ao usuário
+  const coordsComModelos = useMemo(() => {
+    const ids = new Set(modelos.map((m) => m.coordenacao_id));
+    return coordenacoes.filter((c: any) => ids.has(c.id));
+  }, [modelos, coordenacoes]);
+  const mostrarSeletor = isAdmin || minhasCoordenacoes.length > 1;
+  const [coordEscolhida, setCoordEscolhida] = useState<string>("");
+  const coordPadrao =
+    (coordenacaoId && coordsComModelos.some((c: any) => c.id === coordenacaoId) && coordenacaoId) ||
+    (minhasCoordenacoes.find((c) => coordsComModelos.some((x: any) => x.id === c.id))?.id) ||
+    coordsComModelos[0]?.id || "";
+  const coordAtiva = mostrarSeletor ? (coordEscolhida || coordPadrao) : (minhasCoordenacoes[0]?.id || "");
+  const visiveis = coordAtiva ? modelos.filter((m) => m.coordenacao_id === coordAtiva) : modelos;
 
   if (modelos.length === 0) return null;
 
@@ -83,22 +94,27 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
           className={"h-7 gap-1.5 text-xs " + (className ?? "")}
         >
           <BookMarked className="h-3.5 w-3.5" />
-          Modelos ({modelos.length})
+          Modelos
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[380px] p-0" align="end">
+        {mostrarSeletor && coordsComModelos.length > 0 && (
+          <div className="p-2 border-b">
+            <label className="text-[11px] text-muted-foreground">Coordenação</label>
+            <select
+              className="mt-1 w-full h-8 rounded-md border border-input bg-background px-2 text-sm"
+              value={coordAtiva}
+              onChange={(e) => setCoordEscolhida(e.target.value)}
+            >
+              {coordsComModelos.map((c: any) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
+          </div>
+        )}
         <Command>
           <CommandInput placeholder="Buscar modelo..." />
           <CommandList>
             <CommandEmpty>Nenhum modelo encontrado.</CommandEmpty>
-            {daCoordenacao.length > 0 && (
-              <CommandGroup heading="Desta coordenação">{daCoordenacao.map(renderItem)}</CommandGroup>
-            )}
-            {outros.length > 0 && (
-              <CommandGroup heading={daCoordenacao.length > 0 ? "Outras coordenações" : undefined}>
-                {outros.map(renderItem)}
-              </CommandGroup>
-            )}
+            {visiveis.length > 0 && <CommandGroup>{visiveis.map(renderItem)}</CommandGroup>}
           </CommandList>
         </Command>
       </PopoverContent>
