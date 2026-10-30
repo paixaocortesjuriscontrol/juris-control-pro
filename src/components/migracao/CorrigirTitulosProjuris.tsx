@@ -14,10 +14,15 @@ export function CorrigirTitulosProjuris({ coordId, nomeCoord }: { coordId: strin
     if (!coordId) return;
     setRodando(true); setFeitas(0); setResumo(null);
     let total = 0;
+    let lote = 200;
     try {
       for (;;) {
-        const { data, error } = await (supabase as any).rpc("corrigir_titulos_por_modelo_projuris", { _coordenacao_id: coordId, _limite: 2000 });
-        if (error) throw error;
+        const { data, error } = await (supabase as any).rpc("corrigir_titulos_por_modelo_projuris", { _coordenacao_id: coordId, _limite: lote });
+        if (error) {
+          // Tempo limite do banco: tenta de novo com lote menor.
+          if (/timeout/i.test(error.message || "") && lote > 10) { lote = Math.max(10, Math.floor(lote / 2)); continue; }
+          throw error;
+        }
         const n = Number(data) || 0;
         total += n; setFeitas(total);
         if (n === 0) break;
