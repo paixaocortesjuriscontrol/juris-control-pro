@@ -216,6 +216,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [converterCasoOpen, setConverterCasoOpen] = useState(false);
   // Data/hora do encerramento preenchida automaticamente pelo sistema.
   // Para processos encerrados antes da regra automática, usa data_encerramento
   // (meio-dia) como fallback editável, permitindo ao usuário informar o horário.
