@@ -509,9 +509,9 @@ const Coordenacoes = () => {
                           <span className="hidden sm:inline">Acompanhamento Especial</span>
                         </Button>
                         <Button size="sm" variant="outline" asChild>
-                          <Link to="/modelos-titulo">
+                          <Link to="/modelos-tarefa">
                             <FileType className="w-4 h-4 mr-1" />
-                            <span className="hidden sm:inline">Modelos de Título</span>
+                            <span className="hidden sm:inline">Modelos de tarefas</span>
                           </Link>
                         </Button>
                       </>

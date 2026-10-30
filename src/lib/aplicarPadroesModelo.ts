@@ -81,7 +81,19 @@ export function resolverPrazoModelo(
     d.setDate(d.getDate() + dias);
     return toISO(d);
   }
+  if (unidade === "inverso") return toISO(subDiasUteis(base, dias));
   return toISO(addDiasUteis(base, dias));
+}
+
+function subDiasUteis(base: Date, n: number) {
+  const d = new Date(base);
+  let restantes = n;
+  while (restantes > 0) {
+    d.setDate(d.getDate() - 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d)) restantes--;
+  }
+  return d;
 }
 
 /** Converte a data base recebida (Date | yyyy-MM-dd | nulo) em Date ao meio-dia. */

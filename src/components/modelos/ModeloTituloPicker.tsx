@@ -15,7 +15,7 @@ interface Props {
   className?: string;
 }
 
-/** Botão de sugestões de títulos (Modelos de Título por coordenação). */
+/** Botão de sugestões de títulos (Modelos de tarefas por coordenação). */
 export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }: Props) {
   const [open, setOpen] = useState(false);
   // Busca TODOS os modelos do tipo (o usuário só enxerga o que tem acesso).
