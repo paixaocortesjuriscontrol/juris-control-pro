@@ -1,3 +1,4 @@
+import { BookOpen } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -34,6 +35,7 @@ import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
 import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/ResponsaveisFixosTipoDialog";
 import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
+import { AssuntosCoordenacaoDialog } from "@/components/coordenacoes/AssuntosCoordenacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
 import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/AlteracaoItensTerceirosDialog";
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
@@ -87,6 +89,7 @@ const Coordenacoes = () => {
   const [respFixosDialog, setRespFixosDialog] = useState(false);
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
+  const [assuntosDialog, setAssuntosDialog] = useState(false);
   const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
@@ -484,6 +487,10 @@ const Coordenacoes = () => {
                           <ShieldCheck className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Permissões de Situação</span>
                         </Button>
+                        <Button size="sm" variant="outline" onClick={() => setAssuntosDialog(true)}>
+                          <BookOpen className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Assuntos</span>
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"
@@ -798,6 +805,13 @@ const Coordenacoes = () => {
           <AlteracaoItensTerceirosDialog
             open={altTerceirosDialog}
             onOpenChange={setAltTerceirosDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <AssuntosCoordenacaoDialog
+            open={assuntosDialog}
+            onOpenChange={setAssuntosDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
