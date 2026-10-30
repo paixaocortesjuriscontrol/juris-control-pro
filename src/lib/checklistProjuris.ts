@@ -60,3 +60,18 @@ export function montarItensChecklist(
   }
   return { itens: saida, semTarefa };
 }
+
+/** Chaves possíveis da tarefa migrada: cdtarefaevento (backup) e identificador TAR.x (planilha). */
+export function chavesCandidatasTarefa(cdTarefaEvento: string, identificador?: Map<string, string>): string[] {
+  const out = [cdTarefaEvento];
+  const id = identificador?.get(cdTarefaEvento)?.trim();
+  if (id) { out.push(id); const sem = id.replace(/^TAR\.?\s*/i, ""); if (sem !== id) out.push(sem); else out.push(`TAR.${id}`); }
+  return [...new Set(out.filter(Boolean))];
+}
+
+/** Lê só cdtarefaevento → deidentificador de tarefaevento.csv (arquivo grande, leitura linha a linha). */
+export function mapaIdentificadorTarefa(texto: string): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const r of lerCsvPontoVirgula(texto)) if (r.cdtarefaevento && r.deidentificador) m.set(r.cdtarefaevento, r.deidentificador);
+  return m;
+}
