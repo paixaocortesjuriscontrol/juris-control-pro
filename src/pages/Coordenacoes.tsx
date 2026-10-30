@@ -1,4 +1,6 @@
 import { BookOpen } from "lucide-react";
+import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
+import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 import { useState, useEffect } from "react";
 import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -90,6 +92,7 @@ const Coordenacoes = () => {
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
   const [assuntosDialog, setAssuntosDialog] = useState(false);
+  const [loteDialog, setLoteDialog] = useState(false);
   const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
@@ -487,6 +490,12 @@ const Coordenacoes = () => {
                           <ShieldCheck className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Permissões de Situação</span>
                         </Button>
+                        {coordenacaoPermiteLote(selectedCoord.nome) && (
+                          <Button size="sm" variant="outline" onClick={() => setLoteDialog(true)}>
+                            <Upload className="w-4 h-4 mr-1" />
+                            <span className="hidden sm:inline">Envio em lote de processos</span>
+                          </Button>
+                        )}
                         <Button size="sm" variant="outline" onClick={() => setAssuntosDialog(true)}>
                           <BookOpen className="w-4 h-4 mr-1" />
                           <span className="hidden sm:inline">Assuntos</span>
@@ -805,6 +814,13 @@ const Coordenacoes = () => {
           <AlteracaoItensTerceirosDialog
             open={altTerceirosDialog}
             onOpenChange={setAltTerceirosDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <EnvioLoteProcessosSheet
+            open={loteDialog}
+            onOpenChange={setLoteDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
