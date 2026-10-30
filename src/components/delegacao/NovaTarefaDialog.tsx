@@ -88,6 +88,12 @@ function computeDataPrevista(base: string | undefined, dias: number, unidade: "u
   return format(result, "yyyy-MM-dd");
 }
 
+
+const logTentativa = (etapa: string, detalhes?: any) => {
+  try {
+    void (supabase as any).from("logs_tentativas_formulario").insert({ formulario: "tarefa", etapa, detalhes: detalhes ?? null }).then(() => {});
+  } catch { /* diagnóstico não pode travar o formulário */ }
+};
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
   coordenacao_id: z.string().nullish(),
@@ -610,6 +616,7 @@ export function NovaTarefaDialog({
   };
 
   async function onSubmit(values: FormValues) {
+    logTentativa("inicio", { editar: !!tarefaParaEditar?.id, recorrenciaTipo, recorrenciaFim, situacao, responsaveisIds, values });
     if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim) {
       window.alert("Para criar um item com repetição, é obrigatório informar a data fim (campo \"Ou até a data\") ou a quantidade de vezes que deve aparecer.\n\nAssim o item não se repete para sempre no calendário.");
       return;
@@ -627,7 +634,7 @@ export function NovaTarefaDialog({
     if (!tarefaParaEditar && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" até "+String(recorrenciaFim).split("-").reverse().join("/"):", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     // Trava anti-duplo-envio: o `disabled={loading}` só vale após o commit do
     // estado, então dois cliques rápidos (ou header + rodapé) criavam 2 registros.
-    if (submitInFlightRef.current) return;
+    if (submitInFlightRef.current) { logTentativa("bloqueado_envio_em_andamento"); return; }
     submitInFlightRef.current = true;
     setLoading(true);
     try {
@@ -902,6 +909,7 @@ export function NovaTarefaDialog({
         });
       }
 
+      logTentativa("criada", { id: novaTarefa?.id });
       toast({
         title: "Tarefa criada!",
         description: anexos.length > 0 
@@ -954,6 +962,7 @@ export function NovaTarefaDialog({
         onSuccess?.();
       }
     } catch (error: any) {
+      logTentativa("erro", { mensagem: error?.message || String(error), codigo: error?.code, detalhe: error?.details });
       toast({
         title: tarefaParaEditar?.id ? "Erro ao editar tarefa" : "Erro ao criar tarefa",
         description: error.message,
@@ -1094,7 +1103,7 @@ export function NovaTarefaDialog({
             </div>
           )}
           <Form {...form}>
-            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
+            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { logTentativa("invalido", Object.fromEntries(Object.entries(errs).map(([k, e]: any) => [k, e?.message || String(e?.type || "")]))); const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
               <FormField
                 control={form.control}
                 name="titulo"
