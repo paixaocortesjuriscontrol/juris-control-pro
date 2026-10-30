@@ -10088,6 +10088,7 @@ export type Database = {
           link_local: string | null
           marcadores: string | null
           marcadores_vinculo: string | null
+          modelo_tarefa_id: string | null
           modulo: string | null
           observacoes: string | null
           orgao: string | null
@@ -10146,6 +10147,7 @@ export type Database = {
           link_local?: string | null
           marcadores?: string | null
           marcadores_vinculo?: string | null
+          modelo_tarefa_id?: string | null
           modulo?: string | null
           observacoes?: string | null
           orgao?: string | null
@@ -10204,6 +10206,7 @@ export type Database = {
           link_local?: string | null
           marcadores?: string | null
           marcadores_vinculo?: string | null
+          modelo_tarefa_id?: string | null
           modulo?: string | null
           observacoes?: string | null
           orgao?: string | null
@@ -10237,6 +10240,13 @@ export type Database = {
             columns: ["coordenacao_id"]
             isOneToOne: false
             referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tarefas_modelo_tarefa_id_fkey"
+            columns: ["modelo_tarefa_id"]
+            isOneToOne: false
+            referencedRelation: "modelos_titulo_coordenacao"
             referencedColumns: ["id"]
           },
           {

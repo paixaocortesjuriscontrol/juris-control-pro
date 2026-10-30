@@ -1,0 +1,2 @@
+ALTER TABLE public.tarefas ADD COLUMN IF NOT EXISTS modelo_tarefa_id uuid REFERENCES public.modelos_titulo_coordenacao(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_tarefas_modelo_tarefa_id ON public.tarefas(modelo_tarefa_id) WHERE modelo_tarefa_id IS NOT NULL;
