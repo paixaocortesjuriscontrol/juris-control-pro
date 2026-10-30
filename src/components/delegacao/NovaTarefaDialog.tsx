@@ -89,18 +89,18 @@ function computeDataPrevista(base: string | undefined, dias: number, unidade: "u
 
 const formSchema = z.object({
   tipo_vinculo: z.enum(["processo", "sem_vinculo"]),
-  coordenacao_id: z.string().optional(),
-  processo_id: z.string().optional(),
+  coordenacao_id: z.string().nullish(),
+  processo_id: z.string().nullish(),
   titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
-  descricao: z.string().optional(),
-  responsavel_id: z.string().min(1, "Responsável é obrigatório"),
-  data_base: z.string().optional(),
+  descricao: z.string().nullish(),
+  responsavel_id: z.string().nullish(),
+  data_base: z.string().nullish(),
   data_vencimento: z.string().min(1, "Data prevista é obrigatória"),
-  hora_prevista: z.string().optional(),
-  data_fatal: z.string().optional(),
-  hora_fatal: z.string().optional(),
+  hora_prevista: z.string().nullish(),
+  data_fatal: z.string().nullish(),
+  hora_fatal: z.string().nullish(),
   prioridade: z.enum(["baixa", "media", "alta", "urgente"]),
-  local: z.string().optional(),
+  local: z.string().nullish(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -1093,7 +1093,7 @@ export function NovaTarefaDialog({
             </div>
           )}
           <Form {...form}>
-            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <form id="nova-tarefa-form" onSubmit={form.handleSubmit(onSubmit, (errs) => { const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toast.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
               <FormField
                 control={form.control}
                 name="titulo"
