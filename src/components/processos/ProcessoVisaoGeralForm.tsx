@@ -52,6 +52,7 @@ import { cn } from "@/lib/utils";
 import { getJuditAttachmentDedupKey } from "@/lib/juditAnexosDedup";
 import { extrairCamposDoJuditRaw, extrairStepsDoJuditRaw, extrairPartesDoJuditRaw } from "@/lib/juditRawCampos";
 import { obterVariantesCnjBusca, mascararCnjDigitacao } from "@/utils/cnjMask";
+import { ConverterCasoProcessoDialog, ehCasoSemProcesso } from "./ConverterCasoProcessoDialog";
 import { CurrencyInputBRL } from "@/components/ui/currency-input-brl";
 import { CoordenacoesResponsaveisPicker } from "@/components/processos/CoordenacoesResponsaveisPicker";
 import { ClienteDialog } from "@/components/clientes/ClienteDialog";
@@ -215,6 +216,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
+  const [converterCasoOpen, setConverterCasoOpen] = useState(false);
   // Data/hora do encerramento preenchida automaticamente pelo sistema.
   // Para processos encerrados antes da regra automática, usa data_encerramento
   // (meio-dia) como fallback editável, permitindo ao usuário informar o horário.
@@ -1386,6 +1388,25 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
             </div>
             {/* Botões — abaixo do título, à direita, menores */}
             <div className="flex items-center justify-end gap-1.5 flex-wrap mt-2 mb-3">
+              {!isNovo && processo?.id && ehCasoSemProcesso({ area: form.area, numero: form.numero ?? processo?.numero, tipo_processo: form.tipo_processo }) && (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setConverterCasoOpen(true)}
+                    className="h-7 px-2.5 text-xs gap-1"
+                    title="Este caso passou a ter número judicial"
+                  >
+                    <Gavel className="w-3.5 h-3.5" /> Transformar em processo
+                  </Button>
+                  <ConverterCasoProcessoDialog
+                    open={converterCasoOpen}
+                    onOpenChange={setConverterCasoOpen}
+                    processoId={processo.id}
+                    areaAtual={form.area}
+                    onConvertido={(d) => { update("numero", d.numero); update("area", d.area); update("tipo_processo", d.tipo_processo); }}
+                  />
+                </>
+              )}
               <Button
                 variant={form.impactante ? "default" : "outline"}
                 onClick={() => update("impactante", !form.impactante)}
