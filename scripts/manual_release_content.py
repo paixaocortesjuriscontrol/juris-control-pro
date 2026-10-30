@@ -1,9 +1,17 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.8.0"
+VERSION = "9.8.1"
 RELEASE_DATE = "30 de outubro de 2026"
 
 CHAPTERS = [
+    ("Novidades da versão 9.8.1", "Rito Processual, assuntos por coordenação, nova página das coordenações e melhorias na migração do Projuris.", [
+        "Ficha do processo: campo Rito Processual (Juizado Especial Cível ou Vara Cível), com opção de adicionar novo rito; lido da planilha de importação e disponível nos filtros avançados.",
+        "Objeto da ação (assunto): pode ser digitado ou escolhido da lista de assuntos da coordenação, mantida no botão Assuntos de cada coordenação.",
+        "Coordenações: cada coordenação abre em página própria com ferramentas em cartões; Santander Cível e Santander Trabalhista têm Envio em lote de processos.",
+        "Atribuir e Reatribuir processos não travam mais em coordenações grandes.",
+        "Migração Projuris: tarefas recebem o tipo de tarefa como título; as já migradas são corrigidas em lote, com barra de progresso.",
+        "Formulário de tarefa: quando não for possível salvar, aparece o motivo.",
+    ]),
     ("Novidades da versão 9.8.0", "Checklists com modelos próprios, Modelos de tarefas com os tipos do Projuris, cor e tipo no calendário e marcadores do Projuris virando etiquetas.", [
         ("Checklists nas atividades", ["Toda tarefa, prazo, ata, evento, audiência ou parcela tem a aba Checklist, ao lado de Atividades; o nome da aba mostra quantos itens estão marcados, por exemplo 5/21.", "Os modelos de checklist têm tela própria no menu lateral e podem ser aplicados a qualquer item já salvo; a etapa do workflow pode ligar um modelo, cujos itens entram automaticamente na tarefa criada.", "Na tela Migração Projuris, o quadro Checklists do Projuris traz os checklists das tarefas antigas, com as caixinhas marcadas ou não como estavam."]),
         ("Modelos de tarefas", ["A antiga tela Modelos de títulos passou a se chamar Modelos de tarefas e ganhou item próprio no menu lateral, abaixo de Modelos de checklist.", "Cada coordenação cria e altera somente os seus modelos; administradores ajustam todos. A tela já abre na coordenação do usuário e os modelos das outras coordenações aparecem apenas para consulta.", "Um modelo guarda título, descrição, prioridade, prazos, horário, cor e o modelo de checklist; ao criar uma tarefa a partir dele, os itens do checklist entram sozinhos."]),
