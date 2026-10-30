@@ -479,9 +479,9 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           else if (excluido(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
           else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
-          if (!motivo && !det) motivo = "Sem título";
           const tipoNomeTe = tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || "";
           const tt = tituloTarefaProjuris(tipoNomeTe, String(guTe.g(r, "detitulo") || ""), String(guTe.g(r, "detarefa") || ""));
+          if (!motivo && !det && !String(tt.titulo || "").trim()) motivo = "Sem título";
           const prevista = paraData(guTe.g(r, "dtconclusaoprevista"));
           const limite = paraData(guTe.g(r, "dtlimite"));
           const base = paraData(guTe.g(r, "dtbase"));
@@ -798,7 +798,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         <div className="flex items-center gap-2">
           <Button size="sm" disabled={!!rodando || (!ok && !corrigiveis) || !conf} onClick={() => void importar(mod)}>
             {rodando === mod ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-            {ok ? `Importar ${ok.toLocaleString("pt-BR")} ${tipo}` : `Corrigir títulos de ${corrigiveis.toLocaleString("pt-BR")} ${tipo} já migradas`}
+            {ok ? `Importar ${ok.toLocaleString("pt-BR")} ${tipo}${corrigiveis ? ` e corrigir títulos de ${corrigiveis.toLocaleString("pt-BR")} já migradas` : ""}` : `Corrigir títulos de ${corrigiveis.toLocaleString("pt-BR")} ${tipo} já migradas`}
           </Button>
           {rodando === mod && (
             <>
