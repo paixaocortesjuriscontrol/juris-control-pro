@@ -84,7 +84,6 @@ const WORKER_SRC = [
   "    while (true) {",
   "      const { done, value } = await reader.read();",
   "      if (value) { lidos += value.length; pending += dec.decode(value, { stream: true }); if (lidos - ultimo > 8388608) { ultimo = lidos; self.postMessage({ type: 'prog', id, bytes: lidos, linhas: total }); } }",
-  "      if (inQ && pending.length - pos > 0 && pending.length > 50000000) { inQ = false; }",
   "      let start = 0;",
   "      for (; pos < pending.length; pos++) {",
   "        const c = pending.charCodeAt(pos);",
