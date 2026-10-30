@@ -11338,6 +11338,10 @@ export type Database = {
           usuario_id: string
         }[]
       }
+      corrigir_titulos_tarefas_projuris: {
+        Args: { _coordenacao_id: string; _itens: Json }
+        Returns: number
+      }
       count_djen_publicacoes_deduplicadas_hoje: {
         Args: never
         Returns: {
