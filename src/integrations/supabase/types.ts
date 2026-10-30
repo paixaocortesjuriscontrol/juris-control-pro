@@ -11192,6 +11192,7 @@ export type Database = {
       }
     }
     Functions: {
+      _pode_gerir_coordenacao: { Args: { _coord: string }; Returns: boolean }
       acquire_kurier_execution_lease: {
         Args: {
           _exec_id: string
@@ -11332,6 +11333,10 @@ export type Database = {
         }
         Returns: string
       }
+      contar_vinculos_usuario_coordenacao: {
+        Args: { _coordenacao_id: string; _usuario: string }
+        Returns: Json
+      }
       coordenadores_da_coordenacao: {
         Args: { _coordenacao_id: string }
         Returns: {
@@ -11446,6 +11451,14 @@ export type Database = {
       destravar_execucao_servidor: {
         Args: { p_id: string }
         Returns: undefined
+      }
+      desvincular_usuario_coordenacao: {
+        Args: {
+          _coordenacao_id: string
+          _substituto?: string
+          _usuario: string
+        }
+        Returns: Json
       }
       deve_rodar_monitoramento: { Args: { p_tipo: string }; Returns: boolean }
       djen_first_comunicacao_id_from_json: {
