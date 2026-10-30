@@ -2,7 +2,7 @@ import { BookOpen } from "lucide-react";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 import { useState, useEffect } from "react";
-import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, Upload } from "lucide-react";
+import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, ArrowLeft, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { CoordenacaoDialog } from "@/components/coordenacoes/CoordenacaoDialog";
@@ -313,7 +312,7 @@ const Coordenacoes = () => {
                   areaColors[coord.area as keyof typeof areaColors]
                 )}
                 style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
-                onClick={() => setSelectedCoord(coord)}
+                onClick={() => { setSelectedCoord(coord); window.scrollTo(0, 0); }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
