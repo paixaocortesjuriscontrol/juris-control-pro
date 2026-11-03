@@ -98,10 +98,10 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
             </div>
             {modo !== "todas" && (
               <div className="flex gap-2 mt-2">
-                <Button type="button" size="sm" variant={referencia === "vencimento" ? "secondary" : "ghost"} onClick={() => setReferencia("vencimento")} className="flex-1 text-xs">
+                <Button type="button" size="sm" variant={referencia === "vencimento" ? "default" : "outline"} onClick={() => setReferencia("vencimento")} className="flex-1 text-xs">
                   Pela data do prazo
                 </Button>
-                <Button type="button" size="sm" variant={referencia === "cadastro" ? "secondary" : "ghost"} onClick={() => setReferencia("cadastro")} className="flex-1 text-xs">
+                <Button type="button" size="sm" variant={referencia === "cadastro" ? "default" : "outline"} onClick={() => setReferencia("cadastro")} className="flex-1 text-xs">
                   Pela data de cadastro
                 </Button>
               </div>
