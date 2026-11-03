@@ -11,8 +11,8 @@
 ## O que vou fazer
 1. **Nova correção "Tarefas sem modelo"** no cartão "Corrigir títulos" da Migração Projuris:
    - Lê do backup (`tarefaevento.csv` + `tarefatipo.csv`) o tipo de cada tarefa pelo código Projuris já registrado.
-   - Título passa a ser o nome do tipo (ex.: "Manifestação", "Prazo"); o texto atual vai para a **descrição/observações**, sem perder nada.
-   - Liga a tarefa ao modelo correspondente, quando existir.
+   - Como no Projuris, o título vem do **modelo** (tipo de tarefa do Projuris, já importado em "Modelos de tarefas", ex.: "AC (FÓRUM VIRTUAL)"). O texto atual vai para a **descrição/observações**, sem perder nada.
+   - Liga a tarefa ao modelo, para aparecer com nome e cor dele na agenda.
    - Tarefas que não estão no backup: título vira o tipo já gravado na tarefa (PRAZO, MANIFESTAÇÃO…) e o texto vai para a descrição. Mostra a contagem e um CSV com essas tarefas.
    - Mesmo cuidado de antes: lotes pequenos, sem disparar e-mails.
 2. **Responsáveis errados ("tarefas não são minhas, vieram porque eu criei")**: conferir no backup quem era o responsável de fato (tabela de responsáveis da tarefa no Projuris) e, se a importação usou quem criou, oferecer na mesma correção a troca para o responsável real. Primeiro confirmo com dados antes de alterar.
