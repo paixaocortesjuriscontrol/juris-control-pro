@@ -298,6 +298,25 @@ export async function criarItemWorkflow(
 
 
 
+  // Vincula a tarefa ao modelo de tarefa de mesmo nome da coordenação para herdar a cor do modelo.
+  if ((tipo === "PRAZO" || tipo === "TAREFA") && execucao.coordenacao_id && etapa.titulo) {
+    try {
+      const norm = (s: string) =>
+        String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toUpperCase();
+      const alvo = norm(etapa.titulo);
+      const { data: modelos } = await supabase
+        .from("modelos_titulo_coordenacao")
+        .select("id, nome, titulo, ativo")
+        .eq("coordenacao_id", execucao.coordenacao_id);
+      const achado = ((modelos as any[]) || []).find(
+        (m) => m.ativo !== false && (norm(m.nome) === alvo || norm(m.titulo) === alvo)
+      );
+      if (achado) itemBase.modelo_tarefa_id = achado.id;
+    } catch (err) {
+      console.error("Erro ao localizar modelo da tarefa do workflow:", err);
+    }
+  }
+
   try {
     switch (tipo) {
       case "PRAZO": {
