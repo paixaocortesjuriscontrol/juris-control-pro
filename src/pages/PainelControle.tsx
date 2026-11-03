@@ -892,9 +892,9 @@ export default function PainelControle() {
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
-    (item: any, ignorarPeriodo = false) => {
-      // Classificação filter
-      if (painelFiltros.classificacoes.length > 0) {
+    (item: any, ignorarPeriodo = false, ignorarClassificacao = false) => {
+      // Classificação filter (exportações escolhem o próprio tipo e ignoram o botão do painel)
+      if (!ignorarClassificacao && painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
         const tipo = (item.tipo ?? "").toLowerCase();
         const isAudiencia = tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia";
@@ -1218,7 +1218,7 @@ export default function PainelControle() {
         ...(statusEscolhidos.length > 0 ? { statusIn: Array.from(new Set(statusEscolhidos)) } : {}),
       };
       const coletados: any[] = [];
-      for (let page = 0; page < 40; page++) {
+      for (let page = 0; page < 200; page++) {
         const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
         coletados.push(...pageItens);
         if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
@@ -1231,7 +1231,7 @@ export default function PainelControle() {
           vistos.add(k);
           return true;
         })
-        .filter((it) => passaFiltrosPainel(it, true));
+        .filter((it) => passaFiltrosPainel(it, true, true));
     }
 
     const recorrentesVistos = new Set<string>();
@@ -1627,7 +1627,7 @@ export default function PainelControle() {
         return true;
       })
       .filter((it) => classificarItem(it) === "audiencia")
-      .filter((it) => passaFiltrosPainel(it, true))
+      .filter((it) => passaFiltrosPainel(it, true, true))
       .filter((it) => {
         if (!coordId) return true;
         const cid = (it as any).coordenacao_id ?? it.processo?.coordenacao_id ?? null;
