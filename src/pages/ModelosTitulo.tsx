@@ -16,6 +16,7 @@ import { PadroesModeloEditor } from "@/components/modelos/PadroesModeloEditor";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
 
 const TIPOS: { value: TipoModelo; label: string }[] = [
   { value: "tarefa", label: "Tarefa" }, { value: "prazo", label: "Prazo" },
@@ -165,6 +166,28 @@ export default function ModelosTitulo() {
                   value={((editando.padroes as any)?.cor as string) || "#64748b"}
                   onChange={(e) => setEditando((s) => ({ ...s!, padroes: { ...((s!.padroes ?? {}) as any), cor: e.target.value } }))} />
               </div>
+              {(editando.tipo ?? "tarefa") === "tarefa" && (
+                <>
+                  <div className="md:col-span-2">
+                    <label className="text-xs text-muted-foreground">Responsáveis padrão (entram ao usar o modelo)</label>
+                    <PeoplePicker
+                      selectedIds={((editando.padroes as any)?.responsaveis_ids as string[]) || []}
+                      onChange={(ids) => setEditando((s) => ({ ...s!, padroes: { ...((s!.padroes ?? {}) as any), responsaveis_ids: ids } }))}
+                      placeholder="Adicionar responsável"
+                      emptyLabel="Nenhum responsável padrão"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-xs text-muted-foreground">Envolvidos padrão</label>
+                    <PeoplePicker
+                      selectedIds={((editando.padroes as any)?.envolvidos_ids as string[]) || []}
+                      onChange={(ids) => setEditando((s) => ({ ...s!, padroes: { ...((s!.padroes ?? {}) as any), envolvidos_ids: ids } }))}
+                      placeholder="Adicionar envolvido"
+                      emptyLabel="Nenhum envolvido padrão"
+                    />
+                  </div>
+                </>
+              )}
               <div className="md:col-span-2">
                 <PadroesModeloEditor
                   tipo={(editando.tipo ?? "tarefa") as TipoModelo}

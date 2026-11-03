@@ -1124,6 +1124,17 @@ export function NovaTarefaDialog({
                         coordenacaoId={coordenacaoId}
                         onSelect={(m) => {
                           const anterior = modeloPadroesRef.current || {};
+                          {
+                            const pd = ((m as any).padroes ?? {}) as Record<string, any>;
+                            const resp: string[] = Array.isArray(pd.responsaveis_ids) ? pd.responsaveis_ids : [];
+                            const env: string[] = Array.isArray(pd.envolvidos_ids) ? pd.envolvidos_ids : [];
+                            if (resp.length) {
+                              const novos = Array.from(new Set([...responsaveisIds, ...resp]));
+                              setResponsaveisIds(novos);
+                              form.setValue("responsavel_id", novos[0] || "");
+                            }
+                            if (env.length) setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...env])));
+                          }
                           // Datas relativas do modelo (inclusive a data fatal) contam
                           // da mesma base da data prevista: data base do formulário ou
                           // data da publicação vinculada.
