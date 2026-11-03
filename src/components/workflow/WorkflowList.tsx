@@ -31,6 +31,7 @@ import {
   useCreateWorkflow,
   useUpdateWorkflow,
   useDeleteWorkflow,
+  useRestaurarWorkflow,
 } from "@/hooks/useWorkflows";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
@@ -70,12 +71,13 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
   const setFiltroCoordenacao = (valor: string) => setEscolhaCoordenacao({ userId: user?.id, valor });
   const [buscaInput, setBuscaInput] = useState("");
   const [busca, setBusca] = useState("");
-  const [filtroAtivo, setFiltroAtivo] = useState<"todos" | "ativos" | "inativos">("todos");
+  const [filtroAtivo, setFiltroAtivo] = useState<"todos" | "ativos" | "inativos" | "excluidos">("todos");
   const [iniciandoId, setIniciandoId] = useState<string | null>(null);
 
   const { data: workflows = [], isLoading, refetch } = useWorkflows({
     coordenacaoId: filtroCoordenacao !== "todas" ? filtroCoordenacao : undefined,
-    ativo: filtroAtivo === "todos" ? undefined : filtroAtivo === "ativos",
+    ativo: filtroAtivo === "todos" || filtroAtivo === "excluidos" ? undefined : filtroAtivo === "ativos",
+    arquivados: filtroAtivo === "excluidos",
   });
 
   const { data: etapasCount = {} } = useQuery<Record<string, number>>({
@@ -97,6 +99,7 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
   const createMutation = useCreateWorkflow();
   const updateMutation = useUpdateWorkflow();
   const deleteMutation = useDeleteWorkflow();
+  const restaurarMutation = useRestaurarWorkflow();
 
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
@@ -230,6 +233,7 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
             { key: "todos", label: "Todos", Icon: CircleDot },
             { key: "ativos", label: "Habilitados", Icon: CheckCircle2 },
             { key: "inativos", label: "Desabilitados", Icon: XCircle },
+            { key: "excluidos", label: "Excluídos", Icon: Trash2 },
           ].map(({ key, label, Icon }) => (
             <button
               key={key}
@@ -365,12 +369,20 @@ export function WorkflowList({ onSelect }: WorkflowListProps) {
                           <DropdownMenuItem onClick={() => handleEdit(wf)}>
                             Editar
                           </DropdownMenuItem>
+                          {wf.arquivado_em ? (
+                          <DropdownMenuItem onClick={() => restaurarMutation.mutate(wf.id)}>
+                            Restaurar
+                          </DropdownMenuItem>
+                          ) : (
                           <DropdownMenuItem
-                            onClick={() => deleteMutation.mutate(wf.id)}
+                            onClick={() => {
+                              if (window.confirm(`Excluir o workflow "${wf.nome}"? Ele poderá ser restaurado depois no filtro "Excluídos".`)) deleteMutation.mutate(wf.id);
+                            }}
                             className="text-destructive focus:text-destructive"
                           >
                             Excluir
                           </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             onClick={() =>
                               updateMutation.mutate({ id: wf.id, ativo: !wf.ativo })
