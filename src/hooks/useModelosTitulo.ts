@@ -30,6 +30,11 @@ export function useModelosTitulo(filtros?: { coordenacao_id?: string; tipo?: Tip
       if (filtros?.tipo) q = q.eq("tipo", filtros.tipo);
       const { data, error } = await q;
       if (error) throw error;
+      const coords = Array.from(new Set((data ?? []).map((m: any) => m.coordenacao_id).filter(Boolean)));
+      try {
+        const { precarregarFeriados } = await import("@/lib/feriados");
+        await Promise.all(coords.map((c) => precarregarFeriados(c as string)));
+      } catch { /* sem feriados */ }
       return (data ?? []) as ModeloTitulo[];
     },
   });

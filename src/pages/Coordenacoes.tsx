@@ -1,4 +1,4 @@
-import { BookOpen } from "lucide-react";
+import { BookOpen, CalendarDays } from "lucide-react";
 import { RemoverMembroDialog } from "@/components/coordenacoes/RemoverMembroDialog";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
@@ -37,6 +37,7 @@ import { PautasExcelDialog } from "@/components/coordenacoes/PautasExcelDialog";
 import { NivelAcessoDialog } from "@/components/coordenacoes/NivelAcessoDialog";
 import { ResponsaveisFixosTipoDialog } from "@/components/coordenacoes/ResponsaveisFixosTipoDialog";
 import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSituacaoDialog";
+import { FeriadosCoordenacaoDialog } from "@/components/coordenacoes/FeriadosCoordenacaoDialog";
 import { AssuntosCoordenacaoDialog } from "@/components/coordenacoes/AssuntosCoordenacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
 import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/AlteracaoItensTerceirosDialog";
@@ -92,6 +93,7 @@ const Coordenacoes = () => {
   const [permSituacaoDialog, setPermSituacaoDialog] = useState(false);
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
   const [assuntosDialog, setAssuntosDialog] = useState(false);
+  const [feriadosDialog, setFeriadosDialog] = useState(false);
   const [loteDialog, setLoteDialog] = useState(false);
   const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
@@ -440,6 +442,7 @@ const Coordenacoes = () => {
                     { label: "Responsáveis Fixos", icon: Users, desc: "Define quem entra automaticamente em cada tipo de tarefa.", onClick: () => setRespFixosDialog(true) },
                     { label: "Modelos de tarefas", icon: FileType, desc: "Tipos e modelos de tarefa da coordenação.", to: "/modelos-tarefa" },
                     { label: "Assuntos", icon: BookOpen, desc: "Lista de assuntos (objeto da ação) da coordenação.", onClick: () => setAssuntosDialog(true) },
+                    { label: "Feriados", icon: CalendarDays, desc: "Feriados nacionais e da equipe como dias não úteis.", onClick: () => setFeriadosDialog(true) },
                   ],
                 },
                 {
@@ -778,6 +781,13 @@ const Coordenacoes = () => {
           <EnvioLoteProcessosSheet
             open={loteDialog}
             onOpenChange={setLoteDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <FeriadosCoordenacaoDialog
+            open={feriadosDialog}
+            onOpenChange={setFeriadosDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />

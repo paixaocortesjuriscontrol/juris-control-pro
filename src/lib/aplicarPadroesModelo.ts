@@ -1,4 +1,5 @@
 import { CAMPOS_MODELO } from "@/constants/camposModeloTitulo";
+import { ehFeriado } from "@/lib/feriados";
 import type { ModeloTitulo, TipoModelo } from "@/hooks/useModelosTitulo";
 
 /**
@@ -36,13 +37,13 @@ function toISO(d: Date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function addDiasUteis(base: Date, n: number) {
+function addDiasUteis(base: Date, n: number, coord?: string | null) {
   const d = new Date(base);
   let restantes = n;
   while (restantes > 0) {
     d.setDate(d.getDate() + 1);
     const dow = d.getDay();
-    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d)) restantes--;
+    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d) && !ehFeriado(d, coord)) restantes--;
   }
   return d;
 }
@@ -81,17 +82,17 @@ export function resolverPrazoModelo(
     d.setDate(d.getDate() + dias);
     return toISO(d);
   }
-  if (unidade === "inverso") return toISO(subDiasUteis(base, dias));
-  return toISO(addDiasUteis(base, dias));
+  if (unidade === "inverso") return toISO(subDiasUteis(base, dias, (modelo as any).coordenacao_id));
+  return toISO(addDiasUteis(base, dias, (modelo as any).coordenacao_id));
 }
 
-function subDiasUteis(base: Date, n: number) {
+function subDiasUteis(base: Date, n: number, coord?: string | null) {
   const d = new Date(base);
   let restantes = n;
   while (restantes > 0) {
     d.setDate(d.getDate() - 1);
     const dow = d.getDay();
-    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d)) restantes--;
+    if (dow !== 0 && dow !== 6 && !emSuspensaoClt(d) && !ehFeriado(d, coord)) restantes--;
   }
   return d;
 }
@@ -113,7 +114,7 @@ function normalizarBase(dataBase?: Date | string | null): Date {
  * `dataBase` permite contar a partir de outra data (ex.: data da publicação do DJEN);
  * sem ela, conta de hoje.
  */
-export function resolverData(expr?: string | null, dataBase?: Date | string | null): string {
+export function resolverData(expr?: string | null, dataBase?: Date | string | null, coordenacaoId?: string | null): string {
   const { modo, n } = parseExprData(expr);
   if (!modo) return "";
   const hoje = normalizarBase(dataBase);
@@ -131,7 +132,7 @@ export function resolverData(expr?: string | null, dataBase?: Date | string | nu
       return toISO(d);
     }
     case "du":
-      return toISO(addDiasUteis(hoje, n));
+      return toISO(addDiasUteis(hoje, n, coordenacaoId));
     case "prox_seg": {
       const d = new Date(hoje);
       const delta = ((8 - d.getDay()) % 7) || 7;
@@ -158,7 +159,7 @@ export function resolverPadroes(
   for (const campo of campos) {
     const raw = padroes[campo.key];
     if (raw === undefined || raw === null || String(raw).trim() === "") continue;
-    const valor = campo.kind === "date" ? resolverData(String(raw), dataBase) : String(raw);
+    const valor = campo.kind === "date" ? resolverData(String(raw), dataBase, (modelo as any).coordenacao_id) : String(raw);
     if (valor) out[campo.key] = valor;
   }
   return out;

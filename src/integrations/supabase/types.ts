@@ -2802,6 +2802,7 @@ export type Database = {
           monitorar_redistribuicoes: boolean
           nome: string
           updated_at: string
+          usar_feriados_nacionais: boolean
         }
         Insert: {
           area: string
@@ -2814,6 +2815,7 @@ export type Database = {
           monitorar_redistribuicoes?: boolean
           nome: string
           updated_at?: string
+          usar_feriados_nacionais?: boolean
         }
         Update: {
           area?: string
@@ -2826,6 +2828,7 @@ export type Database = {
           monitorar_redistribuicoes?: boolean
           nome?: string
           updated_at?: string
+          usar_feriados_nacionais?: boolean
         }
         Relationships: [
           {
@@ -5311,6 +5314,41 @@ export type Database = {
             columns: ["execucao_id"]
             isOneToOne: false
             referencedRelation: "execucoes_servidor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feriados_coordenacao: {
+        Row: {
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          data: string
+          id: string
+          nome: string
+        }
+        Insert: {
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          data: string
+          id?: string
+          nome: string
+        }
+        Update: {
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          data?: string
+          id?: string
+          nome?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feriados_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
             referencedColumns: ["id"]
           },
         ]

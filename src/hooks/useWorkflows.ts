@@ -549,10 +549,10 @@ export function useIniciarWorkflow() {
         const item = criados[etapa.id] || null;
         const tp = (e.tipo_prazo || "dias_corridos") as "dias_corridos" | "dias_uteis";
         const dataPrevista = e.dias_previsto
-          ? calcularDataOffset(dataReferencia, e.dias_previsto, tp).toISOString().split("T")[0]
+          ? calcularDataOffset(dataReferencia, e.dias_previsto, tp, coordenacao_id || (workflow as any).coordenacao_id).toISOString().split("T")[0]
           : dataInicio;
         const dataFatal = e.dias_fatal
-          ? calcularDataOffset(dataReferencia, e.dias_fatal, tp).toISOString().split("T")[0]
+          ? calcularDataOffset(dataReferencia, e.dias_fatal, tp, coordenacao_id || (workflow as any).coordenacao_id).toISOString().split("T")[0]
           : dataPrevista;
         return {
           execucao_id: execucaoId,

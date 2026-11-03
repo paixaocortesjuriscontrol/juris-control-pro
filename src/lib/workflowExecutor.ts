@@ -1,3 +1,4 @@
+import { somarDiasUteis, precarregarFeriados } from "@/lib/feriados";
 import { aplicarModeloChecklist } from "@/components/comum/ItemChecklist";
 import { supabase } from "@/integrations/supabase/client";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
@@ -110,10 +111,11 @@ export interface IniciarWorkflowInput {
 export function calcularDataOffset(
   base: Date,
   dias: number,
-  unidade: "dias_corridos" | "dias_uteis" = "dias_corridos"
+  unidade: "dias_corridos" | "dias_uteis" = "dias_corridos",
+  coordenacaoId?: string | null
 ): Date {
   if (unidade === "dias_uteis") {
-    return addBusinessDays(base, dias);
+    return coordenacaoId ? somarDiasUteis(base, dias, coordenacaoId) : addBusinessDays(base, dias);
   }
   return addDays(base, dias);
 }
@@ -197,15 +199,18 @@ export async function criarItemWorkflow(
   // A etapa é criada NO DIA da referência (início do fluxo ou conclusão da
   // etapa anterior). Os dias previstos/fatais são apenas orientativos.
   const dataCriacaoStr = formatarDataISOBrasilia(dataReferencia);
+  const coordFer = execucao.coordenacao_id || null;
+  try { await precarregarFeriados(coordFer); } catch { /* sem feriados */ }
   const dataBase = calcularDataOffset(
     dataReferencia,
     etapa.dias_previsto || 0,
-    etapa.tipo_prazo || "dias_corridos"
+    etapa.tipo_prazo || "dias_corridos",
+    coordFer
   );
   const dataBaseStr = formatarDataISOBrasilia(dataBase);
   const dataFatal = etapa.dias_fatal
     ? formatarDataISOBrasilia(
-        calcularDataOffset(dataReferencia, etapa.dias_fatal, etapa.tipo_prazo || "dias_corridos")
+        calcularDataOffset(dataReferencia, etapa.dias_fatal, etapa.tipo_prazo || "dias_corridos", coordFer)
       )
     : null;
 
@@ -729,14 +734,16 @@ export async function avancarExecucaoWorkflow(
     const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
       | "dias_corridos"
       | "dias_uteis";
+    const coordFer2 = (execucaoCast as any)?.coordenacao_id || null;
+    try { await precarregarFeriados(coordFer2); } catch { /* sem feriados */ }
     const dataPrevista = proxima.etapa?.dias_previsto
       ? formatarDataISOBrasilia(
-          calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp)
+          calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp, coordFer2)
         )
       : formatarDataISOBrasilia(dataReferencia);
     const dataFatal = proxima.etapa?.dias_fatal
       ? formatarDataISOBrasilia(
-          calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp)
+          calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp, coordFer2)
         )
       : dataPrevista;
 
