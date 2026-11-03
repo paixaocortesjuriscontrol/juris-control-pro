@@ -1,9 +1,14 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.8.4"
+VERSION = "9.8.5"
 RELEASE_DATE = "3 de novembro de 2026"
 
 CHAPTERS = [
+    ("Novidades da versão 9.8.5", "Workflows excluídos podem ser restaurados, etiquetas na criação do processo e exportações do Painel independentes do botão da agenda.", [
+        ("Workflows — excluir e restaurar", ["Excluir um workflow o arquiva: ele sai da lista e da opção de iniciar, mas etapas e histórico ficam guardados.", "O filtro Excluídos mostra os workflows arquivados; o menu de cada um tem Restaurar, e ele volta desabilitado para conferência.", "Qualquer coordenador da coordenação dona do workflow, além dos administradores, pode excluir, restaurar e editar.", "Workflow com execução em andamento não pode ser excluído; o aviso informa quantas execuções estão abertas.", "O assistente de coordenador altera apenas os workflows da própria coordenação."]),
+        ("Processos e Casos — etiquetas na criação", ["O campo Etiquetas aparece já ao criar o processo, abaixo de Outras coordenações responsáveis, e as etiquetas são gravadas ao salvar."]),
+        ("Painel de Controle — exportações", ["Exportar Audiências e a planilha de prazos seguem o tipo escolhido na própria janela, mesmo com o botão Prazos marcado na agenda, e períodos longos não são cortados."]),
+    ]),
     ("Novidades da versão 9.8.4", "Feriados por coordenação contados como dias não úteis, responsáveis padrão nos modelos de tarefas e planilha modelo no envio em lote de processos.", [
         ("Coordenações — Feriados", ["Na página da coordenação, o cartão Feriados abre a janela onde a equipe liga ou desliga a chave Considerar feriados nacionais como dias não úteis; ela começa desligada e cada coordenação decide.", "Os feriados nacionais já vêm prontos, inclusive os que mudam de data a cada ano, como Carnaval, Sexta-feira Santa e Corpus Christi.", "A equipe pode cadastrar feriados próprios, como municipais e estaduais, informando data e nome, e excluir os que não se aplicam.", "Com a chave ligada, os prazos contados em dias úteis pulam esses feriados nas tarefas, nos modelos de tarefas e nos workflows, além de sábados e domingos."]),
         ("Modelos de tarefas — pessoas padrão", ["O modelo de tarefa tem os campos Responsáveis padrão e Envolvidos padrão, com as pessoas da coordenação.", "Ao criar uma tarefa a partir do modelo, essas pessoas já entram preenchidas e podem ser trocadas antes de salvar.", "Modelos sem pessoas padrão continuam funcionando como antes."]),
