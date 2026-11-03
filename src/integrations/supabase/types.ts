@@ -11145,6 +11145,8 @@ export type Database = {
       }
       workflows: {
         Row: {
+          arquivado_em: string | null
+          arquivado_por: string | null
           ativo: boolean
           coordenacao_id: string
           created_at: string
@@ -11155,6 +11157,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           ativo?: boolean
           coordenacao_id: string
           created_at?: string
@@ -11165,6 +11169,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          arquivado_em?: string | null
+          arquivado_por?: string | null
           ativo?: boolean
           coordenacao_id?: string
           created_at?: string
@@ -11264,6 +11270,7 @@ export type Database = {
           grupos: number
         }[]
       }
+      arquivar_workflow: { Args: { _workflow_id: string }; Returns: undefined }
       assistente_geral_pode_editar: {
         Args: { _id: string; _tabela: string; _user_id: string }
         Returns: boolean
@@ -12400,6 +12407,10 @@ export type Database = {
             Args: { _status: string; _tarefa: string; _user: string }
             Returns: boolean
           }
+      pode_arquivar_workflow: {
+        Args: { _workflow_id: string }
+        Returns: boolean
+      }
       pode_gerenciar_etiquetas: {
         Args: { _coordenacao_id: string }
         Returns: boolean
@@ -12465,6 +12476,7 @@ export type Database = {
         Args: { _id: string }
         Returns: string
       }
+      restaurar_workflow: { Args: { _workflow_id: string }; Returns: undefined }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {
