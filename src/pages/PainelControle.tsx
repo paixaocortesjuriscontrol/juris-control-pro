@@ -1184,7 +1184,9 @@ export default function PainelControle() {
     situacoesSel: string[] = [],
     pessoaIds: string[] = [],
     papeisPessoas: { responsavel: boolean; envolvido: boolean } = { responsavel: false, envolvido: false },
+    referencia: "vencimento" | "cadastro" = "vencimento",
   ) => {
+    const porCadastro = referencia === "cadastro" && !!(inicio || fim);
     const XLSX = await import("xlsx");
 
     // Converte para o dia em Brasília: datas com horário (ex.: "2026-11-03T01:00:00Z")
@@ -1210,8 +1212,14 @@ export default function PainelControle() {
     // trazer menos atividades (audiências, prazos etc.) do que o esperado.
     let baseItens: any[] = itensPainelFiltrados;
     if (inicio || fim) {
-      const dInicio = inicio ? new Date(inicio + "T00:00:00-03:00") : new Date(2015, 0, 1);
-      const dFim = fim ? new Date(fim + "T23:59:59-03:00") : new Date(2100, 0, 1);
+      let dInicio = inicio ? new Date(inicio + "T00:00:00-03:00") : new Date(2015, 0, 1);
+      let dFim = fim ? new Date(fim + "T23:59:59-03:00") : new Date(2100, 0, 1);
+      if (porCadastro) {
+        // Itens cadastrados no período podem vencer bem depois (ou um pouco antes):
+        // busca uma janela ampla e filtra pela data de cadastro abaixo.
+        dInicio = new Date(dInicio.getTime() - 90 * 86400000);
+        dFim = new Date(dFim.getTime() + 2 * 365 * 86400000);
+      }
       const statusEscolhidos = situacoesSel.flatMap((v) => v.split("|")).filter(Boolean);
       const filtrosPeriodo = {
         ...filters, dataInicio: dInicio, dataFim: dFim,
@@ -1243,10 +1251,15 @@ export default function PainelControle() {
         if (!cid || !coordIds.includes(cid)) return false;
       }
       if (inicio || fim) {
-        const { prev, fatal } = dataRefItem(it);
         const dentro = (d: string) =>
           !!d && (!inicio || d >= inicio) && (!fim || d <= fim);
-        if (!dentro(prev) && !dentro(fatal)) return false;
+        if (porCadastro) {
+          if (String(it.id).startsWith("prazo-tst-")) return false;
+          if (!dentro(diaBrt(it.created_at))) return false;
+        } else {
+          const { prev, fatal } = dataRefItem(it);
+          if (!dentro(prev) && !dentro(fatal)) return false;
+        }
       }
       // Itens recorrentes (ex.: "conferir diariamente") aparecem uma vez por dia na
       // agenda. Na exportação, uma linha por item basta — evita repetir todo o mês.
