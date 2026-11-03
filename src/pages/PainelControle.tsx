@@ -1210,8 +1210,8 @@ export default function PainelControle() {
     // trazer menos atividades (audiências, prazos etc.) do que o esperado.
     let baseItens: any[] = itensPainelFiltrados;
     if (inicio || fim) {
-      const dInicio = inicio ? new Date(inicio + "T00:00:00") : new Date(2015, 0, 1);
-      const dFim = fim ? new Date(fim + "T23:59:59") : new Date(2100, 0, 1);
+      const dInicio = inicio ? new Date(inicio + "T00:00:00-03:00") : new Date(2015, 0, 1);
+      const dFim = fim ? new Date(fim + "T23:59:59-03:00") : new Date(2100, 0, 1);
       const statusEscolhidos = situacoesSel.flatMap((v) => v.split("|")).filter(Boolean);
       const filtrosPeriodo = {
         ...filters, dataInicio: dInicio, dataFim: dFim,
