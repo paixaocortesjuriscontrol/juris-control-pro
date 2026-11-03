@@ -50,6 +50,8 @@ interface Props {
    * fica vinculada ao cliente e é aplicada automaticamente aos processos dele.
    */
   clienteParaEtiqueta?: { id: string; nome: string } | null;
+  /** Modo local (item ainda não salvo): seleção fica em memória até salvar. */
+  onSelecaoLocalChange?: (ids: string[]) => void;
 }
 
 
@@ -67,7 +69,9 @@ export function EtiquetaPicker({
   etiquetaIds,
   coordenacaoNome,
   clienteParaEtiqueta,
+  onSelecaoLocalChange,
 }: Props) {
+  const modoLocal = !entidadeId && !!onSelecaoLocalChange;
   const modulo = moduloDaEntidade(entidade);
   const { data: catalogo = [], isLoading } = useEtiquetas(coordenacaoId ?? undefined, modulo);
   const { data: idsDoItem = [] } = useEtiquetasDoItem(
@@ -75,8 +79,20 @@ export function EtiquetaPicker({
     etiquetaIds ? null : entidadeId,
   );
   const aplicadosIds = etiquetaIds ?? idsDoItem;
-  const toggle = useToggleEtiquetaItem();
-  const removerTodas = useRemoverTodasEtiquetasDoItem();
+  const toggleRemoto = useToggleEtiquetaItem();
+  const removerTodasRemoto = useRemoverTodasEtiquetasDoItem();
+  const toggle = modoLocal
+    ? {
+        isPending: false,
+        mutateAsync: async ({ etiquetaId, checked }: { etiquetaId: string; checked: boolean; entidade?: any; entidadeId?: any }) => {
+          const atual = etiquetaIds ?? [];
+          onSelecaoLocalChange!(checked ? Array.from(new Set([...atual, etiquetaId])) : atual.filter((i) => i !== etiquetaId));
+        },
+      }
+    : toggleRemoto;
+  const removerTodas = modoLocal
+    ? { isPending: false, mutate: (_: any) => onSelecaoLocalChange!([]) }
+    : removerTodasRemoto;
   const criar = useCriarEtiqueta();
   const aplicarNaBase = useAplicarEtiquetaClienteBase();
   const { coordenacoes, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
@@ -121,7 +137,7 @@ export function EtiquetaPicker({
       modulos: ["clientes", "processos", "publicacoes"],
       cliente_id: clienteParaEtiqueta.id,
     });
-    if (entidadeId) {
+    if (entidadeId || modoLocal) {
       await toggle.mutateAsync({
         etiquetaId: nova.id,
         entidade,
@@ -134,7 +150,7 @@ export function EtiquetaPicker({
 
 
 
-  if (readOnly || !entidadeId) return <EtiquetaBadges etiquetas={aplicadas} />;
+  if (readOnly || (!entidadeId && !modoLocal)) return <EtiquetaBadges etiquetas={aplicadas} />;
 
   return (
     <>

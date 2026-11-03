@@ -213,6 +213,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   // Modo criação: quando o processo ainda não tem id, `handleSave` faz INSERT
   // e redireciona para a URL do novo processo.
   const isNovo = !processo?.id;
+  const [etiquetasNovo, setEtiquetasNovo] = useState<string[]>([]);
   const [form, setForm] = useState<Record<string, any>>({});
   const [responsaveis, setResponsaveis] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
@@ -533,6 +534,16 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           .select("id")
           .single();
         if (errInsert) throw errInsert;
+
+        if (novo?.id && etiquetasNovo.length > 0) {
+          const { data: u } = await supabase.auth.getUser();
+          const { error: errEt } = await supabase.from("etiquetas_itens").insert(
+            etiquetasNovo.map((etiqueta_id) => ({ etiqueta_id, entidade: "processo", entidade_id: novo.id, created_by: u.user?.id })) as any,
+          );
+          if (errEt) toast.error("Processo criado, mas as etiquetas não foram gravadas: " + errEt.message);
+          setEtiquetasNovo([]);
+          await queryClient.invalidateQueries({ queryKey: ["etiquetas-itens"] });
+        }
 
         // Grava na aba "Andamentos" (e em partes) o que a Judit já devolveu
         // durante o preenchimento — no modo criação ainda não havia processo_id.
@@ -1810,12 +1821,13 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       onPrincipalChange={(nova) => update("coordenacao_id", nova || "")}
                     />
                   </FormField>
-                  {processo?.id && (
+                  {(processo?.id || isNovo) && (
                     <FormField label="Etiquetas" className="md:col-span-2">
                       <div className="space-y-1">
                         <EtiquetaPicker
                           entidade="processo"
-                          entidadeId={processo.id}
+                          entidadeId={processo?.id ?? null}
+                          {...(isNovo ? { etiquetaIds: etiquetasNovo, onSelecaoLocalChange: setEtiquetasNovo } : {})}
                           coordenacaoId={form.coordenacao_id || null}
                         />
                         <p className="text-[11px] text-muted-foreground">
