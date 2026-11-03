@@ -21,7 +21,7 @@ export type WorkflowWithCoordenacao = Workflow & {
   coordenacao?: { id: string; nome: string } | null;
 };
 
-export function useWorkflows(filters?: { coordenacaoId?: string; ativo?: boolean }) {
+export function useWorkflows(filters?: { coordenacaoId?: string; ativo?: boolean; arquivados?: boolean }) {
   const { user } = useAuth();
   return useQuery({
     queryKey: ["workflows", filters, user?.id],
@@ -34,6 +34,9 @@ export function useWorkflows(filters?: { coordenacaoId?: string; ativo?: boolean
       if (filters?.coordenacaoId) {
         query = query.eq("coordenacao_id", filters.coordenacaoId);
       }
+      query = filters?.arquivados
+        ? (query as any).not("arquivado_em", "is", null)
+        : (query as any).is("arquivado_em", null);
       if (filters?.ativo !== undefined) {
         query = query.eq("ativo", filters.ativo);
       }
@@ -193,14 +196,29 @@ export function useDeleteWorkflow() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("workflows").delete().eq("id", id);
+      const { error } = await (supabase.rpc as any)("arquivar_workflow", { _workflow_id: id });
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflows"] });
-      toast.success("Workflow excluído!");
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      toast.success("Workflow excluído. Você pode restaurá-lo no filtro \"Excluídos\".");
     },
-    onError: (err: Error) => toast.error("Erro ao excluir workflow: " + err.message),
+    onError: (err: Error) => toast.error("Não foi possível excluir: " + err.message),
+  });
+}
+
+export function useRestaurarWorkflow() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await (supabase.rpc as any)("restaurar_workflow", { _workflow_id: id });
+      if (error) throw error;
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["workflows"] });
+      toast.success("Workflow restaurado (desabilitado). Habilite-o quando quiser usar.");
+    },
+    onError: (err: Error) => toast.error("Não foi possível restaurar: " + err.message),
   });
 }
 
