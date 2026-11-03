@@ -1,3 +1,4 @@
+import { somarDiasUteis } from "@/lib/feriados";
 import { aplicarModeloChecklist } from "@/components/comum/ItemChecklist";
 import { supabase } from "@/integrations/supabase/client";
 import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
@@ -110,10 +111,11 @@ export interface IniciarWorkflowInput {
 export function calcularDataOffset(
   base: Date,
   dias: number,
-  unidade: "dias_corridos" | "dias_uteis" = "dias_corridos"
+  unidade: "dias_corridos" | "dias_uteis" = "dias_corridos",
+  coordenacaoId?: string | null
 ): Date {
   if (unidade === "dias_uteis") {
-    return addBusinessDays(base, dias);
+    return coordenacaoId ? somarDiasUteis(base, dias, coordenacaoId) : addBusinessDays(base, dias);
   }
   return addDays(base, dias);
 }
