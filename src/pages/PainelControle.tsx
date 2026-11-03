@@ -1187,9 +1187,21 @@ export default function PainelControle() {
   ) => {
     const XLSX = await import("xlsx");
 
+    // Converte para o dia em Brasília: datas com horário (ex.: "2026-11-03T01:00:00Z")
+    // não podem ser cortadas nos 10 primeiros caracteres, senão compromissos da
+    // noite caem no dia seguinte (UTC) e somem do filtro "Hoje".
+    const fmtBrt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" });
+    const diaBrt = (v: any): string => {
+      if (!v) return "";
+      if (v instanceof Date) return isNaN(v.getTime()) ? "" : fmtBrt.format(v);
+      const s = String(v);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const d = new Date(s);
+      return isNaN(d.getTime()) ? s.slice(0, 10) : fmtBrt.format(d);
+    };
     const dataRefItem = (it: any) => {
-      const prev = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
-      const fatal = String(it.data_fatal ?? "").slice(0, 10);
+      const prev = diaBrt(it.data_vencimento ?? it.data_inicio ?? it.data ?? it.start);
+      const fatal = diaBrt(it.data_fatal);
       return { prev, fatal };
     };
 
@@ -1198,8 +1210,8 @@ export default function PainelControle() {
     // trazer menos atividades (audiências, prazos etc.) do que o esperado.
     let baseItens: any[] = itensPainelFiltrados;
     if (inicio || fim) {
-      const dInicio = inicio ? new Date(inicio + "T00:00:00") : new Date(2015, 0, 1);
-      const dFim = fim ? new Date(fim + "T23:59:59") : new Date(2100, 0, 1);
+      const dInicio = inicio ? new Date(inicio + "T00:00:00-03:00") : new Date(2015, 0, 1);
+      const dFim = fim ? new Date(fim + "T23:59:59-03:00") : new Date(2100, 0, 1);
       const statusEscolhidos = situacoesSel.flatMap((v) => v.split("|")).filter(Boolean);
       const filtrosPeriodo = {
         ...filters, dataInicio: dInicio, dataFim: dFim,
