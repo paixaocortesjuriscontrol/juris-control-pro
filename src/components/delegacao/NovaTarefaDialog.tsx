@@ -4,6 +4,7 @@ import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
+import { somarDiasUteis, precarregarFeriados } from "@/lib/feriados";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
@@ -69,15 +70,9 @@ type AnexoComAnalise = {
 };
 
 function addBusinessDays(start: Date, days: number): Date {
-  let remaining = days;
-  const d = new Date(start);
-  while (remaining > 0) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) remaining--;
-  }
-  return d;
+  return somarDiasUteis(start, days, coordFeriadosAtual);
 }
+let coordFeriadosAtual: string | null = null;
 
 function computeDataPrevista(base: string | undefined, dias: number, unidade: "uteis" | "corridos"): string {
   if (!base || !dias || dias <= 0) return "";
@@ -259,6 +254,10 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
+  useEffect(() => {
+    coordFeriadosAtual = coordenacaoId || null;
+    if (coordenacaoId) void precarregarFeriados(coordenacaoId).catch(() => {});
+  }, [coordenacaoId]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "TAREFA EQUIPE");
   const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(coordenacaoId || null, "TAREFA");
   // Envolvidos fixos configurados na coordenação para este tipo
