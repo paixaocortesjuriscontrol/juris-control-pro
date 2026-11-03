@@ -1593,16 +1593,27 @@ export default function PainelControle() {
 
   // Busca as audiências do período obedecendo os filtros do painel.
   // coordId (opcional) restringe a uma coordenação escolhida no painel lateral.
+  // Dia em Brasília: horários UTC à noite não podem virar o dia seguinte.
+  const diaBrtAud = (v: any): string => {
+    if (!v) return "";
+    const s = String(v);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+    const d = new Date(s);
+    return isNaN(d.getTime())
+      ? s.slice(0, 10)
+      : new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+  };
+
   const buscarItensAudienciasExport = async (
     inicio: string,
     fim: string,
     coordId?: string,
   ): Promise<any[]> => {
-    const dInicio = new Date(inicio + "T00:00:00");
-    const dFim = new Date(fim + "T23:59:59");
+    const dInicio = new Date(inicio + "T00:00:00-03:00");
+    const dFim = new Date(fim + "T23:59:59-03:00");
     const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
     const coletados: any[] = [];
-    for (let page = 0; page < 40; page++) {
+    for (let page = 0; page < 200; page++) {
       const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
       coletados.push(...pageItens);
       if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
@@ -1623,7 +1634,7 @@ export default function PainelControle() {
         return cid === coordId;
       })
       .filter((it) => {
-        const d = String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10);
+        const d = diaBrtAud(it.data_vencimento ?? it.data_inicio);
         return !!d && d >= inicio && d <= fim;
       });
   };
@@ -1679,7 +1690,7 @@ export default function PainelControle() {
       }
 
       const fmtData = (v?: string | null) => {
-        const s = (v ?? "").slice(0, 10);
+        const s = diaBrtAud(v);
         if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return "";
         const [y, m, d] = s.split("-");
         return `${d}/${m}/${y}`;
