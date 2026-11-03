@@ -96,6 +96,11 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
           <SheetDescription>{coordenacaoNome} — use a planilha modelo de importação de processos.</SheetDescription>
         </SheetHeader>
         <div className="space-y-4 mt-4">
+          <Button variant="outline" size="sm" asChild>
+            <a href="/modelos/MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx" download="MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx">
+              Baixar planilha modelo
+            </a>
+          </Button>
           <Input type="file" accept=".xlsx,.xls" disabled={progresso !== null}
             onChange={(e) => e.target.files?.[0] && carregar(e.target.files[0]).catch((er) => toast.error(String(er?.message || er)))} />
           {linhas.length > 0 && (
