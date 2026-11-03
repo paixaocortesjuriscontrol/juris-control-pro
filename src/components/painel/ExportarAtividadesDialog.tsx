@@ -28,6 +28,7 @@ interface Props {
     situacoes: string[],
     pessoaIds: string[],
     papeis: { responsavel: boolean; envolvido: boolean },
+    referencia: "vencimento" | "cadastro",
   ) => Promise<void> | void;
   coordenacoes?: { id: string; nome: string }[];
   /** Situações disponíveis (valor pode conter vários status separados por "|") */
@@ -41,6 +42,7 @@ type Modo = "hoje" | "periodo" | "todas";
 
 export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coordenacoes = [], situacoes = [] }: Props) {
   const [modo, setModo] = useState<Modo>("hoje");
+  const [referencia, setReferencia] = useState<"vencimento" | "cadastro">("vencimento");
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [tipos, setTipos] = useState<string[]>([]);
@@ -63,7 +65,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
     const [ini, fi] = modo === "hoje" ? [h, h] : modo === "periodo" ? [inicio, fim] : ["", ""];
     setLoading(true);
     try {
-      await onExportar(ini, fi, tipos, coords, sits, pessoas, { responsavel: papelResponsavel, envolvido: papelEnvolvido });
+      await onExportar(ini, fi, tipos, coords, sits, pessoas, { responsavel: papelResponsavel, envolvido: papelEnvolvido }, referencia);
       onOpenChange(false);
     } finally {
       setLoading(false);
@@ -94,6 +96,16 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
               <ModoBtn v="periodo" label="Período" />
               <ModoBtn v="todas" label="Todas" />
             </div>
+            {modo !== "todas" && (
+              <div className="flex gap-2 mt-2">
+                <Button type="button" size="sm" variant={referencia === "vencimento" ? "secondary" : "ghost"} onClick={() => setReferencia("vencimento")} className="flex-1 text-xs">
+                  Pela data do prazo
+                </Button>
+                <Button type="button" size="sm" variant={referencia === "cadastro" ? "secondary" : "ghost"} onClick={() => setReferencia("cadastro")} className="flex-1 text-xs">
+                  Pela data de cadastro
+                </Button>
+              </div>
+            )}
             {modo === "periodo" && (
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div className="min-w-0">
