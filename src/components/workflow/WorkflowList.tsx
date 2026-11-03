@@ -44,6 +44,7 @@ import {
   CircleDot,
   CheckCircle2,
   XCircle,
+  Trash2,
   MoreVertical,
   Play,
 } from "lucide-react";
