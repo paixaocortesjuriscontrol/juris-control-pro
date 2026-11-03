@@ -1,9 +1,14 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.8.3"
+VERSION = "9.8.4"
 RELEASE_DATE = "3 de novembro de 2026"
 
 CHAPTERS = [
+    ("Novidades da versão 9.8.4", "Feriados por coordenação contados como dias não úteis, responsáveis padrão nos modelos de tarefas e planilha modelo no envio em lote de processos.", [
+        ("Coordenações — Feriados", ["Na página da coordenação, o cartão Feriados abre a janela onde a equipe liga ou desliga a chave Considerar feriados nacionais como dias não úteis; ela começa desligada e cada coordenação decide.", "Os feriados nacionais já vêm prontos, inclusive os que mudam de data a cada ano, como Carnaval, Sexta-feira Santa e Corpus Christi.", "A equipe pode cadastrar feriados próprios, como municipais e estaduais, informando data e nome, e excluir os que não se aplicam.", "Com a chave ligada, os prazos contados em dias úteis pulam esses feriados nas tarefas, nos modelos de tarefas e nos workflows, além de sábados e domingos."]),
+        ("Modelos de tarefas — pessoas padrão", ["O modelo de tarefa tem os campos Responsáveis padrão e Envolvidos padrão, com as pessoas da coordenação.", "Ao criar uma tarefa a partir do modelo, essas pessoas já entram preenchidas e podem ser trocadas antes de salvar.", "Modelos sem pessoas padrão continuam funcionando como antes."]),
+        ("Envio em lote de processos — planilha modelo", ["Nas coordenações Santander Cível e Santander Trabalhista, a janela de envio em lote tem o botão Baixar planilha modelo.", "A planilha baixada é o modelo oficial de importação, com as colunas reconhecidas pela leitura, incluindo Rito Processual."]),
+    ]),
     ("Novidades da versão 9.8.3", "Exportações do Painel de Controle no horário de Brasília, caso que vira processo e retirada de pessoas das atividades ao remover um membro da coordenação.", [
         ("Painel de Controle — Relatório de atividades (Excel)", ["Os filtros Hoje e Período consideram o dia de Brasília: compromissos marcados a partir das 21h permanecem no mesmo dia e não somem do relatório.", "Ao escolher Período, a busca é feita no banco dentro desse período, em vez de considerar apenas os itens já carregados no calendário, o que aumenta a quantidade de atividades exportadas.", "As datas impressas na planilha também seguem o dia de Brasília."]),
         ("Painel de Controle — Exportar Audiências", ["O período inicial e final e a data de cada linha obedecem ao dia de Brasília, de modo que audiências marcadas à noite e as do último dia do período entram na planilha.", "A busca percorre o período inteiro em lotes sucessivos, evitando audiências ausentes quando o período tem muitos itens.", "A opção Coordenação continua restringindo a planilha a uma coordenação e os filtros ativos no painel, como pessoas e situação, continuam valendo."]),

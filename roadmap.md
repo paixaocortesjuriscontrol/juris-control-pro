@@ -1,8 +1,8 @@
 # Roadmap — Considerações 02/09
 
-## Versão v9.8.3
-- [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.8.3.
-- [ ] Publicar e conferir o número v9.8.3 no menu e os downloads na tela autenticada — Supabase externo sem sessão neste ambiente.
+## Versão v9.8.4
+- [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.8.4.
+- [ ] Publicar e conferir o número v9.8.4 no menu e os downloads na tela autenticada — Supabase externo sem sessão neste ambiente.
 
 ## Versão v9.8.2
 - [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.8.2.
