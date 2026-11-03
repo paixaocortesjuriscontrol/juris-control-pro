@@ -1,7 +1,7 @@
 """User-facing additions to the official manuals, verified against release features."""
 
-VERSION = "9.8.2"
-RELEASE_DATE = "30 de outubro de 2026"
+VERSION = "9.8.3"
+RELEASE_DATE = "3 de novembro de 2026"
 
 CHAPTERS = [
     ("Novidades da versão 9.8.2", "Correção dos títulos e dos checklists das tarefas já migradas do Projuris e salvamento dos modelos de tarefas.", [
