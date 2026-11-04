@@ -57,7 +57,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const enviar = async () => {
     setProgresso(0);
     const rejeitados = linhas.filter((l) => l.erro);
-    let criados = 0, atualizados = 0;
+    let criados = 0, atualizados = 0, compartilhados = 0;
     const { data: ritosDb } = await sb.from("ritos_processuais").select("nome");
     const ritos: string[] = (ritosDb || []).map((r: any) => r.nome);
     const { data: clientes } = await sb.from("clientes").select("id,nome");
