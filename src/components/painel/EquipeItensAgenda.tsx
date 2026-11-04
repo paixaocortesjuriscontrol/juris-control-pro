@@ -370,7 +370,7 @@ export function EquipeItensAgenda({
       return p ? new Date(p).getTime() : -Infinity;
     };
     return [...filtrada].sort((a, b) => pubTs(b) - pubTs(a) || ts(a) - ts(b));
-  }, [membroAtual, itens, search]);
+  }, [itensDoEscopo, statusFilter, search]);
 
   const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -384,11 +384,11 @@ export function EquipeItensAgenda({
   const { data: mapaCobrancas } = useCobrancasItens(itensPagina, getEscopoCobrancaPreferido());
 
 
-  // Volta para a primeira página apenas quando o membro/busca realmente mudam
+  // Volta para a primeira página apenas quando o membro/busca/situação realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
   const filtroAnteriorRef = useRef<string | null>(null);
   useEffect(() => {
-    const chave = `${selectedMembro ?? ""}|${search}`;
+    const chave = `${selectedMembro ?? ""}|${search}|${statusFilter}`;
     if (filtroAnteriorRef.current === null) {
       filtroAnteriorRef.current = chave;
       return;
@@ -397,7 +397,7 @@ export function EquipeItensAgenda({
       filtroAnteriorRef.current = chave;
       setPagina(1);
     }
-  }, [selectedMembro, search, setPagina]);
+  }, [selectedMembro, search, statusFilter, setPagina]);
 
   const processoIds = useMemo(
     () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],
