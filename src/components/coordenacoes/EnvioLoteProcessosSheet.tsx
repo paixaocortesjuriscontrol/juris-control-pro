@@ -22,34 +22,55 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const cancelarRef = useRef(false);
   const [resumo, setResumo] = useState<{ criados: number; atualizados: number; compartilhados?: number; rejeitados: LinhaLote[] } | null>(null);
 
+  const [leitura, setLeitura] = useState<{ etapa: string; pct: number } | null>(null);
+
   const carregar = async (f: File) => {
-    setResumo(null);
+    setResumo(null); setLinhas([]);
     atuaisRef.current = new Map();
-    const wb = XLSX.read(await f.arrayBuffer());
-    const dados = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
-    const lidas = lerLinhasLote(dados, coordenacaoNome);
-    const [{ data: perfis }, { data: membros }] = await Promise.all([
-      sb.from("profiles").select("id,nome"),
-      sb.from("membros_coordenacao").select("user_id").eq("coordenacao_id", coordenacaoId),
-    ]);
-    const idsMembros = new Set((membros || []).map((m: any) => m.user_id));
-    const porNome = new Map<string, string>();
-    (perfis || []).forEach((p: any) => p.nome && (!porNome.has(semAcento(p.nome)) || idsMembros.has(p.id)) && porNome.set(semAcento(p.nome), p.id));
-    lidas.forEach((l) => {
-      const r = l.campos._responsavel;
-      if (!l.erro && r) {
-        const id = porNome.get(semAcento(r));
-        if (id) l.campos.advogado_responsavel_id = id; else l.erro = `Responsável não encontrado (${r})`;
+    try {
+      setLeitura({ etapa: "Lendo a planilha...", pct: 5 }); await pausa();
+      const wb = XLSX.read(await f.arrayBuffer());
+      setLeitura({ etapa: "Conferindo as linhas...", pct: 15 }); await pausa();
+      const dados = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
+      const lidas = lerLinhasLote(dados, coordenacaoNome);
+      setLeitura({ etapa: "Conferindo os responsáveis...", pct: 25 }); await pausa();
+      const perfis: any[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await sb.from("profiles").select("id,nome").range(de, de + 999);
+        if (error) throw error;
+        perfis.push(...(data || []));
+        if (!data || data.length < 1000) break;
       }
-    });
-    const nums = [...new Set(lidas.filter((l) => !l.erro).map((l) => l.campos.numero as string))];
-    const mapa = new Map<string, string>();
-    for (let i = 0; i < nums.length; i += 150) {
-      const { data } = await sb.from("processos").select("*").in("numero", nums.slice(i, i + 150));
-      (data || []).forEach((p: any) => { mapa.set(p.numero, p.id); atuaisRef.current.set(p.id, p); });
+      const { data: membros } = await sb.from("membros_coordenacao").select("usuario_id").eq("coordenacao_id", coordenacaoId);
+      const idsMembros = new Set((membros || []).map((m: any) => m.usuario_id));
+      const porNome = new Map<string, string>();
+      perfis.forEach((p: any) => p.nome && (!porNome.has(semAcento(p.nome)) || idsMembros.has(p.id)) && porNome.set(semAcento(p.nome), p.id));
+      lidas.forEach((l) => {
+        const r = l.campos._responsavel;
+        if (!l.erro && r) {
+          const id = porNome.get(semAcento(r));
+          if (id) l.campos.advogado_responsavel_id = id; else l.erro = `Responsável não encontrado (${r})`;
+        }
+      });
+      // Só as colunas usadas pela planilha (a tabela tem 200+ colunas)
+      const cols = new Set<string>(["id", "numero", "coordenacao_id"]);
+      lidas.forEach((l) => Object.keys(l.campos).forEach((k) => !k.startsWith("_") && cols.add(k)));
+      const nums = [...new Set(lidas.filter((l) => !l.erro).map((l) => l.campos.numero as string))];
+      const mapa = new Map<string, string>();
+      const TAM = 200;
+      for (let i = 0; i < nums.length; i += TAM) {
+        const { data, error } = await sb.from("processos").select([...cols].join(",")).in("numero", nums.slice(i, i + TAM));
+        if (error) throw error;
+        (data || []).forEach((p: any) => { mapa.set(p.numero, p.id); atuaisRef.current.set(p.id, p); });
+        const feito = Math.min(i + TAM, nums.length);
+        setLeitura({ etapa: `Procurando processos já cadastrados: ${feito} de ${nums.length}`, pct: 30 + Math.round((feito / nums.length) * 70) });
+        await pausa();
+      }
+      setExistentes(mapa);
+      setLinhas(lidas);
+    } finally {
+      setLeitura(null);
     }
-    setExistentes(mapa);
-    setLinhas(lidas);
   };
 
   const atuaisRef = useRef<Map<string, any>>(new Map());
@@ -164,8 +185,14 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
               Baixar planilha modelo
             </a>
           </Button>
-          <Input type="file" accept=".xlsx,.xls" disabled={progresso !== null}
+          <Input type="file" accept=".xlsx,.xls" disabled={progresso !== null || leitura !== null}
             onChange={(e) => e.target.files?.[0] && carregar(e.target.files[0]).catch((er) => toast.error(String(er?.message || er)))} />
+          {leitura && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm"><span>{leitura.etapa}</span><b>{leitura.pct}%</b></div>
+              <Progress value={leitura.pct} />
+            </div>
+          )}
           {linhas.length > 0 && (
             <div className="space-y-2 text-sm">
               <p><b>{novos}</b> novos · <b>{validas.length - novos}</b> já existem (completa só os campos vazios e inclui esta coordenação) · <b>{linhas.length - validas.length}</b> com erro</p>
