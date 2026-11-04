@@ -3228,7 +3228,7 @@ export default function PainelControle() {
                                   )}
                                   style={(() => {
                                     const cor = modeloPorTarefa?.get(getItemRawId(item.id))?.cor;
-                                    return cor && !isCancelado ? { borderLeft: `3px solid ${cor}` } : undefined;
+                                    return cor && !isCancelado ? { borderLeft: `6px solid ${cor}` } : undefined;
                                   })()}
                                   onClick={(e) => {
                                     e.stopPropagation();

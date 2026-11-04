@@ -432,6 +432,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                             camposItem[campo.key] = valor;
                           }
                         }
+                        if (padroes.cor && !camposItem.cor) camposItem.cor = padroes.cor;
                         return {
                           ...prev,
                           titulo: m.titulo,
@@ -706,6 +707,29 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               </div>
 
               <div className="space-y-2 rounded-md border p-3">
+                <Label>Cor na agenda</Label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {["#8B5A2B", "#16A34A", "#2563EB", "#DC2626", "#EA580C", "#CA8A04", "#7C3AED", "#DB2777", "#0891B2", "#475569"].map((c) => {
+                    const sel = (form as any).campos_item?.cor === c;
+                    return (
+                      <button key={c} type="button" aria-label={`Cor ${c}`}
+                        onClick={() => setForm((prev: any) => ({ ...prev, campos_item: { ...(prev.campos_item || {}), cor: c } }))}
+                        className={`h-7 w-7 rounded-full border-2 ${sel ? "border-foreground ring-2 ring-offset-1 ring-foreground" : "border-border"}`}
+                        style={{ backgroundColor: c }} />
+                    );
+                  })}
+                  <input type="color" aria-label="Outra cor" className="h-7 w-9 cursor-pointer rounded border"
+                    value={(form as any).campos_item?.cor || "#475569"}
+                    onChange={(e) => { const v = e.target.value; setForm((prev: any) => ({ ...prev, campos_item: { ...(prev.campos_item || {}), cor: v } })); }} />
+                  <Button type="button" size="sm" variant="ghost"
+                    onClick={() => setForm((prev: any) => { const ci = { ...(prev.campos_item || {}) }; delete ci.cor; return { ...prev, campos_item: ci }; })}>
+                    Sem cor
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">Aparece na faixinha lateral das tarefas criadas por esta etapa.</p>
+              </div>
+
+              <div className="space-y-2 rounded-md border p-3">
                 <div className="flex items-center justify-between gap-2">
                   <Label>Modelo de checklist</Label>
                   <a href="/modelos-checklist" target="_blank" rel="noreferrer" className="text-xs text-primary underline">Gerenciar modelos</a>
@@ -879,7 +903,10 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                               etapa.tipo_item
                             ).toLowerCase()}
                           </p>
-                          <p className="text-sm text-muted-foreground truncate">
+                          <p className="text-sm text-muted-foreground truncate flex items-center gap-1.5">
+                            {(etapa as any).campos_item?.cor && (
+                              <span className="inline-block h-3 w-3 shrink-0 rounded-full border" style={{ backgroundColor: (etapa as any).campos_item.cor }} title="Cor da etapa" />
+                            )}
                             {etapa.titulo}
                           </p>
                           {(atividadesMap[etapa.id] || []).length > 0 && (
