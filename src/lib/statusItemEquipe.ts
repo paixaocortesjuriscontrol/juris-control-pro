@@ -7,7 +7,7 @@ export type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "
 /** Situação real de um item, igual ao selo exibido na lista. */
 export type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
 
-export const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
+const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
   pendente: "pendentes",
   atrasada: "atrasadas",
   cumprida: "cumpridas",
@@ -21,6 +21,12 @@ interface ItemComDatas {
   status?: string | null;
   situacao?: string | null;
   status_tst?: string | null;
+  origem?: string | null;
+  data_cumprimento?: string | null;
+  concluido_em?: string | null;
+  tratado_em?: string | null;
+  prazo_fatal_conferido?: boolean | null;
+  titulo?: string | null;
 }
 
 export function getRefDate(item: ItemComDatas): Date | null {
