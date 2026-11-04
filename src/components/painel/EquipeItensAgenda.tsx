@@ -51,7 +51,7 @@ interface EquipeItensAgendaProps {
   onStatusFilterChange?: (v: StatusFiltro) => void;
 }
 
-type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados";
+export type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados";
 type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
 
 const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; singular: string; classe: string }[] = [
