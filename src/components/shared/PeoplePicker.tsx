@@ -47,6 +47,8 @@ interface Props {
   icon?: "user" | "users";
   /** IDs que não podem ser removidos pelo usuário (ex.: coordenadores obrigatórios) */
   lockedIds?: string[];
+  /** Coordenação escolhida no item: a lista abre já filtrada nela. */
+  coordenacaoId?: string | null;
 }
 
 function initials(name: string) {
@@ -67,6 +69,7 @@ export function PeoplePicker({
   emptyLabel = "Nenhuma pessoa selecionada",
   icon = "user",
   lockedIds = [],
+  coordenacaoId,
 }: Props) {
   const [open, setOpen] = useState(false);
   const { user } = useAuth();
@@ -112,13 +115,22 @@ export function PeoplePicker({
   // Pré-seleciona coordenação padrão do usuário assim que estiver disponível
   useEffect(() => {
     if (coordFiltroTouched) return;
-    if (isAdmin) return;
     if (!coordenacoes.length) return;
+    if (coordenacaoId && coordenacoes.some((c) => c.id === coordenacaoId)) {
+      if (coordFiltro !== coordenacaoId) setCoordFiltro(coordenacaoId);
+      return;
+    }
+    if (isAdmin) return;
     const alvo = coordPadraoId && coordenacoes.some((c) => c.id === coordPadraoId)
       ? coordPadraoId
       : coordenacoes[0].id;
     if (alvo && coordFiltro !== alvo) setCoordFiltro(alvo);
-  }, [isAdmin, coordPadraoId, coordenacoes, coordFiltroTouched]);
+  }, [isAdmin, coordPadraoId, coordenacoes, coordFiltroTouched, coordenacaoId]);
+
+  // Quando a coordenação do item muda, a lista volta a acompanhá-la.
+  useEffect(() => {
+    setCoordFiltroTouched(false);
+  }, [coordenacaoId]);
 
   const { data: usuarios = [] } = useQuery({
     queryKey: ["people-picker-usuarios"],
