@@ -888,7 +888,13 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                       ? "border-l-4 border-l-[hsl(var(--status-pending))]"
                       : "border-l-4 border-l-primary"
                   }
+                  style={
+                    (etapa as any).campos_item?.cor
+                      ? { borderLeftColor: (etapa as any).campos_item.cor }
+                      : undefined
+                  }
                 >
+
                   <CardContent className="p-0">
                     <div className="flex items-start justify-between gap-3 p-4">
                       <div className="flex items-start gap-3 min-w-0">
