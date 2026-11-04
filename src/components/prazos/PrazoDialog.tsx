@@ -152,6 +152,7 @@ export function PrazoDialog({
   const updatePrazo = useUpdatePrazo();
   const secondaryClickedRef = useRef(false);
   const tertiaryClickedRef = useRef(false);
+  const outroPrazoClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   // Perfis bloqueados e quem não pode reagendar não alteram datas de itens existentes.
@@ -697,7 +698,22 @@ export function PrazoDialog({
       // (Análise DJEN: onAfterCreate fornecido) e o usuário clicou no Salvar
       // primário — mantém o formulário aberto e reseta para novo cadastro.
       const manterAbertoParaNovo = !prazo && !!onAfterCreate && !tertiaryWasClicked;
-      if (manterAbertoParaNovo) {
+      const outroPrazo = outroPrazoClickedRef.current && !prazo;
+      outroPrazoClickedRef.current = false;
+      if (outroPrazo) {
+        // Mantém processo, coordenação, pessoas e início; limpa o restante.
+        setTitulo("");
+        setPrazoDias(0);
+        setDataLimite(undefined);
+        setDataLimiteEditadaManualmente(false);
+        setDataFatal(undefined);
+        setObservacoes("");
+        setRecorrenciaTipo("nenhuma");
+        setRecorrenciaIntervalo(1);
+        setRecorrenciaOcorrencias("");
+        setRecorrenciaFim("");
+        toast.success("Prazo salvo. Preencha o próximo prazo.");
+      } else if (manterAbertoParaNovo) {
         toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
         resetFormForNew();
       } else {
@@ -1277,11 +1293,21 @@ export function PrazoDialog({
          <Button
            type="submit"
            disabled={isLoading}
-           onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }}
+            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; outroPrazoClickedRef.current = false; }}
          >
            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
            Salvar
          </Button>
+         {!prazo?.id && !onAfterCreate && (
+           <Button
+             type="submit"
+             variant="outline"
+             disabled={isLoading}
+             onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; outroPrazoClickedRef.current = true; }}
+           >
+             Salvar e agendar outro prazo
+           </Button>
+         )}
          {secondarySave && !prazo?.id && (
            <Button
              type="submit"
