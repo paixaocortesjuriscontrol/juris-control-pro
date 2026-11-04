@@ -1298,7 +1298,7 @@ export function PrazoDialog({
            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
            Salvar
          </Button>
-         {!prazo?.id && !onAfterCreate && (
+         {!prazo?.id && (
            <Button
              type="submit"
              variant="outline"
