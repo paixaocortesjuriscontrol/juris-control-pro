@@ -16,7 +16,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2 } from "lucide-react";
+import { Loader2, ExternalLink } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { ItemDrawer } from "@/components/agenda/ItemDrawer";
+import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
+import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
 
 type Periodo = "mes" | "trimestre" | "ano";
@@ -43,6 +47,58 @@ function tipoDoItem(fonte: FonteAgenda, i: any): string {
   if (t.startsWith("AUDI")) return "audiencia";
   if (fonte === "eventos" || t === "EVENTO") return "evento";
   return "tarefa";
+}
+
+/** Converte a linha da busca pessoal no formato que o painel da agenda reconhece. */
+function paraItemAgenda(i: any): any {
+  const isAud = i._fonte === "audiencias";
+  return {
+    ...i,
+    id: isAud ? `audiencia-det-${i.id}` : i.id,
+    tipo: isAud ? "audiencia" : i._tipo,
+    origem: i._fonte === "tarefas" ? "tarefa" : "evento",
+    data_inicio: i.data_inicio ?? i.data_vencimento ?? i.data_fatal ?? i.data ?? null,
+  };
+}
+
+function ProcessoPainel({ id }: { id: string }) {
+  const q = useQuery({
+    queryKey: ["minhas-responsabilidades", "processo", id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("processos").select("*").eq("id", id).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  if (q.isLoading) return <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando...</div>;
+  if (!q.data) return <div className="p-6 text-sm text-muted-foreground">Processo não encontrado.</div>;
+  return <ProcessoVisaoGeralForm processo={q.data} />;
+}
+
+function WorkflowPainel({ etapa }: { etapa: any }) {
+  const q = useQuery({
+    queryKey: ["minhas-responsabilidades", "workflow-etapas", etapa.workflows.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("workflow_etapas").select("id, titulo, ordem, tipo_item, dias_previsto").eq("workflow_id", etapa.workflows.id).order("ordem");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  return (
+    <div className="p-4 space-y-3">
+      <div className="text-sm text-muted-foreground">{etapa.workflows.coordenacoes?.nome ?? ""}{!etapa.workflows.ativo && " · Desabilitado"}</div>
+      <div className="text-sm">Você está na etapa <b>{etapa.ordem}: {etapa.titulo}</b> como <b>{etapa._papel === "responsavel" ? "responsável" : "envolvido"}</b>.</div>
+      <div className="divide-y rounded-md border">
+        {(q.data ?? []).map((e) => (
+          <div key={e.id} className={cn("p-2 text-sm flex gap-2", e.id === etapa.id && "bg-muted font-medium")}>
+            <span className="w-8 text-muted-foreground">{e.ordem}</span>
+            <span className="flex-1">{e.titulo}</span>
+            <span className="text-xs text-muted-foreground">{e.tipo_item} · {e.dias_previsto}d</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 const fmt = (raw?: string | null) => {
@@ -85,6 +141,10 @@ export default function MinhasResponsabilidades() {
     },
   });
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [itemSel, setItemSel] = useState<any | null>(null);
+  const [procSel, setProcSel] = useState<any | null>(null);
+  const [etapaSel, setEtapaSel] = useState<any | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [filtro, setFiltro] = useState<StatusFiltro>("todos");
   const [tipo, setTipo] = useState<string>("todos");
@@ -275,7 +335,7 @@ export default function MinhasResponsabilidades() {
                   <button
                     key={`${i._fonte}:${i.id}`}
                     className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap items-center gap-2"
-                    onClick={() => i.processo_id && navigate(`/processos/${i.processo_id}`)}
+                    onClick={() => setItemSel(paraItemAgenda(i))}
                   >
                     <Badge variant="outline">{ROT_TIPO[i._tipo]}</Badge>
                     <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-primary")}>{i.titulo || "(sem título)"}</span>
@@ -302,7 +362,7 @@ export default function MinhasResponsabilidades() {
             <Card><CardContent className="p-0 divide-y">
               {!processos.isLoading && procs.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhum processo.</div>}
               {procs.slice(0, 500).map((p) => (
-                <button key={p.id} className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap gap-2 items-center" onClick={() => navigate(`/processos/${p.id}`)}>
+                <button key={p.id} className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap gap-2 items-center" onClick={() => setProcSel(p)}>
                   <span className="font-medium">{p.numero || "(sem número)"}</span>
                   <span className="text-sm text-muted-foreground flex-1">{p.clientes?.nome ?? ""}{p.assunto ? ` — ${p.assunto}` : ""}</span>
                   <Badge variant="secondary" className="capitalize">{String(p.status ?? "").replace(/_/g, " ")}</Badge>
@@ -317,7 +377,7 @@ export default function MinhasResponsabilidades() {
             <Card><CardContent className="p-0 divide-y">
               {!workflows.isLoading && (workflows.data ?? []).length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma etapa de workflow.</div>}
               {(workflows.data ?? []).map((e) => (
-                <button key={e.id} className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap gap-2 items-center" onClick={() => navigate(`/workflow?id=${e.workflows.id}`)}>
+                <button key={e.id} className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap gap-2 items-center" onClick={() => setEtapaSel(e)}>
                   <span className="font-medium">{e.workflows.nome}</span>
                   <span className="text-sm flex-1">Etapa {e.ordem}: {e.titulo}</span>
                   <span className="text-xs text-muted-foreground">{e.workflows.coordenacoes?.nome ?? ""}</span>
@@ -329,6 +389,49 @@ export default function MinhasResponsabilidades() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ItemDrawer open={!!itemSel} onOpenChange={(o) => !o && setItemSel(null)} titulo={itemSel?.titulo || "Detalhe do item"} subtitulo={itemSel?.processo?.numero ?? null}>
+        {itemSel && (
+          <div className="flex flex-col h-full">
+            {itemSel.processo_id && (
+              <div className="p-2 border-b flex justify-end">
+                <Button size="sm" variant="outline" onClick={() => navigate(`/processos/${itemSel.processo_id}`)}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
+              </div>
+            )}
+            <div className="flex-1 min-h-0 overflow-auto">
+              <EdicaoItemPanel
+                key={itemSel.id}
+                item={itemSel}
+                hideHeader
+                onClose={() => setItemSel(null)}
+                onUpdate={() => { queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] }); }}
+              />
+            </div>
+          </div>
+        )}
+      </ItemDrawer>
+
+      <ItemDrawer open={!!procSel} onOpenChange={(o) => !o && setProcSel(null)} titulo={procSel?.numero || "Processo"} subtitulo={procSel?.clientes?.nome ?? null}>
+        {procSel && (
+          <div className="flex flex-col h-full">
+            <div className="p-2 border-b flex justify-end">
+              <Button size="sm" onClick={() => navigate(`/processos/${procSel.id}`)}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto"><ProcessoPainel id={procSel.id} /></div>
+          </div>
+        )}
+      </ItemDrawer>
+
+      <ItemDrawer open={!!etapaSel} onOpenChange={(o) => !o && setEtapaSel(null)} titulo={etapaSel?.workflows?.nome || "Workflow"} subtitulo={null}>
+        {etapaSel && (
+          <div className="flex flex-col h-full">
+            <div className="p-2 border-b flex justify-end">
+              <Button size="sm" onClick={() => navigate(`/workflow?id=${etapaSel.workflows.id}`)}><ExternalLink className="w-4 h-4 mr-1" />Abrir workflow</Button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto"><WorkflowPainel etapa={etapaSel} /></div>
+          </div>
+        )}
+      </ItemDrawer>
     </MainLayout>
   );
 }
