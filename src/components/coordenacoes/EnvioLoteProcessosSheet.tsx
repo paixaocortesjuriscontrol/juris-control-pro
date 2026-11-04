@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -18,6 +18,8 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const [linhas, setLinhas] = useState<LinhaLote[]>([]);
   const [existentes, setExistentes] = useState<Map<string, string>>(new Map());
   const [progresso, setProgresso] = useState<number | null>(null);
+  const [feitos, setFeitos] = useState(0);
+  const cancelarRef = useRef(false);
   const [resumo, setResumo] = useState<{ criados: number; atualizados: number; rejeitados: LinhaLote[] } | null>(null);
 
   const carregar = async (f: File) => {
@@ -60,25 +62,47 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     const ritos: string[] = (ritosDb || []).map((r: any) => r.nome);
     const { data: clientes } = await sb.from("clientes").select("id,nome");
     const cli = new Map<string, string>((clientes || []).map((c: any) => [semAcento(c.nome), c.id]));
-    for (let i = 0; i < validas.length; i++) {
-      const l = validas[i];
+    cancelarRef.current = false;
+    let feitosN = 0;
+    const marcar = (n: number) => { feitosN += n; setFeitos(feitosN); setProgresso(Math.round((feitosN / validas.length) * 100)); };
+    const preparar = async (l: LinhaLote) => {
       const { _responsavel, _situacao, _coordenacao, _cliente, ...c } = l.campos;
-      try {
-        if (c.rito_processual) { c.rito_processual = await garantirRito(c.rito_processual, ritos); if (!ritos.includes(c.rito_processual)) ritos.push(c.rito_processual); }
-        if (_cliente && cli.has(semAcento(_cliente))) c.cliente_id = cli.get(semAcento(_cliente));
-        const id = existentes.get(c.numero);
-        const { error } = id
-          ? await sb.from("processos").update(c).eq("id", id)
-          : await sb.from("processos").insert({ ...c, coordenacao_id: coordenacaoId, status: "ativo" });
-        if (error) throw error;
-        id ? atualizados++ : criados++;
-      } catch (e: any) { rejeitados.push({ ...l, erro: e?.message || String(e) }); }
-      if (i % 20 === 0) { setProgresso(Math.round(((i + 1) / validas.length) * 100)); await pausa(); }
+      if (c.rito_processual) { c.rito_processual = await garantirRito(c.rito_processual, ritos); if (!ritos.includes(c.rito_processual)) ritos.push(c.rito_processual); }
+      if (_cliente && cli.has(semAcento(_cliente))) c.cliente_id = cli.get(semAcento(_cliente));
+      return c;
+    };
+    const novosL = validas.filter((l) => !existentes.has(l.campos.numero));
+    const atuaisL = validas.filter((l) => existentes.has(l.campos.numero));
+    // Novos: em lotes de 50; se o lote falhar, tenta um a um para isolar o erro
+    for (let i = 0; i < novosL.length && !cancelarRef.current; i += 50) {
+      const lote = novosL.slice(i, i + 50);
+      const regs: any[] = [];
+      for (const l of lote) regs.push({ ...(await preparar(l)), coordenacao_id: coordenacaoId, status: "ativo" });
+      const { error } = await sb.from("processos").insert(regs);
+      if (!error) criados += lote.length;
+      else for (let k = 0; k < lote.length; k++) {
+        const r = await sb.from("processos").insert(regs[k]);
+        if (r.error) rejeitados.push({ ...lote[k], erro: r.error.message }); else criados++;
+      }
+      marcar(lote.length); await pausa();
     }
+    // Existentes: 6 atualizações em paralelo
+    for (let i = 0; i < atuaisL.length && !cancelarRef.current; i += 6) {
+      const lote = atuaisL.slice(i, i + 6);
+      await Promise.all(lote.map(async (l) => {
+        try {
+          const c = await preparar(l);
+          const { error } = await sb.from("processos").update(c).eq("id", existentes.get(c.numero));
+          if (error) throw error; atualizados++;
+        } catch (e: any) { rejeitados.push({ ...l, erro: e?.message || String(e) }); }
+      }));
+      marcar(lote.length); await pausa();
+    }
+    if (cancelarRef.current) toast.warning(`Envio cancelado: ${criados} criados e ${atualizados} atualizados até aqui`);
     setProgresso(null);
     setResumo({ criados, atualizados, rejeitados });
     setLinhas([]);
-    toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados`);
+    if (!cancelarRef.current) toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados`);
   };
 
   const baixarRejeitados = () => {
@@ -112,7 +136,13 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
               <Button onClick={enviar} disabled={!validas.length || progresso !== null}>Enviar {validas.length} processos</Button>
             </div>
           )}
-          {progresso !== null && <Progress value={progresso} />}
+          {progresso !== null && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm"><span>Enviando {feitos} de {validas.length}</span><b>{progresso}%</b></div>
+              <Progress value={progresso} />
+              <Button variant="outline" size="sm" onClick={() => { cancelarRef.current = true; }}>Cancelar envio</Button>
+            </div>
+          )}
           {resumo && (
             <div className="text-sm space-y-2">
               <p>Criados: <b>{resumo.criados}</b> · Atualizados: <b>{resumo.atualizados}</b> · Rejeitados: <b>{resumo.rejeitados.length}</b></p>
