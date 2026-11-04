@@ -18,7 +18,11 @@ const MAPA: Record<string, string> = {
   "PLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo", "POLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo",
   "POLO PASSIVO (RECLAMADO/REU)": "polo_passivo", "VALOR DA CAUSA": "valor_causa", "PASTA DO CLIENTE": "pasta_cliente",
   "ASSUNTO": "assunto", "VARA": "vara",
+  // Cabeçalhos do relatório de processos exportado pelo sistema
+  "NUMERO": "numero", "COORDENACAO": "_coordenacao", "POLO ATIVO": "polo_ativo", "POLO PASSIVO": "polo_passivo",
+  "VALOR CAUSA": "valor_causa",
 };
+const chaveCab = (c: any) => semAcento(String(c ?? "").replace(/_/g, " "));
 
 export type LinhaLote = { linha: number; campos: Record<string, any>; erro?: string };
 
@@ -38,7 +42,7 @@ function valorNumero(v: any): number | null {
 /** Converte linhas (1ª = cabeçalho) da planilha modelo em campos de processo. */
 export function lerLinhasLote(linhas: any[][], coordenacaoNome: string): LinhaLote[] {
   const [cab = [], ...dados] = linhas;
-  const cols = cab.map((c) => MAPA[semAcento(c)] || null);
+  const cols = cab.map((c) => MAPA[chaveCab(c)] || null);
   const out: LinhaLote[] = [];
   dados.forEach((row, i) => {
     if (!row || row.every((c) => c === null || c === undefined || String(c).trim() === "")) return;
