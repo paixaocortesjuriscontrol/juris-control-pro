@@ -24,6 +24,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
 
   const carregar = async (f: File) => {
     setResumo(null);
+    atuaisRef.current = new Map();
     const wb = XLSX.read(await f.arrayBuffer());
     const dados = XLSX.utils.sheet_to_json<any[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: null });
     const lidas = lerLinhasLote(dados, coordenacaoNome);
