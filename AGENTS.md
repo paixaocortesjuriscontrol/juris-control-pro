@@ -47,4 +47,5 @@
 - Tasks record their origin model in `tarefas.modelo_tarefa_id` (set by the new-task dialog and by Projuris backup imports via `padroes.projuris_cd`); the Painel reads model name/color with one per-period query of tasks that have a model, keeping the agenda RPCs unchanged.
 - Business-day deadlines skip holidays only per coordination (`coordenacoes.usar_feriados_nacionais` + `feriados_coordenacao`) via `src/lib/feriados.ts` cache preloaded before sync calculations; default off so teams opt in. Task-model default people live in `padroes.responsaveis_ids/envolvidos_ids`, avoiding schema changes.
 
-- Subdirectories may have their own AGENTS.md (e.g. src/components/migracao); read it before changing files there.- Minhas responsabilidades reads activities through `get_agenda_pessoal` per source and keeps only rows where the user is responsible/involved (`papelDoUsuario`), so creator-only items stay out and no new database access is needed.
+- Subdirectories may have their own AGENTS.md (e.g. src/components/migracao); read it before changing files there.
+- Minhas responsabilidades reads activities through `get_agenda_pessoal` per source and keeps only rows where the user is responsible/involved (`papelDoUsuario`), so creator-only items stay out and no new database access is needed.
