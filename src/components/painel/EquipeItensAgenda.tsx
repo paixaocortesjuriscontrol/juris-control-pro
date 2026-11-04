@@ -31,10 +31,18 @@ import {
 } from "@/hooks/useCobrancasItens";
 
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { corKeyItem } from "@/lib/tipoItemAgenda";
+import {
+  classificarStatus,
+  getRefDate,
+  isItemCancelado,
+  itemCorrespondeFiltro,
+  STATUS_PARA_FILTRO,
+  type StatusFiltro,
+} from "@/lib/statusItemEquipe";
 
 interface EquipeItensAgendaProps {
   itens: ItemAgendaUnificado[];
@@ -46,7 +54,27 @@ interface EquipeItensAgendaProps {
   onSearchChange?: (v: string) => void;
   pagina?: number;
   onPaginaChange?: (p: number) => void;
+  /** Filtro por situação (todos|pendentes|atrasadas|cumpridas|cancelados), controlado pelo pai */
+  statusFilter?: StatusFiltro;
+  onStatusFilterChange?: (v: StatusFiltro) => void;
 }
+
+export type { StatusFiltro } from "@/lib/statusItemEquipe";
+
+const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; singular: string; classe: string }[] = [
+  { valor: "todos", rotulo: "Todos", singular: "", classe: "" },
+  { valor: "pendentes", rotulo: "Pendentes", singular: "pendente", classe: "text-amber-600" },
+  { valor: "atrasadas", rotulo: "Atrasadas", singular: "atrasado", classe: "text-destructive" },
+  { valor: "cumpridas", rotulo: "Cumpridas", singular: "cumprido", classe: "text-emerald-600" },
+  { valor: "cancelados", rotulo: "Cancelados", singular: "cancelado", classe: "text-muted-foreground" },
+];
+
+const CAMPO_POR_FILTRO: Record<Exclude<StatusFiltro, "todos">, keyof MembroStats> = {
+  pendentes: "pendentes",
+  atrasadas: "atrasadas",
+  cumpridas: "cumpridas",
+  cancelados: "canceladas",
+};
 
 interface MembroStats {
   id: string;
@@ -55,6 +83,7 @@ interface MembroStats {
   pendentes: number;
   atrasadas: number;
   cumpridas: number;
+  canceladas: number;
   itens: ItemAgendaUnificado[];
 }
 
@@ -78,22 +107,6 @@ const TIPO_BAR_CLASSES: Record<string, string> = {
   parcelamento: "bg-emerald-500",
   ata: "bg-violet-500",
 };
-
-function getRefDate(item: ItemAgendaUnificado): Date | null {
-  const raw = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
-  if (!raw) return null;
-  const d = parseISO(raw);
-  return isValid(d) ? d : null;
-}
-
-function isItemCancelado(item: ItemAgendaUnificado): boolean {
-  const normalize = (v?: string | null) =>
-    (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  const anyItem = item as unknown as { status?: string | null; situacao?: string | null; status_tst?: string | null };
-  return [anyItem.status, anyItem.situacao, anyItem.status_tst].some((v) =>
-    ["cancelado", "cancelada"].includes(normalize(v)),
-  );
-}
 
 function getBaseId(id: string) {
   return id.split("::")[0];
@@ -139,6 +152,42 @@ const getInitials = (name: string) =>
 
 const ITENS_POR_PAGINA = 50;
 
+/** Contagem clicável no cartão do membro: escolhe a pessoa e filtra por aquela situação. */
+function ContagemMembro({
+  sufixo,
+  titulo,
+  total,
+  cor,
+  ativa,
+  onClick,
+}: {
+  sufixo: string;
+  titulo: string;
+  total: number;
+  cor: string;
+  ativa: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={`${titulo}: clique para ver somente estes itens`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "rounded px-1 py-0.5 font-semibold tabular-nums transition-colors hover:bg-muted",
+        cor,
+        ativa && "bg-muted ring-1 ring-current"
+      )}
+    >
+      {total}
+      {sufixo}
+    </button>
+  );
+}
+
 export function EquipeItensAgenda({
   itens,
   onItemClick,
@@ -148,15 +197,20 @@ export function EquipeItensAgenda({
   onSearchChange,
   pagina: paginaProp,
   onPaginaChange,
+  statusFilter: statusFilterProp,
+  onStatusFilterChange,
 }: EquipeItensAgendaProps) {
   const [selectedMembroLocal, setSelectedMembroLocal] = useSessionState<string | null>("equipe-membro", null);
   const [searchLocal, setSearchLocal] = useSessionState("equipe-busca", "");
+  const [statusFilterLocal, setStatusFilterLocal] = useSessionState<StatusFiltro>("equipe-status", "todos");
   const [paginaLocal, setPaginaLocal] = useState(1);
 
   const selectedMembro = selectedMembroProp !== undefined ? selectedMembroProp : selectedMembroLocal;
   const setSelectedMembro = onSelectedMembroChange ?? setSelectedMembroLocal;
   const search = searchProp !== undefined ? searchProp : searchLocal;
   const setSearch = onSearchChange ?? setSearchLocal;
+  const statusFilter = statusFilterProp !== undefined ? statusFilterProp : statusFilterLocal;
+  const setStatusFilter = onStatusFilterChange ?? setStatusFilterLocal;
   const pagina = paginaProp !== undefined ? paginaProp : paginaLocal;
   const setPagina = onPaginaChange ?? setPaginaLocal;
 
@@ -276,21 +330,17 @@ export function EquipeItensAgenda({
       const alvo = pessoas.length ? pessoas : [{ id: "__sem__", nome: "Não atribuído" }];
       alvo.forEach(({ id, nome }) => {
         if (!map.has(id)) {
-          map.set(id, { id, nome, total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, itens: [] });
+          map.set(id, { id, nome, total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, canceladas: 0, itens: [] });
         }
         const m = map.get(id);
         if (!m) return;
         m.total += 1;
         m.itens.push(item);
-        if (isItemCancelado(item)) {
-          // itens cancelados não entram em atrasados/pendentes
-        } else if (isItemTratado(item)) {
-          m.cumpridas += 1;
-        } else {
-          const d = getRefDate(item);
-          if (d && differenceInCalendarDays(d, new Date()) < 0) m.atrasadas += 1;
-          else m.pendentes += 1;
-        }
+        const status = classificarStatus(item);
+        if (status === "pendente") m.pendentes += 1;
+        else if (status === "atrasada") m.atrasadas += 1;
+        else if (status === "cumprida") m.cumpridas += 1;
+        else m.canceladas += 1;
       });
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -298,17 +348,32 @@ export function EquipeItensAgenda({
 
   const membroAtual = membros.find((m) => m.id === selectedMembro) || null;
 
+  /** Itens do membro escolhido (ou de toda a equipe, quando ninguém foi escolhido). */
+  const itensDoEscopo = useMemo(
+    () => (membroAtual ? membroAtual.itens : itens),
+    [membroAtual, itens]
+  );
+
+  /** Quantos itens há em cada situação dentro do escopo atual (membro ou equipe). */
+  const contagens = useMemo(() => {
+    const c: Record<StatusFiltro, number> = { todos: itensDoEscopo.length, pendentes: 0, atrasadas: 0, cumpridas: 0, cancelados: 0 };
+    itensDoEscopo.forEach((item) => {
+      c[STATUS_PARA_FILTRO[classificarStatus(item)]] += 1;
+    });
+    return c;
+  }, [itensDoEscopo]);
+
   const listaItens = useMemo(() => {
-    const base = membroAtual ? membroAtual.itens : itens;
+    const base = itensDoEscopo;
     const q = search.trim().toLowerCase();
-    const filtrada = !q
-      ? base
-      : base.filter(
-          (i) =>
-            i.titulo?.toLowerCase().includes(q) ||
-            i.descricao?.toLowerCase().includes(q) ||
-            i.processo?.numero?.toLowerCase().includes(q)
-        );
+    const filtrada = base.filter(
+      (i) =>
+        itemCorrespondeFiltro(i, statusFilter) &&
+        (!q ||
+          i.titulo?.toLowerCase().includes(q) ||
+          i.descricao?.toLowerCase().includes(q) ||
+          i.processo?.numero?.toLowerCase().includes(q))
+    );
     // Ordena por data crescente: atrasados e de hoje no topo, futuros depois
     const ts = (i: any) => {
       const t = new Date(i?.data_inicio).getTime();
@@ -319,7 +384,7 @@ export function EquipeItensAgenda({
       return p ? new Date(p).getTime() : -Infinity;
     };
     return [...filtrada].sort((a, b) => pubTs(b) - pubTs(a) || ts(a) - ts(b));
-  }, [membroAtual, itens, search]);
+  }, [itensDoEscopo, statusFilter, search]);
 
   const totalPaginas = Math.max(1, Math.ceil(listaItens.length / ITENS_POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -333,11 +398,11 @@ export function EquipeItensAgenda({
   const { data: mapaCobrancas } = useCobrancasItens(itensPagina, getEscopoCobrancaPreferido());
 
 
-  // Volta para a primeira página apenas quando o membro/busca realmente mudam
+  // Volta para a primeira página apenas quando o membro/busca/situação realmente mudam
   // (não em remontagens nem ao salvar um item, para preservar os filtros).
   const filtroAnteriorRef = useRef<string | null>(null);
   useEffect(() => {
-    const chave = `${selectedMembro ?? ""}|${search}`;
+    const chave = `${selectedMembro ?? ""}|${search}|${statusFilter}`;
     if (filtroAnteriorRef.current === null) {
       filtroAnteriorRef.current = chave;
       return;
@@ -346,7 +411,7 @@ export function EquipeItensAgenda({
       filtroAnteriorRef.current = chave;
       setPagina(1);
     }
-  }, [selectedMembro, search, setPagina]);
+  }, [selectedMembro, search, statusFilter, setPagina]);
 
   const processoIds = useMemo(
     () => Array.from(new Set(itensPagina.map((i) => i.processo_id).filter(Boolean))) as string[],
@@ -424,14 +489,24 @@ export function EquipeItensAgenda({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
         {membros.map((m) => {
           const taxa = m.total > 0 ? Math.round((m.cumpridas / m.total) * 100) : 0;
+          const semNoFiltro = statusFilter !== "todos" && m[CAMPO_POR_FILTRO[statusFilter]] === 0;
           return (
             <Card
               key={m.id}
-              onClick={() => setSelectedMembro(selectedMembro === m.id ? null : m.id)}
+              onClick={() => {
+                if (selectedMembro === m.id) {
+                  setSelectedMembro(null);
+                  setStatusFilter("todos");
+                } else {
+                  setSelectedMembro(m.id);
+                }
+              }}
+              title="Clique para ver os itens desta pessoa. Clique em p, a, c ou x para filtrar por aquela situação."
               className={cn(
                 "bg-card border-border/50 hover:shadow-md transition-shadow cursor-pointer",
                 m.atrasadas > 0 && "border-l-4 border-l-destructive",
-                selectedMembro === m.id && "ring-2 ring-primary"
+                selectedMembro === m.id && "ring-2 ring-primary",
+                semNoFiltro && "opacity-45"
               )}
             >
               <CardContent className="p-2.5">
@@ -448,10 +523,41 @@ export function EquipeItensAgenda({
                 </div>
                 <div className="space-y-1">
                   <Progress value={taxa} className="h-1" />
-                  <div className="flex items-center justify-between text-[10px] font-semibold">
-                    <span title="Pendentes" className="text-amber-600">{m.pendentes}p</span>
-                    <span title="Atrasadas" className="text-destructive">{m.atrasadas}a</span>
-                    <span title="Cumpridas" className="text-emerald-600">{m.cumpridas}c</span>
+                  <div className="flex items-center justify-between gap-1 text-[10px] font-semibold">
+                    <ContagemMembro
+                      sufixo="p"
+                      titulo="Pendentes"
+                      total={m.pendentes}
+                      cor="text-amber-600"
+                      ativa={statusFilter === "pendentes"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("pendentes"); }}
+                    />
+                    <ContagemMembro
+                      sufixo="a"
+                      titulo="Atrasadas"
+                      total={m.atrasadas}
+                      cor="text-destructive"
+                      ativa={statusFilter === "atrasadas"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("atrasadas"); }}
+                    />
+                    <ContagemMembro
+                      sufixo="c"
+                      titulo="Cumpridas"
+                      total={m.cumpridas}
+                      cor="text-emerald-600"
+                      ativa={statusFilter === "cumpridas"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("cumpridas"); }}
+                    />
+                    {m.canceladas > 0 && (
+                      <ContagemMembro
+                        sufixo="x"
+                        titulo="Canceladas"
+                        total={m.canceladas}
+                        cor="text-muted-foreground"
+                        ativa={statusFilter === "cancelados"}
+                        onClick={() => { setSelectedMembro(m.id); setStatusFilter("cancelados"); }}
+                      />
+                    )}
                     <span className="text-muted-foreground font-medium">{taxa}%</span>
                   </div>
                 </div>
@@ -467,15 +573,37 @@ export function EquipeItensAgenda({
         )}
       </div>
 
-      {/* Lista de itens */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder={membroAtual ? `Buscar em ${membroAtual.nome}...` : "Buscar item..."}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-8 text-xs"
-        />
+      {/* Filtro por situação + busca */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {FILTROS_STATUS.map((f) => {
+            const total = contagens[f.valor];
+            const ativo = statusFilter === f.valor;
+            return (
+              <Button
+                key={f.valor}
+                type="button"
+                size="sm"
+                variant={ativo ? "default" : "outline"}
+                className="h-8 px-2.5 text-xs"
+                title={`Mostrar somente ${f.rotulo.toLowerCase()}`}
+                onClick={() => setStatusFilter(ativo ? "todos" : f.valor)}
+              >
+                {f.rotulo}
+                <span className={cn("ml-1 tabular-nums", ativo ? "opacity-80" : f.classe)}>{total}</span>
+              </Button>
+            );
+          })}
+        </div>
+        <div className="relative ml-auto w-full max-w-sm sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder={membroAtual ? `Buscar em ${membroAtual.nome}...` : "Buscar item..."}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-8 text-xs"
+          />
+        </div>
       </div>
 
       <Card className="border-border/50">
@@ -590,7 +718,9 @@ export function EquipeItensAgenda({
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   <ListTodo className="w-9 h-9 mx-auto mb-2 opacity-50" />
-                  Nenhum item encontrado
+                  {statusFilter === "todos"
+                    ? "Nenhum item encontrado"
+                    : `Nenhum item ${FILTROS_STATUS.find((f) => f.valor === statusFilter)?.singular ?? ""} encontrado`}
                 </TableCell>
               </TableRow>
             )}

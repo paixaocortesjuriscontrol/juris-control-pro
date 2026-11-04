@@ -93,7 +93,7 @@ import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
-import { EquipeItensAgenda } from "@/components/painel/EquipeItensAgenda";
+import { EquipeItensAgenda, type StatusFiltro } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
@@ -702,6 +702,7 @@ export default function PainelControle() {
   const [equipeMembro, setEquipeMembro] = useState<string | null>(null);
   const [equipeSearch, setEquipeSearch] = useState("");
   const [equipePagina, setEquipePagina] = useState(1);
+  const [equipeStatus, setEquipeStatus] = useState<StatusFiltro>("todos");
 
   // Totais exatos vêm da agenda com todas as páginas; enquanto carrega, mostra a
   // contagem feita no banco (só sem filtros extras, que o banco não reproduz).
@@ -3048,6 +3049,8 @@ export default function PainelControle() {
                 onSearchChange={setEquipeSearch}
                 pagina={equipePagina}
                 onPaginaChange={setEquipePagina}
+                statusFilter={equipeStatus}
+                onStatusFilterChange={setEquipeStatus}
               />
             </div>
         ) : viewMode === "audiencias" ? (

@@ -247,3 +247,7 @@ Pulados por decisão do usuário: tarefas do Ástrea (item 15 do doc) e criaçã
 
 ## Rito Processual
 - [x] Campo, importação e filtro (JEC / Vara Cível / novos ritos)
+
+## Painel da Equipe: filtro por situação
+- [x] Botões Todos/Pendentes/Atrasadas/Cumpridas/Cancelados com contagem e contagens clicáveis nos cartões; 5 testes aprovados.
+- [ ] Conferir com a sessão da Jéssica — Supabase externo sem login disponível na prévia.
