@@ -1320,6 +1320,7 @@ export function NovaTarefaDialog({
                     <FormLabel>Responsáveis *</FormLabel>
                     <FormControl>
                       <PeoplePicker
+                        coordenacaoId={coordenacaoId || null}
                         selectedIds={responsaveisIds}
                         onChange={(ids) => {
                           setResponsaveisIds(ids);
@@ -1368,6 +1369,7 @@ export function NovaTarefaDialog({
                       )}
                     </div>
                     <PeoplePicker
+                      coordenacaoId={coordenacaoId || null}
                       selectedIds={envolvidosIds}
                       onChange={(ids) =>
                         setEnvolvidosIds(

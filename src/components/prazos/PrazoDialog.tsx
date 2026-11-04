@@ -1230,6 +1230,7 @@ export function PrazoDialog({
             Responsáveis<span className="text-destructive">*</span>
           </Label>
           <PeoplePicker
+            coordenacaoId={coordenacaoId || null}
             selectedIds={responsaveisIds}
             onChange={setResponsaveisIds}
             placeholder="Adicionar responsável"
@@ -1270,6 +1271,7 @@ export function PrazoDialog({
               )}
             </div>
             <PeoplePicker
+              coordenacaoId={coordenacaoId || null}
               selectedIds={envolvidosIds}
               onChange={(ids) => setEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
               placeholder="Adicionar envolvido"

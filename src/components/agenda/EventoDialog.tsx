@@ -834,6 +834,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               </Label>
               <div className="mt-1.5">
                 <PeoplePicker
+                  coordenacaoId={coordenacaoId || null}
                   selectedIds={responsaveisIds}
                   onChange={setResponsaveisIds}
                   placeholder="Selecionar responsável"
@@ -878,6 +879,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 </div>
                 <div className="mt-1.5">
                   <PeoplePicker
+                    coordenacaoId={coordenacaoId || null}
                     selectedIds={envolvidosIds}
                     onChange={(ids) => setEnvolvidosIds(Array.from(new Set([...envolvidosFixosIds, ...ids])))}
                     placeholder="Adicionar envolvido"
