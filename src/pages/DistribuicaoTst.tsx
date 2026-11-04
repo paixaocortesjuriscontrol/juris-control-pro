@@ -28,6 +28,7 @@ import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenc
 import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePorResponsavel";
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
+import { DjenAutomaticoSheet } from "@/components/distribuicao-tst/DjenAutomaticoSheet";
 import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -2030,6 +2031,7 @@ export default function DistribuicaoTst() {
       subtitle="Gestão dos processos distribuídos no TST: filtros, cards totalizadores e ações em lote."
       headerActions={
         <div className="flex items-center gap-2">
+          <DjenAutomaticoSheet onAtualizado={() => window.location.reload()} />
           <Button
             variant="ghost"
             size="icon"
