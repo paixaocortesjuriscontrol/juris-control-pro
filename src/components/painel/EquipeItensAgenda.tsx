@@ -31,10 +31,18 @@ import {
 } from "@/hooks/useCobrancasItens";
 
 import { Users, Search, CheckCircle2, Clock, XCircle, ListTodo, ChevronLeft, ChevronRight } from "lucide-react";
-import { format, parseISO, isValid, differenceInCalendarDays } from "date-fns";
+import { format, differenceInCalendarDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { corKeyItem } from "@/lib/tipoItemAgenda";
+import {
+  classificarStatus,
+  getRefDate,
+  isItemCancelado,
+  itemCorrespondeFiltro,
+  STATUS_PARA_FILTRO,
+  type StatusFiltro,
+} from "@/lib/statusItemEquipe";
 
 interface EquipeItensAgendaProps {
   itens: ItemAgendaUnificado[];
@@ -51,8 +59,7 @@ interface EquipeItensAgendaProps {
   onStatusFilterChange?: (v: StatusFiltro) => void;
 }
 
-export type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados";
-type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
+export type { StatusFiltro } from "@/lib/statusItemEquipe";
 
 const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; singular: string; classe: string }[] = [
   { valor: "todos", rotulo: "Todos", singular: "", classe: "" },
