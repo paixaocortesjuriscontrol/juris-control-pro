@@ -1,5 +1,8 @@
 # Ligar prazos da Análise DJEN Servidor às publicações (novos e antigos)
 
+## Em resumo
+Quando ela abre uma publicação da semana passada e cria a tarefa, a tarefa é salva, mas a ligação com a publicação se perde. O motivo é que essa publicação está guardada só na lista antiga do Servidor, e a ligação só aceita publicações da lista nova. Vou fazer o sistema passar a publicação para a lista nova no momento em que a tarefa é criada e, depois disso, ligar as tarefas que ela já criou.
+
 ## O que foi encontrado
 - Os prazos que a Dra. Janaina criou hoje (04/11, 11:02 a 11:11) também ficaram sem publicação ligada.
 - A correção anterior procurava, entre as publicações gerais, uma cópia da publicação mostrada na Análise DJEN Servidor. Em muitos casos essa cópia não existe: cerca de 10 mil publicações recebidas pelo Servidor (algumas de hoje) só estão na lista do Servidor. Sem a cópia, não havia como fazer a ligação.
