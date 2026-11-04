@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { papelDoUsuario } from "@/lib/minhasResponsabilidades";
+import { describe, expect, test as it } from "bun:test";
+import { papelDoUsuario } from "../src/lib/minhasResponsabilidades";
 
 const U = "u1";
 describe("papelDoUsuario", () => {

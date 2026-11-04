@@ -45,6 +45,7 @@ const TST_COORDS = ["Coordenação Dra. Renata Oficial", "Coordenação Dra. Ren
 export const menuItemsPublicos: MenuItem[] = [
   // Itens destacados (amarelo) - mais utilizados
   { icon: LayoutPanelTop, label: "Painel de Controle", path: "/painel-controle", highlight: true },
+  { icon: UserCircle, label: "Minhas responsabilidades", path: "/minhas-responsabilidades", highlight: true },
   { icon: Radar, label: "Monitoramento", path: "/monitoramento", highlight: true },
   { icon: Scale, label: "Processos e Casos", path: "/processos", highlight: true },
   { icon: Newspaper, label: "Análise DJEN", path: "/analise-djen", highlight: true },
