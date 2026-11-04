@@ -429,7 +429,7 @@ export default function MigracaoProjuris() {
             data_vencimento: l.data, data_prevista: l.data, data_fatal: l.data_fatal,
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.data}T12:00:00-03:00` : null,
             prioridade: "media", processo_id: pid, coordenacao_id: coordId,
-            responsavel_id: l.responsavelId || user.id, criado_por: user.id, origem: "projuris",
+            responsavel_id: l.responsavelId || null, criado_por: null, origem: "projuris",
             observacoes: [l.observacoes, `Projuris #${l.id_externo}`, l.hora ? `Hora: ${l.hora}` : "", !l.responsavelId && l.responsavelNome ? `Responsável no Projuris: ${l.responsavelNome}` : ""].filter(Boolean).join("\n"),
           };
         });

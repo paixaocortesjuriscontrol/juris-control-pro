@@ -713,7 +713,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             data_vencimento: l.data, data_prevista: l.data, data_fatal: l.fatal,
             status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
             prioridade: "media", processo_id: (l.procDig && procId.get(l.procDig)) || null, coordenacao_id: coordId,
-            responsavel_id: l.responsavelId || userId, criado_por: userId, origem: "projuris",
+            responsavel_id: l.responsavelId || null, criado_por: null, origem: "projuris",
             identificador_projuris: String(l.chave), modelo_tarefa_id: modeloDe(l),
             observacoes: [l.procDig && procId.get(l.procDig) ? "" : l.procDig ? `Processo ${formatarCnj(l.procDig)} não cadastrado no Juris Control (importe os processos antes)` : `Sem processo vinculado no Relatório de Atividades`, l.ident ? `Identificador Projuris: ${l.ident}` : "", l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : ""].filter(Boolean).join("\n") || null,
           }) as any)).select("id");
