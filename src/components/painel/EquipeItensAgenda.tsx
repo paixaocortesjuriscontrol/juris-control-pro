@@ -46,7 +46,21 @@ interface EquipeItensAgendaProps {
   onSearchChange?: (v: string) => void;
   pagina?: number;
   onPaginaChange?: (p: number) => void;
+  /** Filtro por situação (todos|pendentes|atrasadas|cumpridas|cancelados), controlado pelo pai */
+  statusFilter?: StatusFiltro;
+  onStatusFilterChange?: (v: StatusFiltro) => void;
 }
+
+type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados";
+type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
+
+const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; classe: string }[] = [
+  { valor: "todos", rotulo: "Todos", classe: "" },
+  { valor: "pendentes", rotulo: "Pendentes", classe: "text-amber-600" },
+  { valor: "atrasadas", rotulo: "Atrasadas", classe: "text-destructive" },
+  { valor: "cumpridas", rotulo: "Cumpridas", classe: "text-emerald-600" },
+  { valor: "cancelados", rotulo: "Cancelados", classe: "text-muted-foreground" },
+];
 
 interface MembroStats {
   id: string;
@@ -55,6 +69,7 @@ interface MembroStats {
   pendentes: number;
   atrasadas: number;
   cumpridas: number;
+  canceladas: number;
   itens: ItemAgendaUnificado[];
 }
 
