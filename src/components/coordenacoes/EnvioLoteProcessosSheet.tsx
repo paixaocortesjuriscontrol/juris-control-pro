@@ -44,13 +44,14 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     const nums = [...new Set(lidas.filter((l) => !l.erro).map((l) => l.campos.numero as string))];
     const mapa = new Map<string, string>();
     for (let i = 0; i < nums.length; i += 150) {
-      const { data } = await sb.from("processos").select("id,numero").eq("coordenacao_id", coordenacaoId).in("numero", nums.slice(i, i + 150));
-      (data || []).forEach((p: any) => mapa.set(p.numero, p.id));
+      const { data } = await sb.from("processos").select("*").in("numero", nums.slice(i, i + 150));
+      (data || []).forEach((p: any) => { mapa.set(p.numero, p.id); atuaisRef.current.set(p.id, p); });
     }
     setExistentes(mapa);
     setLinhas(lidas);
   };
 
+  const atuaisRef = useRef<Map<string, any>>(new Map());
   const validas = linhas.filter((l) => !l.erro);
   const novos = validas.filter((l) => !existentes.has(l.campos.numero)).length;
 
@@ -73,6 +74,13 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     };
     const novosL = validas.filter((l) => !existentes.has(l.campos.numero));
     const atuaisL = validas.filter((l) => existentes.has(l.campos.numero));
+    // Compartilhamentos já existentes desta coordenação
+    const jaCompart = new Set<string>();
+    const idsOutras = atuaisL.map((l) => existentes.get(l.campos.numero)!).filter((id) => atuaisRef.current.get(id)?.coordenacao_id !== coordenacaoId);
+    for (let i = 0; i < idsOutras.length; i += 150) {
+      const { data } = await sb.from("processos_coordenacoes_responsaveis").select("processo_id").eq("coordenacao_id", coordenacaoId).in("processo_id", idsOutras.slice(i, i + 150));
+      (data || []).forEach((r: any) => jaCompart.add(r.processo_id));
+    }
     // Novos: em lotes de 50; se o lote falhar, tenta um a um para isolar o erro
     for (let i = 0; i < novosL.length && !cancelarRef.current; i += 50) {
       const lote = novosL.slice(i, i + 50);
@@ -103,13 +111,27 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
       marcar(lote.length); await pausa();
     }
     // Existentes: 6 atualizações em paralelo
-    for (let i = 0; i < atuaisL.length && !cancelarRef.current; i += 6) {
-      const lote = atuaisL.slice(i, i + 6);
+    for (let i = 0; i < atuaisL.length && !cancelarRef.current; i += 10) {
+      const lote = atuaisL.slice(i, i + 10);
       await Promise.all(lote.map(async (l) => {
         try {
           const c = await preparar(l);
-          const { error } = await sb.from("processos").update(c).eq("id", existentes.get(c.numero));
-          if (error) throw error; atualizados++;
+          const id = existentes.get(c.numero)!;
+          const atual = atuaisRef.current.get(id) || {};
+          const vazio = (v: any) => v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+          const patch: any = {};
+          for (const [k, v] of Object.entries(c)) if (k !== "numero" && !vazio(v) && vazio(atual[k])) patch[k] = v;
+          if (Object.keys(patch).length) {
+            const { error } = await sb.from("processos").update(patch).eq("id", id);
+            if (error) throw error;
+          }
+          if (atual.coordenacao_id && atual.coordenacao_id !== coordenacaoId) {
+            if (!jaCompart.has(id)) {
+              const { error } = await sb.from("processos_coordenacoes_responsaveis").insert({ processo_id: id, coordenacao_id: coordenacaoId, principal: false });
+              if (error && !String(error.message).includes("duplicate")) throw error;
+            }
+            compartilhados++;
+          } else atualizados++;
         } catch (e: any) { rejeitados.push({ ...l, erro: e?.message || String(e) }); }
       }));
       marcar(lote.length); await pausa();
@@ -145,7 +167,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
             onChange={(e) => e.target.files?.[0] && carregar(e.target.files[0]).catch((er) => toast.error(String(er?.message || er)))} />
           {linhas.length > 0 && (
             <div className="space-y-2 text-sm">
-              <p><b>{novos}</b> novos · <b>{validas.length - novos}</b> já existem (atualiza só os campos preenchidos) · <b>{linhas.length - validas.length}</b> com erro</p>
+              <p><b>{novos}</b> novos · <b>{validas.length - novos}</b> já existem (completa só os campos vazios e inclui esta coordenação) · <b>{linhas.length - validas.length}</b> com erro</p>
               <div className="max-h-60 overflow-y-auto border rounded p-2 space-y-1">
                 {linhas.filter((l) => l.erro).map((l) => <div key={l.linha} className="text-destructive">Linha {l.linha}: {l.erro}</div>)}
               </div>
