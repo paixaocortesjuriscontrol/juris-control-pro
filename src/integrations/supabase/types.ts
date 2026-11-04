@@ -2992,6 +2992,8 @@ export type Database = {
           ia_campos_distribuicao: string[] | null
           ic_duplicado: boolean
           id: string
+          importado_djen_em: string | null
+          ja_existia_antes_djen: boolean | null
           judit_preenchido: boolean | null
           judit_preenchido_em: string | null
           judit_preenchido_por: string | null
@@ -3123,6 +3125,8 @@ export type Database = {
           ia_campos_distribuicao?: string[] | null
           ic_duplicado?: boolean
           id?: string
+          importado_djen_em?: string | null
+          ja_existia_antes_djen?: boolean | null
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null
           judit_preenchido_por?: string | null
@@ -3254,6 +3258,8 @@ export type Database = {
           ia_campos_distribuicao?: string[] | null
           ic_duplicado?: boolean
           id?: string
+          importado_djen_em?: string | null
+          ja_existia_antes_djen?: boolean | null
           judit_preenchido?: boolean | null
           judit_preenchido_em?: string | null
           judit_preenchido_por?: string | null
@@ -11307,6 +11313,10 @@ export type Database = {
         Args: { p_batch_size?: number }
         Returns: number
       }
+      buscar_distribuicoes_tst_agora: {
+        Args: { _dias?: number }
+        Returns: number
+      }
       buscar_pautas_tst_agora: { Args: never; Returns: number }
       buscar_processos_global: {
         Args: { _limite?: number; _termo: string }
@@ -11572,6 +11582,10 @@ export type Database = {
       garantir_publicacao_unificada: {
         Args: { p_servidor_id: string }
         Returns: string
+      }
+      gerar_distribuicoes_tst_auto: {
+        Args: { _dias?: number }
+        Returns: number
       }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       gerar_pautas_tst_auto: { Args: { _dias?: number }; Returns: number }
