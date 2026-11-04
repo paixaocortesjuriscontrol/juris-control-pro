@@ -552,10 +552,41 @@ export function EquipeItensAgenda({
                 </div>
                 <div className="space-y-1">
                   <Progress value={taxa} className="h-1" />
-                  <div className="flex items-center justify-between text-[10px] font-semibold">
-                    <span title="Pendentes" className="text-amber-600">{m.pendentes}p</span>
-                    <span title="Atrasadas" className="text-destructive">{m.atrasadas}a</span>
-                    <span title="Cumpridas" className="text-emerald-600">{m.cumpridas}c</span>
+                  <div className="flex items-center justify-between gap-1 text-[10px] font-semibold">
+                    <ContagemMembro
+                      sufixo="p"
+                      titulo="Pendentes"
+                      total={m.pendentes}
+                      cor="text-amber-600"
+                      ativa={statusFilter === "pendentes"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("pendentes"); }}
+                    />
+                    <ContagemMembro
+                      sufixo="a"
+                      titulo="Atrasadas"
+                      total={m.atrasadas}
+                      cor="text-destructive"
+                      ativa={statusFilter === "atrasadas"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("atrasadas"); }}
+                    />
+                    <ContagemMembro
+                      sufixo="c"
+                      titulo="Cumpridas"
+                      total={m.cumpridas}
+                      cor="text-emerald-600"
+                      ativa={statusFilter === "cumpridas"}
+                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("cumpridas"); }}
+                    />
+                    {m.canceladas > 0 && (
+                      <ContagemMembro
+                        sufixo="x"
+                        titulo="Canceladas"
+                        total={m.canceladas}
+                        cor="text-muted-foreground"
+                        ativa={statusFilter === "cancelados"}
+                        onClick={() => { setSelectedMembro(m.id); setStatusFilter("cancelados"); }}
+                      />
+                    )}
                     <span className="text-muted-foreground font-medium">{taxa}%</span>
                   </div>
                 </div>
@@ -571,15 +602,37 @@ export function EquipeItensAgenda({
         )}
       </div>
 
-      {/* Lista de itens */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder={membroAtual ? `Buscar em ${membroAtual.nome}...` : "Buscar item..."}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-9 h-8 text-xs"
-        />
+      {/* Filtro por situação + busca */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-1">
+          {FILTROS_STATUS.map((f) => {
+            const total = contagens[f.valor];
+            const ativo = statusFilter === f.valor;
+            return (
+              <Button
+                key={f.valor}
+                type="button"
+                size="sm"
+                variant={ativo ? "default" : "outline"}
+                className="h-8 px-2.5 text-xs"
+                title={`Mostrar somente ${f.rotulo.toLowerCase()}`}
+                onClick={() => setStatusFilter(ativo ? "todos" : f.valor)}
+              >
+                {f.rotulo}
+                <span className={cn("ml-1 tabular-nums", ativo ? "opacity-80" : f.classe)}>{total}</span>
+              </Button>
+            );
+          })}
+        </div>
+        <div className="relative ml-auto w-full max-w-sm sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder={membroAtual ? `Buscar em ${membroAtual.nome}...` : "Buscar item..."}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9 h-8 text-xs"
+          />
+        </div>
       </div>
 
       <Card className="border-border/50">
@@ -694,7 +747,9 @@ export function EquipeItensAgenda({
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-10 text-muted-foreground">
                   <ListTodo className="w-9 h-9 mx-auto mb-2 opacity-50" />
-                  Nenhum item encontrado
+                  {statusFilter === "todos"
+                    ? "Nenhum item encontrado"
+                    : `Nenhum item ${FILTROS_STATUS.find((f) => f.valor === statusFilter)?.singular ?? ""} encontrado`}
                 </TableCell>
               </TableRow>
             )}
