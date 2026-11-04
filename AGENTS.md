@@ -50,3 +50,4 @@
 - Subdirectories may have their own AGENTS.md (e.g. src/components/migracao); read it before changing files there.
 - Minhas responsabilidades reads activities through `get_agenda_pessoal` per source and keeps only rows where the user is responsible/involved (`papelDoUsuario`), so creator-only items stay out and no new database access is needed.
 - Links from Análise DJEN Servidor items resolve the legacy publication to publicacoes_djen and, when no copy exists, create one via `garantir_publicacao_unificada` (checks coordination access), because the link tables only reference publicacoes_djen.
+- TST distribution lists from DJEN are imported by `gerar_distribuicoes_tst_auto` on the same execucoes_servidor completion trigger as Pautas (plus `buscar_distribuicoes_tst_agora`), never overwriting filled dados_benner fields and recording `importado_djen_em`/`ja_existia_antes_djen` so monthly reports can separate new from pre-existing processes.
