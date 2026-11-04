@@ -181,6 +181,42 @@ const getInitials = (name: string) =>
 
 const ITENS_POR_PAGINA = 50;
 
+/** Contagem clicável no cartão do membro: escolhe a pessoa e filtra por aquela situação. */
+function ContagemMembro({
+  sufixo,
+  titulo,
+  total,
+  cor,
+  ativa,
+  onClick,
+}: {
+  sufixo: string;
+  titulo: string;
+  total: number;
+  cor: string;
+  ativa: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      title={`${titulo}: clique para ver somente estes itens`}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={cn(
+        "rounded px-1 py-0.5 font-semibold tabular-nums transition-colors hover:bg-muted",
+        cor,
+        ativa && "bg-muted ring-1 ring-current"
+      )}
+    >
+      {total}
+      {sufixo}
+    </button>
+  );
+}
+
 export function EquipeItensAgenda({
   itens,
   onItemClick,
