@@ -51,9 +51,17 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
     return coordenacoes.filter((c: any) => ids.has(c.id));
   }, [modelos, coordenacoes]);
   const mostrarSeletor = isAdmin || minhasCoordenacoes.length > 1;
-  const [coordEscolhida, setCoordEscolhida] = useState<string>("");
+  // Lembra a última coordenação escolhida no botão (apenas preferência de tela).
+  const [coordEscolhidaRaw, setCoordEscolhidaRaw] = useState<string>("");
+  const ultimaSalva = typeof window !== "undefined" ? window.localStorage.getItem("modelos-picker-ultima-coord") || "" : "";
+  const setCoordEscolhida = (id: string) => {
+    setCoordEscolhidaRaw(id);
+    try { window.localStorage.setItem("modelos-picker-ultima-coord", id); } catch { /* ignore */ }
+  };
+  const coordEscolhida = coordEscolhidaRaw;
   const coordPadrao =
     (coordenacaoId && coordsComModelos.some((c: any) => c.id === coordenacaoId) && coordenacaoId) ||
+    (ultimaSalva && coordsComModelos.some((c: any) => c.id === ultimaSalva) && ultimaSalva) ||
     (minhasCoordenacoes.find((c) => coordsComModelos.some((x: any) => x.id === c.id))?.id) ||
     coordsComModelos[0]?.id || "";
   const coordAtiva = mostrarSeletor ? (coordEscolhida || coordPadrao) : (minhasCoordenacoes[0]?.id || "");
