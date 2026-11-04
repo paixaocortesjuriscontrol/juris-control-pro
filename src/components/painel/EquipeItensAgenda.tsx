@@ -518,14 +518,24 @@ export function EquipeItensAgenda({
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2">
         {membros.map((m) => {
           const taxa = m.total > 0 ? Math.round((m.cumpridas / m.total) * 100) : 0;
+          const semNoFiltro = statusFilter !== "todos" && m[CAMPO_POR_FILTRO[statusFilter]] === 0;
           return (
             <Card
               key={m.id}
-              onClick={() => setSelectedMembro(selectedMembro === m.id ? null : m.id)}
+              onClick={() => {
+                if (selectedMembro === m.id) {
+                  setSelectedMembro(null);
+                  setStatusFilter("todos");
+                } else {
+                  setSelectedMembro(m.id);
+                }
+              }}
+              title="Clique para ver os itens desta pessoa. Clique em p, a, c ou x para filtrar por aquela situação."
               className={cn(
                 "bg-card border-border/50 hover:shadow-md transition-shadow cursor-pointer",
                 m.atrasadas > 0 && "border-l-4 border-l-destructive",
-                selectedMembro === m.id && "ring-2 ring-primary"
+                selectedMembro === m.id && "ring-2 ring-primary",
+                semNoFiltro && "opacity-45"
               )}
             >
               <CardContent className="p-2.5">
