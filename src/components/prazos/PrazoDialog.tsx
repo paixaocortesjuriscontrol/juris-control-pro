@@ -737,7 +737,7 @@ export function PrazoDialog({
           const campo = form?.querySelector<HTMLInputElement>("input#titulo, input[name='titulo']");
           campo?.focus();
         }, 50);
-      } else if (manterAbertoParaNovo) {
+      } else if (passo === "continuar-publicacao") {
         toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
         resetFormForNew();
       } else {
