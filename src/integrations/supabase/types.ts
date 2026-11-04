@@ -11569,6 +11569,10 @@ export type Database = {
         }[]
       }
       find_processo_id_by_numero: { Args: { _numero: string }; Returns: string }
+      garantir_publicacao_unificada: {
+        Args: { p_servidor_id: string }
+        Returns: string
+      }
       gerar_numero_remessa_benner: { Args: never; Returns: string }
       gerar_pautas_tst_auto: { Args: { _dias?: number }; Returns: number }
       get_acomp_especial_divergencias: {
