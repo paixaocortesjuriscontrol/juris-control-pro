@@ -183,15 +183,20 @@ export function EquipeItensAgenda({
   onSearchChange,
   pagina: paginaProp,
   onPaginaChange,
+  statusFilter: statusFilterProp,
+  onStatusFilterChange,
 }: EquipeItensAgendaProps) {
   const [selectedMembroLocal, setSelectedMembroLocal] = useSessionState<string | null>("equipe-membro", null);
   const [searchLocal, setSearchLocal] = useSessionState("equipe-busca", "");
+  const [statusFilterLocal, setStatusFilterLocal] = useSessionState<StatusFiltro>("equipe-status", "todos");
   const [paginaLocal, setPaginaLocal] = useState(1);
 
   const selectedMembro = selectedMembroProp !== undefined ? selectedMembroProp : selectedMembroLocal;
   const setSelectedMembro = onSelectedMembroChange ?? setSelectedMembroLocal;
   const search = searchProp !== undefined ? searchProp : searchLocal;
   const setSearch = onSearchChange ?? setSearchLocal;
+  const statusFilter = statusFilterProp !== undefined ? statusFilterProp : statusFilterLocal;
+  const setStatusFilter = onStatusFilterChange ?? setStatusFilterLocal;
   const pagina = paginaProp !== undefined ? paginaProp : paginaLocal;
   const setPagina = onPaginaChange ?? setPaginaLocal;
 
