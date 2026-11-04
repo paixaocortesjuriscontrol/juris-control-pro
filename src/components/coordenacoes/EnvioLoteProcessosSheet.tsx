@@ -20,7 +20,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const [progresso, setProgresso] = useState<number | null>(null);
   const [feitos, setFeitos] = useState(0);
   const cancelarRef = useRef(false);
-  const [resumo, setResumo] = useState<{ criados: number; atualizados: number; rejeitados: LinhaLote[] } | null>(null);
+  const [resumo, setResumo] = useState<{ criados: number; atualizados: number; compartilhados?: number; rejeitados: LinhaLote[] } | null>(null);
 
   const carregar = async (f: File) => {
     setResumo(null);
@@ -57,7 +57,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const enviar = async () => {
     setProgresso(0);
     const rejeitados = linhas.filter((l) => l.erro);
-    let criados = 0, atualizados = 0;
+    let criados = 0, atualizados = 0, compartilhados = 0;
     const { data: ritosDb } = await sb.from("ritos_processuais").select("nome");
     const ritos: string[] = (ritosDb || []).map((r: any) => r.nome);
     const { data: clientes } = await sb.from("clientes").select("id,nome");
@@ -82,7 +82,23 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
       if (!error) criados += lote.length;
       else for (let k = 0; k < lote.length; k++) {
         const r = await sb.from("processos").insert(regs[k]);
-        if (r.error) rejeitados.push({ ...lote[k], erro: r.error.message }); else criados++;
+        if (!r.error) { criados++; continue; }
+        // Já cadastrado em outra coordenação: compartilha com esta
+        if (String(r.error.message).includes("processos_numero_digits_uidx")) {
+          const { data: achado } = await sb.rpc("find_processo_by_digits", { _numero: regs[k].numero });
+          const p = Array.isArray(achado) ? achado[0] : achado;
+          if (p?.id) {
+            if (p.coordenacao_id === coordenacaoId) { compartilhados++; continue; }
+            const { data: jaTem } = await sb.from("processos_coordenacoes_responsaveis").select("id")
+              .eq("processo_id", p.id).eq("coordenacao_id", coordenacaoId).maybeSingle();
+            const ins = jaTem ? { error: null } : await sb.from("processos_coordenacoes_responsaveis")
+              .insert({ processo_id: p.id, coordenacao_id: coordenacaoId, principal: false });
+            if (!ins.error) { compartilhados++; continue; }
+            rejeitados.push({ ...lote[k], erro: `Já existe em outra coordenação e não foi possível compartilhar: ${ins.error.message}` });
+            continue;
+          }
+        }
+        rejeitados.push({ ...lote[k], erro: r.error.message });
       }
       marcar(lote.length); await pausa();
     }
@@ -100,9 +116,9 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     }
     if (cancelarRef.current) toast.warning(`Envio cancelado: ${criados} criados e ${atualizados} atualizados até aqui`);
     setProgresso(null);
-    setResumo({ criados, atualizados, rejeitados });
+    setResumo({ criados, atualizados, compartilhados, rejeitados });
     setLinhas([]);
-    if (!cancelarRef.current) toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados`);
+    if (!cancelarRef.current) toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados, ${compartilhados} compartilhados`);
   };
 
   const baixarRejeitados = () => {
@@ -145,7 +161,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
           )}
           {resumo && (
             <div className="text-sm space-y-2">
-              <p>Criados: <b>{resumo.criados}</b> · Atualizados: <b>{resumo.atualizados}</b> · Rejeitados: <b>{resumo.rejeitados.length}</b></p>
+              <p>Criados: <b>{resumo.criados}</b> · Atualizados: <b>{resumo.atualizados}</b> · Já existiam em outra coordenação (compartilhados): <b>{resumo.compartilhados ?? 0}</b> · Rejeitados: <b>{resumo.rejeitados.length}</b></p>
               {resumo.rejeitados.length > 0 && <Button size="sm" variant="outline" onClick={baixarRejeitados}>Baixar rejeitados</Button>}
             </div>
           )}
