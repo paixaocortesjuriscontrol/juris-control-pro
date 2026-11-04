@@ -494,6 +494,9 @@ export function PrazoDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const submitter = (e.nativeEvent as SubmitEvent | undefined)?.submitter as HTMLElement | null | undefined;
+    if (submitter?.dataset?.acao === "outro-prazo") outroPrazoClickedRef.current = true;
+    else if (submitter) outroPrazoClickedRef.current = false;
     const tituloFinal = titulo.trim();
     if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim) {
       window.alert("Para criar um item com repetição, é obrigatório informar a data fim (campo \"Ou até a data\") ou a quantidade de vezes que deve aparecer.\n\nAssim o item não se repete para sempre no calendário.");
@@ -676,6 +679,8 @@ export function PrazoDialog({
       await invalidarItensAgenda(queryClient);
 
 
+      const outroPrazoAntecipado = outroPrazoClickedRef.current && !prazo;
+      if (outroPrazoAntecipado) { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
@@ -712,7 +717,15 @@ export function PrazoDialog({
         setRecorrenciaIntervalo(1);
         setRecorrenciaOcorrencias("");
         setRecorrenciaFim("");
-        toast.success("Prazo salvo. Preencha o próximo prazo.");
+        secondaryClickedRef.current = false;
+        tertiaryClickedRef.current = false;
+        toast.success("Prazo salvo! O formulário continua aberto para o próximo prazo.");
+        setTimeout(() => {
+          const form = document.getElementById("prazo-form-content");
+          form?.querySelector<HTMLElement>(".overflow-y-auto")?.scrollTo({ top: 0, behavior: "smooth" });
+          const campo = form?.querySelector<HTMLInputElement>("input#titulo, input[name='titulo']");
+          campo?.focus();
+        }, 50);
       } else if (manterAbertoParaNovo) {
         toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
         resetFormForNew();
@@ -991,6 +1004,7 @@ export function PrazoDialog({
             </div>
           </div>
           <Input
+            name="titulo"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Digite o título do prazo"
@@ -1303,8 +1317,10 @@ export function PrazoDialog({
              type="submit"
              variant="outline"
              disabled={isLoading}
+             data-acao="outro-prazo"
              onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; outroPrazoClickedRef.current = true; }}
            >
+             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
              Salvar e agendar outro prazo
            </Button>
          )}
