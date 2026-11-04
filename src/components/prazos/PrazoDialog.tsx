@@ -1004,6 +1004,7 @@ export function PrazoDialog({
             </div>
           </div>
           <Input
+            name="titulo"
             value={titulo}
             onChange={(e) => setTitulo(e.target.value)}
             placeholder="Digite o título do prazo"
