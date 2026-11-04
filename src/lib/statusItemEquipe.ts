@@ -7,7 +7,7 @@ export type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "
 /** Situação real de um item, igual ao selo exibido na lista. */
 export type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
 
-const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
+export const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
   pendente: "pendentes",
   atrasada: "atrasadas",
   cumprida: "cumpridas",
