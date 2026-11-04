@@ -33,7 +33,10 @@ async function resolverPublicacaoUnificada(id: string): Promise<string | null> {
     const mesma = lista.find((r) => r.coordenacao_id === srv.coordenacao_id) ?? lista[0];
     if (mesma) return mesma.id;
   }
-  return null;
+  // Sem cópia na lista nova: cria agora (função confere acesso à coordenação).
+  const { data: criada, error } = await (supabase as any).rpc("garantir_publicacao_unificada", { p_servidor_id: id });
+  if (error) throw error;
+  return (criada as string) ?? null;
 }
 
 export async function vincularItemPublicacao(
