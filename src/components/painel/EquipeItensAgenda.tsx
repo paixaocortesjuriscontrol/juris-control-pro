@@ -316,21 +316,17 @@ export function EquipeItensAgenda({
       const alvo = pessoas.length ? pessoas : [{ id: "__sem__", nome: "Não atribuído" }];
       alvo.forEach(({ id, nome }) => {
         if (!map.has(id)) {
-          map.set(id, { id, nome, total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, itens: [] });
+          map.set(id, { id, nome, total: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, canceladas: 0, itens: [] });
         }
         const m = map.get(id);
         if (!m) return;
         m.total += 1;
         m.itens.push(item);
-        if (isItemCancelado(item)) {
-          // itens cancelados não entram em atrasados/pendentes
-        } else if (isItemTratado(item)) {
-          m.cumpridas += 1;
-        } else {
-          const d = getRefDate(item);
-          if (d && differenceInCalendarDays(d, new Date()) < 0) m.atrasadas += 1;
-          else m.pendentes += 1;
-        }
+        const status = classificarStatus(item);
+        if (status === "pendente") m.pendentes += 1;
+        else if (status === "atrasada") m.atrasadas += 1;
+        else if (status === "cumprida") m.cumpridas += 1;
+        else m.canceladas += 1;
       });
     });
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
@@ -338,17 +334,32 @@ export function EquipeItensAgenda({
 
   const membroAtual = membros.find((m) => m.id === selectedMembro) || null;
 
+  /** Itens do membro escolhido (ou de toda a equipe, quando ninguém foi escolhido). */
+  const itensDoEscopo = useMemo(
+    () => (membroAtual ? membroAtual.itens : itens),
+    [membroAtual, itens]
+  );
+
+  /** Quantos itens há em cada situação dentro do escopo atual (membro ou equipe). */
+  const contagens = useMemo(() => {
+    const c: Record<StatusFiltro, number> = { todos: itensDoEscopo.length, pendentes: 0, atrasadas: 0, cumpridas: 0, cancelados: 0 };
+    itensDoEscopo.forEach((item) => {
+      c[STATUS_PARA_FILTRO[classificarStatus(item)]] += 1;
+    });
+    return c;
+  }, [itensDoEscopo]);
+
   const listaItens = useMemo(() => {
-    const base = membroAtual ? membroAtual.itens : itens;
+    const base = itensDoEscopo;
     const q = search.trim().toLowerCase();
-    const filtrada = !q
-      ? base
-      : base.filter(
-          (i) =>
-            i.titulo?.toLowerCase().includes(q) ||
-            i.descricao?.toLowerCase().includes(q) ||
-            i.processo?.numero?.toLowerCase().includes(q)
-        );
+    const filtrada = base.filter(
+      (i) =>
+        itemCorrespondeFiltro(i, statusFilter) &&
+        (!q ||
+          i.titulo?.toLowerCase().includes(q) ||
+          i.descricao?.toLowerCase().includes(q) ||
+          i.processo?.numero?.toLowerCase().includes(q))
+    );
     // Ordena por data crescente: atrasados e de hoje no topo, futuros depois
     const ts = (i: any) => {
       const t = new Date(i?.data_inicio).getTime();
