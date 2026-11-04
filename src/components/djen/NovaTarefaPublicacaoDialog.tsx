@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -147,10 +148,13 @@ export function NovaTarefaPublicacaoDialog({
         : "termo";
     try {
       if (publicacao.tipo_origem === "termo") {
-        const { error: vErr } = await supabase
-          .from("tarefas_publicacoes")
-          .insert({ tarefa_id: tarefaId, publicacao_id: publicacao.id });
-        if (vErr) console.error("[NovaTarefaPub] vincular termo:", vErr);
+        try {
+          const { vincularItemPublicacao } = await import("@/lib/vincularItemPublicacao");
+          await vincularItemPublicacao({ id: tarefaId, tipo: "tarefa" }, { tipo: "termo", id: publicacao.id });
+        } catch (vErr) {
+          console.error("[NovaTarefaPub] vincular termo:", vErr);
+          toast.error("A tarefa foi salva, mas não foi possível ligá-la à publicação.");
+        }
         if (markAsReadOnCreate) {
           const { error: uErr } = await supabase
             .from("publicacoes_djen")

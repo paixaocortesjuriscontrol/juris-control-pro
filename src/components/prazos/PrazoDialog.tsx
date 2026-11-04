@@ -660,6 +660,7 @@ export function PrazoDialog({
             );
           } catch (err) {
             console.warn("Falha ao vincular prazo à publicação", err);
+            toast.error("O prazo foi salvo, mas não foi possível ligá-lo à publicação.");
           }
         }
       }
