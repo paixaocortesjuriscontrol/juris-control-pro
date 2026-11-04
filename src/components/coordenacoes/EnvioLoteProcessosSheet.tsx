@@ -197,7 +197,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
             <div className="space-y-2 text-sm">
               <p><b>{novos}</b> novos · <b>{validas.length - novos}</b> já existem (completa só os campos vazios e inclui esta coordenação) · <b>{linhas.length - validas.length}</b> com erro</p>
               <div className="max-h-60 overflow-y-auto border rounded p-2 space-y-1">
-                {linhas.filter((l) => l.erro).map((l) => <div key={l.linha} className="text-destructive">Linha {l.linha}: {l.erro}</div>)}
+                {linhas.filter((l) => l.erro).slice(0, 300).map((l) => <div key={l.linha} className="text-destructive">Linha {l.linha}: {l.erro}</div>)}
               </div>
               <Button onClick={enviar} disabled={!validas.length || progresso !== null}>Enviar {validas.length} processos</Button>
             </div>
