@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
+import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
@@ -411,14 +412,16 @@ export default function MinhasResponsabilidades() {
         )}
       </ItemDrawer>
 
-      <ItemDrawer open={!!procSel} onOpenChange={(o) => !o && setProcSel(null)} titulo={procSel?.numero || "Processo"} subtitulo={procSel?.clientes?.nome ?? null}>
+      <ItemDrawer open={!!procSel} onOpenChange={(o) => !o && setProcSel(null)} titulo={procSel?.clientes?.nome || "Resumo do processo"} subtitulo={procSel?.numero ?? null}>
         {procSel && (
-          <div className="flex flex-col h-full">
-            <div className="p-2 border-b flex justify-end">
-              <Button size="sm" onClick={() => navigate(`/processos/${procSel.id}`)}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-auto"><ProcessoPainel id={procSel.id} /></div>
-          </div>
+          <ProcessoItensLateral
+            key={procSel.id}
+            processoId={procSel.id}
+            processoNumero={procSel.numero || ""}
+            hideHeader
+            onClose={() => setProcSel(null)}
+            onNavigate={(id) => navigate(`/processos/${id}`)}
+          />
         )}
       </ItemDrawer>
 
