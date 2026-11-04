@@ -679,6 +679,8 @@ export function PrazoDialog({
       await invalidarItensAgenda(queryClient);
 
 
+      const outroPrazoAntecipado = outroPrazoClickedRef.current && !prazo;
+      if (outroPrazoAntecipado) { secondaryClickedRef.current = false; tertiaryClickedRef.current = false; }
       if (secondaryClickedRef.current) {
         try { await secondarySave?.onAfterSuccess(); }
         catch (err) { console.error("secondarySave.onAfterSuccess falhou:", err); }
