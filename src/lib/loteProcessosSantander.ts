@@ -58,7 +58,7 @@ export function lerLinhasLote(linhas: any[][], coordenacaoNome: string): LinhaLo
     else campos.numero = cnj;
     if (campos.valor_causa !== undefined) campos.valor_causa = valorNumero(campos.valor_causa);
     if (campos.rito_processual) campos.rito_processual = normalizarRitoProcessual(String(campos.rito_processual));
-    if (!item.erro && campos._coordenacao && semAcento(campos._coordenacao).replace(/^COORDENACAO /, "") !== semAcento(coordenacaoNome).replace(/^COORDENACAO /, ""))
+    if (!item.erro && campos._coordenacao && semAcento(campos._coordenacao).trim().replace(/^CO[A-Z]*CAO\s+/, "") !== semAcento(coordenacaoNome).trim().replace(/^CO[A-Z]*CAO\s+/, ""))
       item.erro = `Coordenação diferente (${campos._coordenacao})`;
     out.push(item);
   });
