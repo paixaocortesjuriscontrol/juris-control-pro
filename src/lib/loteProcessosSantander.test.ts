@@ -23,3 +23,10 @@ test("rejeita outra coordenação e número inválido", () => {
   assert.match(r[0].erro!, /Coordenação diferente/);
   assert.match(r[1].erro!, /inválido/);
 });
+
+test("aceita 'Coodernação' escrito errado na planilha", () => {
+  const [ok] = lerLinhasLote([cab, [null, "0803543-57.2025.8.19.0014", "ISABELA", "Coodernação Santander Cível"]], "Coordenação Santander Cível");
+  assert.equal(ok.erro, undefined);
+  const [outra] = lerLinhasLote([cab, [null, "0803543-57.2025.8.19.0014", "ISABELA", "Coordenação GOL"]], "Coordenação Santander Cível");
+  assert.match(outra.erro ?? "", /Coordenação diferente/);
+});
