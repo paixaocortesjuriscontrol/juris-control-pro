@@ -35,6 +35,25 @@ export function useModeloTarefaItens(inicio: Date, fim: Date) {
       }
       const mapa = new Map<string, ModeloDoItem>();
       for (const t of tarefas) { const m = modelos.get(t.modelo_tarefa_id); if (m) mapa.set(t.id, m); }
+      // Cor escolhida na etapa do workflow tem prioridade sobre a cor do modelo.
+      const wf: string[] = [];
+      for (let off = 0; ; off += 1000) {
+        const { data, error } = await db.from("tarefas").select("id")
+          .eq("origem", "workflow").gte("data_vencimento", de).lte("data_vencimento", ate)
+          .order("id").range(off, off + 999);
+        if (error) throw error;
+        wf.push(...(data || []).map((t: any) => t.id));
+        if (!data || data.length < 1000) break;
+      }
+      for (let k = 0; k < wf.length; k += 100) {
+        const { data, error } = await db.from("workflow_execucao_etapas")
+          .select("item_id, workflow_etapas(campos_item)").in("item_id", wf.slice(k, k + 100));
+        if (error) break;
+        for (const r of data || []) {
+          const cor = r.workflow_etapas?.campos_item?.cor;
+          if (cor && r.item_id) mapa.set(r.item_id, { nome: mapa.get(r.item_id)?.nome || "", cor });
+        }
+      }
       return mapa;
     },
   });
