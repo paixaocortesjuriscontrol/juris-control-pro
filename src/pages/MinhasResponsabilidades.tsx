@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { addMonths, format, parseISO, subMonths } from "date-fns";
+import { addMonths, endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +19,12 @@ import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Periodo = "padrao" | "tudo";
+type Periodo = "mes" | "trimestre" | "ano";
+const PERIODOS: { v: Periodo; l: string }[] = [
+  { v: "mes", l: "Este mês" },
+  { v: "trimestre", l: "Mês passado a próximo" },
+  { v: "ano", l: "12 meses" },
+];
 const FONTES: FonteAgenda[] = ["tarefas", "eventos", "audiencias"];
 const FILTROS: { v: StatusFiltro; l: string }[] = [
   { v: "todos", l: "Todas" },
@@ -45,9 +52,40 @@ const fmt = (raw?: string | null) => {
 
 export default function MinhasResponsabilidades() {
   const { user } = useAuth();
-  const uid = user?.id ?? "";
+  const { isAdmin } = useUserRole();
+  const [coordSel, setCoordSel] = useState<string>("todas");
+  const [usuarioSel, setUsuarioSel] = useState<string>("");
+  const uid = (isAdmin && usuarioSel) || user?.id || "";
+
+  const coordenacoes = useQuery({
+    queryKey: ["minhas-resp", "coords"],
+    enabled: isAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("coordenacoes").select("id, nome").order("nome");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const usuarios = useQuery({
+    queryKey: ["minhas-resp", "usuarios", coordSel],
+    enabled: isAdmin,
+    queryFn: async () => {
+      let ids: string[] | null = null;
+      if (coordSel !== "todas") {
+        const { data, error } = await supabase.from("membros_coordenacao").select("usuario_id").eq("coordenacao_id", coordSel);
+        if (error) throw error;
+        ids = [...new Set((data ?? []).map((m) => m.usuario_id))];
+        if (!ids.length) return [];
+      }
+      let q = (supabase as any).from("profiles_basic").select("id, nome").order("nome").limit(1000);
+      if (ids) q = q.in("id", ids);
+      const { data, error } = await q;
+      if (error) throw error;
+      return (data ?? []) as { id: string; nome: string }[];
+    },
+  });
   const navigate = useNavigate();
-  const [periodo, setPeriodo] = useState<Periodo>("padrao");
+  const [periodo, setPeriodo] = useState<Periodo>("mes");
   const [filtro, setFiltro] = useState<StatusFiltro>("todos");
   const [tipo, setTipo] = useState<string>("todos");
   const [busca, setBusca] = useState("");
@@ -59,19 +97,19 @@ export default function MinhasResponsabilidades() {
     enabled: !!uid,
     queryFn: async () => {
       const hoje = new Date();
-      const dataInicio = periodo === "tudo" ? new Date(2000, 0, 1) : subMonths(hoje, 12);
-      const dataFim = periodo === "tudo" ? new Date(2100, 0, 1) : addMonths(hoje, 24);
+      const dataInicio = startOfMonth(periodo === "mes" ? hoje : periodo === "trimestre" ? subMonths(hoje, 1) : subMonths(hoje, 6));
+      const dataFim = endOfMonth(periodo === "mes" ? hoje : periodo === "trimestre" ? addMonths(hoje, 1) : addMonths(hoje, 5));
       const saida: any[] = [];
       for (const fonte of FONTES) {
         let offset = 0;
-        for (let i = 0; i < 50; i++) {
-          const r = await lerFonteAgendaPorTipo({ modo: "pessoal", usuario: uid }, fonte, { dataInicio, dataFim }, offset, 1000);
+        for (let i = 0; i < 20; i++) {
+          const r = await lerFonteAgendaPorTipo({ modo: "pessoal", usuario: uid }, fonte, { dataInicio, dataFim }, offset, 500);
           for (const l of r.linhas) {
             const papel = papelDoUsuario(l, uid);
             if (papel) saida.push({ ...l, _fonte: fonte, _papel: papel, _tipo: tipoDoItem(fonte, l) });
           }
           if (!r.temMais) break;
-          offset += 1000;
+          offset += 500;
         }
       }
       const vistos = new Set<string>();
@@ -174,6 +212,25 @@ export default function MinhasResponsabilidades() {
   return (
     <MainLayout title="Minhas responsabilidades" subtitle="Tudo que está com você: atividades, processos e workflows">
       <div className="space-y-4">
+        {isAdmin && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-sm text-muted-foreground">Ver responsabilidades de:</span>
+            <Select value={coordSel} onValueChange={(v) => { setCoordSel(v); setUsuarioSel(""); }}>
+              <SelectTrigger className="w-64"><SelectValue placeholder="Coordenação" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas as coordenações</SelectItem>
+                {(coordenacoes.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={usuarioSel || "eu"} onValueChange={(v) => setUsuarioSel(v === "eu" ? "" : v)}>
+              <SelectTrigger className="w-64"><SelectValue placeholder="Usuário" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="eu">Eu mesmo</SelectItem>
+                {(usuarios.data ?? []).filter((u) => u.id !== user?.id).map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {resumo.map((r) => (
             <Card key={r.l}><CardContent className="p-4">
@@ -202,8 +259,9 @@ export default function MinhasResponsabilidades() {
               {TIPOS.map((t) => (
                 <Button key={t} size="sm" variant={tipo === t ? "default" : "outline"} onClick={() => setTipo(t)}>{ROT_TIPO[t]}</Button>
               ))}
-              <Button size="sm" variant={periodo === "padrao" ? "default" : "outline"} onClick={() => setPeriodo("padrao")}>Últimos 12 meses e futuros</Button>
-              <Button size="sm" variant={periodo === "tudo" ? "default" : "outline"} onClick={() => setPeriodo("tudo")}>Tudo</Button>
+              {PERIODOS.map((p) => (
+                <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
+              ))}
               <Input className="max-w-xs" placeholder="Buscar por título ou processo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
             </div>
             {carregando(atividades)}
