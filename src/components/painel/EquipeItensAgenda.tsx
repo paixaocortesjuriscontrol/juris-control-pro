@@ -54,13 +54,20 @@ interface EquipeItensAgendaProps {
 type StatusFiltro = "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados";
 type StatusItem = "pendente" | "atrasada" | "cumprida" | "cancelado";
 
-const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; classe: string }[] = [
-  { valor: "todos", rotulo: "Todos", classe: "" },
-  { valor: "pendentes", rotulo: "Pendentes", classe: "text-amber-600" },
-  { valor: "atrasadas", rotulo: "Atrasadas", classe: "text-destructive" },
-  { valor: "cumpridas", rotulo: "Cumpridas", classe: "text-emerald-600" },
-  { valor: "cancelados", rotulo: "Cancelados", classe: "text-muted-foreground" },
+const FILTROS_STATUS: { valor: StatusFiltro; rotulo: string; singular: string; classe: string }[] = [
+  { valor: "todos", rotulo: "Todos", singular: "", classe: "" },
+  { valor: "pendentes", rotulo: "Pendentes", singular: "pendente", classe: "text-amber-600" },
+  { valor: "atrasadas", rotulo: "Atrasadas", singular: "atrasado", classe: "text-destructive" },
+  { valor: "cumpridas", rotulo: "Cumpridas", singular: "cumprido", classe: "text-emerald-600" },
+  { valor: "cancelados", rotulo: "Cancelados", singular: "cancelado", classe: "text-muted-foreground" },
 ];
+
+const CAMPO_POR_FILTRO: Record<Exclude<StatusFiltro, "todos">, keyof MembroStats> = {
+  pendentes: "pendentes",
+  atrasadas: "atrasadas",
+  cumpridas: "cumpridas",
+  cancelados: "canceladas",
+};
 
 interface MembroStats {
   id: string;
