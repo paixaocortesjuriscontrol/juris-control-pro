@@ -20,7 +20,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
   const [progresso, setProgresso] = useState<number | null>(null);
   const [feitos, setFeitos] = useState(0);
   const cancelarRef = useRef(false);
-  const [resumo, setResumo] = useState<{ criados: number; atualizados: number; rejeitados: LinhaLote[] } | null>(null);
+  const [resumo, setResumo] = useState<{ criados: number; atualizados: number; compartilhados?: number; rejeitados: LinhaLote[] } | null>(null);
 
   const carregar = async (f: File) => {
     setResumo(null);
@@ -116,9 +116,9 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     }
     if (cancelarRef.current) toast.warning(`Envio cancelado: ${criados} criados e ${atualizados} atualizados até aqui`);
     setProgresso(null);
-    setResumo({ criados, atualizados, rejeitados });
+    setResumo({ criados, atualizados, compartilhados, rejeitados });
     setLinhas([]);
-    if (!cancelarRef.current) toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados`);
+    if (!cancelarRef.current) toast.success(`Envio concluído: ${criados} criados, ${atualizados} atualizados, ${compartilhados} compartilhados`);
   };
 
   const baixarRejeitados = () => {
@@ -161,7 +161,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
           )}
           {resumo && (
             <div className="text-sm space-y-2">
-              <p>Criados: <b>{resumo.criados}</b> · Atualizados: <b>{resumo.atualizados}</b> · Rejeitados: <b>{resumo.rejeitados.length}</b></p>
+              <p>Criados: <b>{resumo.criados}</b> · Atualizados: <b>{resumo.atualizados}</b> · Já existiam em outra coordenação (compartilhados): <b>{resumo.compartilhados ?? 0}</b> · Rejeitados: <b>{resumo.rejeitados.length}</b></p>
               {resumo.rejeitados.length > 0 && <Button size="sm" variant="outline" onClick={baixarRejeitados}>Baixar rejeitados</Button>}
             </div>
           )}
