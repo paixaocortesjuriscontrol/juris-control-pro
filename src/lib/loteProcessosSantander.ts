@@ -17,6 +17,7 @@ const MAPA: Record<string, string> = {
   "COMARCA": "comarca", "UF": "uf", "CLIENTE (CADASTRO)": "_cliente", "CLIENTE": "_cliente",
   "PLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo", "POLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo",
   "POLO PASSIVO (RECLAMADO/REU)": "polo_passivo", "VALOR DA CAUSA": "valor_causa", "PASTA DO CLIENTE": "pasta_cliente",
+  "ASSUNTO": "assunto", "VARA": "vara",
 };
 
 export type LinhaLote = { linha: number; campos: Record<string, any>; erro?: string };
