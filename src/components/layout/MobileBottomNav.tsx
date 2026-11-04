@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { LayoutPanelTop, Scale, Newspaper, Gavel, Menu } from "lucide-react";
+import { LayoutPanelTop, Scale, Newspaper, Gavel, Menu, UserCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 
 const ATALHOS = [
   { path: "/painel-controle", label: "Painel", icon: LayoutPanelTop },
+  { path: "/minhas-responsabilidades", label: "Meus itens", icon: UserCircle },
   { path: "/processos", label: "Processos", icon: Scale },
   { path: "/analise-djen", label: "DJEN", icon: Newspaper },
   { path: "/pautas-julgamento", label: "Pautas", icon: Gavel },
