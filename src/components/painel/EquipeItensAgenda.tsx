@@ -114,6 +114,26 @@ function getBaseId(id: string) {
   return id.split("::")[0];
 }
 
+/** Situação do item, igual ao selo exibido na lista. */
+function classificarStatus(item: ItemAgendaUnificado): StatusItem {
+  if (isItemCancelado(item)) return "cancelado";
+  if (isItemTratado(item)) return "cumprida";
+  const d = getRefDate(item);
+  if (d && differenceInCalendarDays(d, new Date()) < 0) return "atrasada";
+  return "pendente";
+}
+
+const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
+  pendente: "pendentes",
+  atrasada: "atrasadas",
+  cumprida: "cumpridas",
+  cancelado: "cancelados",
+};
+
+function itemCorrespondeFiltro(item: ItemAgendaUnificado, filtro: StatusFiltro) {
+  return filtro === "todos" || STATUS_PARA_FILTRO[classificarStatus(item)] === filtro;
+}
+
 function getPessoaLookupKey(item: ItemAgendaUnificado) {
   if (item.id.startsWith("audiencia-det-")) return `audiencia:${item.id.replace("audiencia-det-", "")}`;
   if (item.origem === "tarefa") return `tarefa:${getBaseId(item.id)}`;
