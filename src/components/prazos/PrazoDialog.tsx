@@ -1,4 +1,5 @@
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { decidirPassoPosSalvacaoPrazo } from "@/lib/prazoFluxoPosSalvacao";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
@@ -702,15 +703,25 @@ export function PrazoDialog({
       // Se estamos no fluxo "criar múltiplos itens a partir da mesma publicação"
       // (Análise DJEN: onAfterCreate fornecido) e o usuário clicou no Salvar
       // primário — mantém o formulário aberto e reseta para novo cadastro.
-      const manterAbertoParaNovo = !prazo && !!onAfterCreate && !tertiaryWasClicked;
-      const outroPrazo = outroPrazoClickedRef.current && !prazo;
+      const outroPrazoClicado = outroPrazoClickedRef.current;
       outroPrazoClickedRef.current = false;
-      if (outroPrazo) {
+      const passo = decidirPassoPosSalvacaoPrazo({
+        isNovo: !prazo,
+        clicouOutroPrazo: outroPrazoClicado,
+        clicouSalvarEFechar: tertiaryWasClicked,
+        temAvisoDeCriacao: !!onAfterCreate,
+      });
+      if (passo === "continuar-aberto") {
         // Mantém processo, coordenação, pessoas e início; limpa o restante.
         setTitulo("");
         setPrazoDias(0);
-        setDataLimite(undefined);
-        setDataLimiteEditadaManualmente(false);
+        // A data do próximo prazo volta a ser o dia de referência da tela
+        // (dataPadrao, no Painel de Controle) ou a data base (hoje ou a data
+        // da publicação DJEN) — nunca fica em branco, para não atrasar o
+        // próximo cadastro. "Editada manualmente" impede o efeito automático
+        // de apagar esse valor antes de o usuário digitar os dias.
+        setDataLimite(dataPadrao ? new Date(`${dataPadrao}T12:00:00`) : new Date(dataBase));
+        setDataLimiteEditadaManualmente(true);
         setDataFatal(undefined);
         setObservacoes("");
         setRecorrenciaTipo("nenhuma");
@@ -726,7 +737,7 @@ export function PrazoDialog({
           const campo = form?.querySelector<HTMLInputElement>("input#titulo, input[name='titulo']");
           campo?.focus();
         }, 50);
-      } else if (manterAbertoParaNovo) {
+      } else if (passo === "continuar-publicacao") {
         toast.success("Prazo salvo. Você pode cadastrar outro item para esta publicação.");
         resetFormForNew();
       } else {
