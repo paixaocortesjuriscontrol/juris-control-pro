@@ -702,6 +702,9 @@ export default function PainelControle() {
   const [equipeMembro, setEquipeMembro] = useState<string | null>(null);
   const [equipeSearch, setEquipeSearch] = useState("");
   const [equipePagina, setEquipePagina] = useState(1);
+  const [equipeStatus, setEquipeStatus] = useState<
+    "todos" | "pendentes" | "atrasadas" | "cumpridas" | "cancelados"
+  >("todos");
 
   // Totais exatos vêm da agenda com todas as páginas; enquanto carrega, mostra a
   // contagem feita no banco (só sem filtros extras, que o banco não reproduz).
