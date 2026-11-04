@@ -220,7 +220,7 @@ export default function MinhasResponsabilidades() {
                     onClick={() => i.processo_id && navigate(`/processos/${i.processo_id}`)}
                   >
                     <Badge variant="outline">{ROT_TIPO[i._tipo]}</Badge>
-                    <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-success")}>{i.titulo || "(sem título)"}</span>
+                    <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-primary")}>{i.titulo || "(sem título)"}</span>
                     {i.processo?.numero && <span className="text-xs text-muted-foreground">{i.processo.numero}</span>}
                     <span className="text-xs">{fmt(i.data_fatal ?? i.data_vencimento ?? i.data_inicio)}</span>
                     <Badge variant={st === "atrasada" ? "destructive" : "secondary"}>{st === "pendente" ? "Pendente" : st === "atrasada" ? "Atrasada" : st === "cumprida" ? "Cumprida" : "Cancelada"}</Badge>
