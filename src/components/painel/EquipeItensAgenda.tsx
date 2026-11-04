@@ -108,44 +108,8 @@ const TIPO_BAR_CLASSES: Record<string, string> = {
   ata: "bg-violet-500",
 };
 
-function getRefDate(item: ItemAgendaUnificado): Date | null {
-  const raw = item.data_fatal ?? item.data_vencimento ?? item.data_inicio;
-  if (!raw) return null;
-  const d = parseISO(raw);
-  return isValid(d) ? d : null;
-}
-
-function isItemCancelado(item: ItemAgendaUnificado): boolean {
-  const normalize = (v?: string | null) =>
-    (v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  const anyItem = item as unknown as { status?: string | null; situacao?: string | null; status_tst?: string | null };
-  return [anyItem.status, anyItem.situacao, anyItem.status_tst].some((v) =>
-    ["cancelado", "cancelada"].includes(normalize(v)),
-  );
-}
-
 function getBaseId(id: string) {
   return id.split("::")[0];
-}
-
-/** Situação do item, igual ao selo exibido na lista. */
-function classificarStatus(item: ItemAgendaUnificado): StatusItem {
-  if (isItemCancelado(item)) return "cancelado";
-  if (isItemTratado(item)) return "cumprida";
-  const d = getRefDate(item);
-  if (d && differenceInCalendarDays(d, new Date()) < 0) return "atrasada";
-  return "pendente";
-}
-
-const STATUS_PARA_FILTRO: Record<StatusItem, StatusFiltro> = {
-  pendente: "pendentes",
-  atrasada: "atrasadas",
-  cumprida: "cumpridas",
-  cancelado: "cancelados",
-};
-
-function itemCorrespondeFiltro(item: ItemAgendaUnificado, filtro: StatusFiltro) {
-  return filtro === "todos" || STATUS_PARA_FILTRO[classificarStatus(item)] === filtro;
 }
 
 function getPessoaLookupKey(item: ItemAgendaUnificado) {
