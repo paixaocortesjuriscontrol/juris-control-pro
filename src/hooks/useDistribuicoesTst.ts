@@ -59,6 +59,7 @@ export interface DistribuicaoTst {
   aba_origem: string | null;
   data_distribuicao_planilha: string | null;
   data_distribuicao_real: string | null;
+  data_publicacao_djen?: string | null;
   dossie: string | null;
   equipe: string | null;
   reclamante: string | null;
@@ -322,6 +323,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     aba_origem: b.aba_origem ?? null,
     data_distribuicao_planilha: b.data_distribuicao_planilha ?? null,
     data_distribuicao_real: b.data_distribuicao_real ?? null,
+    data_publicacao_djen: b.data_publicacao_djen ?? null,
     dossie: b.dossie ?? null,
     equipe: b.equipe ?? null,
     reclamante: b.reclamante ?? null,
