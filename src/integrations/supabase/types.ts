@@ -2970,6 +2970,7 @@ export type Database = {
           data_distribuicao_planilha: string | null
           data_distribuicao_real: string | null
           data_julgamento: string | null
+          data_publicacao_djen: string | null
           data_transito_julgado: string | null
           decisao_quarteirizado: string | null
           distribuido_em: string | null
@@ -3103,6 +3104,7 @@ export type Database = {
           data_distribuicao_planilha?: string | null
           data_distribuicao_real?: string | null
           data_julgamento?: string | null
+          data_publicacao_djen?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
           distribuido_em?: string | null
@@ -3236,6 +3238,7 @@ export type Database = {
           data_distribuicao_planilha?: string | null
           data_distribuicao_real?: string | null
           data_julgamento?: string | null
+          data_publicacao_djen?: string | null
           data_transito_julgado?: string | null
           decisao_quarteirizado?: string | null
           distribuido_em?: string | null
