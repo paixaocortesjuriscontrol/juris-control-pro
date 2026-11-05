@@ -12421,6 +12421,14 @@ export type Database = {
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
       pauta_advogado_interno: { Args: { _benner: string }; Returns: string }
       pauta_partes_polo: { Args: { _pj: Json; _polo: string }; Returns: string }
+      pauta_preencher_de_benner: {
+        Args: { _pauta: string }
+        Returns: undefined
+      }
+      pautas_reverificar_benner: {
+        Args: { _dias_atras?: number }
+        Returns: number
+      }
       pode_alterar_situacao_item:
         | { Args: { _tarefa: string; _user: string }; Returns: boolean }
         | {
