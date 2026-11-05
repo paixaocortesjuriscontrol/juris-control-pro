@@ -12419,6 +12419,8 @@ export type Database = {
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       merge_processos_duplicados: { Args: never; Returns: Json }
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
+      pauta_advogado_interno: { Args: { _benner: string }; Returns: string }
+      pauta_partes_polo: { Args: { _pj: Json; _polo: string }; Returns: string }
       pode_alterar_situacao_item:
         | { Args: { _tarefa: string; _user: string }; Returns: boolean }
         | {
