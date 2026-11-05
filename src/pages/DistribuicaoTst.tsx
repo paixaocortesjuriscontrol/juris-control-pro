@@ -3343,7 +3343,14 @@ export default function DistribuicaoTst() {
                       })()}
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs whitespace-nowrap align-middle">{formatDate(d.data_distribuicao_real)}</TableCell>
+                  <TableCell className="text-xs whitespace-nowrap align-middle">
+                    {formatDate(d.data_distribuicao_real)}
+                    {(d as any).data_publicacao_djen && (
+                      <div className="text-[10px] text-muted-foreground" title="Data da publicação no DJEN">
+                        DJEN: {formatDate((d as any).data_publicacao_djen)}
+                      </div>
+                    )}
+                  </TableCell>
                   <TableCell className={cn("text-xs align-middle", isDup && "text-destructive font-semibold")}>
                     {(() => {
                       const raw = d.processo_numero || "";
