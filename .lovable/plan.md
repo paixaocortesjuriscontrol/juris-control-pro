@@ -1,15 +1,18 @@
-# Etiqueta DJEN AUTOMÁTICO só nos processos que a rotina cadastrou
+# Cadastrar processos na Coordenação Adobe/Crefisa
 
-## Por que aconteceu
-O plano aprovado previa que o processo que já estava na tela também ganharia a etiqueta, junto com a marca "já estava no sistema". A primeira busca, em 04/11 às 17:31 (horário de Brasília), marcou 157 processos:
-- 84 novos, cadastrados pela rotina
-- 73 que já existiam e mesmo assim receberam a etiqueta
+A planilha tem 106 linhas, mas só **82 processos diferentes** (alguns se repetem). Todos estão "ATIVOS", são Reclamações Trabalhistas do TRT.
 
-## O que muda
-1. **Daqui para frente:** a etiqueta só entra nos processos que a rotina cadastrar. No processo que já existe, a rotina apenas registra que ele apareceu no DJEN, sem colocar a etiqueta. Ela grava a marca "já existia" e preenche a data de distribuição se estiver vazia.
-2. **Limpeza:** tirar a etiqueta DJEN AUTOMÁTICO dos 73 processos que já existiam. Nada mais muda neles.
-3. **Relatório para Dra. Iara:** continua igual. O filtro "Já estavam no sistema" segue funcionando, porque depende da marca e não da etiqueta.
+## O que será feito
+1. Juntar as linhas repetidas: cada processo entra uma vez só.
+2. Para cada processo:
+   - **Já existe na Adobe/Crefisa:** não duplica, só completa campos vazios.
+   - **Existe em outra coordenação:** compartilha com a Adobe/Crefisa (mesma regra do envio em lote), sem duplicar.
+   - **Não existe:** cria na Adobe/Crefisa com status ativo e área trabalhista.
+3. Campos usados: número do processo, autor (parte ativa), pasta, vara/tribunal (Jurisdição Atual), tipo de ação, último evento (em observação). A coluna "Advogado Principal do Cliente" fica como observação, porque esses advogados não são usuários do sistema.
+4. Sem e-mails nem avisos.
+5. No fim, informo quantos foram criados, compartilhados e quantos já existiam.
 
 ## Detalhes técnicos
-- Migração recriando `gerar_distribuicoes_tst_auto`: inserir em `dados_benner_processo_tags` só no trecho que insere uma linha nova em `dados_benner`.
-- Remover de `dados_benner_processo_tags` a etiqueta DJEN AUTOMÁTICO onde `dados_benner.ja_existia_antes_djen = true`.
+- Coordenação localizada por nome em `coordenacoes` (ADOBE/CREFISA).
+- Inserção via SQL com `find_processo_by_digits` para checar existência; vínculo em `processos_coordenacoes_responsaveis` para compartilhados.
+- Nenhuma mudança de estrutura no banco nem de código.
