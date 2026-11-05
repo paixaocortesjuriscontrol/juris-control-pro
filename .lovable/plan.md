@@ -1,15 +1,15 @@
-# DJEN AUTOMÁTICO tag only on processes the routine created
+# Etiqueta DJEN AUTOMÁTICO só nos processos que a rotina cadastrou
 
-## Why it happened
-The approved plan said a process already on the screen would also get the tag, plus a "já estava no sistema" mark. On 04/11 at 17:31 (Brasília) the first search lit up 157 processes:
-- 84 new ones, created by the routine
-- 73 that already existed, which got the tag anyway
+## Por que aconteceu
+O plano aprovado previa que o processo que já estava na tela também ganharia a etiqueta, junto com a marca "já estava no sistema". A primeira busca, em 04/11 às 17:31 (horário de Brasília), marcou 157 processos:
+- 84 novos, cadastrados pela rotina
+- 73 que já existiam e mesmo assim receberam a etiqueta
 
-## What changes
-1. **From now on:** the tag goes only on processes the routine creates. When a process already exists, the routine only records that it showed up in the DJEN (distribution date, if that was empty, and the "já existia" mark), with no tag.
-2. **Cleanup:** remove the DJEN AUTOMÁTICO tag from the 73 processes that already existed. Nothing else on them changes.
-3. **Report for Dra. Iara:** stays the same. The "Já estavam no sistema" filter keeps working, because it uses the mark and not the tag.
+## O que muda
+1. **Daqui para frente:** a etiqueta só entra nos processos que a rotina cadastrar. No processo que já existe, a rotina apenas registra que ele apareceu no DJEN, sem colocar a etiqueta. Ela grava a marca "já existia" e preenche a data de distribuição se estiver vazia.
+2. **Limpeza:** tirar a etiqueta DJEN AUTOMÁTICO dos 73 processos que já existiam. Nada mais muda neles.
+3. **Relatório para Dra. Iara:** continua igual. O filtro "Já estavam no sistema" segue funcionando, porque depende da marca e não da etiqueta.
 
-## Technical details
-- Migration recreating `gerar_distribuicoes_tst_auto`: insert into `dados_benner_processo_tags` only on the branch that inserts a new row in `dados_benner`.
-- Delete from `dados_benner_processo_tags` the DJEN AUTOMÁTICO tag where `dados_benner.ja_existia_antes_djen = true`.
+## Detalhes técnicos
+- Migração recriando `gerar_distribuicoes_tst_auto`: inserir em `dados_benner_processo_tags` só no trecho que insere uma linha nova em `dados_benner`.
+- Remover de `dados_benner_processo_tags` a etiqueta DJEN AUTOMÁTICO onde `dados_benner.ja_existia_antes_djen = true`.
