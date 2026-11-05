@@ -2031,7 +2031,7 @@ export default function DistribuicaoTst() {
       subtitle="Gestão dos processos distribuídos no TST: filtros, cards totalizadores e ações em lote."
       headerActions={
         <div className="flex items-center gap-2">
-          <DjenAutomaticoSheet onAtualizado={() => window.location.reload()} />
+          <DjenAutomaticoSheet onAtualizado={() => { fetchTabsData(); }} />
           <Button
             variant="ghost"
             size="icon"

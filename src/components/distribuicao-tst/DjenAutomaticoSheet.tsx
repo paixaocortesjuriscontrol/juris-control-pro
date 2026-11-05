@@ -23,13 +23,31 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
   const [gerando, setGerando] = useState(false);
   const [resumo, setResumo] = useState<{ novos: number; existiam: number } | null>(null);
 
-  const buscarAgora = async () => {
+  const [resultadoBusca, setResultadoBusca] = useState<{ ok: boolean; texto: string } | null>(null);
+  const buscarAgora = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
     setBuscando(true);
-    const { data, error } = await supabase.rpc("buscar_distribuicoes_tst_agora" as any, { _dias: Number(dias) || 7 });
-    setBuscando(false);
-    if (error) return toast.error(error.message === "sem acesso" ? "Você não tem acesso a esta busca" : error.message);
-    toast.success(`${data || 0} distribuição(ões) lançada(s) a partir do DJEN`);
-    onAtualizado?.();
+    setResultadoBusca(null);
+    try {
+      const { data, error } = await supabase.rpc("buscar_distribuicoes_tst_agora" as any, { _dias: Number(dias) || 7 });
+      if (error) {
+        const msg = error.message === "sem acesso" ? "Você não tem acesso a esta busca" : error.message;
+        setResultadoBusca({ ok: false, texto: msg });
+        toast.error(msg);
+        return;
+      }
+      const n = Number(data) || 0;
+      const texto = n > 0
+        ? `${n} distribuição(ões) lançada(s) a partir do DJEN.`
+        : `Nenhuma distribuição nova encontrada nos últimos ${Number(dias) || 7} dias (as já lidas não são repetidas).`;
+      setResultadoBusca({ ok: true, texto });
+      toast.success(texto);
+      onAtualizado?.();
+    } catch (err: any) {
+      setResultadoBusca({ ok: false, texto: err?.message || "Erro na busca" });
+    } finally {
+      setBuscando(false);
+    }
   };
 
   const carregar = async (): Promise<LinhaDjenAuto[]> => {
@@ -92,10 +110,14 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
                 <Label className="text-xs">Publicações dos últimos (dias)</Label>
                 <Input type="number" min={1} max={180} value={dias} onChange={(e) => setDias(e.target.value)} />
               </div>
-              <Button onClick={buscarAgora} disabled={buscando}>
+              <Button type="button" onClick={buscarAgora} disabled={buscando}>
                 {buscando ? <Loader2 className="w-4 h-4 animate-spin" /> : "Buscar"}
               </Button>
             </div>
+            {buscando && <p className="text-xs text-muted-foreground">Buscando publicações… pode levar alguns segundos.</p>}
+            {resultadoBusca && (
+              <p className={`text-xs ${resultadoBusca.ok ? "text-muted-foreground" : "text-destructive"}`}>{resultadoBusca.texto}</p>
+            )}
           </div>
 
           <div className="mt-4 space-y-3 rounded-md border p-4">
