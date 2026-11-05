@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.pauta_advogado_interno(uuid) FROM PUBLIC, anon, authenticated;
