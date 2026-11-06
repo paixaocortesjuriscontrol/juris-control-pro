@@ -130,14 +130,49 @@ serve(async (req) => {
     const emailsDestino: string[] = [];
     const telefonesDestino: string[] = [];
 
+    // Preferências individuais de notificação (específica da coordenação tem prioridade sobre a geral)
+    const idsMembros = (membros || []).map((m: any) => m.usuario_id).filter(Boolean);
+    const prefsPorUsuario = new Map<string, any>();
+    if (idsMembros.length > 0) {
+      const { data: prefs } = await supabase
+        .from('config_notificacoes_usuario')
+        .select('usuario_id, coordenacao_id, canal_email, canal_whatsapp, ativo')
+        .in('usuario_id', idsMembros);
+      for (const p of prefs || []) {
+        if (p.coordenacao_id && p.coordenacao_id !== coordenacao_id) continue;
+        const atual = prefsPorUsuario.get(p.usuario_id);
+        if (!atual || (p.coordenacao_id && !atual.coordenacao_id)) prefsPorUsuario.set(p.usuario_id, p);
+      }
+    }
+    const normalizarFone = (t: string) => {
+      let d = t.replace(/\D/g, '');
+      if (!d.startsWith('55')) d = '55' + d;
+      if (d.length === 12) d = d.slice(0, 4) + '9' + d.slice(4);
+      return d;
+    };
+    const fonesBloqueados = new Set<string>();
+    const emailsVistos = new Set<string>();
+    const fonesVistos = new Set<string>();
+
     for (const membro of membros || []) {
       const profile = membro.profiles as any;
-      if (profile?.email) {
+      const pref = prefsPorUsuario.get(membro.usuario_id);
+      const ativo = pref?.ativo !== false;
+      const querEmail = ativo && pref?.canal_email !== false;
+      const querWhats = ativo && pref?.canal_whatsapp !== false;
+      if (profile?.email && querEmail && !emailsVistos.has(profile.email.toLowerCase())) {
+        emailsVistos.add(profile.email.toLowerCase());
         emailsDestino.push(profile.email);
       }
       if (profile?.telefone) {
-        telefonesDestino.push(profile.telefone);
+        const n = normalizarFone(profile.telefone);
+        if (!querWhats) { fonesBloqueados.add(n); continue; }
+        if (!fonesVistos.has(n)) { fonesVistos.add(n); telefonesDestino.push(profile.telefone); }
       }
+    }
+    // Se algum usuário com o mesmo número desativou o WhatsApp, não envia para esse número
+    for (let i = telefonesDestino.length - 1; i >= 0; i--) {
+      if (fonesBloqueados.has(normalizarFone(telefonesDestino[i]))) telefonesDestino.splice(i, 1);
     }
 
     console.log(`Membros encontrados: ${membros?.length || 0}, Emails: ${emailsDestino.length}, Telefones: ${telefonesDestino.length}`);
