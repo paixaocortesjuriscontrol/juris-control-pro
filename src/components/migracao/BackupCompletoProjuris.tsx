@@ -361,7 +361,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       // --------- 3. nomes de tipos ---------
       const tipoTarefaNome = new Map<string, string>();
       const guTipoT = gu("tarefatipo");
-      if (guTipoT) for (const r of guTipoT.linhas) tipoTarefaNome.set(String(guTipoT.g(r, "cdtarefatipo") || ""), String(guTipoT.g(r, "detarefa") || ""));
+      if (guTipoT) for (const r of guTipoT.linhas) tipoTarefaNome.set(String(guTipoT.g(r, "cdtarefatipo") || ""), String(guTipoT.g(r, "nmtarefatipo") || guTipoT.g(r, "detarefa") || guTipoT.g(r, "detitulo") || ""));
       const andamentoTipoNome = new Map<string, string>();
       const guTipoA = gu("andamentotipo");
       if (guTipoA && guTipoA.linhas.length) {
