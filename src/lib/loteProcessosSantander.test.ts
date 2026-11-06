@@ -30,3 +30,13 @@ test("aceita 'Coodernação' escrito errado na planilha", () => {
   const [outra] = lerLinhasLote([cab, [null, "0803543-57.2025.8.19.0014", "ISABELA", "Coordenação GOL"]], "Coordenação Santander Cível");
   assert.match(outra.erro ?? "", /Coordenação diferente/);
 });
+
+import { lerLinhasLote as ler2 } from "./loteProcessosSantander";
+describe("modelo novo de importação", () => {
+  it("lê as colunas novas", () => {
+    const cab = ["Tipo de Processo","Número do Processo","Objeto da Ação (assunto)","Sistema Judicial","Etiquetas","Polo Ativo (Reclamante / Autor)","Polo Passivo (Reclamado / Réu)","Processos Relacionados","Descrição","Órgao Julgador"];
+    const [l] = ler2([cab, ["RT","00000011220265100811","Horas extras","PJE","A; B","Fulano","Banco","123","texto","1ª Vara"]], "Santander Cível");
+    expect(l.erro).toBeUndefined();
+    expect(l.campos).toMatchObject({ tipo_processo: "RT", assunto: "Horas extras", sistema: "PJE", _etiquetas: "A; B", polo_ativo: "Fulano", polo_passivo: "Banco", processos_relacionados: "123", descricao: "texto", orgao_julgador: "1ª Vara" });
+  });
+});

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { lerLinhasLote, semAcento, type LinhaLote } from "@/lib/loteProcessosSantander";
+import { lerLinhasLote, separarEtiquetas, semAcento, type LinhaLote } from "@/lib/loteProcessosSantander";
 import { garantirRito } from "@/components/processos/RitoProcessualSelect";
 
 const sb = supabase as any;
