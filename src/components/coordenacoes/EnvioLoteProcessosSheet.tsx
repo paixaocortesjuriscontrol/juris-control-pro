@@ -129,7 +129,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
       const { data: ins, error } = await sb.from("processos").insert(regs).select("id,numero");
       if (!error) {
         criados += lote.length;
-        const porNum = new Map((ins || []).map((r: any) => [r.numero, r.id]));
+        const porNum = new Map<string, string>((ins || []).map((r: any) => [r.numero, r.id]));
         for (const l of lote) { const id = porNum.get(l.campos.numero); if (id && l.campos._etiquetas) await etiquetar(id, l.campos._etiquetas); }
       }
       else for (let k = 0; k < lote.length; k++) {
