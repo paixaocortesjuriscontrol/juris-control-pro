@@ -1228,9 +1228,8 @@ export default function PainelControle() {
         ...filters,
         dataInicio: dInicio,
         dataFim: dFim,
-        // Não buscar audiências, eventos e parcelas quando o usuário pediu só
-        // prazos: além de desnecessário, isso tornava relatórios grandes lentos
-        // e qualquer falha de outra fonte impedia o Excel de ser gerado.
+        // Aplicar o tipo já na consulta evita carregar categorias não
+        // relacionadas e reduz o volume dos relatórios recortados.
         tipos: tipos.length > 0 ? tipos : undefined,
         ...(statusEscolhidos.length > 0 ? { statusIn: Array.from(new Set(statusEscolhidos)) } : {}),
       };
