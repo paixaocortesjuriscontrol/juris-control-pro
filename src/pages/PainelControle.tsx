@@ -63,6 +63,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePainelTotais, type PainelTotais } from "@/hooks/usePainelTotais";
 import { escopoEscritorio } from "@/lib/escopoEscritorio";
+import { podeRemanejarNoPainel } from "@/lib/permissoesPainel";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import {
@@ -248,7 +249,8 @@ const textoBuscavelItem = (item: any): string => {
 
 export default function PainelControle() {
   const { user } = useAuth();
-  const { isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const { role, isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const podeRemanejar = podeRemanejarNoPainel(role);
   // Assistente Jurídico Geral enxerga o escritório como admin (só leitura; edição é barrada no banco).
   const isAdmin = isAdminReal || isAssistenteGeral;
   const navigate = useNavigate();
@@ -2504,17 +2506,21 @@ export default function PainelControle() {
                 coordenacoes={coordsFiltroEscritorio}
                 situacoes={situacoesOptions}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs gap-1"
-                onClick={() => setRemanejamentoOpen(true)}
-                title="Alterar datas e responsáveis de vários itens"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                Remanejar
-              </Button>
-              <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
+              {podeRemanejar && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs gap-1"
+                    onClick={() => setRemanejamentoOpen(true)}
+                    title="Alterar datas e responsáveis de vários itens"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    Remanejar
+                  </Button>
+                  <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
+                </>
+              )}
               {isAdminOrCoordinator && (
                 <>
                   <Button
