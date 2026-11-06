@@ -85,11 +85,29 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
     const ritos: string[] = (ritosDb || []).map((r: any) => r.nome);
     const { data: clientes } = await sb.from("clientes").select("id,nome");
     const cli = new Map<string, string>((clientes || []).map((c: any) => [semAcento(c.nome), c.id]));
+    // Etiquetas da coordenação (cria as que faltarem)
+    const { data: u } = await sb.auth.getUser();
+    const { data: etqDb } = await sb.from("etiquetas").select("id,nome").eq("coordenacao_id", coordenacaoId);
+    const etq = new Map<string, string>((etqDb || []).map((e: any) => [semAcento(e.nome), e.id]));
+    const nomesEtq = new Set<string>();
+    validas.forEach((l) => separarEtiquetas(l.campos._etiquetas).forEach((n) => nomesEtq.add(n)));
+    for (const n of nomesEtq) {
+      if (etq.has(semAcento(n))) continue;
+      const { data: nova, error } = await sb.from("etiquetas").insert({ nome: n.toUpperCase(), coordenacao_id: coordenacaoId, modulos: ["processo"], created_by: u.user?.id }).select("id").single();
+      if (!error && nova?.id) etq.set(semAcento(n), nova.id);
+    }
+    const etiquetar = async (processoId: string, valor: any) => {
+      const ids = separarEtiquetas(valor).map((n) => etq.get(semAcento(n))).filter(Boolean) as string[];
+      for (const etiqueta_id of ids) {
+        const { error } = await sb.from("etiquetas_itens").insert({ etiqueta_id, entidade: "processo", entidade_id: processoId, created_by: u.user?.id });
+        if (error && !String(error.message).toLowerCase().includes("duplicate")) console.warn("etiqueta", error.message);
+      }
+    };
     cancelarRef.current = false;
     let feitosN = 0;
     const marcar = (n: number) => { feitosN += n; setFeitos(feitosN); setProgresso(Math.round((feitosN / validas.length) * 100)); };
     const preparar = async (l: LinhaLote) => {
-      const { _responsavel, _situacao, _coordenacao, _cliente, ...c } = l.campos;
+      const { _responsavel, _situacao, _coordenacao, _cliente, _etiquetas, ...c } = l.campos;
       if (c.rito_processual) { c.rito_processual = await garantirRito(c.rito_processual, ritos); if (!ritos.includes(c.rito_processual)) ritos.push(c.rito_processual); }
       if (_cliente && cli.has(semAcento(_cliente))) c.cliente_id = cli.get(semAcento(_cliente));
       return c;
@@ -108,11 +126,15 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
       const lote = novosL.slice(i, i + 50);
       const regs: any[] = [];
       for (const l of lote) regs.push({ ...(await preparar(l)), coordenacao_id: coordenacaoId, status: "ativo" });
-      const { error } = await sb.from("processos").insert(regs);
-      if (!error) criados += lote.length;
+      const { data: ins, error } = await sb.from("processos").insert(regs).select("id,numero");
+      if (!error) {
+        criados += lote.length;
+        const porNum = new Map((ins || []).map((r: any) => [r.numero, r.id]));
+        for (const l of lote) { const id = porNum.get(l.campos.numero); if (id && l.campos._etiquetas) await etiquetar(id, l.campos._etiquetas); }
+      }
       else for (let k = 0; k < lote.length; k++) {
-        const r = await sb.from("processos").insert(regs[k]);
-        if (!r.error) { criados++; continue; }
+        const r = await sb.from("processos").insert(regs[k]).select("id").single();
+        if (!r.error) { criados++; if (r.data?.id && lote[k].campos._etiquetas) await etiquetar(r.data.id, lote[k].campos._etiquetas); continue; }
         // Já cadastrado em outra coordenação: compartilha com esta
         if (String(r.error.message).includes("processos_numero_digits_uidx")) {
           const { data: achado } = await sb.rpc("find_processo_by_digits", { _numero: regs[k].numero });
@@ -147,6 +169,7 @@ export function EnvioLoteProcessosSheet({ open, onOpenChange, coordenacaoId, coo
             const { error } = await sb.from("processos").update(patch).eq("id", id);
             if (error) throw error;
           }
+          if (l.campos._etiquetas) await etiquetar(id, l.campos._etiquetas);
           if (atual.coordenacao_id && atual.coordenacao_id !== coordenacaoId) {
             if (!jaCompart.has(id)) {
               const { error } = await sb.from("processos_coordenacoes_responsaveis").insert({ processo_id: id, coordenacao_id: coordenacaoId, principal: false });

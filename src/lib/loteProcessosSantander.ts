@@ -15,14 +15,19 @@ const MAPA: Record<string, string> = {
   "COORDENACAO RESPONSAVEL": "_coordenacao", "TRIBUNAL": "tribunal", "JUSTICA": "justica",
   "INSTANCIA": "instancia", "ORGAO JULGADOR": "orgao_julgador", "RITO PROCESSUAL": "rito_processual",
   "COMARCA": "comarca", "UF": "uf", "CLIENTE (CADASTRO)": "_cliente", "CLIENTE": "_cliente",
-  "PLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo", "POLO ATIVO (RECLAMANTE/AUTOR)": "polo_ativo",
-  "POLO PASSIVO (RECLAMADO/REU)": "polo_passivo", "VALOR DA CAUSA": "valor_causa", "PASTA DO CLIENTE": "pasta_cliente",
+  "PLO ATIVO (RECLAMANTE / AUTOR)": "polo_ativo", 
+  "VALOR DA CAUSA": "valor_causa", "PASTA DO CLIENTE": "pasta_cliente",
   "ASSUNTO": "assunto", "VARA": "vara",
+  // Modelo novo (nov/2026)
+  "TIPO DE PROCESSO": "tipo_processo", "OBJETO DA ACAO (ASSUNTO)": "assunto", "OBJETO DA ACAO": "assunto",
+  "SISTEMA JUDICIAL": "sistema", "ETIQUETAS": "_etiquetas", "ORGAO JULGADOR ": "orgao_julgador",
+  "POLO ATIVO (RECLAMANTE / AUTOR)": "polo_ativo", "POLO PASSIVO (RECLAMADO / REU)": "polo_passivo",
+  "PROCESSOS RELACIONADOS": "processos_relacionados", "DESCRICAO": "descricao",
   // Cabeçalhos do relatório de processos exportado pelo sistema
   "NUMERO": "numero", "COORDENACAO": "_coordenacao", "POLO ATIVO": "polo_ativo", "POLO PASSIVO": "polo_passivo",
   "VALOR CAUSA": "valor_causa",
 };
-const chaveCab = (c: any) => semAcento(String(c ?? "").replace(/_/g, " "));
+const chaveCab = (c: any) => semAcento(String(c ?? "").replace(/_/g, " ")).replace(/\s*\/\s*/g, " / ").replace(/\( /g, "(").replace(/ \)/g, ")");
 
 export type LinhaLote = { linha: number; campos: Record<string, any>; erro?: string };
 
@@ -63,4 +68,9 @@ export function lerLinhasLote(linhas: any[][], coordenacaoNome: string): LinhaLo
     out.push(item);
   });
   return out;
+}
+
+/** Separa a célula de etiquetas ("A; B, C") em nomes. */
+export function separarEtiquetas(v: any): string[] {
+  return Array.from(new Set(String(v ?? "").split(/[;,|\n]/).map((x) => x.trim()).filter(Boolean)));
 }
