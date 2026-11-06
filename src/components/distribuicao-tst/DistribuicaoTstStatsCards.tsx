@@ -25,6 +25,7 @@ export type StatsCardKey =
   | "problemaJudit"
   | "ate2025"
   | "de2026"
+  | "djenAutomatico"
   | "prontoEnvio"
   | "prontoSemPendencia"
   | "prontoComPendencia"
@@ -63,6 +64,8 @@ interface Props {
   somenteOutraMateria?: { count: number; loading: boolean } | null;
   /** Fichas duplicadas (mesmo número de processo) dentro dos filtros atuais. */
   duplicados?: { count: number; loading: boolean } | null;
+  /** Fichas com a etiqueta DJEN AUTOMÁTICO dentro dos filtros atuais. */
+  djenAutomatico?: { count: number; loading: boolean } | null;
   /** Fichas já movidas para a área de Arquivados (fora da base ativa). */
   arquivadosMovidos?: number;
   /** Clique no card "Arquivados" — abre a área de arquivados. */
@@ -80,7 +83,7 @@ interface CardDef {
   hint?: string;
 }
 
-export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria, duplicados, arquivadosMovidos = 0, onArquivadosClick }: Props) {
+export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKeys, onCardClick, responsavelCard, onResponsavelClick, multiRespCard, prontoSemPendencia, prontoComPendencia, revisarListaMaterias, somenteOutraMateria, duplicados, djenAutomatico, arquivadosMovidos = 0, onArquivadosClick }: Props) {
   const isKeyActive = (k: StatsCardKey) =>
     activeKeys ? activeKeys.includes(k) : activeKey === k;
 
@@ -91,6 +94,16 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
     { key: "arquivados", label: "Arquivados", value: stats.arquivados + arquivadosMovidos, hint: `${arquivadosMovidos.toLocaleString("pt-BR")} na área de Arquivados + ${stats.arquivados.toLocaleString("pt-BR")} com situação "Arquivado" — fora do Total Geral. Clique para abrir os arquivados`, className: "from-zinc-50 to-zinc-100 dark:from-zinc-950/50 dark:to-zinc-900/30 border-zinc-300 dark:border-zinc-700", textClass: "text-zinc-700 dark:text-zinc-300" },
     { key: "ate2025", label: "Até 2025", value: stats.ate2025, className: "from-sky-50 to-sky-100 dark:from-sky-950/50 dark:to-sky-900/30 border-sky-200 dark:border-sky-800", textClass: "text-sky-600 dark:text-sky-400" },
     { key: "de2026", label: "2026 em diante", value: stats.de2026, className: "from-violet-50 to-violet-100 dark:from-violet-950/50 dark:to-violet-900/30 border-violet-200 dark:border-violet-800", textClass: "text-violet-600 dark:text-violet-400" },
+    ...(djenAutomatico
+      ? [{
+          key: "djenAutomatico" as StatsCardKey,
+          label: "DJEN Automático",
+          value: djenAutomatico.count,
+          hint: "Registros com a etiqueta DJEN AUTOMÁTICO dentro dos filtros atuais",
+          className: "from-sky-50 to-cyan-100 dark:from-sky-950/50 dark:to-cyan-900/30 border-sky-300 dark:border-cyan-700",
+          textClass: "text-sky-700 dark:text-sky-300",
+        }]
+      : []),
     { key: "aFazer", label: "A fazer", value: stats.aFazer, className: "from-indigo-50 to-indigo-100 dark:from-indigo-950/50 dark:to-indigo-900/30 border-indigo-300 dark:border-indigo-700", textClass: "text-indigo-700 dark:text-indigo-300" },
     { key: "naoPrecisaFazer", label: "Não precisa fazer", value: stats.naoPrecisaFazer, className: "from-slate-50 to-slate-100 dark:from-slate-950/50 dark:to-slate-900/30 border-slate-300 dark:border-slate-700", textClass: "text-slate-700 dark:text-slate-300" },
     { key: "bennerSim", label: "Benner Enviado / Não", value: stats.bennerSim, className: "from-cyan-50 to-cyan-100 dark:from-cyan-950/50 dark:to-cyan-900/30 border-cyan-200 dark:border-cyan-800", textClass: "text-cyan-600 dark:text-cyan-400" },
@@ -342,7 +355,11 @@ export function DistribuicaoTstStatsCards({ stats, loading, activeKey, activeKey
             <CardContent className="p-2">
               <p className={cn("text-[8px] md:text-[10px] font-medium truncate leading-tight", c.textClass)} title={c.hint || c.label}>{c.label}</p>
               <p className={cn("text-sm md:text-base font-bold mt-0.5 leading-tight", c.textClass)}>
-                {(c.key === "prontoSemPendencia" ? (prontoSemPendencia?.loading ?? false) : loading)
+                {(c.key === "prontoSemPendencia"
+                  ? (prontoSemPendencia?.loading ?? false)
+                  : c.key === "djenAutomatico"
+                    ? (djenAutomatico?.loading ?? false)
+                    : loading)
                   ? <Loader2 className="w-3 h-3 animate-spin inline" />
                   : c.value.toLocaleString("pt-BR")}
               </p>
