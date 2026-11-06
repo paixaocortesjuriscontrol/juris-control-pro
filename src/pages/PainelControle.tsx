@@ -249,7 +249,8 @@ const textoBuscavelItem = (item: any): string => {
 
 export default function PainelControle() {
   const { user } = useAuth();
-  const { isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const { role, isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const podeRemanejar = podeRemanejarNoPainel(role);
   // Assistente Jurídico Geral enxerga o escritório como admin (só leitura; edição é barrada no banco).
   const isAdmin = isAdminReal || isAssistenteGeral;
   const navigate = useNavigate();
