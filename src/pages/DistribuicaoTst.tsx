@@ -33,7 +33,7 @@ import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSitu
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, fetchAllDistribuicaoTstIdsUncached, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
@@ -370,7 +370,7 @@ export default function DistribuicaoTst() {
   // ===== TAGs (admin/coord) =====
   const [filtroTagIds, setFiltroTagIds] = useState<string[]>([]);
   const [filtroTagInverso, setFiltroTagInverso] = useState(false);
-  const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
+  const { data: tagsCatalogo = [], isLoading: tagsCatalogoLoading } = useProcessoTagsCatalogo();
   const djenAutomaticoTagId = tagsCatalogo.find((tag) =>
     tag.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase() === "DJEN AUTOMATICO"
   )?.id;
@@ -580,28 +580,30 @@ export default function DistribuicaoTst() {
   // Total com a etiqueta DJEN AUTOMÁTICO, respeitando os demais filtros.
   // A chave usa o prefixo "dados-benner-tags" para atualizar também quando
   // uma etiqueta é aplicada ou removida individualmente/em lote.
-  const djenAutomaticoFilters = useMemo(() => {
-    if (!djenAutomaticoTagId) return null;
-    const tagIds = Array.isArray(listFilters.tagId)
-      ? listFilters.tagId
-      : listFilters.tagId
-        ? [listFilters.tagId]
-        : [];
-    return {
-      ...listFilters,
-      tagId: Array.from(new Set([...tagIds, djenAutomaticoTagId])),
-    } as DistribuicaoTstFilters;
-  }, [JSON.stringify(listFilters), djenAutomaticoTagId]);
-  const djenAutomaticoFiltersKey = JSON.stringify(djenAutomaticoFilters);
+  const djenAutomaticoFiltersKey = JSON.stringify({ ...listFilters, tagId: djenAutomaticoTagId });
   const {
     data: djenAutomaticoCount = 0,
     isLoading: djenAutomaticoLoading,
     refetch: refetchDjenAutomaticoCount,
   } = useQuery({
     queryKey: ["dados-benner-tags", "djen-automatico-count", djenAutomaticoFiltersKey],
-    enabled: !!djenAutomaticoFilters,
+    enabled: !!djenAutomaticoTagId,
     queryFn: async () => {
-      const ids = await fetchAllDistribuicaoTstIds(djenAutomaticoFilters!);
+      let idsAllowed: string[] | undefined;
+      const temFiltroTag = Array.isArray(listFilters.tagId)
+        ? listFilters.tagId.length > 0
+        : !!listFilters.tagId;
+      if (temFiltroTag) {
+        // O filtro de várias TAGs é OR na listagem. Esta primeira passagem
+        // preserva esse recorte; a segunda faz a interseção com DJEN.
+        idsAllowed = await fetchAllDistribuicaoTstIdsUncached(listFilters);
+        if (idsAllowed.length === 0) return 0;
+      }
+      const ids = await fetchAllDistribuicaoTstIdsUncached({
+        ...listFilters,
+        tagId: djenAutomaticoTagId!,
+        ...(idsAllowed ? { idsAllowed } : {}),
+      });
       return new Set(ids).size;
     },
     staleTime: 30_000,
@@ -957,6 +959,10 @@ export default function DistribuicaoTst() {
       setFiltroDuplicado("todos");
 
       setFiltroResponsavelIds([]);
+      if (djenAutomaticoTagId && filtroTagIds.includes(djenAutomaticoTagId)) {
+        setFiltroTagIds((atuais) => atuais.filter((id) => id !== djenAutomaticoTagId));
+        if (filtroTagIds.length === 1) setFiltroTagInverso(false);
+      }
       setFiltroDataInicio("");
       setFiltroDataFim("");
       setFiltroMesAno("todos");
@@ -2160,7 +2166,7 @@ export default function DistribuicaoTst() {
             }}
             djenAutomatico={{
               count: djenAutomaticoCount,
-              loading: djenAutomaticoLoading,
+              loading: tagsCatalogoLoading || djenAutomaticoLoading,
             }}
             somenteOutraMateria={{
               count: somenteOutraMateriaCount,
