@@ -2506,17 +2506,21 @@ export default function PainelControle() {
                 coordenacoes={coordsFiltroEscritorio}
                 situacoes={situacoesOptions}
               />
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 px-2 text-xs gap-1"
-                onClick={() => setRemanejamentoOpen(true)}
-                title="Alterar datas e responsáveis de vários itens"
-              >
-                <ArrowRightLeft className="w-3.5 h-3.5" />
-                Remanejar
-              </Button>
-              <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
+              {podeRemanejar && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 text-xs gap-1"
+                    onClick={() => setRemanejamentoOpen(true)}
+                    title="Alterar datas e responsáveis de vários itens"
+                  >
+                    <ArrowRightLeft className="w-3.5 h-3.5" />
+                    Remanejar
+                  </Button>
+                  <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
+                </>
+              )}
               {isAdminOrCoordinator && (
                 <>
                   <Button
