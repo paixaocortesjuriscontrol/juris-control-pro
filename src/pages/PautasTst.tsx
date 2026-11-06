@@ -160,20 +160,15 @@ export default function PautasTstPage() {
       setDados(rows);
       setSel(new Set());
       setForaIntervalo(rows.filter((r) => r.data_julgamento && (r.data_julgamento < semana || r.data_julgamento > fim)).map((r) => r.id));
-      const rm: Record<string, string[]> = {};
+      setLoading(false);
       const ids = rows.map((r) => r.id);
-      for (let i = 0; i < ids.length; i += 300) {
-        const { data: rr } = await supabase.from("pautas_tst_responsaveis" as any).select("pauta_id, user_id").in("pauta_id", ids.slice(i, i + 300));
-        ((rr as any[]) || []).forEach((x) => { (rm[x.pauta_id] ||= []).push(x.user_id); });
-      }
-      setRespMap(rm);
-      const bm: Record<string, string> = {};
-      const bids = Array.from(new Set(rows.map((r: any) => r.dados_benner_id).filter(Boolean)));
-      for (let i = 0; i < bids.length; i += 300) {
-        const { data: bb } = await supabase.from("dados_benner" as any).select("id, status").in("id", bids.slice(i, i + 300));
-        ((bb as any[]) || []).forEach((x) => { bm[x.id] = x.status || ""; });
-      }
-      setDistMap(bm);
+      const bids = Array.from(new Set(rows.map((r: any) => r.dados_benner_id).filter(Boolean))) as string[];
+      const lotes = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
+      const pResp = Promise.all(lotes(ids, 300).map((l) => supabase.from("pautas_tst_responsaveis" as any).select("pauta_id, user_id").in("pauta_id", l)))
+        .then((rs) => { const rm: Record<string, string[]> = {}; rs.forEach(({ data }) => ((data as any[]) || []).forEach((x) => { (rm[x.pauta_id] ||= []).push(x.user_id); })); setRespMap(rm); });
+      const pDist = Promise.all(lotes(bids, 300).map((l) => supabase.from("dados_benner" as any).select("id, status").in("id", l)))
+        .then((rs) => { const bm: Record<string, string> = {}; rs.forEach(({ data }) => ((data as any[]) || []).forEach((x) => { bm[x.id] = x.status || ""; })); setDistMap(bm); });
+      const pSug = (async () => {
       // Sugestões: pautas do DEJT publicadas para processos da Distribuição TST e ainda sem pauta cadastrada
       const { data: dejt } = await supabase
         .from("publicacoes_djen" as any)
@@ -203,6 +198,8 @@ export default function PautasTstPage() {
         });
       }
       setSugestoes(sug);
+      })();
+      Promise.all([pResp, pDist, pSug]).catch((e: any) => console.warn("Pautas: dados complementares", e));
     } catch (e: any) {
       toast.error("Erro ao carregar pautas: " + e.message);
     }
