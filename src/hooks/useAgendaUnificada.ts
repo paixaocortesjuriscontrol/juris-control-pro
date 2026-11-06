@@ -156,7 +156,7 @@ function addBusinessDays(d: Date, n: number): Date {
   return out;
 }
 
-async function inChunks(build: (ids: string[]) => any, ids: string[], size = 150): Promise<any[]> {
+export async function inChunks(build: (ids: string[]) => any, ids: string[], size = 150): Promise<any[]> {
   const leituras: (() => Promise<any[]>)[] = [];
   for (let i = 0; i < ids.length; i += size) {
     const lote = ids.slice(i, i + size);
