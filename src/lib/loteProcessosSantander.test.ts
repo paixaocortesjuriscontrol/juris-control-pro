@@ -36,5 +36,5 @@ test("modelo novo de importação lê as colunas novas", () => {
     const cab = ["Tipo de Processo","Número do Processo","Objeto da Ação (assunto)","Sistema Judicial","Etiquetas","Polo Ativo (Reclamante / Autor)","Polo Passivo (Reclamado / Réu)","Processos Relacionados","Descrição","Órgao Julgador"];
     const [l] = ler2([cab, ["RT","00000011220265100811","Horas extras","PJE","A; B","Fulano","Banco","123","texto","1ª Vara"]], "Santander Cível");
     assert.equal(l.erro, undefined);
-    assert.deepEqual({ ...l.campos, numero: undefined }, { numero: undefined, { tipo_processo: "RT", assunto: "Horas extras", sistema: "PJE", _etiquetas: "A; B", polo_ativo: "Fulano", polo_passivo: "Banco", processos_relacionados: "123", descricao: "texto", orgao_julgador: "1ª Vara" });
+    assert.deepEqual({ ...l.campos, numero: undefined }, { numero: undefined, tipo_processo: "RT", assunto: "Horas extras", sistema: "PJE", _etiquetas: "A; B", polo_ativo: "Fulano", polo_passivo: "Banco", processos_relacionados: "123", descricao: "texto", orgao_julgador: "1ª Vara" });
 });
