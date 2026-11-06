@@ -1,3 +1,4 @@
+import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
@@ -226,6 +227,10 @@ serve(async (req) => {
     // Enviar alerta direto para o responsável (independente de coordenação)
     const resultados = { emails: 0, whatsapp: 0, erros: [] as string[] };
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    const mapaPrefs = await carregarConfigsUsuarios(supabase, [responsavel.id]);
+    const prefResp = resolverConfig(mapaPrefs, responsavel.id, coordenacaoId);
+    const respQuerEmail = prefResp !== null && prefResp?.canal_email !== false && prefResp?.evento_tarefa_nova !== false;
+    const respQuerWhats = prefResp !== null && prefResp?.canal_whatsapp !== false && prefResp?.evento_tarefa_nova !== false;
 
     // ---- construir seções do e-mail ----
     const titulo = tarefa.titulo ?? "Tarefa";
@@ -303,7 +308,7 @@ serve(async (req) => {
         : "";
 
     // Enviar e-mail direto para o responsável
-    if (resendApiKey && responsavel.email) {
+    if (resendApiKey && responsavel.email && respQuerEmail) {
       try {
         const emailHtml = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:680px;margin:0 auto;background:#FFFFFF;">
@@ -359,7 +364,7 @@ serve(async (req) => {
     const zapiToken = Deno.env.get("ZAPI_TOKEN");
     const zapiClientToken = Deno.env.get("ZAPI_CLIENT_TOKEN");
 
-    if (zapiInstanceId && zapiToken && responsavel.telefone) {
+    if (zapiInstanceId && zapiToken && responsavel.telefone && respQuerWhats) {
       try {
         let phoneFormatted = responsavel.telefone.replace(/\D/g, '');
         if (!phoneFormatted.startsWith('55')) {
