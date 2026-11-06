@@ -489,7 +489,7 @@ export function fetchAllDistribuicaoTstIds(
   return cachedAsync(key, () => fetchAllDistribuicaoTstIdsUncached(filters, opts));
 }
 
-async function fetchAllDistribuicaoTstIdsUncached(
+export async function fetchAllDistribuicaoTstIdsUncached(
   filters: DistribuicaoTstFilters,
   opts?: { matchListOrder?: boolean }
 ): Promise<string[]> {

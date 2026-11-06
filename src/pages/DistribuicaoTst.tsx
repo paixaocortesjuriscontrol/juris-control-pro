@@ -33,7 +33,7 @@ import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSitu
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
+import { useDistribuicoesTst, DistribuicaoTst as DistTst, DistribuicaoTstFilters, fetchAllDistribuicaoTstIds, fetchAllDistribuicaoTstIdsUncached, applyParteRecorrenteFilter } from "@/hooks/useDistribuicoesTst";
 import { DistribuicaoTstForm } from "@/components/distribuicao-tst/DistribuicaoTstForm";
 import { parseMateriasString } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { isOutraMateria, normalizeMateriaNome } from "@/utils/outraMateria";
@@ -370,7 +370,10 @@ export default function DistribuicaoTst() {
   // ===== TAGs (admin/coord) =====
   const [filtroTagIds, setFiltroTagIds] = useState<string[]>([]);
   const [filtroTagInverso, setFiltroTagInverso] = useState(false);
-  const { data: tagsCatalogo = [] } = useProcessoTagsCatalogo();
+  const { data: tagsCatalogo = [], isLoading: tagsCatalogoLoading } = useProcessoTagsCatalogo();
+  const djenAutomaticoTagId = tagsCatalogo.find((tag) =>
+    tag.nome.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toUpperCase() === "DJEN AUTOMATICO"
+  )?.id;
   // O filtro por TAG é resolvido diretamente no banco (índice por tag_id),
   // sem trafegar milhares de ids do navegador.
   // Novo filtro: apenas processos com mais de um responsável.
@@ -573,6 +576,38 @@ export default function DistribuicaoTst() {
     return f;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(debouncedFilters), isAdmin, user?.id, filtroMultiResp, JSON.stringify(multiRespIds), filtroSemPendencia, filtroComPendencia, filtroRevisarListaMaterias, filtroSomenteOutraMateria, JSON.stringify(semMateriaDossieIds), filtroPedidosDossie]);
+
+  // Total com a etiqueta DJEN AUTOMÁTICO, respeitando os demais filtros.
+  // A chave usa o prefixo "dados-benner-tags" para atualizar também quando
+  // uma etiqueta é aplicada ou removida individualmente/em lote.
+  const djenAutomaticoFiltersKey = JSON.stringify({ ...listFilters, tagId: djenAutomaticoTagId });
+  const {
+    data: djenAutomaticoCount = 0,
+    isLoading: djenAutomaticoLoading,
+    refetch: refetchDjenAutomaticoCount,
+  } = useQuery({
+    queryKey: ["dados-benner-tags", "djen-automatico-count", djenAutomaticoFiltersKey],
+    enabled: !!djenAutomaticoTagId,
+    queryFn: async () => {
+      let idsAllowed: string[] | undefined;
+      const temFiltroTag = Array.isArray(listFilters.tagId)
+        ? listFilters.tagId.length > 0
+        : !!listFilters.tagId;
+      if (temFiltroTag) {
+        // O filtro de várias TAGs é OR na listagem. Esta primeira passagem
+        // preserva esse recorte; a segunda faz a interseção com DJEN.
+        idsAllowed = await fetchAllDistribuicaoTstIdsUncached(listFilters);
+        if (idsAllowed.length === 0) return 0;
+      }
+      const ids = await fetchAllDistribuicaoTstIdsUncached({
+        ...listFilters,
+        tagId: djenAutomaticoTagId!,
+        ...(idsAllowed ? { idsAllowed } : {}),
+      });
+      return new Set(ids).size;
+    },
+    staleTime: 30_000,
+  });
 
   // Total de fichas duplicadas dentro de TODOS os filtros ativos (incluindo os
   // definidos pelos cliques nos outros cards). Ignora apenas o próprio filtro
@@ -875,6 +910,7 @@ export default function DistribuicaoTst() {
     if (filtroProblemaJudit === "sim") keys.push("problemaJudit");
     if (filtroDataInicio === "" && filtroDataFim === "2025-12-31" && filtroMesAno === "todos") keys.push("ate2025");
     if (filtroDataInicio === "2026-01-01" && filtroDataFim === "" && filtroMesAno === "todos") keys.push("de2026");
+    if (!filtroTagInverso && djenAutomaticoTagId && filtroTagIds.includes(djenAutomaticoTagId)) keys.push("djenAutomatico");
     if (filtroEquipe === "sim") keys.push("comEquipe");
     if (filtroEquipe === "nao") keys.push("semEquipe");
     if (filtroMultiResp) keys.push("multiResp");
@@ -923,6 +959,10 @@ export default function DistribuicaoTst() {
       setFiltroDuplicado("todos");
 
       setFiltroResponsavelIds([]);
+      if (djenAutomaticoTagId && filtroTagIds.includes(djenAutomaticoTagId)) {
+        setFiltroTagIds((atuais) => atuais.filter((id) => id !== djenAutomaticoTagId));
+        if (filtroTagIds.length === 1) setFiltroTagInverso(false);
+      }
       setFiltroDataInicio("");
       setFiltroDataFim("");
       setFiltroMesAno("todos");
@@ -956,6 +996,13 @@ export default function DistribuicaoTst() {
         setFiltroMesAno("todos");
         setFiltroDataFim("");
         setFiltroDataInicio(off ? "" : "2026-01-01");
+        break;
+      case "djenAutomatico":
+        if (!djenAutomaticoTagId) break;
+        setFiltroTagInverso(false);
+        setFiltroTagIds((atuais) => off
+          ? atuais.filter((id) => id !== djenAutomaticoTagId)
+          : Array.from(new Set([...atuais, djenAutomaticoTagId])));
         break;
       case "prontoEnvio":
         setFiltroStatus(off ? "todos" : "concluidos");
@@ -1015,6 +1062,7 @@ export default function DistribuicaoTst() {
       Promise.resolve(fetchDados()),
       Promise.resolve(fetchTabsData()),
       Promise.resolve(refetchStats()),
+      Promise.resolve(refetchDjenAutomaticoCount()),
       Promise.resolve(refetchResponsavelCounts()),
       Promise.resolve(refetchProntoSemPendencia()),
       Promise.resolve(refetchSemPendenciaPorResp()),
@@ -2031,7 +2079,10 @@ export default function DistribuicaoTst() {
       subtitle="Gestão dos processos distribuídos no TST: filtros, cards totalizadores e ações em lote."
       headerActions={
         <div className="flex items-center gap-2">
-          <DjenAutomaticoSheet onAtualizado={() => { fetchTabsData(); }} />
+          <DjenAutomaticoSheet onAtualizado={() => {
+            fetchTabsData();
+            refetchDjenAutomaticoCount();
+          }} />
           <Button
             variant="ghost"
             size="icon"
@@ -2112,6 +2163,10 @@ export default function DistribuicaoTst() {
             duplicados={{
               count: duplicadosCount,
               loading: duplicadosLoading,
+            }}
+            djenAutomatico={{
+              count: djenAutomaticoCount,
+              loading: tagsCatalogoLoading || djenAutomaticoLoading,
             }}
             somenteOutraMateria={{
               count: somenteOutraMateriaCount,
