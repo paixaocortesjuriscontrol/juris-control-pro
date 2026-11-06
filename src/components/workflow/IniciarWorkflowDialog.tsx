@@ -114,6 +114,10 @@ export function IniciarWorkflowDialog({
       toast.error("Selecione um workflow");
       return;
     }
+    if (publicacaoOrigem && !selectedProcesso?.id) {
+      toast.error("Workflow criado a partir de publicação exige processo vinculado.");
+      return;
+    }
     if (!selectedProcesso?.id) {
       toast.warning("O workflow será iniciado sem processo vinculado.");
     }
@@ -331,7 +335,12 @@ export function IniciarWorkflowDialog({
               placeholder="Opcional"
             />
           </div>
-      {!selectedProcesso?.id && !preSelectedProcesso && (
+      {publicacaoOrigem && !selectedProcesso?.id && (
+        <p className="text-xs text-destructive rounded-md border border-destructive/40 bg-destructive/10 p-2">
+          Para iniciar um workflow a partir de publicação, <strong>selecione o processo</strong>.
+        </p>
+      )}
+      {!publicacaoOrigem && !selectedProcesso?.id && !preSelectedProcesso && (
         <p className="text-xs text-amber-600 dark:text-amber-500 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2">
           Atenção: o workflow será iniciado <strong>sem processo vinculado</strong>. Os itens criados ficarão sem processo no Painel de Controle.
         </p>
@@ -339,7 +348,7 @@ export function IniciarWorkflowDialog({
       <div className="flex gap-2">
         <Button
           onClick={handleSubmit}
-          disabled={iniciar.isPending || !selectedWorkflowId}
+          disabled={iniciar.isPending || !selectedWorkflowId || (!!publicacaoOrigem && !selectedProcesso?.id)}
           className={inline ? "" : "w-full"}
         >
           {iniciar.isPending ? "Iniciando..." : "Iniciar execução"}
