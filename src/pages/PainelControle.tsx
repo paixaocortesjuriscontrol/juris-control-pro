@@ -69,6 +69,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import {
   useAgendaUnificada,
   fetchAgendaPage,
+  inChunks,
   useUpdateItemAgenda,
   ItemAgendaUnificado,
   AGENDA_INFINITE_QUERY_KEY,
@@ -1190,7 +1191,6 @@ export default function PainelControle() {
     referencia: "vencimento" | "cadastro" = "vencimento",
   ) => {
     const porCadastro = referencia === "cadastro" && !!(inicio || fim);
-    const XLSX = await import("xlsx");
 
     // Converte para o dia em Brasília: datas com horário (ex.: "2026-11-03T01:00:00Z")
     // não podem ser cortadas nos 10 primeiros caracteres, senão compromissos da
@@ -1225,7 +1225,12 @@ export default function PainelControle() {
       }
       const statusEscolhidos = situacoesSel.flatMap((v) => v.split("|")).filter(Boolean);
       const filtrosPeriodo = {
-        ...filters, dataInicio: dInicio, dataFim: dFim,
+        ...filters,
+        dataInicio: dInicio,
+        dataFim: dFim,
+        // Aplicar o tipo já na consulta evita carregar categorias não
+        // relacionadas e reduz o volume dos relatórios recortados.
+        tipos: tipos.length > 0 ? tipos : undefined,
         ...(statusEscolhidos.length > 0 ? { statusIn: Array.from(new Set(statusEscolhidos)) } : {}),
       };
       const coletados: any[] = [];
@@ -1293,25 +1298,25 @@ export default function PainelControle() {
       }
     }
 
+    // Milhares de IDs numa única chamada estouram o limite da URL. Os lotes
+    // também propagam o erro real em vez de deixar a exportação morrer sem aviso.
+    const lerVinculosEmLotes = async (
+      ids: string[],
+      consulta: (lote: string[]) => any,
+    ) => ({ data: await inChunks(consulta, ids) });
     const [tarefaResp, tarefaEnv, eventoResp, eventoEnv, audAdv, audEnv] = await Promise.all([
-      tarefaIds.length
-        ? supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", tarefaIds)
-        : Promise.resolve({ data: [] as any[] }),
-      tarefaIds.length
-        ? supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", tarefaIds)
-        : Promise.resolve({ data: [] as any[] }),
-      eventoIds.length
-        ? supabase.from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", eventoIds)
-        : Promise.resolve({ data: [] as any[] }),
-      eventoIds.length
-        ? supabase.from("evento_envolvidos").select("evento_id, usuario_id").in("evento_id", eventoIds)
-        : Promise.resolve({ data: [] as any[] }),
-      audienciaIds.length
-        ? supabase.from("audiencias_advogados").select("audiencia_id, advogado_id").in("audiencia_id", audienciaIds)
-        : Promise.resolve({ data: [] as any[] }),
-      audienciaIds.length
-        ? supabase.from("audiencia_envolvidos").select("audiencia_id, usuario_id").in("audiencia_id", audienciaIds)
-        : Promise.resolve({ data: [] as any[] }),
+      lerVinculosEmLotes(tarefaIds, (lote) =>
+        supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", lote)),
+      lerVinculosEmLotes(tarefaIds, (lote) =>
+        supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", lote)),
+      lerVinculosEmLotes(eventoIds, (lote) =>
+        supabase.from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", lote)),
+      lerVinculosEmLotes(eventoIds, (lote) =>
+        supabase.from("evento_envolvidos").select("evento_id, usuario_id").in("evento_id", lote)),
+      lerVinculosEmLotes(audienciaIds, (lote) =>
+        supabase.from("audiencias_advogados").select("audiencia_id, advogado_id").in("audiencia_id", lote)),
+      lerVinculosEmLotes(audienciaIds, (lote) =>
+        supabase.from("audiencia_envolvidos").select("audiencia_id, usuario_id").in("audiencia_id", lote)),
     ]);
 
     // Detalhes completos das audiências (pauta): tipo, modalidade, partes,
@@ -1339,10 +1344,10 @@ export default function PainelControle() {
     ((audEnv.data as any[]) || []).forEach((r) => r.usuario_id && allProfileIds.add(r.usuario_id));
     const nomeById = new Map<string, string>();
     if (allProfileIds.size > 0) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, nome")
-        .in("id", Array.from(allProfileIds));
+      const profs = await inChunks(
+        (lote: string[]) => supabase.from("profiles").select("id, nome").in("id", lote),
+        Array.from(allProfileIds),
+      );
       (profs || []).forEach((p: any) => p?.id && nomeById.set(p.id, p.nome));
     }
 
@@ -1568,8 +1573,6 @@ export default function PainelControle() {
       toast.error("Nenhuma atividade encontrada para o período e tipos selecionados.");
       return;
     }
-    void XLSX;
-
     const fmtBr = (s: string) => (s ? s.split("-").reverse().join("/") : "");
     const periodoLabel =
       !inicio && !fim ? "Todas as datas" : inicio === fim ? fmtBr(inicio) : `${fmtBr(inicio)} a ${fmtBr(fim)}`;

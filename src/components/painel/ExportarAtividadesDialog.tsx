@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Loader2 } from "lucide-react";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { toast } from "sonner";
 
 export const EXPORT_TIPOS = [
   { value: "tarefa", label: "Tarefas" },
@@ -67,6 +68,9 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
     try {
       await onExportar(ini, fi, tipos, coords, sits, pessoas, { responsavel: papelResponsavel, envolvido: papelEnvolvido }, referencia);
       onOpenChange(false);
+    } catch (erro: any) {
+      console.error("Erro ao gerar relatório de atividades:", erro);
+      toast.error(`Não foi possível gerar o Excel: ${erro?.message || "tente novamente"}`);
     } finally {
       setLoading(false);
     }
@@ -220,7 +224,7 @@ export function ExportarAtividadesDialog({ open, onOpenChange, onExportar, coord
           </Button>
           <Button onClick={handleExportar} disabled={loading || periodoInvalido} className="gap-1">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            Gerar Excel
+            {loading ? "Gerando Excel..." : "Gerar Excel"}
           </Button>
         </SheetFooter>
       </SheetContent>
