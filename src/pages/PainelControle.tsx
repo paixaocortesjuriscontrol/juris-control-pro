@@ -3372,6 +3372,7 @@ export default function PainelControle() {
                   void abrirPaiDaAtividade(a);
                 }}
                 onBaixarItem={(it) => setItemBaixaRapida(it)}
+                modeloPorTarefa={modeloPorTarefa}
                 onCriarNesteDia={(tipo) => {
                   setSelectedItem(null);
                   setNovoItemData(diaLateralKey);
