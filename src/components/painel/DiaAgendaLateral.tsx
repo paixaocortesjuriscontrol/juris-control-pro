@@ -172,6 +172,7 @@ export function AgendaItemRow({
   temComentario,
   autoriaComentario,
   infoCobranca,
+  corFaixa,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -184,6 +185,8 @@ export function AgendaItemRow({
   temComentario?: boolean;
   autoriaComentario?: "meu" | "outros" | "ambos" | "cobranca" | null;
   infoCobranca?: InfoCobranca | null;
+  /** Cor da etapa do workflow (ou do modelo), igual à faixa do calendário. */
+  corFaixa?: string | null;
 
 }) {
 
@@ -202,6 +205,7 @@ export function AgendaItemRow({
     <button
       onClick={() => onSelect(item)}
       className="w-full text-left px-4 py-3 flex gap-3 hover:bg-muted/50 transition-colors"
+      style={corFaixa && !cancelado ? { borderLeft: `6px solid ${corFaixa}` } : undefined}
     >
       <div className="pt-0.5 flex-shrink-0">
         <TratadoCheck tratado={concluido} size={14} />
@@ -299,6 +303,7 @@ interface DiaAgendaLateralProps {
   onCriarNesteDia?: (tipo: "tarefa" | "evento" | "prazo" | "audiencia" | "parcelamento") => void;
   /** Baixa rápida direto da lista do dia (pop-up). */
   onBaixarItem?: (item: ItemAgendaUnificado) => void;
+  modeloPorTarefa?: ReadonlyMap<string, { cor?: string | null }>;
   onClose: () => void;
 }
 
@@ -311,6 +316,7 @@ export function DiaAgendaLateral({
   onSelectAtividade,
   onCriarNesteDia,
   onBaixarItem,
+  modeloPorTarefa,
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
@@ -403,7 +409,7 @@ export function DiaAgendaLateral({
               temComentario={temComentarioItem(itensComComentarios, item)}
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
-
+              corFaixa={modeloPorTarefa?.get(getItemRawId(item.id))?.cor}
             />
           ))}
           {atividades.map((a: any) => {
