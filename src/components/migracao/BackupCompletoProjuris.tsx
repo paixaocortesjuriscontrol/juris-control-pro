@@ -822,6 +822,34 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     }
   };
 
+  const relatorioTitulos = useMemo(() => {
+    const elegiveis = (conf?.tarefas || []).filter((l) => !["Excluída no Projuris", "Inativa no Projuris", "Sem identificador"].includes(String(l.motivo || "")));
+    const linhasVazias = elegiveis.filter((l) => !l.tituloOriginal);
+    const descricaoLinhas = linhasVazias.filter((l) => l.fonteTitulo === "descricao");
+    return {
+      vazios: linhasVazias.length,
+      porTipo: linhasVazias.filter((l) => l.fonteTitulo === "tipo").length,
+      descricao: descricaoLinhas.length,
+      semTitulo: linhasVazias.filter((l) => l.fonteTitulo === "vazio").length,
+      linhasVazias,
+      descricaoLinhas,
+    };
+  }, [conf]);
+
+  const baixarRelatorioTitulos = () => {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const fonte = (v: string) => v === "tipo" ? "Tipo de tarefa" : v === "descricao" ? "Descrição" : v === "titulo" ? "Título original" : "Sem título";
+    const linhas = relatorioTitulos.linhasVazias.map((l) => [
+      l.ident || l.chave, l.procDig ? formatarCnj(l.procDig) : "", l.tipoNome || "", l.tituloOriginal || "",
+      l.descricaoOriginal || "", l.titulo || "", fonte(l.fonteTitulo), l.motivo || "Será importado",
+    ]);
+    const cabecalho = ["Identificador Projuris", "Processo", "Tipo de tarefa", "Título original", "Descrição original", "Título final", "Origem do título final", "Situação na importação"];
+    const csv = "\ufeff" + [cabecalho, ...linhas].map((r) => r.map(esc).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "relatorio_titulos_vazios_projuris.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   // ---------- Render ----------
   const resumo = (ls: LinhaConf[]) => {
     const m = new Map<string, number>();
