@@ -735,6 +735,21 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             setProg({ feito: Math.min(k + 1000, corrigir.length), total: corrigir.length });
           }
           cont.vinculados = corrigidas;
+          // Situação: reabre as que entraram como cumpridas mas estão abertas no Projuris
+          const abertas = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && ["pendente", "em_execucao", "a_confirmar", "revisao"].includes(l.status));
+          setMsg("Corrigindo a situação das tarefas já migradas...");
+          let reabertas = 0;
+          for (let k = 0; k < abertas.length; k += 500) {
+            await esperar(); if (cancelado.current) break;
+            const { data, error: e } = await (supabase as any).rpc("corrigir_status_tarefas_projuris", {
+              _coordenacao_id: coordId,
+              _itens: abertas.slice(k, k + 500).map((l: any) => ({ chave: String(l.chave), status: l.status })),
+            });
+            if (e) throw e;
+            reabertas += Number(data) || 0;
+          }
+          (cont as any).reabertas = reabertas;
+          if (reabertas) toast.success(`${reabertas.toLocaleString("pt-BR")} tarefas reabertas conforme a situação no Projuris.`);
           setMsg("");
         }
         const procId = new Map<string, string>();
