@@ -33,3 +33,20 @@ test("relatório identifica a origem exata de cada título", async () => {
   assert.equal(fonteTituloTarefaProjuris("", "  ", "Descrição"), "descricao");
   assert.equal(fonteTituloTarefaProjuris("", "", "  "), "vazio");
 });
+
+test("cria modelos apenas para títulos novos, inclusive vindos da descrição, sem duplicar", async () => {
+  const { planejarNovosModelosTitulosProjuris } = await import("./migracaoProjuris");
+  const existentes = [{ nome: "Defesa", titulo: "Defesa", padroes: { projuris_cd: "1" } }];
+  const linhas = [
+    { cdTipo: "1", titulo: "Defesa", tipo: "DEFESA", motivo: null },
+    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: "Já migrada antes" },
+    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: null },
+    { cdTipo: "", titulo: "Providência da descrição", tipo: "PRAZO", motivo: null },
+    { cdTipo: "3", titulo: "Audiência inicial", tipo: "AUDIÊNCIA", motivo: null },
+    { cdTipo: "4", titulo: "Excluída", tipo: "PRAZO", motivo: "Excluída no Projuris" },
+  ];
+  const novos = planejarNovosModelosTitulosProjuris(linhas, existentes);
+  assert.deepEqual(novos.map((m) => m.nome), ["Manifestação", "Providência da descrição", "Audiência inicial"]);
+  assert.equal(novos.filter((m) => m.nome === "Manifestação").length, 1);
+  assert.equal(novos.find((m) => m.nome === "Audiência inicial")?.tipo, "evento");
+});
