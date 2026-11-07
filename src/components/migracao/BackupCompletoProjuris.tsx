@@ -673,13 +673,62 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
       } else if (mod === "tarefas") {
-        // Tipo original do Projuris → Modelo de tarefa (padroes.projuris_cd) da coordenação
+        // Cada título novo vira um modelo da coordenação; os existentes são reutilizados sem duplicação.
         const modeloPorCd = new Map<string, string>();
-        {
-          const { data: mods } = await (supabase as any).from("modelos_titulo_coordenacao").select("id,padroes").eq("coordenacao_id", coordId);
-          for (const m of mods || []) { const cd = m.padroes?.projuris_cd; if (cd) modeloPorCd.set(String(cd), m.id); }
+        const modeloPorTitulo = new Map<string, string>();
+        const registrarModelo = (m: any) => {
+          if (!m?.id) return;
+          const cd = m.padroes?.projuris_cd;
+          if (cd) modeloPorCd.set(String(cd), m.id);
+          if (m.nome) modeloPorTitulo.set(norm(m.nome), m.id);
+          if (m.titulo) modeloPorTitulo.set(norm(m.titulo), m.id);
+        };
+        const { data: mods, error: modelosErro } = await (supabase as any).from("modelos_titulo_coordenacao").select("id,nome,titulo,padroes").eq("coordenacao_id", coordId);
+        if (modelosErro) throw modelosErro;
+        for (const m of mods || []) registrarModelo(m);
+        const titulosParaModelos = (linhas as any[]).filter((l) => l.titulo && l.titulo !== "(sem título)" && (!l.motivo || l.motivo === "Já migrada antes"));
+        for (const l of titulosParaModelos) {
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
+          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
         }
-        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(l.cdTipo)) || null;
+        type ModeloNovo = { chave: string; cdTipo: string; nome: string; tipo: string };
+        const candidatos = new Map<string, ModeloNovo>();
+        const candidatoPorCd = new Map<string, string>();
+        const candidatoPorTitulo = new Map<string, string>();
+        for (const l of titulosParaModelos) {
+          const cd = String(l.cdTipo || "");
+          const nome = String(l.titulo).trim();
+          const chaveTitulo = norm(nome);
+          if ((cd && modeloPorCd.has(cd)) || modeloPorTitulo.has(chaveTitulo)) continue;
+          const anterior = (cd && candidatoPorCd.get(cd)) || candidatoPorTitulo.get(chaveTitulo);
+          if (anterior) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
+          const chave = cd ? `cd:${cd}` : `titulo:${chaveTitulo}`;
+          candidatos.set(chave, { chave, cdTipo: cd, nome, tipo: l.tipo === "AUDIÊNCIA" ? "evento" : "tarefa" });
+          candidatoPorTitulo.set(chaveTitulo, chave);
+          if (cd) candidatoPorCd.set(cd, chave);
+        }
+        const novosModelos = Array.from(candidatos.values());
+        let modelosCriados = 0;
+        setMsg(`Criando ${novosModelos.length.toLocaleString("pt-BR")} modelos para os novos títulos...`);
+        for (let k = 0; k < novosModelos.length; k += 200) {
+          await esperar(); if (cancelado.current) break;
+          const parte = novosModelos.slice(k, k + 200);
+          const { data: criados, error: e } = await (supabase as any).from("modelos_titulo_coordenacao").insert(parte.map((m) => ({
+            coordenacao_id: coordId, nome: m.nome.slice(0, 500), titulo: m.nome.slice(0, 500), tipo: m.tipo,
+            prioridade: "media", padroes: m.cdTipo ? { projuris_cd: m.cdTipo } : {}, ativo: true, criado_por: userId,
+          }))).select("id,nome,titulo,padroes");
+          if (e) throw e;
+          if ((criados?.length || 0) !== parte.length) throw new Error("Nem todos os modelos foram criados; verifique a permissão na coordenação.");
+          for (const m of criados || []) registrarModelo(m);
+          modelosCriados += criados?.length || 0;
+        }
+        for (const l of titulosParaModelos) {
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
+          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
+        }
+        cont.modelosCriados = modelosCriados;
+        setMsg("");
+        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo)) || null;
         // Tarefas já migradas antes: título = tipo de tarefa, texto antigo na descrição e modelo original — em lote no banco
         {
           const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
