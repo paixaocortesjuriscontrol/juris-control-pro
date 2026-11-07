@@ -156,19 +156,18 @@ export function planejarNovosModelosTitulosProjuris(
   const titulos = new Set(existentes.flatMap((m) => [norm(m.nome), norm(m.titulo)]).filter(Boolean));
   const candidatos = new Map<string, ModeloNovoTituloProjuris>();
   const candidatoPorCd = new Map<string, string>();
+  const candidatoPorTitulo = new Map<string, string>();
   for (const l of linhas) {
     if (!l.titulo || l.titulo === "(sem título)" || (l.motivo && l.motivo !== "Já migrada antes")) continue;
     const cd = String(l.cdTipo || "");
     const nome = String(l.titulo).trim();
     const chaveTitulo = norm(nome);
     if (!chaveTitulo || (cd && cds.has(cd)) || titulos.has(chaveTitulo)) continue;
-    const anterior = (cd && candidatoPorCd.get(cd)) || candidatos.has(`titulo:${chaveTitulo}`) ? `titulo:${chaveTitulo}` : "";
-    if (anterior && candidatos.has(anterior)) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
-    const porTitulo = Array.from(candidatos.values()).find((m) => norm(m.nome) === chaveTitulo);
-    if (porTitulo) { if (cd) candidatoPorCd.set(cd, porTitulo.chave); continue; }
+    const anterior = (cd && candidatoPorCd.get(cd)) || candidatoPorTitulo.get(chaveTitulo);
+    if (anterior) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
     const chave = cd ? `cd:${cd}` : `titulo:${chaveTitulo}`;
     candidatos.set(chave, { chave, cdTipo: cd, nome, tipo: l.tipo === "AUDIÊNCIA" ? "evento" : "tarefa" });
-    titulos.add(chaveTitulo);
+    candidatoPorTitulo.set(chaveTitulo, chave);
     if (cd) candidatoPorCd.set(cd, chave);
   }
   return Array.from(candidatos.values());
