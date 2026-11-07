@@ -1,14 +1,14 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { AlertTriangle, CheckCircle2, Loader2, Pause, Play, Upload } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Download, Loader2, Pause, Play, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
-import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris } from "@/lib/migracaoProjuris";
+import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris, fonteTituloTarefaProjuris, planejarNovosModelosTitulosProjuris } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
 
@@ -155,7 +155,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
-  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; msg?: string; quando: string };
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; msg?: string; quando: string };
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const [recuperacao, setRecuperacao] = useState("");
   const pausado = useRef(false);
@@ -479,8 +479,11 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           else if (excluido(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
           else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
+          const tituloOriginal = String(guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
+          const descricaoOriginal = String(guTe.g(r, "detarefa") || "").replace(/\s+/g, " ").trim();
           const tipoNomeTe = tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || "";
-          const tt = tituloTarefaProjuris(tipoNomeTe, String(guTe.g(r, "detitulo") || ""), String(guTe.g(r, "detarefa") || ""));
+          const tt = tituloTarefaProjuris(tipoNomeTe, tituloOriginal, descricaoOriginal);
+          const fonteTitulo = fonteTituloTarefaProjuris(tipoNomeTe, tituloOriginal, descricaoOriginal);
           if (!motivo && !det && !String(tt.titulo || "").trim()) motivo = "Sem título";
           const prevista = paraData(guTe.g(r, "dtconclusaoprevista"));
           const limite = paraData(guTe.g(r, "dtlimite"));
@@ -502,6 +505,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
             chave, motivo, ident, procDig, cdTipo: String(guTe.g(r, "cdtarefatipo") || "").trim(),
+            tituloOriginal, descricaoOriginal, tipoNome: tipoNomeTe, fonteTitulo,
             titulo: tt.titulo || "(sem título)", descricao: tt.descricao, tipo: classificarTipo(det, tipoNomeTe),
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
@@ -669,13 +673,46 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
       } else if (mod === "tarefas") {
-        // Tipo original do Projuris → Modelo de tarefa (padroes.projuris_cd) da coordenação
+        // Cada título novo vira um modelo da coordenação; os existentes são reutilizados sem duplicação.
         const modeloPorCd = new Map<string, string>();
-        {
-          const { data: mods } = await (supabase as any).from("modelos_titulo_coordenacao").select("id,padroes").eq("coordenacao_id", coordId);
-          for (const m of mods || []) { const cd = m.padroes?.projuris_cd; if (cd) modeloPorCd.set(String(cd), m.id); }
+        const modeloPorTitulo = new Map<string, string>();
+        const registrarModelo = (m: any) => {
+          if (!m?.id) return;
+          const cd = m.padroes?.projuris_cd;
+          if (cd) modeloPorCd.set(String(cd), m.id);
+          if (m.nome) modeloPorTitulo.set(norm(m.nome), m.id);
+          if (m.titulo) modeloPorTitulo.set(norm(m.titulo), m.id);
+        };
+        const { data: mods, error: modelosErro } = await (supabase as any).from("modelos_titulo_coordenacao").select("id,nome,titulo,padroes").eq("coordenacao_id", coordId);
+        if (modelosErro) throw modelosErro;
+        for (const m of mods || []) registrarModelo(m);
+        const titulosParaModelos = (linhas as any[]).filter((l) => l.titulo && l.titulo !== "(sem título)" && (!l.motivo || l.motivo === "Já migrada antes"));
+        for (const l of titulosParaModelos) {
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
+          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
         }
-        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(l.cdTipo)) || null;
+        const novosModelos = planejarNovosModelosTitulosProjuris(titulosParaModelos, mods || []);
+        let modelosCriados = 0;
+        setMsg(`Criando ${novosModelos.length.toLocaleString("pt-BR")} modelos para os novos títulos...`);
+        for (let k = 0; k < novosModelos.length; k += 200) {
+          await esperar(); if (cancelado.current) break;
+          const parte = novosModelos.slice(k, k + 200);
+          const { data: criados, error: e } = await (supabase as any).from("modelos_titulo_coordenacao").insert(parte.map((m) => ({
+            coordenacao_id: coordId, nome: m.nome.slice(0, 500), titulo: m.nome.slice(0, 500), tipo: m.tipo,
+            prioridade: "media", padroes: m.cdTipo ? { projuris_cd: m.cdTipo } : {}, ativo: true, criado_por: userId,
+          }))).select("id,nome,titulo,padroes");
+          if (e) throw e;
+          if ((criados?.length || 0) !== parte.length) throw new Error("Nem todos os modelos foram criados; verifique a permissão na coordenação.");
+          for (const m of criados || []) registrarModelo(m);
+          modelosCriados += criados?.length || 0;
+        }
+        for (const l of titulosParaModelos) {
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
+          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
+        }
+        cont.modelosCriados = modelosCriados;
+        setMsg("");
+        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo)) || null;
         // Tarefas já migradas antes: título = tipo de tarefa, texto antigo na descrição e modelo original — em lote no banco
         {
           const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
@@ -746,12 +783,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       }
       const contadores: Record<string, number> = { ...cont };
       if (mod === "processos") contadores.processos_criados = cont.criados;
-      if (mod === "tarefas") contadores.tarefas_criadas = cont.criados;
+      if (mod === "tarefas") {
+        contadores.tarefas_criadas = cont.criados;
+        contadores.titulos_originais_vazios = relatorioTitulos.vazios;
+        contadores.titulos_preenchidos_descricao = relatorioTitulos.descricao;
+        contadores.modelos_criados = cont.modelosCriados || 0;
+      }
       await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelada" : "concluida", contadores }).eq("id", mid);
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
-      else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}`);
+      else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}${cont.modelosCriados ? `, ${cont.modelosCriados} modelos criados` : ""}`);
       const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, quando } }));
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, quando } }));
       if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
@@ -762,6 +804,34 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     } finally {
       setRodando(null);
     }
+  };
+
+  const relatorioTitulos = useMemo(() => {
+    const elegiveis = (conf?.tarefas || []).filter((l) => !["Excluída no Projuris", "Inativa no Projuris", "Sem identificador"].includes(String(l.motivo || "")));
+    const linhasVazias = elegiveis.filter((l) => !l.tituloOriginal);
+    const descricaoLinhas = linhasVazias.filter((l) => l.fonteTitulo === "descricao");
+    return {
+      vazios: linhasVazias.length,
+      porTipo: linhasVazias.filter((l) => l.fonteTitulo === "tipo").length,
+      descricao: descricaoLinhas.length,
+      semTitulo: linhasVazias.filter((l) => l.fonteTitulo === "vazio").length,
+      linhasVazias,
+      descricaoLinhas,
+    };
+  }, [conf]);
+
+  const baixarRelatorioTitulos = () => {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const fonte = (v: string) => v === "tipo" ? "Tipo de tarefa" : v === "descricao" ? "Descrição" : v === "titulo" ? "Título original" : "Sem título";
+    const linhas = relatorioTitulos.linhasVazias.map((l) => [
+      l.ident || l.chave, l.procDig ? formatarCnj(l.procDig) : "", l.tipoNome || "", l.tituloOriginal || "",
+      l.descricaoOriginal || "", l.titulo || "", fonte(l.fonteTitulo), l.motivo || "Será importado",
+    ]);
+    const cabecalho = ["Identificador Projuris", "Processo", "Tipo de tarefa", "Título original", "Descrição original", "Título final", "Origem do título final", "Situação na importação"];
+    const csv = "\ufeff" + [cabecalho, ...linhas].map((r) => r.map(esc).join(";")).join("\r\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = url; a.download = "relatorio_titulos_vazios_projuris.csv"; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   // ---------- Render ----------
@@ -783,6 +853,33 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         {resumo(ls).map(([k, n]) => (
           <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>
         ))}
+        {mod === "tarefas" && (
+          <div className="space-y-2 rounded-md bg-muted/30 p-3 text-sm">
+            <div>
+              <h5 className="font-semibold">Relatório de títulos</h5>
+              <p className="text-xs text-muted-foreground">Considera somente tarefas ativas e não excluídas no Projuris.</p>
+            </div>
+            <div className="flex justify-between gap-3"><span>Títulos originais vazios</span><Badge variant="secondary">{relatorioTitulos.vazios.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Vazios preenchidos com o tipo de tarefa</span><Badge variant="secondary">{relatorioTitulos.porTipo.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Vazios preenchidos com a descrição</span><Badge variant="secondary">{relatorioTitulos.descricao.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Ainda sem qualquer título</span><Badge variant="secondary">{relatorioTitulos.semTitulo.toLocaleString("pt-BR")}</Badge></div>
+            {relatorioTitulos.descricaoLinhas.length > 0 ? (
+              <details className="rounded border p-2">
+                <summary className="cursor-pointer text-xs font-medium">Ver quais foram preenchidos com a descrição</summary>
+                <ul className="mt-2 max-h-56 space-y-2 overflow-auto text-xs">
+                  {relatorioTitulos.descricaoLinhas.slice(0, 100).map((l) => (
+                    <li key={l.chave} className="break-words border-b pb-2 last:border-0">
+                      <strong>{l.ident || l.chave}</strong>{l.procDig ? ` · ${formatarCnj(l.procDig)}` : ""}<br />{l.titulo}
+                    </li>
+                  ))}
+                </ul>
+                {relatorioTitulos.descricaoLinhas.length > 100 && <p className="mt-2 text-xs text-muted-foreground">Exibindo 100; o arquivo contém a lista completa.</p>}
+              </details>
+            ) : <p className="text-xs text-muted-foreground">Nenhuma tarefa precisou usar a descrição como título.</p>}
+            <Button type="button" size="sm" variant="outline" onClick={baixarRelatorioTitulos}><Download className="mr-2 h-4 w-4" />Baixar lista completa dos títulos vazios</Button>
+            <p className="text-xs text-muted-foreground">Na importação, cada título ainda sem modelo na coordenação terá um modelo criado automaticamente.</p>
+          </div>
+        )}
         {rodando === mod && prog.total > 0 && (
           <div className="space-y-1">
             <Progress value={Math.round((prog.feito / prog.total) * 100)} />
@@ -800,6 +897,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
                 {r.criados.toLocaleString("pt-BR")} {tipo} importados
                 {r.vinculados ? ` · ${r.vinculados.toLocaleString("pt-BR")} já existentes vinculados à coordenação` : ""}
                 {` · ${r.pulados.toLocaleString("pt-BR")} pulados`}
+                {r.modelosCriados ? ` · ${r.modelosCriados.toLocaleString("pt-BR")} modelos criados` : ""}
                 {r.erros ? ` · ${r.erros.toLocaleString("pt-BR")} com erro` : ""}
               </p>
               {r.msg && <p className="mt-1 text-xs">{r.msg}</p>}

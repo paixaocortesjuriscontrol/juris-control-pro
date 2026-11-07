@@ -127,10 +127,48 @@ export function mapearSituacao(v: any, data: string | null): string {
 export const sanitizarNome = (n: string) =>
   n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
 
+export type FonteTituloTarefaProjuris = "tipo" | "titulo" | "descricao" | "vazio";
+
+export function fonteTituloTarefaProjuris(tipoNome: string, detitulo: string, detarefa: string): FonteTituloTarefaProjuris {
+  const limpa = (s: string) => String(s || "").replace(/\s+/g, " ").trim();
+  if (limpa(tipoNome)) return "tipo";
+  if (limpa(detitulo)) return "titulo";
+  if (limpa(detarefa)) return "descricao";
+  return "vazio";
+}
+
 /** Título da tarefa importada do Projuris: tipo de tarefa > título > descrição. Descrição só quando difere do título. */
 export function tituloTarefaProjuris(tipoNome: string, detitulo: string, detarefa: string): { titulo: string; descricao: string | null } {
   const limpa = (s: string) => String(s || "").replace(/\s+/g, " ").trim();
   const tipo = limpa(tipoNome), tit = limpa(detitulo), desc = limpa(detarefa);
   const titulo = tipo || tit || desc;
   return { titulo, descricao: desc && desc !== titulo ? desc : null };
+}
+
+export type ModeloNovoTituloProjuris = { chave: string; cdTipo: string; nome: string; tipo: string };
+
+/** Planeja um modelo por título novo, reutilizando códigos e títulos já existentes. */
+export function planejarNovosModelosTitulosProjuris(
+  linhas: { cdTipo?: string; titulo?: string; tipo?: string; motivo?: string | null }[],
+  existentes: { nome?: string; titulo?: string; padroes?: { projuris_cd?: unknown } | null }[],
+): ModeloNovoTituloProjuris[] {
+  const cds = new Set(existentes.map((m) => String(m.padroes?.projuris_cd || "")).filter(Boolean));
+  const titulos = new Set(existentes.flatMap((m) => [norm(m.nome), norm(m.titulo)]).filter(Boolean));
+  const candidatos = new Map<string, ModeloNovoTituloProjuris>();
+  const candidatoPorCd = new Map<string, string>();
+  const candidatoPorTitulo = new Map<string, string>();
+  for (const l of linhas) {
+    if (!l.titulo || l.titulo === "(sem título)" || (l.motivo && l.motivo !== "Já migrada antes")) continue;
+    const cd = String(l.cdTipo || "");
+    const nome = String(l.titulo).trim();
+    const chaveTitulo = norm(nome);
+    if (!chaveTitulo || (cd && cds.has(cd)) || titulos.has(chaveTitulo)) continue;
+    const anterior = (cd && candidatoPorCd.get(cd)) || candidatoPorTitulo.get(chaveTitulo);
+    if (anterior) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
+    const chave = cd ? `cd:${cd}` : `titulo:${chaveTitulo}`;
+    candidatos.set(chave, { chave, cdTipo: cd, nome, tipo: l.tipo === "AUDIÊNCIA" ? "evento" : "tarefa" });
+    candidatoPorTitulo.set(chaveTitulo, chave);
+    if (cd) candidatoPorCd.set(cd, chave);
+  }
+  return Array.from(candidatos.values());
 }
