@@ -691,23 +691,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
           if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
         }
-        type ModeloNovo = { chave: string; cdTipo: string; nome: string; tipo: string };
-        const candidatos = new Map<string, ModeloNovo>();
-        const candidatoPorCd = new Map<string, string>();
-        const candidatoPorTitulo = new Map<string, string>();
-        for (const l of titulosParaModelos) {
-          const cd = String(l.cdTipo || "");
-          const nome = String(l.titulo).trim();
-          const chaveTitulo = norm(nome);
-          if ((cd && modeloPorCd.has(cd)) || modeloPorTitulo.has(chaveTitulo)) continue;
-          const anterior = (cd && candidatoPorCd.get(cd)) || candidatoPorTitulo.get(chaveTitulo);
-          if (anterior) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
-          const chave = cd ? `cd:${cd}` : `titulo:${chaveTitulo}`;
-          candidatos.set(chave, { chave, cdTipo: cd, nome, tipo: l.tipo === "AUDIÊNCIA" ? "evento" : "tarefa" });
-          candidatoPorTitulo.set(chaveTitulo, chave);
-          if (cd) candidatoPorCd.set(cd, chave);
-        }
-        const novosModelos = Array.from(candidatos.values());
+        const novosModelos = planejarNovosModelosTitulosProjuris(titulosParaModelos, mods || []);
         let modelosCriados = 0;
         setMsg(`Criando ${novosModelos.length.toLocaleString("pt-BR")} modelos para os novos títulos...`);
         for (let k = 0; k < novosModelos.length; k += 200) {
