@@ -144,3 +144,32 @@ export function tituloTarefaProjuris(tipoNome: string, detitulo: string, detaref
   const titulo = tipo || tit || desc;
   return { titulo, descricao: desc && desc !== titulo ? desc : null };
 }
+
+export type ModeloNovoTituloProjuris = { chave: string; cdTipo: string; nome: string; tipo: string };
+
+/** Planeja um modelo por título novo, reutilizando códigos e títulos já existentes. */
+export function planejarNovosModelosTitulosProjuris(
+  linhas: { cdTipo?: string; titulo?: string; tipo?: string; motivo?: string | null }[],
+  existentes: { nome?: string; titulo?: string; padroes?: { projuris_cd?: unknown } | null }[],
+): ModeloNovoTituloProjuris[] {
+  const cds = new Set(existentes.map((m) => String(m.padroes?.projuris_cd || "")).filter(Boolean));
+  const titulos = new Set(existentes.flatMap((m) => [norm(m.nome), norm(m.titulo)]).filter(Boolean));
+  const candidatos = new Map<string, ModeloNovoTituloProjuris>();
+  const candidatoPorCd = new Map<string, string>();
+  for (const l of linhas) {
+    if (!l.titulo || l.titulo === "(sem título)" || (l.motivo && l.motivo !== "Já migrada antes")) continue;
+    const cd = String(l.cdTipo || "");
+    const nome = String(l.titulo).trim();
+    const chaveTitulo = norm(nome);
+    if (!chaveTitulo || (cd && cds.has(cd)) || titulos.has(chaveTitulo)) continue;
+    const anterior = (cd && candidatoPorCd.get(cd)) || candidatos.has(`titulo:${chaveTitulo}`) ? `titulo:${chaveTitulo}` : "";
+    if (anterior && candidatos.has(anterior)) { if (cd) candidatoPorCd.set(cd, anterior); continue; }
+    const porTitulo = Array.from(candidatos.values()).find((m) => norm(m.nome) === chaveTitulo);
+    if (porTitulo) { if (cd) candidatoPorCd.set(cd, porTitulo.chave); continue; }
+    const chave = cd ? `cd:${cd}` : `titulo:${chaveTitulo}`;
+    candidatos.set(chave, { chave, cdTipo: cd, nome, tipo: l.tipo === "AUDIÊNCIA" ? "evento" : "tarefa" });
+    titulos.add(chaveTitulo);
+    if (cd) candidatoPorCd.set(cd, chave);
+  }
+  return Array.from(candidatos.values());
+}
