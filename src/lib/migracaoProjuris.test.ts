@@ -61,3 +61,13 @@ test("títulos preenchidos pela descrição ou pelo título livre não criam mod
   ], []);
   assert.deepEqual(novos.map((m) => m.nome), ["Manifestação"]);
 });
+
+test("situação Projuris define o status, sem presumir cumprida pela data", async () => {
+  const { statusTarefaProjuris } = await import("./migracaoProjuris");
+  assert.equal(statusTarefaProjuris({ nome: "Pendente", comportamento: "ABERTA" }, false), "pendente");
+  assert.equal(statusTarefaProjuris({ nome: "Revisão", comportamento: "ABERTA" }, false), "revisao");
+  assert.equal(statusTarefaProjuris({ nome: "Concluída com sucesso", comportamento: "ENCERRADA" }, true), "cumprido");
+  assert.equal(statusTarefaProjuris({ nome: "Concluída sem sucesso", comportamento: "ENCERRADA" }, true), "concluido_sem_sucesso");
+  assert.equal(statusTarefaProjuris({ nome: "Cancelado", comportamento: "CANCELADA" }, true), "cancelado");
+  assert.equal(statusTarefaProjuris(undefined, false), "pendente");
+});
