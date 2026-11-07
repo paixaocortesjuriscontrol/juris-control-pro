@@ -17,7 +17,7 @@ import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib
 const TABELAS: Record<string, string[] | null> = {
   processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso", ...COLUNAS_COMPLEMENTOS_PROJURIS],
   processonumero: ["cdprocessonumero", "flativo", "denumeroprocesso", "flprocessoinstancia", "flprincipal", "flexclusaotipo", "cdprocesso"],
-  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado", "cdtarefaeventosituacao"],
+  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado", "cdtarefaeventosituacao", "dtexclusao", "cdusuarioexclusao", "dtultimaatualizacao", "cdusuarioultimaatualizacao"],
   tarefaeventosituacao: ["cdtarefaeventosituacao", "nmsituacao", "cdcomportamentobase"],
   tarefatipo: ["cdtarefatipo", "flativo", "nmtarefatipo", "detarefa", "detitulo"],
   andamento: ["cdandamento", "flativo", "dtandamento", "dthoraandamento", "deandamento", "cdandamentotipo", "flexclusaotipo"],
@@ -156,7 +156,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
-  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; titulosCorrigidos?: number; reabertas?: number; msg?: string; quando: string };
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; titulosCorrigidos?: number; reabertas?: number; canceladasProjuris?: number; msg?: string; quando: string };
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const [recuperacao, setRecuperacao] = useState("");
   const pausado = useRef(false);
@@ -480,8 +480,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const chave = String(guTe.g(r, "cdtarefaevento") || "");
           let motivo: string | null = null;
           if (!chave) motivo = "Sem identificador";
-          else if (excluido(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
-          else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
+          // Excluídas/inativas no Projuris entram como canceladas, com auditoria de quem excluiu
+          const situacaoProjuris: "excluida" | "inativa" | null = !chave ? null : excluido(guTe.g(r, "flexclusaotipo")) ? "excluida" : norm(guTe.g(r, "flativo")) === "n" ? "inativa" : null;
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
           const tituloOriginal = String(guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
           const descricaoOriginal = String(guTe.g(r, "detarefa") || "").replace(/\s+/g, " ").trim();
@@ -499,7 +499,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (!motivo && vistosTe.has(chave)) motivo = "Repetida no backup";
           vistosTe.add(chave);
           const concluido = norm(guTe.g(r, "flconcluido")) === "s" || !!paraData(guTe.g(r, "dtconclusao"));
-          const status = statusTarefaProjuris(situacaoTarefa.get(String(guTe.g(r, "cdtarefaeventosituacao") || "")), concluido);
+          const status = situacaoProjuris ? "cancelado" : statusTarefaProjuris(situacaoTarefa.get(String(guTe.g(r, "cdtarefaeventosituacao") || "")), concluido);
           const criador = usuarioNome.get(String(guTe.g(r, "cdusuariocriador") || ""))?.nome || "";
           const casar = (n: string) => { let id = respCache.get(n); if (id === undefined) { id = casarNome(n); respCache.set(n, id); } return id; };
           const respsProjuris = (respTarefa.get(chave) || []).map(casar).filter(Boolean) as string[];
@@ -512,6 +512,9 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             tituloOriginal, descricaoOriginal, tipoNome: tipoNomeTe, fonteTitulo,
             titulo: tt.titulo || "(sem título)", descricao: tt.descricao, tipo: classificarTipo(det, tipoNomeTe),
             data, fatal: limite && limite !== prevista ? limite : null, status,
+            situacaoProjuris,
+            excluidoPorNome: situacaoProjuris ? (usuarioNome.get(String(guTe.g(r, situacaoProjuris === "excluida" ? "cdusuarioexclusao" : "cdusuarioultimaatualizacao") || ""))?.nome || "") : "",
+            excluidoEm: situacaoProjuris ? String(guTe.g(r, situacaoProjuris === "excluida" ? "dtexclusao" : "dtultimaatualizacao") || "") : "",
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
           });
           if (tarefasRows.length % 5000 === 0) { await ceder(); if (cancelado.current) throw CANCELADO; }
@@ -771,7 +774,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             prioridade: "media", processo_id: (l.procDig && procId.get(l.procDig)) || null, coordenacao_id: coordId,
             responsavel_id: l.responsavelId || null, criado_por: null, origem: "projuris",
             identificador_projuris: String(l.chave), modelo_tarefa_id: modeloDe(l),
-            observacoes: [l.procDig && procId.get(l.procDig) ? "" : l.procDig ? `Processo ${formatarCnj(l.procDig)} não cadastrado no Juris Control (importe os processos antes)` : `Sem processo vinculado no Relatório de Atividades`, l.ident ? `Identificador Projuris: ${l.ident}` : "", l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : ""].filter(Boolean).join("\n") || null,
+            observacoes: [l.procDig && procId.get(l.procDig) ? "" : l.procDig ? `Processo ${formatarCnj(l.procDig)} não cadastrado no Juris Control (importe os processos antes)` : `Sem processo vinculado no Relatório de Atividades`, l.ident ? `Identificador Projuris: ${l.ident}` : "", l.criadorNome ? `Criada por (Projuris): ${l.criadorNome}` : "", l.situacaoProjuris ? `${l.situacaoProjuris === "excluida" ? "Excluída" : "Inativada"} no Projuris${l.excluidoPorNome ? ` por ${l.excluidoPorNome}` : ""}${l.excluidoEm ? ` em ${String(l.excluidoEm).slice(0, 16)}` : ""}` : ""].filter(Boolean).join("\n") || null,
           }) as any)).select("id");
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: e.message, dados: { titulo: String(l.titulo).slice(0, 200) } }))); }
           else {
@@ -780,6 +783,15 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             for (let j = 0; j < respRows.length; j += 500) await supabase.from("tarefa_responsaveis").insert(respRows.slice(j, j + 500) as any);
             await log(rows.map((r, j) => ({ tipo: tipoItem, chave_externa: String(parte[j].chave), registro_id: r.id, status: "criado", dados: { titulo: String(parte[j].titulo).slice(0, 200), tipo: parte[j].tipo, data: parte[j].data } })));
             cont.criados += rows.length;
+            // Auditoria das excluídas/inativas no Projuris (quem excluiu e quando)
+            const aud = rows.map((r, j) => ({ r, l: parte[j] as any })).filter((x) => x.l.situacaoProjuris).map(({ r, l }) => ({
+              usuario_id: (l.excluidoPorNome && casarNome(l.excluidoPorNome)) || null,
+              acao: l.situacaoProjuris === "excluida" ? "excluida_no_projuris" : "inativada_no_projuris",
+              sucesso: true, origem: "migracao_projuris", tarefa_id: r.id, coordenacao_id: coordId, tipo_item: "tarefa",
+              processo_id: (l.procDig && procId.get(l.procDig)) || null,
+              dados_entrada: { usuario_projuris: l.excluidoPorNome || null, data_projuris: l.excluidoEm || null, identificador_projuris: String(l.chave), importado_por: userId },
+            }));
+            if (aud.length) { const { error: ea } = await supabase.from("auditoria_tarefas").insert(aud as any); if (ea) throw ea; (cont as any).canceladasProjuris = ((cont as any).canceladasProjuris || 0) + aud.length; }
           }
           setProg({ feito: Math.min(k + LOTE, ok.length), total: ok.length });
         }
@@ -812,7 +824,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
       else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}${cont.modelosCriados ? `, ${cont.modelosCriados} modelos criados` : ""}`);
       const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, titulosCorrigidos: (cont as any).titulosCorrigidos, reabertas: (cont as any).reabertas, quando } }));
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, titulosCorrigidos: (cont as any).titulosCorrigidos, reabertas: (cont as any).reabertas, canceladasProjuris: (cont as any).canceladasProjuris, quando } }));
       if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
@@ -826,7 +838,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   };
 
   const relatorioTitulos = useMemo(() => {
-    const elegiveis = (conf?.tarefas || []).filter((l) => !["Excluída no Projuris", "Inativa no Projuris", "Sem identificador"].includes(String(l.motivo || "")));
+    const elegiveis = (conf?.tarefas || []).filter((l) => !(l as any).situacaoProjuris && String(l.motivo || "") !== "Sem identificador");
     const linhasVazias = elegiveis.filter((l) => !l.tituloOriginal);
     const descricaoLinhas = linhasVazias.filter((l) => l.fonteTitulo === "descricao");
     return {
@@ -919,6 +931,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
                 {r.modelosCriados ? ` · ${r.modelosCriados.toLocaleString("pt-BR")} modelos criados` : ""}
                 {r.titulosCorrigidos !== undefined ? ` · ${r.titulosCorrigidos.toLocaleString("pt-BR")} títulos corrigidos` : ""}
                 {r.reabertas !== undefined ? ` · ${r.reabertas.toLocaleString("pt-BR")} tarefas reabertas conforme a situação no Projuris` : ""}
+                {r.canceladasProjuris ? ` · ${r.canceladasProjuris.toLocaleString("pt-BR")} excluídas/inativas no Projuris importadas como canceladas (com auditoria)` : ""}
                 {r.erros ? ` · ${r.erros.toLocaleString("pt-BR")} com erro` : ""}
               </p>
               {r.msg && <p className="mt-1 text-xs">{r.msg}</p>}
