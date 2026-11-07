@@ -18,7 +18,7 @@ const TABELAS: Record<string, string[] | null> = {
   processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso", ...COLUNAS_COMPLEMENTOS_PROJURIS],
   processonumero: ["cdprocessonumero", "flativo", "denumeroprocesso", "flprocessoinstancia", "flprincipal", "flexclusaotipo", "cdprocesso"],
   tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado"],
-  tarefatipo: ["cdtarefatipo", "flativo", "detarefa"],
+  tarefatipo: ["cdtarefatipo", "flativo", "nmtarefatipo", "detarefa", "detitulo"],
   andamento: ["cdandamento", "flativo", "dtandamento", "dthoraandamento", "deandamento", "cdandamentotipo", "flexclusaotipo"],
   andamentovinculomodulo: ["cdandamento", "cdmodulo", "cdregistrovinculo"],
   workflowcontrole: ["cdworkflowcontrole", "cdmodulo", "cdregistrovinculo"],
