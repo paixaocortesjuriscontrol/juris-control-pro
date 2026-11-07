@@ -147,9 +147,9 @@ export function tituloTarefaProjuris(tipoNome: string, detitulo: string, detaref
 
 export type ModeloNovoTituloProjuris = { chave: string; cdTipo: string; nome: string; tipo: string };
 
-/** Planeja um modelo por título novo, reutilizando códigos e títulos já existentes. */
+/** Planeja modelos para títulos novos, exceto os obtidos da descrição, reutilizando os existentes. */
 export function planejarNovosModelosTitulosProjuris(
-  linhas: { cdTipo?: string; titulo?: string; tipo?: string; motivo?: string | null }[],
+  linhas: { cdTipo?: string; titulo?: string; tipo?: string; motivo?: string | null; fonteTitulo?: FonteTituloTarefaProjuris }[],
   existentes: { nome?: string; titulo?: string; padroes?: { projuris_cd?: unknown } | null }[],
 ): ModeloNovoTituloProjuris[] {
   const cds = new Set(existentes.map((m) => String(m.padroes?.projuris_cd || "")).filter(Boolean));
@@ -158,6 +158,7 @@ export function planejarNovosModelosTitulosProjuris(
   const candidatoPorCd = new Map<string, string>();
   const candidatoPorTitulo = new Map<string, string>();
   for (const l of linhas) {
+    if (l.fonteTitulo === "descricao") continue;
     if (!l.titulo || l.titulo === "(sem título)" || (l.motivo && l.motivo !== "Já migrada antes")) continue;
     const cd = String(l.cdTipo || "");
     const nome = String(l.titulo).trim();

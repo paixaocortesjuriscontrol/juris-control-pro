@@ -673,7 +673,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           setProg({ feito: Math.min(k + LOTE, novos.length), total: novos.length });
         }
       } else if (mod === "tarefas") {
-        // Cada título novo vira um modelo da coordenação; os existentes são reutilizados sem duplicação.
+        // Títulos da descrição não criam modelos; os demais reutilizam modelos existentes sem duplicação.
         const modeloPorCd = new Map<string, string>();
         const modeloPorTitulo = new Map<string, string>();
         const registrarModelo = (m: any) => {
@@ -877,7 +877,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               </details>
             ) : <p className="text-xs text-muted-foreground">Nenhuma tarefa precisou usar a descrição como título.</p>}
             <Button type="button" size="sm" variant="outline" onClick={baixarRelatorioTitulos}><Download className="mr-2 h-4 w-4" />Baixar lista completa dos títulos vazios</Button>
-            <p className="text-xs text-muted-foreground">Na importação, cada título ainda sem modelo na coordenação terá um modelo criado automaticamente.</p>
+            <p className="text-xs text-muted-foreground">Novos modelos serão criados somente para títulos do tipo de tarefa ou do título original; títulos preenchidos pela descrição não criarão modelos.</p>
           </div>
         )}
         {rodando === mod && prog.total > 0 && (
