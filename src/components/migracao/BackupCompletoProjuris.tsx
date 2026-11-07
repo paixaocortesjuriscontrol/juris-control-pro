@@ -799,12 +799,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       }
       const contadores: Record<string, number> = { ...cont };
       if (mod === "processos") contadores.processos_criados = cont.criados;
-      if (mod === "tarefas") contadores.tarefas_criadas = cont.criados;
+      if (mod === "tarefas") {
+        contadores.tarefas_criadas = cont.criados;
+        contadores.titulos_originais_vazios = relatorioTitulos.vazios;
+        contadores.titulos_preenchidos_descricao = relatorioTitulos.descricao;
+        contadores.modelos_criados = cont.modelosCriados || 0;
+      }
       await supabase.from("migracoes_projuris" as any).update({ status: cancelado.current ? "cancelada" : "concluida", contadores }).eq("id", mid);
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
-      else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}`);
+      else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}${cont.modelosCriados ? `, ${cont.modelosCriados} modelos criados` : ""}`);
       const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, quando } }));
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, quando } }));
       if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
