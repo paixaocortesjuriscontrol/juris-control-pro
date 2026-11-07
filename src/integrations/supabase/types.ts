@@ -11401,6 +11401,10 @@ export type Database = {
           usuario_id: string
         }[]
       }
+      corrigir_status_tarefas_projuris: {
+        Args: { _coordenacao_id: string; _itens: Json }
+        Returns: number
+      }
       corrigir_titulos_por_modelo_projuris: {
         Args: { _coordenacao_id: string; _limite?: number }
         Returns: number
