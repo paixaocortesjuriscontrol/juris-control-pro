@@ -505,6 +505,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
             chave, motivo, ident, procDig, cdTipo: String(guTe.g(r, "cdtarefatipo") || "").trim(),
+            tituloOriginal, descricaoOriginal, tipoNome: tipoNomeTe, fonteTitulo,
             titulo: tt.titulo || "(sem título)", descricao: tt.descricao, tipo: classificarTipo(det, tipoNomeTe),
             data, fatal: limite && limite !== prevista ? limite : null, status,
             conclusao: paraData(guTe.g(r, "dtconclusao")) || data, responsavelId: respId, outrosResp: respsProjuris.filter((x) => x !== respId), criadorNome: criador,
