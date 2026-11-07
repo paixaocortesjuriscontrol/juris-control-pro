@@ -8,7 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { AlertTriangle, CheckCircle2, Download, Loader2, Pause, Play, Upload } from "lucide-react";
 import * as XLSX from "xlsx";
 import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
-import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris, fonteTituloTarefaProjuris, planejarNovosModelosTitulosProjuris } from "@/lib/migracaoProjuris";
+import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris, fonteTituloTarefaProjuris, statusTarefaProjuris, planejarNovosModelosTitulosProjuris } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
 
@@ -17,7 +17,8 @@ import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib
 const TABELAS: Record<string, string[] | null> = {
   processo: ["cdprocesso", "flativo", "flexclusaotipo", "dtinclusao", "dtdistribuicao", "descricao", "nmassunto", "nmpasta", "nmpastacliente", "flprocessoinstancia", "vlacao", "flsegredojustica", "desenhaprocesso", ...COLUNAS_COMPLEMENTOS_PROJURIS],
   processonumero: ["cdprocessonumero", "flativo", "denumeroprocesso", "flprocessoinstancia", "flprincipal", "flexclusaotipo", "cdprocesso"],
-  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado"],
+  tarefaevento: ["cdtarefaevento", "flativo", "flexclusaotipo", "dtinclusao", "dtbase", "dtconclusaoprevista", "dtlimite", "detarefa", "cdtarefa", "cdtarefatipo", "dtconclusao", "flconcluido", "detitulo", "deidentificador", "dtinicio", "cdusuariocriador", "cdusuarioconclusao", "flprivado", "cdtarefaeventosituacao"],
+  tarefaeventosituacao: ["cdtarefaeventosituacao", "nmsituacao", "cdcomportamentobase"],
   tarefatipo: ["cdtarefatipo", "flativo", "nmtarefatipo", "detarefa", "detitulo"],
   andamento: ["cdandamento", "flativo", "dtandamento", "dthoraandamento", "deandamento", "cdandamentotipo", "flexclusaotipo"],
   andamentovinculomodulo: ["cdandamento", "cdmodulo", "cdregistrovinculo"],
@@ -362,6 +363,9 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       const tipoTarefaNome = new Map<string, string>();
       const guTipoT = gu("tarefatipo");
       if (guTipoT) for (const r of guTipoT.linhas) tipoTarefaNome.set(String(guTipoT.g(r, "cdtarefatipo") || ""), String(guTipoT.g(r, "nmtarefatipo") || guTipoT.g(r, "detarefa") || guTipoT.g(r, "detitulo") || ""));
+      const situacaoTarefa = new Map<string, { nome: string; comportamento: string }>();
+      const guSit = gu("tarefaeventosituacao");
+      if (guSit) for (const r of guSit.linhas) situacaoTarefa.set(String(guSit.g(r, "cdtarefaeventosituacao") || ""), { nome: String(guSit.g(r, "nmsituacao") || ""), comportamento: String(guSit.g(r, "cdcomportamentobase") || "") });
       const andamentoTipoNome = new Map<string, string>();
       const guTipoA = gu("andamentotipo");
       if (guTipoA && guTipoA.linhas.length) {
@@ -495,7 +499,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (!motivo && vistosTe.has(chave)) motivo = "Repetida no backup";
           vistosTe.add(chave);
           const concluido = norm(guTe.g(r, "flconcluido")) === "s" || !!paraData(guTe.g(r, "dtconclusao"));
-          const status = concluido ? "cumprido" : mapearSituacao("", data);
+          const status = statusTarefaProjuris(situacaoTarefa.get(String(guTe.g(r, "cdtarefaeventosituacao") || "")), concluido);
           const criador = usuarioNome.get(String(guTe.g(r, "cdusuariocriador") || ""))?.nome || "";
           const casar = (n: string) => { let id = respCache.get(n); if (id === undefined) { id = casarNome(n); respCache.set(n, id); } return id; };
           const respsProjuris = (respTarefa.get(chave) || []).map(casar).filter(Boolean) as string[];
@@ -748,7 +752,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             titulo: String(l.titulo).slice(0, 500), descricao: l.descricao || null, tipo_tarefa: l.tipo,
             tipo_registro: l.tipo === "PRAZO" ? "prazo" : "tarefa",
             data_vencimento: l.data, data_prevista: l.data, data_fatal: l.fatal,
-            status: l.status, data_cumprimento: l.status === "cumprido" ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
+            status: l.status, data_cumprimento: (l.status === "cumprido" || l.status === "concluido_sem_sucesso") ? `${l.conclusao || l.data}T12:00:00-03:00` : null,
             prioridade: "media", processo_id: (l.procDig && procId.get(l.procDig)) || null, coordenacao_id: coordId,
             responsavel_id: l.responsavelId || null, criado_por: null, origem: "projuris",
             identificador_projuris: String(l.chave), modelo_tarefa_id: modeloDe(l),

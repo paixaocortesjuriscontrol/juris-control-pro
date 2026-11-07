@@ -124,6 +124,22 @@ export function mapearSituacao(v: any, data: string | null): string {
   return "pendente";
 }
 
+/** Situação da tarefa pela tabela tarefaeventosituacao do Projuris; nunca presume cumprida pela data. */
+export function statusTarefaProjuris(situacao: { nome?: string; comportamento?: string } | undefined, concluido: boolean): string {
+  const nome = norm(situacao?.nome || "");
+  const comp = norm(situacao?.comportamento || "");
+  if (comp === "cancelada" || /cancel/.test(nome)) return "cancelado";
+  if (/sem sucesso/.test(nome)) return "concluido_sem_sucesso";
+  if (comp === "encerrada" || /conclu|cumpr/.test(nome)) return "cumprido";
+  if (situacao) {
+    if (/execuc|andamento/.test(nome)) return "em_execucao";
+    if (/confirmar/.test(nome)) return "a_confirmar";
+    if (/revis/.test(nome)) return "revisao";
+    return "pendente";
+  }
+  return concluido ? "cumprido" : "pendente";
+}
+
 export const sanitizarNome = (n: string) =>
   n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
 
