@@ -156,7 +156,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
-  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; msg?: string; quando: string };
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; titulosCorrigidos?: number; reabertas?: number; msg?: string; quando: string };
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const [recuperacao, setRecuperacao] = useState("");
   const pausado = useRef(false);
@@ -734,7 +734,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
             corrigidas += res.reduce((s2: number, r: any) => s2 + (Number(r.data) || 0), 0);
             setProg({ feito: Math.min(k + 1000, corrigir.length), total: corrigir.length });
           }
-          cont.vinculados = corrigidas;
+          (cont as any).titulosCorrigidos = corrigidas;
           // Situação: reabre as que entraram como cumpridas mas estão abertas no Projuris
           const abertas = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && ["pendente", "em_execucao", "a_confirmar", "revisao"].includes(l.status));
           setMsg("Corrigindo a situação das tarefas já migradas...");
@@ -812,7 +812,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
       if (cancelado.current) toast.warning(`${tituloMod}: importação cancelada (${cont.criados} criados)`);
       else toast.success(`${tituloMod}: ${cont.criados} importados, ${cont.pulados} pulados${cont.vinculados ? `, ${cont.vinculados} já existentes vinculados` : ""}${cont.modelosCriados ? `, ${cont.modelosCriados} modelos criados` : ""}`);
       const quando = new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, quando } }));
+      setResultados((r) => ({ ...r, [mod]: { status: cancelado.current ? "cancelado" : "ok", criados: cont.criados, pulados: cont.pulados, erros: cont.erros, vinculados: cont.vinculados || 0, modelosCriados: cont.modelosCriados || 0, titulosCorrigidos: (cont as any).titulosCorrigidos, reabertas: (cont as any).reabertas, quando } }));
       if (!cancelado.current) setFeitos((f) => ({ ...f, [mod]: true }));
       onConcluido();
     } catch (e: any) {
@@ -896,7 +896,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
               </details>
             ) : <p className="text-xs text-muted-foreground">Nenhuma tarefa precisou usar a descrição como título.</p>}
             <Button type="button" size="sm" variant="outline" onClick={baixarRelatorioTitulos}><Download className="mr-2 h-4 w-4" />Baixar lista completa dos títulos vazios</Button>
-            <p className="text-xs text-muted-foreground">Novos modelos serão criados somente para títulos do tipo de tarefa ou do título original; títulos preenchidos pela descrição não criarão modelos.</p>
+            <p className="text-xs text-muted-foreground">Novos modelos serão criados somente a partir do tipo de tarefa do Projuris; títulos livres ou preenchidos pela descrição não criarão modelos.</p>
           </div>
         )}
         {rodando === mod && prog.total > 0 && (
@@ -917,6 +917,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
                 {r.vinculados ? ` · ${r.vinculados.toLocaleString("pt-BR")} já existentes vinculados à coordenação` : ""}
                 {` · ${r.pulados.toLocaleString("pt-BR")} pulados`}
                 {r.modelosCriados ? ` · ${r.modelosCriados.toLocaleString("pt-BR")} modelos criados` : ""}
+                {r.titulosCorrigidos !== undefined ? ` · ${r.titulosCorrigidos.toLocaleString("pt-BR")} títulos corrigidos` : ""}
+                {r.reabertas !== undefined ? ` · ${r.reabertas.toLocaleString("pt-BR")} tarefas reabertas conforme a situação no Projuris` : ""}
                 {r.erros ? ` · ${r.erros.toLocaleString("pt-BR")} com erro` : ""}
               </p>
               {r.msg && <p className="mt-1 text-xs">{r.msg}</p>}
