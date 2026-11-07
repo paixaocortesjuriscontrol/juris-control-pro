@@ -158,7 +158,7 @@ export function planejarNovosModelosTitulosProjuris(
   const candidatoPorCd = new Map<string, string>();
   const candidatoPorTitulo = new Map<string, string>();
   for (const l of linhas) {
-    if (l.fonteTitulo === "descricao") continue;
+    if (l.fonteTitulo !== "tipo") continue; // modelos só a partir do tipo de tarefa Projuris
     if (!l.titulo || l.titulo === "(sem título)" || (l.motivo && l.motivo !== "Já migrada antes")) continue;
     const cd = String(l.cdTipo || "");
     const nome = String(l.titulo).trim();
