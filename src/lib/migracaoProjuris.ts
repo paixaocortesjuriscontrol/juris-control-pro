@@ -127,6 +127,16 @@ export function mapearSituacao(v: any, data: string | null): string {
 export const sanitizarNome = (n: string) =>
   n.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, "_");
 
+export type FonteTituloTarefaProjuris = "tipo" | "titulo" | "descricao" | "vazio";
+
+export function fonteTituloTarefaProjuris(tipoNome: string, detitulo: string, detarefa: string): FonteTituloTarefaProjuris {
+  const limpa = (s: string) => String(s || "").replace(/\s+/g, " ").trim();
+  if (limpa(tipoNome)) return "tipo";
+  if (limpa(detitulo)) return "titulo";
+  if (limpa(detarefa)) return "descricao";
+  return "vazio";
+}
+
 /** Título da tarefa importada do Projuris: tipo de tarefa > título > descrição. Descrição só quando difere do título. */
 export function tituloTarefaProjuris(tipoNome: string, detitulo: string, detarefa: string): { titulo: string; descricao: string | null } {
   const limpa = (s: string) => String(s || "").replace(/\s+/g, " ").trim();

@@ -25,3 +25,11 @@ test("título da tarefa Projuris vem do tipo e a descrição vai para a descriç
   assert.deepEqual(tituloTarefaProjuris("", "Recurso", "Texto"), { titulo: "Recurso", descricao: "Texto" });
   assert.deepEqual(tituloTarefaProjuris("", "", "Só descrição"), { titulo: "Só descrição", descricao: null });
 });
+
+test("relatório identifica a origem exata de cada título", async () => {
+  const { fonteTituloTarefaProjuris } = await import("./migracaoProjuris");
+  assert.equal(fonteTituloTarefaProjuris("Defesa", "Título", "Descrição"), "tipo");
+  assert.equal(fonteTituloTarefaProjuris("", "Título", "Descrição"), "titulo");
+  assert.equal(fonteTituloTarefaProjuris("", "  ", "Descrição"), "descricao");
+  assert.equal(fonteTituloTarefaProjuris("", "", "  "), "vazio");
+});
