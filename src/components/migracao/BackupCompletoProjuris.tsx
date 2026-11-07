@@ -688,8 +688,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         for (const m of mods || []) registrarModelo(m);
         const titulosParaModelos = (linhas as any[]).filter((l) => l.titulo && l.titulo !== "(sem título)" && (!l.motivo || l.motivo === "Já migrada antes"));
         for (const l of titulosParaModelos) {
-          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
-          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || (l.fonteTitulo === "tipo" ? modeloPorTitulo.get(norm(l.titulo)) : undefined);
+          if (id && l.cdTipo && l.fonteTitulo === "tipo") modeloPorCd.set(String(l.cdTipo), id);
         }
         const novosModelos = planejarNovosModelosTitulosProjuris(titulosParaModelos, mods || []);
         let modelosCriados = 0;
@@ -707,12 +707,12 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           modelosCriados += criados?.length || 0;
         }
         for (const l of titulosParaModelos) {
-          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo));
-          if (id && l.cdTipo) modeloPorCd.set(String(l.cdTipo), id);
+          const id = (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || (l.fonteTitulo === "tipo" ? modeloPorTitulo.get(norm(l.titulo)) : undefined);
+          if (id && l.cdTipo && l.fonteTitulo === "tipo") modeloPorCd.set(String(l.cdTipo), id);
         }
         cont.modelosCriados = modelosCriados;
         setMsg("");
-        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || modeloPorTitulo.get(norm(l.titulo)) || null;
+        const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || (l.fonteTitulo === "tipo" ? modeloPorTitulo.get(norm(l.titulo)) : undefined) || null;
         // Tarefas já migradas antes: título = tipo de tarefa, texto antigo na descrição e modelo original — em lote no banco
         {
           const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");

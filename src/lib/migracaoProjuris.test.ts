@@ -34,15 +34,15 @@ test("relatório identifica a origem exata de cada título", async () => {
   assert.equal(fonteTituloTarefaProjuris("", "", "  "), "vazio");
 });
 
-test("cria modelos apenas para títulos novos do tipo ou título original, sem duplicar", async () => {
+test("cria modelos apenas para títulos novos do tipo, sem duplicar", async () => {
   const { planejarNovosModelosTitulosProjuris } = await import("./migracaoProjuris");
   const existentes = [{ nome: "Defesa", titulo: "Defesa", padroes: { projuris_cd: "1" } }];
   const linhas = [
-    { cdTipo: "1", titulo: "Defesa", tipo: "DEFESA", motivo: null },
-    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: "Já migrada antes" },
-    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: null },
-    { cdTipo: "3", titulo: "Audiência inicial", tipo: "AUDIÊNCIA", motivo: null },
-    { cdTipo: "4", titulo: "Excluída", tipo: "PRAZO", motivo: "Excluída no Projuris" },
+    { cdTipo: "1", titulo: "Defesa", tipo: "DEFESA", motivo: null, fonteTitulo: "tipo" as const },
+    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: "Já migrada antes", fonteTitulo: "tipo" as const },
+    { cdTipo: "2", titulo: "Manifestação", tipo: "MANIFESTAÇÃO", motivo: null, fonteTitulo: "tipo" as const },
+    { cdTipo: "3", titulo: "Audiência inicial", tipo: "AUDIÊNCIA", motivo: null, fonteTitulo: "tipo" as const },
+    { cdTipo: "4", titulo: "Excluída", tipo: "PRAZO", motivo: "Excluída no Projuris", fonteTitulo: "tipo" as const },
   ];
   const novos = planejarNovosModelosTitulosProjuris(linhas, existentes);
   assert.deepEqual(novos.map((m) => m.nome), ["Manifestação", "Audiência inicial"]);
@@ -50,7 +50,7 @@ test("cria modelos apenas para títulos novos do tipo ou título original, sem d
   assert.equal(novos.find((m) => m.nome === "Audiência inicial")?.tipo, "evento");
 });
 
-test("títulos preenchidos pela descrição não criam modelos novos", async () => {
+test("títulos preenchidos pela descrição ou pelo título livre não criam modelos novos", async () => {
   const { planejarNovosModelosTitulosProjuris, fonteTituloTarefaProjuris } = await import("./migracaoProjuris");
   const fonteTitulo = fonteTituloTarefaProjuris("", "", "Providência da descrição");
   const novos = planejarNovosModelosTitulosProjuris([
@@ -59,5 +59,5 @@ test("títulos preenchidos pela descrição não criam modelos novos", async () 
     { cdTipo: "2", titulo: "Manifestação", fonteTitulo: "tipo" },
     { cdTipo: "", titulo: "Recurso", fonteTitulo: "titulo" },
   ], []);
-  assert.deepEqual(novos.map((m) => m.nome), ["Manifestação", "Recurso"]);
+  assert.deepEqual(novos.map((m) => m.nome), ["Manifestação"]);
 });
