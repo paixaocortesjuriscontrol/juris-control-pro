@@ -479,8 +479,11 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           else if (excluido(guTe.g(r, "flexclusaotipo"))) motivo = "Excluída no Projuris";
           else if (norm(guTe.g(r, "flativo")) === "n") motivo = "Inativa no Projuris";
           const det = String(guTe.g(r, "detarefa") || guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
+          const tituloOriginal = String(guTe.g(r, "detitulo") || "").replace(/\s+/g, " ").trim();
+          const descricaoOriginal = String(guTe.g(r, "detarefa") || "").replace(/\s+/g, " ").trim();
           const tipoNomeTe = tipoTarefaNome.get(String(guTe.g(r, "cdtarefatipo") || "")) || "";
-          const tt = tituloTarefaProjuris(tipoNomeTe, String(guTe.g(r, "detitulo") || ""), String(guTe.g(r, "detarefa") || ""));
+          const tt = tituloTarefaProjuris(tipoNomeTe, tituloOriginal, descricaoOriginal);
+          const fonteTitulo = fonteTituloTarefaProjuris(tipoNomeTe, tituloOriginal, descricaoOriginal);
           if (!motivo && !det && !String(tt.titulo || "").trim()) motivo = "Sem título";
           const prevista = paraData(guTe.g(r, "dtconclusaoprevista"));
           const limite = paraData(guTe.g(r, "dtlimite"));
