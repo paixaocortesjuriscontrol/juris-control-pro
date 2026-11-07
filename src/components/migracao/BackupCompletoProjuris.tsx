@@ -869,6 +869,33 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         {resumo(ls).map(([k, n]) => (
           <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>
         ))}
+        {mod === "tarefas" && (
+          <div className="space-y-2 rounded-md bg-muted/30 p-3 text-sm">
+            <div>
+              <h5 className="font-semibold">Relatório de títulos</h5>
+              <p className="text-xs text-muted-foreground">Considera somente tarefas ativas e não excluídas no Projuris.</p>
+            </div>
+            <div className="flex justify-between gap-3"><span>Títulos originais vazios</span><Badge variant="secondary">{relatorioTitulos.vazios.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Vazios preenchidos com o tipo de tarefa</span><Badge variant="secondary">{relatorioTitulos.porTipo.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Vazios preenchidos com a descrição</span><Badge variant="secondary">{relatorioTitulos.descricao.toLocaleString("pt-BR")}</Badge></div>
+            <div className="flex justify-between gap-3"><span>Ainda sem qualquer título</span><Badge variant="secondary">{relatorioTitulos.semTitulo.toLocaleString("pt-BR")}</Badge></div>
+            {relatorioTitulos.descricaoLinhas.length > 0 ? (
+              <details className="rounded border p-2">
+                <summary className="cursor-pointer text-xs font-medium">Ver quais foram preenchidos com a descrição</summary>
+                <ul className="mt-2 max-h-56 space-y-2 overflow-auto text-xs">
+                  {relatorioTitulos.descricaoLinhas.slice(0, 100).map((l) => (
+                    <li key={l.chave} className="break-words border-b pb-2 last:border-0">
+                      <strong>{l.ident || l.chave}</strong>{l.procDig ? ` · ${formatarCnj(l.procDig)}` : ""}<br />{l.titulo}
+                    </li>
+                  ))}
+                </ul>
+                {relatorioTitulos.descricaoLinhas.length > 100 && <p className="mt-2 text-xs text-muted-foreground">Exibindo 100; o arquivo contém a lista completa.</p>}
+              </details>
+            ) : <p className="text-xs text-muted-foreground">Nenhuma tarefa precisou usar a descrição como título.</p>}
+            <Button type="button" size="sm" variant="outline" onClick={baixarRelatorioTitulos}><Download className="mr-2 h-4 w-4" />Baixar lista completa dos títulos vazios</Button>
+            <p className="text-xs text-muted-foreground">Na importação, cada título ainda sem modelo na coordenação terá um modelo criado automaticamente.</p>
+          </div>
+        )}
         {rodando === mod && prog.total > 0 && (
           <div className="space-y-1">
             <Progress value={Math.round((prog.feito / prog.total) * 100)} />
