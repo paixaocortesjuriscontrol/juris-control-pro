@@ -155,7 +155,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   const [rodando, setRodando] = useState<string | null>(null);
   const [prog, setProg] = useState({ feito: 0, total: 0 });
   const [feitos, setFeitos] = useState<Record<string, boolean>>({});
-  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; msg?: string; quando: string };
+  type Resultado = { status: "ok" | "cancelado" | "erro"; criados: number; pulados: number; erros: number; vinculados: number; modelosCriados?: number; msg?: string; quando: string };
   const [resultados, setResultados] = useState<Record<string, Resultado>>({});
   const [recuperacao, setRecuperacao] = useState("");
   const pausado = useRef(false);
