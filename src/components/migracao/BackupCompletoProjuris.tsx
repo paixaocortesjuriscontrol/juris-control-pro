@@ -858,6 +858,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
                 {r.criados.toLocaleString("pt-BR")} {tipo} importados
                 {r.vinculados ? ` · ${r.vinculados.toLocaleString("pt-BR")} já existentes vinculados à coordenação` : ""}
                 {` · ${r.pulados.toLocaleString("pt-BR")} pulados`}
+                {r.modelosCriados ? ` · ${r.modelosCriados.toLocaleString("pt-BR")} modelos criados` : ""}
                 {r.erros ? ` · ${r.erros.toLocaleString("pt-BR")} com erro` : ""}
               </p>
               {r.msg && <p className="mt-1 text-xs">{r.msg}</p>}
