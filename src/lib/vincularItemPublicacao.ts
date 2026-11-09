@@ -1,43 +1,14 @@
 import { supabase } from "@/integrations/supabase/client";
+import { resolverPublicacaoUnificada } from "@/lib/resolverPublicacaoUnificada";
 
 /**
  * Liga um item (prazo/tarefa/audiência) à publicação de origem.
  * Usado no início do workflow e em cada etapa seguinte materializada.
  * Ignora duplicidade (item já vinculado).
+ *
+ * Publicações do DJEN Servidor são resolvidas no banco, que mantém o vínculo
+ * na mesma coordenação e cria a cópia unificada quando ela ainda não existe.
  */
-/**
- * A Análise DJEN Servidor lista a tabela antiga `publicacoes_djen_servidor`,
- * cujos IDs não existem em `publicacoes_djen` (destino do vínculo). Encontra a
- * publicação equivalente pelo id_djen (mesma coordenação primeiro) ou dedup_key.
- */
-async function resolverPublicacaoUnificada(id: string): Promise<string | null> {
-  const { data: direto } = await supabase.from("publicacoes_djen").select("id").eq("id", id).maybeSingle();
-  if (direto?.id) return direto.id;
-  const { data: srv } = await (supabase as any)
-    .from("publicacoes_djen_servidor")
-    .select("id_djen, dedup_key, coordenacao_id")
-    .eq("id", id)
-    .maybeSingle();
-  if (!srv) return null;
-  if (srv.id_djen) {
-    const { data: rows } = await (supabase as any)
-      .from("publicacoes_djen").select("id, coordenacao_id").eq("id_djen", srv.id_djen).limit(20);
-    const lista = (rows ?? []) as { id: string; coordenacao_id: string | null }[];
-    const mesma = lista.find((r) => r.coordenacao_id === srv.coordenacao_id) ?? lista[0];
-    if (mesma) return mesma.id;
-  }
-  if (srv.dedup_key) {
-    const { data: rows } = await (supabase as any)
-      .from("publicacoes_djen").select("id, coordenacao_id").eq("dedup_key", srv.dedup_key).limit(20);
-    const lista = (rows ?? []) as { id: string; coordenacao_id: string | null }[];
-    const mesma = lista.find((r) => r.coordenacao_id === srv.coordenacao_id) ?? lista[0];
-    if (mesma) return mesma.id;
-  }
-  // Sem cópia na lista nova: cria agora (função confere acesso à coordenação).
-  const { data: criada, error } = await (supabase as any).rpc("garantir_publicacao_unificada", { p_servidor_id: id });
-  if (error) throw error;
-  return (criada as string) ?? null;
-}
 
 export async function vincularItemPublicacao(
   item: { id: string; tipo: string },
