@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.notificar_conclusao_retomada_servidor() FROM PUBLIC, anon, authenticated;
