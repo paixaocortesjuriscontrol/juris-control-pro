@@ -219,3 +219,6 @@ verify_jwt = false
 
 [functions.importar-tese-peca]
 verify_jwt = true
+
+[functions.alertar-servidor-travado]
+verify_jwt = true
