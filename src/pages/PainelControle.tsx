@@ -1507,7 +1507,7 @@ export default function PainelControle() {
         key = `a:${rawId.replace("audiencia-det-", "")}`;
         horario = it.dia_inteiro ? "" : extractHora(it.data_inicio);
       } else if (it.origem === "tarefa") {
-        key = `t:${rawId}`;
+        key = `t:${rawId.split(":")[0]}`;
         horario = (it.hora_fatal ?? "").slice(0, 5);
       } else if (it.origem === "evento") {
         key = `e:${rawId.split("::")[0]}`;
