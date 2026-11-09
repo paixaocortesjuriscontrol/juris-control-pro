@@ -1292,7 +1292,9 @@ export default function PainelControle() {
       } else if (rawId.startsWith("prazo-tst-")) {
         // sem N:N — ignorar
       } else if (it.origem === "tarefa") {
-        tarefaIds.push(rawId);
+        // Ocorrências de tarefas recorrentes chegam como "<uuid>:<data>".
+        const base = rawId.split(":")[0];
+        if (!tarefaIds.includes(base)) tarefaIds.push(base);
       } else if (it.origem === "evento") {
         eventoIds.push(rawId.split("::")[0]);
       }
@@ -1398,7 +1400,7 @@ export default function PainelControle() {
       const key = rawId.startsWith("audiencia-det-")
         ? `a:${rawId.replace("audiencia-det-", "")}`
         : it.origem === "tarefa"
-          ? `t:${rawId}`
+          ? `t:${rawId.split(":")[0]}`
           : it.origem === "evento"
             ? `e:${rawId.split("::")[0]}`
             : "";
