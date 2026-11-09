@@ -1,0 +1,1 @@
+ALTER TABLE public.coordenacoes ADD COLUMN IF NOT EXISTS escritorio_visao_completa boolean NOT NULL DEFAULT true;

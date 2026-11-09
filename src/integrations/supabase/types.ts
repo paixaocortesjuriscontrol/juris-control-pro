@@ -2796,6 +2796,7 @@ export type Database = {
           coordenador_id: string | null
           created_at: string
           descricao: string | null
+          escritorio_visao_completa: boolean
           id: string
           kurier_captura_total: boolean
           monitorar_distribuicoes: boolean
@@ -2809,6 +2810,7 @@ export type Database = {
           coordenador_id?: string | null
           created_at?: string
           descricao?: string | null
+          escritorio_visao_completa?: boolean
           id?: string
           kurier_captura_total?: boolean
           monitorar_distribuicoes?: boolean
@@ -2822,6 +2824,7 @@ export type Database = {
           coordenador_id?: string | null
           created_at?: string
           descricao?: string | null
+          escritorio_visao_completa?: boolean
           id?: string
           kurier_captura_total?: boolean
           monitorar_distribuicoes?: boolean
