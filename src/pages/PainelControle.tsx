@@ -516,6 +516,34 @@ export default function PainelControle() {
     enabled: !!user?.id,
   });
 
+  // Coordenações com "visão de todos no Escritório" desligada, nas quais o
+  // usuário não é coordenador/assistente de coordenação: no Escritório ele vê
+  // só os itens em que é responsável/envolvido.
+  const { data: coordRestritas = [], isLoading: coordRestritasLoading } = useQuery({
+    queryKey: ["painel-controle-coord-restritas", user?.id, JSON.stringify(coordenacoesUsuario)],
+    queryFn: async () => {
+      if (!user?.id || coordenacoesUsuario.length === 0) return [] as string[];
+      const { data: off } = await (supabase as any)
+        .from("coordenacoes")
+        .select("id, coordenador_id")
+        .in("id", coordenacoesUsuario)
+        .eq("escritorio_visao_completa", false);
+      if (!off?.length) return [] as string[];
+      const { data: cargos } = await supabase
+        .from("membros_coordenacao")
+        .select("coordenacao_id, cargo")
+        .eq("usuario_id", user.id)
+        .in("coordenacao_id", off.map((c: any) => c.id));
+      const gestor = new Set(
+        (cargos || [])
+          .filter((m: any) => ["coordenador", "assistente_coordenador"].includes(String(m.cargo || "").toLowerCase()))
+          .map((m: any) => m.coordenacao_id),
+      );
+      return off.filter((c: any) => c.coordenador_id !== user.id && !gestor.has(c.id)).map((c: any) => c.id as string);
+    },
+    enabled: !!user?.id && !coordLoading,
+  });
+
   // Atalho Protocolados/Baixados: só coordenação da Dra. Beatriz Costa (e admins)
   const podeVerProtocoladosBaixados =
     isAdmin || coordenacoesUsuario.includes(COORDENACAO_BEATRIZ_COSTA_ID);
@@ -653,7 +681,9 @@ export default function PainelControle() {
       verTodas: isAdmin,
       coordEscolhida: adminCoordFilter,
       coordenacoesUsuario,
-      coordLoading,
+      coordLoading: coordLoading || coordRestritasLoading,
+      coordRestritas: isAdminOrCoordinator ? [] : coordRestritas,
+      userId: user?.id,
     });
     if (escopo) {
       return {
@@ -668,7 +698,7 @@ export default function PainelControle() {
       fetchAll: false,
       ...dateRange, ...statusScope,
     };
-  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
