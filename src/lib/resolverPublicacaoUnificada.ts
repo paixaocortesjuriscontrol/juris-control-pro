@@ -2,7 +2,7 @@ export type ClienteResolverPublicacao = {
   rpc: (
     nome: "garantir_publicacao_unificada",
     args: { p_servidor_id: string },
-  ) => Promise<{ data: unknown; error: unknown }>;
+  ) => PromiseLike<{ data: unknown; error: unknown }>;
 };
 
 /**
