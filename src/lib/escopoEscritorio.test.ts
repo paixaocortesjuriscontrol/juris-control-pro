@@ -23,3 +23,13 @@ test("coordenação escolhida fora do acesso do usuário não é usada", () => {
   const r = escopoEscritorio({ ...base, verTodas: false, coordEscolhida: "gol", coordenacoesUsuario: ["civel"] });
   assert.deepEqual(r, { fetchAll: false, coordenacaoIds: ["civel"], strictCoordenacaoIsolation: true });
 });
+
+test("coordenação com visão de todos desligada: membro comum vê só os próprios itens", () => {
+  const r = escopoEscritorio({ ...base, verTodas: false, coordenacoesUsuario: ["civel"], coordRestritas: ["civel"], userId: "u1" });
+  assert.deepEqual(r, { fetchAll: false, coordenacaoIds: ["civel"], strictCoordenacaoIsolation: false, responsavelIds: ["u1"] });
+});
+
+test("coordenador (sem restrição repassada) continua vendo todos da coordenação", () => {
+  const r = escopoEscritorio({ ...base, verTodas: false, coordenacoesUsuario: ["civel"], coordRestritas: [], userId: "u1" });
+  assert.deepEqual(r, { fetchAll: false, coordenacaoIds: ["civel"], strictCoordenacaoIsolation: true });
+});
