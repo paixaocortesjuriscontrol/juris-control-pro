@@ -1,4 +1,5 @@
 import { BookOpen, CalendarDays } from "lucide-react";
+import { VisaoEscritorioCard } from "@/components/coordenacoes/VisaoEscritorioCard";
 import { RemoverMembroDialog } from "@/components/coordenacoes/RemoverMembroDialog";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
@@ -490,6 +491,7 @@ const Coordenacoes = () => {
                           <button key={i.label} type="button" disabled={desabilitado} onClick={i.onClick} className="group text-left disabled:cursor-not-allowed">{conteudo}</button>
                         );
                       })}
+                      {g.titulo === "Permissões e configurações" && <VisaoEscritorioCard coordenacaoId={selectedCoord.id} />}
                     </div>
                   </section>
                 );
