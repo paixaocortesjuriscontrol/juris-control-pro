@@ -17,7 +17,7 @@ export async function vincularItemPublicacao(
   if (!origem?.id || !origem.tipo || !item?.id) return;
   const tipo = item.tipo.toLowerCase();
   if (origem.tipo === "termo") {
-    const unificada = await resolverPublicacaoUnificada(origem.id);
+    const unificada = await resolverPublicacaoUnificada(origem.id, supabase);
     if (!unificada) throw new Error("Publicação de origem não encontrada para vincular.");
     origem = { ...origem, id: unificada };
   }
