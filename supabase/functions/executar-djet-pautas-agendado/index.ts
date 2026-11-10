@@ -291,6 +291,7 @@ interface Monitoramento {
   id: string;
   tipo: string;
   termo_busca: string | null;
+  termos_or?: string[] | null;
   oab: string | null;
   uf: string | null;
   exclusoes: string[] | null;
@@ -342,6 +343,7 @@ function calcularDataPublicacaoYmd(dataDispYmd: string): string {
 function monitToInput(m: Monitoramento) {
   const termos: string[] = [];
   if (m.termo_busca) termos.push(m.termo_busca);
+  for (const t of m.termos_or || []) if (t && String(t).trim()) termos.push(String(t).trim());
   return {
     id: m.id,
     termos,
@@ -562,7 +564,7 @@ async function runJob(
     // Carrega todos os monitoramentos ativos
     const { data: monitsData, error: monitsErr } = await supabase
       .from("monitoramentos_djen")
-      .select("id, tipo, termo_busca, oab, uf, ativo, exclusoes, tribunais, condicao_concomitante, coordenacao_id")
+      .select("id, tipo, termo_busca, termos_or, oab, uf, ativo, exclusoes, tribunais, condicao_concomitante, coordenacao_id")
       .eq("ativo", true)
       .neq("somente_kurier", true);
 

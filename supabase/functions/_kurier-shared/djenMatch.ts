@@ -24,6 +24,7 @@ export function normalizar(texto: string): string {
   return texto
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['\u2019\u2018`\u00b4]/g, '')
     .replace(/[&\/\\]/g, ' ')
     .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')
@@ -35,6 +36,7 @@ export function normalizarParaBusca(texto: string): string {
   return texto
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/['\u2019\u2018`\u00b4]/g, '')
     .replace(/[&\/\\]/g, ' ')
     .replace(/[^0-9A-Za-z\s]/g, ' ')
     .replace(/\s+/g, ' ')

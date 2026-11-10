@@ -78,6 +78,8 @@ function normalize(s: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
+    // Apóstrofos somem ("D'OR" = "DOR"), para termos e pautas casarem.
+    .replace(/['\u2019\u2018`\u00b4]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }

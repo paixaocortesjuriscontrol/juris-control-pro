@@ -1094,8 +1094,18 @@ Deno.serve(async (req: Request) => {
           for (const key of termoTokens(termoKurier)) {
             for (const m of monitsByTermo.get(key) || []) candidatoMap.set(m.id, m);
           }
+          // Também considera termos de OUTRAS coordenações presentes no texto
+          // (ex.: Kurier pesquisou "OSMAR..." mas o texto cita "REDE DOR" de
+          // outra coordenação). Lookup por token: barato mesmo em textos longos.
+          const tokensTexto = new Set(searchableNorm.split(" ").filter((t) => t.length >= 3));
+          for (const tk of tokensTexto) {
+            for (const m of monitsByTermo.get(tk) || []) candidatoMap.set(m.id, m);
+          }
           const candidatos = candidatoMap.size > 0 ? Array.from(candidatoMap.values()) : monitoramentos;
-          let matched: (Monitoramento & { coordenacao_id?: string | null }) | null = null;
+          // Uma publicação vai para TODAS as coordenações cujo termo casar
+          // (1 monitoramento por coordenação), não só para a primeira.
+          const matchedList: (Monitoramento & { coordenacao_id?: string | null })[] = [];
+          const matchedCoords = new Set<string>();
           let motivoExcl: string | null = null;
           let bloqueadoPorTribunal = false;
           for (const m of candidatos) {
@@ -1114,8 +1124,10 @@ Deno.serve(async (req: Request) => {
               }
               const motivo = shouldExclude(searchable || conteudo, m.exclusoes || [], null, null);
               if (motivo) { motivoExcl = motivo; continue; }
-              matched = m;
-              break;
+              const ck = String((m as any).coordenacao_id ?? "null");
+              if (matchedCoords.has(ck)) continue;
+              matchedCoords.add(ck);
+              matchedList.push(m);
             } catch (e) {
               console.warn(`[kurier] erro matching monit ${m.id}:`, String(e));
             }
@@ -1144,7 +1156,7 @@ Deno.serve(async (req: Request) => {
             id_kurier: idKEff,
           };
 
-          if (matched) {
+          for (const matched of matchedList) {
             // Sempre insere o item Kurier mesmo que já exista vindo do DJEN
             // Termos (id_djen=null dribla o unique coord+id_djen; hash único
             // garante que múltiplas execuções/lotes não colidam). O usuário
@@ -1224,7 +1236,8 @@ Deno.serve(async (req: Request) => {
             }
             }
 
-          } else if (capturaTotalCoords.length === 0) {
+          }
+          if (matchedList.length === 0 && capturaTotalCoords.length === 0) {
             totalDescartadas++;
             motivoDescarte = motivoDescarte ?? (
               motivoExcl
@@ -1244,7 +1257,7 @@ Deno.serve(async (req: Request) => {
             // pulamos para não duplicar a mesma linha desnecessariamente. Mas
             // se o match não inseriu (ex.: 23505 por já existir vindo do DJEN
             // Termos OU sem_match), seguimos com a captura total.
-            if (matched && (matched.coordenacao_id ?? null) === ct.id && (publicacaoDjenId || batchMode)) continue;
+            if (matchedCoords.has(String(ct.id)) && (publicacaoDjenId || batchMode)) continue;
             if (batchMode) {
               const chave = `${String(ct.id)}|${hashConteudo}`;
               pendentesInsert.push({
