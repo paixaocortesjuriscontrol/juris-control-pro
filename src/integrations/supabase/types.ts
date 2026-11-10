@@ -12378,10 +12378,6 @@ export type Database = {
         Args: { _coordenacao_id: string }
         Returns: boolean
       }
-      is_participante_tarefa: {
-        Args: { _tarefa: string; _user: string }
-        Returns: boolean
-      }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       jsonb_text_array: { Args: { j: Json }; Returns: string[] }
       kurier_normalize_conteudo_sem_parte_intimacao: {
@@ -12531,6 +12527,7 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sou_participante_tarefa: { Args: { _tarefa: string }; Returns: boolean }
       strip_destinatarios: { Args: { content: string }; Returns: string }
       subtrair_dias_uteis: {
         Args: { data_base: string; dias_uteis_subtrair: number }
