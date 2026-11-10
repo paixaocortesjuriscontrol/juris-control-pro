@@ -220,8 +220,14 @@ export function NovaTarefaDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
       const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-      const pode = (roles || []).some((r: any) => ["admin", "coordenador", "assistente_coordenador"].includes(r.role));
-      if (!pode) return null;
+      const pode = (roles || []).some((r: any) => r.role === "admin" || /coordenador/i.test(String(r.role)));
+      let podeFinal = pode;
+      if (!podeFinal) {
+        // Perfis/cargos com "coordenador" no nome (ex.: advogado coordenador)
+        const { data: cargos } = await supabase.from("membros_coordenacao").select("cargo").eq("user_id", user.id);
+        podeFinal = (cargos || []).some((c: any) => /coordenador/i.test(String(c.cargo || "")));
+      }
+      if (!podeFinal) return null;
       const { data } = await supabase.from("coordenacoes").select("id, nome, area").order("nome");
       return (data || []).map((c: any) => ({ id: c.id, nome: c.nome, area: c.area || "" }));
     },
