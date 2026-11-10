@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Loader2, Zap, FileSpreadsheet } from "lucide-react";
-import { baixarRelatorioIara, filtrarSituacao, type LinhaDjenAuto, type SituacaoDjen } from "@/lib/relatorioDistribuicaoDjenAuto";
+import { baixarRelatorioIara, baixarRelatorioPresidencia, filtrarNaPresidencia, type PubDistribuicao, filtrarSituacao, type LinhaDjenAuto, type SituacaoDjen } from "@/lib/relatorioDistribuicaoDjenAuto";
 
 const hojeBr = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 const inicioMes = () => hojeBr().slice(0, 8) + "01";
@@ -89,6 +89,37 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
     }
   };
 
+  const [gerandoPres, setGerandoPres] = useState(false);
+  const gerarPresidencia = async () => {
+    setGerandoPres(true);
+    try {
+      const linhas = filtrarSituacao(await carregar(), situacao);
+      if (!linhas.length) return toast.info("Nenhum processo nesse período");
+      const pubs: PubDistribuicao[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("publicacoes_djen" as any)
+          .select("processo_numero, data_publicacao, conteudo")
+          .eq("coordenacao_id", "b0f690ad-68da-43d7-af5f-9adafeab3fd5")
+          .ilike("tipo_comunicacao", "%lista de distribui%")
+          .gte("data_publicacao", "2026-01-01")
+          .order("id")
+          .range(from, from + 999);
+        if (error) throw error;
+        pubs.push(...((data as any[]) || []));
+        if (!data || data.length < 1000) break;
+      }
+      const filtradas = filtrarNaPresidencia(linhas, pubs);
+      if (!filtradas.length) return toast.info("Nenhum processo ainda na Presidência - Admissibilidade nesse período");
+      baixarRelatorioPresidencia(filtradas, `presidencia-admissibilidade-${de}-a-${ate}.xlsx`);
+      toast.success(`Relatório gerado com ${filtradas.length} processo(s)`);
+    } catch (e: any) {
+      toast.error("Erro ao gerar relatório: " + e.message);
+    } finally {
+      setGerandoPres(false);
+    }
+  };
+
   return (
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
@@ -150,6 +181,10 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
             <Button className="w-full" onClick={gerar} disabled={gerando}>
               {gerando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
               Gerar planilha
+            </Button>
+            <Button variant="secondary" className="w-full" onClick={gerarPresidencia} disabled={gerandoPres}>
+              {gerandoPres ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
+              Só Presidência - Admissibilidade (ainda na Presidência)
             </Button>
             {resumo && (
               <p className="text-xs text-muted-foreground">
