@@ -50,13 +50,20 @@ export function useCoordenacoesDoUsuario() {
         .select("id")
         .eq("coordenador_id", userId);
 
+      let podeDelegar = (roles || []).some((r: any) => /coordenador/i.test(String(r.role)));
+      if (!podeDelegar) {
+        const { data: cargos } = await (supabase as any)
+          .from("membros_coordenacao").select("cargo").eq("usuario_id", userId);
+        podeDelegar = (cargos || []).some((c: any) => /coordenador/i.test(String(c.cargo || "")));
+      }
+
       const ids = Array.from(new Set([
         ...(membros || []).map((m: any) => m.coordenacao_id).filter(Boolean),
         ...(coordenador || []).map((c: any) => c.id).filter(Boolean),
       ]));
 
       if (ids.length === 0) {
-        return { isAdmin: false, coordenacoes: [] as CoordenacaoUsuario[] };
+        return { isAdmin: false, podeDelegar, coordenacoes: [] as CoordenacaoUsuario[] };
       }
 
       const { data: coords } = await supabase
@@ -67,6 +74,7 @@ export function useCoordenacoesDoUsuario() {
 
       return {
         isAdmin: false,
+        podeDelegar,
         coordenacoes: (coords || []) as CoordenacaoUsuario[],
       };
     },
@@ -75,8 +83,9 @@ export function useCoordenacoesDoUsuario() {
   const data = query.data;
   const isAdmin = data?.isAdmin ?? false;
   const coordenacoes = data?.coordenacoes ?? [];
-  const unicaCoordenacaoId = !isAdmin && coordenacoes.length === 1 ? coordenacoes[0].id : null;
-  const precisaSelecionar = isAdmin || coordenacoes.length > 1;
+  const podeDelegar = (data as any)?.podeDelegar ?? false;
+  const unicaCoordenacaoId = !isAdmin && !podeDelegar && coordenacoes.length === 1 ? coordenacoes[0].id : null;
+  const precisaSelecionar = isAdmin || podeDelegar || coordenacoes.length > 1;
 
   return {
     isAdmin,
