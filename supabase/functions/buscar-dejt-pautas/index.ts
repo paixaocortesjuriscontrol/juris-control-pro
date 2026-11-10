@@ -762,6 +762,13 @@ async function fetchPdfStream(
  * no DJEN Termos (engine paralela): grupos separados por `|` em OR,
  * termos dentro de um grupo separados por `,` em AND.
  */
+const _normCache = new Map<string, string>();
+function normTermo(s: string): string {
+  let v = _normCache.get(s);
+  if (v === undefined) { v = normalize(s); _normCache.set(s, v); }
+  return v;
+}
+
 function condicaoConcomitanteAtendidaBloco(
   blocoNorm: string,
   condicao?: string | null,
@@ -776,7 +783,7 @@ function condicaoConcomitanteAtendidaBloco(
     const ts = g.split(",").map((t) => t.trim()).filter(Boolean);
     if (ts.length === 0) return true;
     return ts.every((t) => {
-      const tn = normalize(t);
+      const tn = normTermo(t);
       return tn ? blocoNorm.includes(tn) : false;
     });
   });
@@ -789,7 +796,7 @@ function matchBlocoMonitoramento(
   // Exclusões: se qualquer exclusão aparece, descarta.
   if (mon.exclusoes && mon.exclusoes.length > 0) {
     for (const ex of mon.exclusoes) {
-      const exN = normalize(ex);
+      const exN = normTermo(ex);
       if (exN && blocoNorm.includes(exN)) return null;
     }
   }
@@ -800,7 +807,7 @@ function matchBlocoMonitoramento(
   }
   // Termos: qualquer match positivo já basta.
   for (const t of mon.termos || []) {
-    const tn = normalize(t);
+    const tn = normTermo(t);
     if (tn && blocoNorm.includes(tn)) return t;
   }
   // OAB: número simples (ex.: "123456/SP" -> casa "oab 123456 sp" / "oab/sp 123456")
