@@ -12460,6 +12460,7 @@ export type Database = {
         Args: { _tarefa: string; _user: string }
         Returns: boolean
       }
+      pos_djen_servidor_gerar_tst: { Args: never; Returns: undefined }
       processar_restauracao_kurier_lote: { Args: never; Returns: undefined }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
