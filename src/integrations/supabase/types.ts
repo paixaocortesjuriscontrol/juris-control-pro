@@ -2949,6 +2949,7 @@ export type Database = {
         Row: {
           aba_origem: string | null
           acordo: boolean | null
+          advogados_internos: string[]
           analisado: boolean
           analisado_em: string | null
           analisado_por: string | null
@@ -3083,6 +3084,7 @@ export type Database = {
         Insert: {
           aba_origem?: string | null
           acordo?: boolean | null
+          advogados_internos?: string[]
           analisado?: boolean
           analisado_em?: string | null
           analisado_por?: string | null
@@ -3217,6 +3219,7 @@ export type Database = {
         Update: {
           aba_origem?: string | null
           acordo?: boolean | null
+          advogados_internos?: string[]
           analisado?: boolean
           analisado_em?: string | null
           analisado_por?: string | null
