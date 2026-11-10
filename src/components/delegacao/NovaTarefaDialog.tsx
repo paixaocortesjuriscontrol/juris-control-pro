@@ -209,11 +209,30 @@ export function NovaTarefaDialog({
   const [recorrenciaFim, setRecorrenciaFim] = useState<string>("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { precisaSelecionar, unicaCoordenacaoId, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
-  // Se a prop não trouxer coordenações (ex.: chamadas antigas), usamos a lista do hook.
-  const coordenacoesDisponiveis = (coordenacoes && coordenacoes.length > 0)
+  const { precisaSelecionar: precisaSelecionarBase, unicaCoordenacaoId: unicaBase, coordenacoes: coordenacoesUsuario } = useCoordenacoesDoUsuario();
+  // Coordenador, assistente de coordenação e admin podem delegar para qualquer coordenação.
+  const { data: todasCoordsDelegacao } = useQuery({
+    queryKey: ["coordenacoes-delegacao-todas"],
+    enabled: open,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const pode = (roles || []).some((r: any) => ["admin", "coordenador", "assistente_coordenador"].includes(r.role));
+      if (!pode) return null;
+      const { data } = await supabase.from("coordenacoes").select("id, nome, area").order("nome");
+      return (data || []).map((c: any) => ({ id: c.id, nome: c.nome, area: c.area || "" }));
+    },
+  });
+  const baseCoords = (coordenacoes && coordenacoes.length > 0)
     ? coordenacoes
     : coordenacoesUsuario.map((c) => ({ id: c.id, nome: c.nome, area: c.area || "" }));
+  const coordenacoesDisponiveis = todasCoordsDelegacao && todasCoordsDelegacao.length > 0
+    ? [...baseCoords, ...todasCoordsDelegacao.filter((c) => !baseCoords.some((b) => b.id === c.id))]
+    : baseCoords;
+  const precisaSelecionar = precisaSelecionarBase || coordenacoesDisponiveis.length > 1;
+  const unicaCoordenacaoId = unicaBase; // usada como sugestão inicial
   
   // Buscar usuário atual para salvar criado_por
   const { data: userData } = useQuery({
