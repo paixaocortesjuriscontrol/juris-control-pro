@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { ResponsaveisSelector } from "@/components/distribuicao-tst/ResponsaveisSelector";
 import { EquipeTstSelect } from "@/components/distribuicao-tst/EquipeTstSelect";
+import { AdvogadosInternosInput } from "@/components/distribuicao-tst/AdvogadosInternosInput";
 import { MateriasMultiSelect } from "@/components/distribuicao-tst/MateriasMultiSelect";
 import { usePedidosPorDossie } from "@/hooks/usePedidosPorDossie";
 import {
@@ -1425,6 +1426,13 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
             <div className="space-y-2">
               <Label>Equipe<ReqMark /></Label>
               <EquipeTstSelect value={form.equipe} onChange={v => set("equipe", v)} baseOptions={getEquipeOptions(form.equipe)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Advogado interno</Label>
+              <AdvogadosInternosInput
+                value={form.advogados_internos ?? []}
+                onChange={v => set("advogados_internos" as any, v)}
+              />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
