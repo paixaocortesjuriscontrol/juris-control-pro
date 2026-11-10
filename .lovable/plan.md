@@ -1,20 +1,19 @@
-# Publicação 0000078-28.2026.5.10.0018 (05/11/2026) fora da Coordenação Dra. Janaina
+# Execução DJEN Servidor que nunca termina e botão "Destravar"
 
-## O que encontrei
-- O processo está cadastrado na Coordenação Dra. Janaina Catunda.
-- A publicação chegou pelo Kurier (logins paixaoc e paixao.cortes.adv) em 06/11/2026 e foi gravada só na **Coordenação GOL** e nas coordenações "Somente Kurier".
-- Motivo 1 — grafia do termo: o termo da Dra. Janaina é **"REDE D'OR SAO LUIZ"** (com apóstrofo, só TRT10). A publicação escreve **"REDE DOR SAO LUIZ"** (sem apóstrofo). A comparação não ignora o apóstrofo, então não casou.
-- Motivo 2 — só uma coordenação por publicação: na rotina do Kurier, quando um termo casa, ela para no primeiro e grava só naquela coordenação. A GOL casou primeiro pelo termo de advogado "OSMAR MENDES PAIXAO"; mesmo que o termo da Dra. Janaina casasse, ela ficaria de fora.
-- A Dra. Janaina não tem captura total no Kurier (vínculos marcados como "Termos DJEN"), então depende só dos termos.
+## O que encontrei (10/11/2026, horário de Brasília)
+- As execuções das **04:30** e das **10:00** buscaram os 236 itens (todos "concluído"), mas nunca foram marcadas como finalizadas. O servidor continuou mandando sinal de vida até 15:20, por isso o sistema não as encerrou sozinho.
+- Ou seja: o travamento acontece **depois da busca**, na etapa final (gravar resumo, descartar duplicadas, avisos), e não na consulta ao DJEN.
+- Às 15:25 alguém clicou em Destravar e as duas ficaram como "Canceladas". As execuções das 06:00, 07:30, 13:00 e 15:00 terminaram normalmente. Agora não há nada rodando e os servidores estão livres.
+- O botão "Destravar (350s sem sinal)" na tela é da execução das 15:00, que **já terminou** às 15:00:27. A tela não percebeu o fim e continuou mostrando a execução como ativa.
 
 ## O que vou fazer
-1. **Ignorar apóstrofos e pontuação** na comparação de termos de parte/advogado do Kurier (D'OR = DOR = D OR). Vale também para o motor DJEN Servidor, se ele tiver a mesma falha.
-2. **Gravar em todas as coordenações cujo termo casar**, não só na primeira. Cada coordenação continua respeitando os próprios termos, exclusões e tribunais (isolamento preservado). Regras de parte só em partes e advogado só em advogados continuam.
-3. **Recuperar esta publicação** na Coordenação Dra. Janaina, como não lida.
-4. **Varrer as publicações Kurier desde 01/10/2026** que deixaram de entrar em alguma coordenação por esses dois motivos e entregar a elas (sem duplicar o que já existe), com relatório da quantidade por coordenação.
-5. Teste automático: "REDE D'OR SAO LUIZ" casa com "REDE DOR SAO LUIZ"; publicação que casa termos de duas coordenações vai para as duas.
+1. **Tela:** só mostrar Executando/Cancelar/Destravar quando a execução estiver de fato em andamento no banco; ao terminar, a tela atualiza sozinha e libera "Executar Servidor".
+2. **Proteção no servidor:** se todos os itens estiverem concluídos e a execução não for finalizada em 10 minutos, o sistema a finaliza como "concluída com aviso" (sem perder o que foi encontrado) e avisa os administradores, como já acontece com o sinal de vida parado.
+3. **Causa da etapa final:** investigar no código do servidor (VPS) qual passo após a busca fica preso e colocar limite de tempo nele, registrando no erro qual passo demorou.
+4. **Conferir as execuções das 04:30 e 10:00:** verificar se as publicações encontradas foram gravadas na Análise DJEN; se faltar alguma, recuperar.
 
 ## Detalhes técnicos
-- `supabase/functions/kurier-consultar-publicacoes/index.ts`: o laço de candidatos (≈linha 1101) faz `break` no primeiro `matched`; trocar por lista de matches, uma por `coordenacao_id`, inserindo cada uma (mesma lógica de dedup por `coord|hash`). Captura total já pula coords que receberam via match.
-- Normalização em `_kurier-shared/djenMatch*.ts`: remover `'’´\`` e pontuação antes de comparar termo e texto; conferir o equivalente no worker/paralela do Servidor.
-- Recuperação via `kurier_publicacoes_raw` reprocessada com a nova regra, em lotes, inserindo em `publicacoes_djen` com o `monitoramento_id` do termo casado.
+- `execucoes_servidor`: casos com `progresso.itens` 100% `concluido`, `heartbeat_at` atualizando e sem `finalizado_em`.
+- Ajustar `reaper_execucoes_servidor_travadas` com a regra "itens completos + sem finalização há 10 min" (não enfileira retomada).
+- Componente do botão na tela DJEN Servidor: derivar estado de `status` + `finalizado_em` e invalidar a consulta ao receber a finalização.
+- Worker: timeout por passo na finalização (descarte de duplicadas, resumo, alerta de diferença).
