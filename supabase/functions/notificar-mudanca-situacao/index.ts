@@ -49,6 +49,8 @@ function fmtData(iso?: string | null): string {
     return new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
   } catch { return String(iso); }
 }
+import { montarAssunto } from "./assunto.ts";
+
 function esc(s: any): string {
   return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -404,7 +406,7 @@ serve(async (req) => {
 
         const tituloItem = item.titulo ?? labelEntidade(item.entidade);
         const conteudoComentario: string = String(ctx.conteudo ?? "");
-        const assunto = isMencao
+        const assuntoBase = isMencao
           ? `[${labelEntidade(item.entidade)}] Você foi mencionado — ${tituloItem}`
           : isCobranca
           ? `[${labelEntidade(item.entidade)}] Cobrança — ${tituloItem}`
@@ -415,6 +417,9 @@ serve(async (req) => {
           : isComentario
           ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
           : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
+        // Sempre a coordenação da atividade e o número do processo, para não
+        // misturar no Gmail atividades diferentes com o mesmo título.
+        const assunto = montarAssunto(assuntoBase, coordNome, detalhes["Processo"] ?? null);
 
         const linhas: string[] = isComentario ? [
           `${labelEntidade(item.entidade)}: ${tituloItem}`,
@@ -517,10 +522,7 @@ serve(async (req) => {
           if (!dentroDaJanela(cfg.janela_hora_inicio, cfg.janela_hora_fim)) continue;
 
           if (canalPermitido(cfg, "email", item.tipo_evento, ctx.criacao === true) && p.email) {
-            const assuntoUsuario = coordNome && (qtdCoordPorUsuario.get(p.id) ?? 0) > 1
-              ? `[${coordNome}] ${assunto}`
-              : assunto;
-            const r = await enviarEmail(p.email, assuntoUsuario, corpo, html);
+            const r = await enviarEmail(p.email, assunto, corpo, html);
             await supabase.from("historico_alertas_enviados").insert({
               tipo_alerta: item.tipo_evento, canal: "email", destinatario: p.email,
               coordenacao_id: item.coordenacao_id ?? null,
