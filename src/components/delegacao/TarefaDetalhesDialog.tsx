@@ -4,7 +4,7 @@ import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
+import { getSignedUrlOrEmpty, baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeFileName } from "@/lib/utils";
@@ -899,20 +899,8 @@ export function TarefaDetalhesDialog({
                           <button 
                             onClick={async () => {
                               if (!doc.url) return;
-                              try {
-                                const response = await fetch(doc.url);
-                                const blob = await response.blob();
-                                const url = window.URL.createObjectURL(blob);
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = doc.nome;
-                                document.body.appendChild(a);
-                                a.click();
-                                window.URL.revokeObjectURL(url);
-                                document.body.removeChild(a);
-                              } catch (error) {
-                                toast({ title: "Erro ao baixar documento", variant: "destructive" });
-                              }
+                              const ok = await baixarDocumentoArmazenado(doc.url, doc.nome);
+                              if (!ok) toast({ title: "Erro ao baixar documento", variant: "destructive" });
                             }}
                             className="flex items-center gap-2 flex-1 min-w-0 text-left"
                           >

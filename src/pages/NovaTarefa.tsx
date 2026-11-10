@@ -6,7 +6,7 @@ import { z } from "zod";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { supabase } from "@/integrations/supabase/client";
-import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
+import { getSignedUrlOrEmpty, baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { format } from "date-fns";
 import { MainLayout } from "@/components/layout/MainLayout";
 import {
@@ -1109,7 +1109,7 @@ export default function NovaTarefa() {
                               variant="ghost"
                               size="icon"
                               className="h-8 w-8"
-                              onClick={() => window.open(doc.url, '_blank')}
+                              onClick={async () => { if (!(await baixarDocumentoArmazenado(doc.url, doc.nome))) alert('Não foi possível baixar o documento.'); }}
                             >
                               <Download className="w-4 h-4" />
                             </Button>

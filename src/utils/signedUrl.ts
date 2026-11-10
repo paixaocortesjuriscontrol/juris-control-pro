@@ -34,3 +34,34 @@ export async function getSignedUrlOrEmpty(
 ): Promise<string> {
   return (await getSignedDocumentUrl(bucket, filePath)) ?? "";
 }
+
+/**
+ * Baixa um documento do bucket documentos_processos sempre gerando um link novo
+ * (os links gravados no banco expiram). Retorna false se não conseguiu.
+ */
+export async function baixarDocumentoArmazenado(urlGravada: string, nome: string): Promise<boolean> {
+  let url = urlGravada || "";
+  const m = url.match(/\/object\/(?:sign|public)\/documentos_processos\/([^?]+)/);
+  if (m) {
+    const novo = await getSignedDocumentUrl("documentos_processos", decodeURIComponent(m[1]));
+    if (!novo) return false;
+    url = novo;
+  }
+  if (!url) return false;
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return false;
+    const blob = await resp.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = nome || "documento";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 30_000);
+    return true;
+  } catch {
+    return false;
+  }
+}

@@ -85,7 +85,7 @@ import {
   type LinhaSerie,
 } from "@/utils/recorrencia";
 
-import { getSignedUrlOrEmpty } from "@/utils/signedUrl";
+import { getSignedUrlOrEmpty, baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft,
@@ -1731,7 +1731,7 @@ export function ProcessoDetalhesCompletos({
                               )}
                               {analyzingDocId === doc.id ? 'Analisando...' : 'Analisar IA'}
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(doc.url, '_blank')}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => { if (!(await baixarDocumentoArmazenado(doc.url, doc.nome))) alert('Não foi possível baixar o documento.'); }}>
                               <Download className="w-4 h-4" />
                             </Button>
                             <Button
