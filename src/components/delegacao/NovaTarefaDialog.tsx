@@ -224,7 +224,7 @@ export function NovaTarefaDialog({
       let podeFinal = pode;
       if (!podeFinal) {
         // Perfis/cargos com "coordenador" no nome (ex.: advogado coordenador)
-        const { data: cargos } = await supabase.from("membros_coordenacao").select("cargo").eq("user_id", user.id);
+        const { data: cargos } = await (supabase as any).from("membros_coordenacao").select("cargo").eq("user_id", user.id);
         podeFinal = (cargos || []).some((c: any) => /coordenador/i.test(String(c.cargo || "")));
       }
       if (!podeFinal) return null;
