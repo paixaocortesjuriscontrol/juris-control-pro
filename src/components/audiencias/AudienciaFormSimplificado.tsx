@@ -697,6 +697,7 @@ export function AudienciaFormSimplificado({
 
       {precisaSelecionar && (
         <CoordenacaoSelect
+ delegacao
           value={coordenacaoId}
           onChange={setCoordenacaoId}
           required

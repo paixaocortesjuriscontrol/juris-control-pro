@@ -1219,6 +1219,7 @@ export function PrazoDialog({
           </div>
           {precisaSelecionar && (
             <CoordenacaoSelect
+ delegacao
               value={coordenacaoId}
               onChange={setCoordenacaoId}
               className="space-y-1.5"

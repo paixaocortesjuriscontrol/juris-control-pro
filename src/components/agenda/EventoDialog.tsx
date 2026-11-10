@@ -899,6 +899,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             {/* Coordenação (sempre visível para admin/multi) */}
             {precisaSelecionar && hasPublicacao && (
               <CoordenacaoSelect
+ delegacao
                 value={coordenacaoId}
                 onChange={setCoordenacaoId}
                 required
@@ -910,6 +911,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               {precisaSelecionar && !hasPublicacao && (
                 <div className="pb-2 border-b mb-2">
                   <CoordenacaoSelect
+ delegacao
                     value={coordenacaoId}
                     onChange={setCoordenacaoId}
                     required

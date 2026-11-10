@@ -17,6 +17,8 @@ interface CoordenacaoSelectProps {
   label?: string;
   required?: boolean;
   className?: string;
+  /** Delegação: perfis/cargos com "coordenador" no nome veem todas as coordenações. */
+  delegacao?: boolean;
 }
 
 /**
@@ -32,11 +34,12 @@ export function CoordenacaoSelect({
   label = "Coordenação",
   required,
   className,
+  delegacao,
 }: CoordenacaoSelectProps) {
   const { user } = useAuth();
 
   const { data } = useQuery({
-    queryKey: ["coordenacao-select", user?.id],
+    queryKey: ["coordenacao-select", user?.id, !!delegacao],
     queryFn: async () => {
       const userId = user?.id ?? "";
       const { data: roleData } = await supabase
@@ -66,6 +69,22 @@ export function CoordenacaoSelect({
       const coordIds = coordenadas?.map((c: any) => c.id) ?? [];
 
       const allIds = [...new Set([...ids, ...coordIds])];
+
+      if (delegacao) {
+        let podeTodas = (roleData || []).some((r: any) => /coordenador/i.test(String(r.role)));
+        if (!podeTodas) {
+          const { data: cargos } = await (supabase as any)
+            .from("membros_coordenacao").select("cargo").eq("usuario_id", userId);
+          podeTodas = (cargos || []).some((c: any) => /coordenador/i.test(String(c.cargo || "")));
+        }
+        if (podeTodas) {
+          const { data: all } = await supabase.from("coordenacoes").select("id, nome").order("nome");
+          const lista = all ?? [];
+          const proprias = lista.filter((c: any) => allIds.includes(c.id));
+          const outras = lista.filter((c: any) => !allIds.includes(c.id));
+          return { coordenacoes: [...proprias, ...outras], defaultId: proprias[0]?.id ?? null };
+        }
+      }
       if (allIds.length === 0) return { coordenacoes: [], defaultId: null };
 
       const { data: coords } = await supabase
