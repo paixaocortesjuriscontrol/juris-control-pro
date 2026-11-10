@@ -12378,6 +12378,10 @@ export type Database = {
         Args: { _coordenacao_id: string }
         Returns: boolean
       }
+      is_participante_tarefa: {
+        Args: { _tarefa: string; _user: string }
+        Returns: boolean
+      }
       is_user_active: { Args: { _user_id: string }; Returns: boolean }
       jsonb_text_array: { Args: { j: Json }; Returns: string[] }
       kurier_normalize_conteudo_sem_parte_intimacao: {
