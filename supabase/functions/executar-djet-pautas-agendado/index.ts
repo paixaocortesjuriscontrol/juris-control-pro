@@ -617,6 +617,7 @@ async function runJob(
           await flushProgresso(true);
           return;
         }
+        await new Promise((r) => setTimeout(r, 300));
         const dataDDMMYYYY = ymdToDdmmyyyy(dataYmd);
         item.mensagem = `Processando ${dataDDMMYYYY}`;
         // Pula sábado/domingo: DEJT não publica caderno novo.
@@ -657,8 +658,10 @@ async function runJob(
             const pageEnd = Math.min(pageStart + CHUNK_PAGES - 1, numPages);
             const requestPageStart = chunkIdx === 0 ? pageStart : Math.max(1, pageStart - OVERLAP_PAGES);
             // Retry transiente (HTTP 5xx/546) por chunk
+            if (chunkIdx > 0) await new Promise((r) => setTimeout(r, 300));
             let resp: Response | null = null;
             let lastStatus = 0;
+            let rateLimitTentativas = 0;
             for (let attempt = 0; attempt < 3; attempt++) {
               resp = await fetch(`${supabaseUrl}/functions/v1/buscar-dejt-pautas`, {
                 method: "POST",
@@ -679,6 +682,24 @@ async function runJob(
               });
               lastStatus = resp.status;
               if (resp.ok) break;
+              // Limite de chamadas entre funções do servidor: espera o tempo
+              // indicado e tenta o mesmo trecho de novo (até 5 vezes).
+              if (resp.status === 429 && rateLimitTentativas < 5) {
+                const txt = await resp.clone().text().catch(() => "");
+                if (resp.status === 429 || /rate limit exceeded/i.test(txt)) {
+                  rateLimitTentativas++;
+                  const m = txt.match(/retry after (\d+)\s*ms/i);
+                  const ra = Number(resp.headers.get("retry-after") || 0);
+                  const espera = Math.min(60000, (m ? Number(m[1]) : ra > 0 ? ra * 1000 : 10000) + 500);
+                  if (await isExecucaoServidorCancelada(supabase, execucaoServidorId)) break;
+                  item.mensagem = `Aguardando liberação do servidor (${Math.ceil(espera / 1000)}s)`;
+                  await flushProgresso(true);
+                  await new Promise((r) => setTimeout(r, espera));
+                  item.mensagem = `Processando ${dataDDMMYYYY}`;
+                  attempt--;
+                  continue;
+                }
+              }
               if (resp.status >= 500 || resp.status === 546) {
                 await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
                 continue;
