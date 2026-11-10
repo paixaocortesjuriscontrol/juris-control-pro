@@ -1,3 +1,4 @@
+import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -1699,16 +1700,7 @@ export function NovaTarefaDialog({
                               size="icon"
                               className="h-6 w-6"
                               title="Baixar documento"
-                              onClick={() => {
-                                const a = document.createElement("a");
-                                a.href = anexo.url!;
-                                a.download = anexo.nome || anexo.file?.name || "documento";
-                                a.target = "_blank";
-                                a.rel = "noopener";
-                                document.body.appendChild(a);
-                                a.click();
-                                document.body.removeChild(a);
-                              }}
+                              onClick={() => { void baixarDocumentoArmazenado(anexo.url!, anexo.nome || anexo.file?.name || "documento"); }}
                             >
                               <Download className="w-3 h-3" />
                             </Button>

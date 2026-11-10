@@ -1,3 +1,4 @@
+import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { useState, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -296,13 +297,7 @@ export function ProcessoDocumentosTab({
 
   const handleDownload = (doc: any) => {
     if (doc.url) {
-      const link = document.createElement("a");
-      link.href = doc.url;
-      link.download = doc.nome;
-      link.target = "_blank";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      void baixarDocumentoArmazenado(doc.url, doc.nome);
     }
   };
 

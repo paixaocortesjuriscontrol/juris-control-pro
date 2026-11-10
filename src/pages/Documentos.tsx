@@ -1,3 +1,4 @@
+import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { useState, useMemo } from "react";
 import {
   FileText,
@@ -358,7 +359,7 @@ const Documentos = () => {
                         <DropdownMenuContent align="end">
                           {documento.url && (
                             <DropdownMenuItem asChild>
-                              <a href={documento.url} target="_blank" rel="noopener noreferrer">
+                              <a href={documento.url} onClick={(e) => { if (/documentos_processos\//.test(documento.url || "")) { e.preventDefault(); void baixarDocumentoArmazenado(documento.url!, documento.nome || "documento"); } }} target="_blank" rel="noopener noreferrer">
                                 <ExternalLink className="w-4 h-4 mr-2" />
                                 Abrir Link
                               </a>

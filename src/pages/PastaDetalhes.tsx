@@ -1,3 +1,4 @@
+import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { useState, useCallback } from "react";
 import { toast } from "sonner";
 import { useParams, useNavigate } from "react-router-dom";
@@ -103,6 +104,7 @@ export default function PastaDetalhes() {
 
   const handleDownload = useCallback(async (url: string, fileName: string) => {
     try {
+      if (await baixarDocumentoArmazenado(url, fileName)) return;
       const response = await fetch(url);
       if (!response.ok) throw new Error("Erro ao baixar arquivo");
       
