@@ -1,23 +1,24 @@
-# DJEN Pautas em paralelo
+# DJEN Pautas: não perder tribunais por "Rate limit exceeded"
 
-## Objetivo
-Hoje o DJEN Pautas lê um tribunal de cada vez, do TST ao TRT24. Quando chega a um caderno grande, como o TRT2, todos os outros esperam. A ideia é ler **4 tribunais ao mesmo tempo**, para a busca terminar mais rápido.
+## O que aconteceu
+Na busca de 05/11 a 06/11, iniciada às 18:18, o TST e os TRT1 a TRT14 terminaram normalmente. Do TRT15 ao TRT24, todos falharam com "Rate limit exceeded for trace ...".
 
-## O que muda para quem usa
-- Vários cartões de tribunal ficam "executando" ao mesmo tempo, e não só um.
-- Um tribunal grande (TRT2, TRT1, TRT5) não segura mais os outros.
-- Cancelar, Force kill e Reset total continuam funcionando. Ao cancelar, os tribunais em andamento param no próximo dia ou trecho de páginas.
-- O resultado final não muda: as mesmas publicações novas, repetidas e descartadas.
+Esse aviso não vem do site do DEJT. Ele vem do nosso servidor. A busca de pautas chama a função de leitura do caderno uma vez para cada tribunal, dia e trecho de páginas. Todas essas chamadas fazem parte da mesma execução. Quando passam de um limite por minuto, o servidor manda esperar alguns segundos ("Retry after 21696ms", ou seja, cerca de 22 segundos).
 
-## Riscos e cuidados
-- O site do DEJT pode recusar acessos em excesso. Por isso o limite é 4 de cada vez. Se surgirem muitas falhas, baixamos para 2.
-- A busca inteira continua com o mesmo tempo máximo de execução no servidor. Rodar em paralelo só diminui o tempo total.
+Hoje o sistema não espera. Ele marca o tribunal como erro e segue para o próximo, que também falha. Por isso os 10 últimos tribunais caíram em sequência.
+
+## Correção
+1. Quando vier esse aviso, o sistema espera o tempo indicado e tenta de novo o mesmo trecho, sem marcar erro. São até 5 tentativas, com espera máxima de 60 segundos cada.
+2. Entre um trecho de páginas e o próximo, fazer uma pausa curta de cerca de 300 ms, para não chegar ao limite tão rápido em buscas de vários dias.
+3. Enquanto espera, o cartão do tribunal mostra "Aguardando liberação do servidor (Xs)", e não erro.
+4. Rodar de novo a busca de 05/11 a 06/11, para recuperar o TRT15 a TRT24, e conferir que todos terminam.
+
+## O que esperar
+- A busca pode demorar um pouco mais quando houver esperas, mas não perde mais tribunais.
+- O resultado dos tribunais que já terminaram não muda.
 
 ## Detalhes técnicos
-- `supabase/functions/executar-djet-pautas-agendado/index.ts`: trocar o laço `for (const tribunal of TRIBUNAIS_DEJT)` por um pool de concorrência (constante `CONCORRENCIA_TRIBUNAIS = 4`). Cada worker pega o próximo tribunal de uma fila compartilhada e executa o mesmo corpo atual, que vai para uma função `processarTribunal(tribunal)`.
-- O estado atual de cada tribunal (`edicoesLidasNestaRodada`, contadores, `matches`) já é local por tribunal e continua assim.
-- `progresso.atual` passa a mostrar o tribunal executado mais recentemente. Os cartões já mostram o status de cada item.
-- `flushProgresso`: trocar por uma gravação serializada (uma promessa encadeada), para duas gravações em paralelo não sobrescreverem o progresso. Totais (`novas`, `registros_processados`) são somados a partir dos itens na hora de gravar.
-- Cancelamento: quando um worker detecta o cancelamento, marca uma flag compartilhada. Os outros workers saem no próximo ponto de verificação. Os itens pendentes ou em execução ficam como cancelados.
-- Inserções/deduplicação no banco não mudam (já são idempotentes por hash e coordenação).
-- Deploy da função e acompanhamento de uma execução manual de 10/11 para comparar o tempo com o atual.
+- `supabase/functions/executar-djet-pautas-agendado/index.ts`, no laço de retry do `fetch` para `buscar-dejt-pautas`: tratar `resp.status === 429` (ou corpo com "Rate limit exceeded") como transitório. Ler `Retry after (\d+)ms` do corpo ou o header `Retry-After`, esperar esse tempo mais 500 ms (teto de 60 s), até 5 tentativas próprias, separadas das 3 tentativas de erros 5xx.
+- Durante a espera, atualizar `item.mensagem` e chamar `flushProgresso`. Antes de esperar, checar o cancelamento.
+- Pausa de 300 ms entre chunks (`CHUNK_PAGES`) e entre dias.
+- Deploy da função e nova execução manual de 05/11 a 06/11, conferindo em `execucoes_agendadas.detalhes.progresso` que nenhum item termina em `erro`.
