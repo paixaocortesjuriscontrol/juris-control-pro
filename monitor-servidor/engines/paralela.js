@@ -1362,6 +1362,25 @@ async function buscarTermo(slot, mon, dia, tribunal, signal) {
       }
     }
   }
+  // Tipo geral (palavra-chave): termos_or também viram buscas por texto
+  // separadas. Antes eram ignorados aqui, então variações como
+  // "REDE DOR SAO LUIZ" (sem apóstrofo) nunca eram consultadas no DJEN.
+  if (!signal?.aborted && tipo !== "advogado" && tipo !== "processo" && Array.isArray(mon.termos_or)) {
+    for (const termoOr of mon.termos_or) {
+      if (signal?.aborted) break;
+      const t = String(termoOr || "").trim();
+      if (!t || normalize(t) === normalize(mon.termo_busca || "")) continue;
+      const paramsOr = { ...baseParams({ ...mon, termo_busca: t }, dia, tribunal) };
+      await delay(1800, signal);
+      if (signal?.aborted) break;
+      try {
+        const orItems = await buscarPaginado(slot, paramsOr, signal);
+        mesclarItensPorId(items, orItems, { __termoOrGeral: t });
+      } catch (_) {
+        // best-effort
+      }
+    }
+  }
   return items;
 }
 
