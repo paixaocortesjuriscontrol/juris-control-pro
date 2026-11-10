@@ -50,14 +50,16 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
     }
   };
 
-  const carregar = async (): Promise<LinhaDjenAuto[]> => {
+  const carregar = async (semPeriodo = false): Promise<LinhaDjenAuto[]> => {
     const out: LinhaDjenAuto[] = [];
     for (let from = 0; ; from += 1000) {
       let q = supabase
         .from("dados_benner" as any)
         .select("processo, dossie, equipe, data_distribuicao_real, centralizador, importado_djen_em, ja_existia_antes_djen")
         .not("importado_djen_em", "is", null);
-      if (campo === "lancamento") {
+      if (semPeriodo) {
+        // período aplicado depois, pela data do despacho
+      } else if (campo === "lancamento") {
         q = q.gte("importado_djen_em", `${de}T00:00:00-03:00`).lte("importado_djen_em", `${ate}T23:59:59-03:00`);
       } else {
         q = q.gte("data_distribuicao_real", de).lte("data_distribuicao_real", ate);
@@ -93,7 +95,7 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
   const gerarPresidencia = async () => {
     setGerandoPres(true);
     try {
-      const linhas = filtrarSituacao(await carregar(), situacao);
+      const linhas = filtrarSituacao(await carregar(true), situacao);
       if (!linhas.length) return toast.info("Nenhum processo nesse período");
       const pubs: PubDistribuicao[] = [];
       for (let from = 0; ; from += 1000) {
@@ -109,8 +111,8 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
         pubs.push(...((data as any[]) || []));
         if (!data || data.length < 1000) break;
       }
-      const filtradas = filtrarNaPresidencia(linhas, pubs);
-      if (!filtradas.length) return toast.info("Nenhum processo ainda na Presidência - Admissibilidade nesse período");
+      const filtradas = filtrarNaPresidencia(linhas, pubs, de, ate);
+      if (!filtradas.length) return toast.info("Nenhum processo distribuído para Presidência - Admissibilidade nesse período (data do despacho)");
       baixarRelatorioPresidencia(filtradas, `presidencia-admissibilidade-${de}-a-${ate}.xlsx`);
       toast.success(`Relatório gerado com ${filtradas.length} processo(s)`);
     } catch (e: any) {
@@ -184,7 +186,7 @@ export function DjenAutomaticoSheet({ onAtualizado }: { onAtualizado?: () => voi
             </Button>
             <Button variant="secondary" className="w-full" onClick={gerarPresidencia} disabled={gerandoPres}>
               {gerandoPres ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}
-              Só Presidência - Admissibilidade (ainda na Presidência)
+              Distribuídos para Presidência - Admissibilidade (data do despacho)
             </Button>
             {resumo && (
               <p className="text-xs text-muted-foreground">

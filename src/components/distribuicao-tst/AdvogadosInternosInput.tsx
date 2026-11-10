@@ -21,7 +21,7 @@ export function AdvogadosInternosInput({ value, onChange }: Props) {
     <div className="space-y-2">
       <Input
         value={texto}
-        placeholder="Digite o nome e tecle Enter"
+        placeholder="Advogado do Banco — digite e tecle Enter"
         onChange={e => setTexto(e.target.value)}
         onKeyDown={e => {
           if (e.key === "Enter" || e.key === ",") { e.preventDefault(); adicionar(); }

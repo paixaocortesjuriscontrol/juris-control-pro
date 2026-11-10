@@ -1428,7 +1428,7 @@ export const DistribuicaoTstForm = forwardRef<DistribuicaoTstFormHandle, Props>(
               <EquipeTstSelect value={form.equipe} onChange={v => set("equipe", v)} baseOptions={getEquipeOptions(form.equipe)} />
             </div>
             <div className="space-y-2">
-              <Label>Advogado interno</Label>
+              <Label>Advogado interno (do Banco)</Label>
               <AdvogadosInternosInput
                 value={form.advogados_internos ?? []}
                 onChange={v => set("advogados_internos" as any, v)}
