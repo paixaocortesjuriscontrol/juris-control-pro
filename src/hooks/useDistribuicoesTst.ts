@@ -62,6 +62,7 @@ export interface DistribuicaoTst {
   data_publicacao_djen?: string | null;
   dossie: string | null;
   equipe: string | null;
+  advogados_internos?: string[];
   reclamante: string | null;
   reclamada: string | null;
   relator: string | null;
@@ -326,6 +327,7 @@ export function bennerToDistribuicao(b: any): DistribuicaoTst {
     data_publicacao_djen: b.data_publicacao_djen ?? null,
     dossie: b.dossie ?? null,
     equipe: b.equipe ?? null,
+    advogados_internos: (b as any).advogados_internos ?? [],
     reclamante: b.reclamante ?? null,
     reclamada: b.reclamada ?? null,
     relator: b.relator ?? null,
@@ -414,6 +416,7 @@ export function distribuicaoToBenner(d: Partial<DistribuicaoTstInsert>): Record<
     data_distribuicao_planilha: d.data_distribuicao_planilha,
     data_distribuicao_real: d.data_distribuicao_real,
     equipe: d.equipe,
+    advogados_internos: d.advogados_internos,
     reclamante: d.reclamante,
     reclamada: d.reclamada,
     relator: d.relator,
