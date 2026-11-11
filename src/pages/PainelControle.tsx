@@ -1,4 +1,5 @@
 import { useSessionState } from "@/hooks/useSessionState";
+import { tipoComModalidade, dedupLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -1662,7 +1663,20 @@ export default function PainelControle() {
   ): Promise<any[]> => {
     const dInicio = new Date(inicio + "T00:00:00-03:00");
     const dFim = new Date(fim + "T23:59:59-03:00");
-    const filtrosPeriodo = { ...filters, dataInicio: dInicio, dataFim: dFim };
+    // A planilha de audiências é da coordenação: mesmo na aba Pessoal, usa o
+    // escopo de Escritório (senão faltam audiências em que a pessoa não é envolvida).
+    const escopoAud = escopoEscritorio({
+      verTodas: isAdmin,
+      coordEscolhida: coordId ?? adminCoordFilter,
+      coordenacoesUsuario,
+      coordLoading: false,
+      coordRestritas: isAdminOrCoordinator ? [] : coordRestritas,
+      userId: user?.id,
+    });
+    const baseAud: any = escopoAud
+      ? { ...filters, pessoal: false, responsavelIds: undefined, ...escopoAud }
+      : filters;
+    const filtrosPeriodo = { ...baseAud, dataInicio: dInicio, dataFim: dFim };
     const coletados: any[] = [];
     for (let page = 0; page < 200; page++) {
       const pageItens = await fetchAgendaPage(filtrosPeriodo as any, page, user?.id);
@@ -1725,17 +1739,19 @@ export default function PainelControle() {
           itensAud.map((it: any) => it.processo?.id ?? it.processo_id).filter(Boolean).map(String),
         ),
       );
-      const procInfoById = new Map<string, { uf: string; comarca: string; numero: string }>();
+      const procInfoById = new Map<string, { uf: string; comarca: string; numero: string; poloAtivo: string; poloPassivo: string }>();
       for (let i = 0; i < processoIds.length; i += 200) {
         const { data: procs } = await supabase
           .from("processos")
-          .select("id, uf, comarca, numero")
+          .select("id, uf, comarca, numero, polo_ativo, polo_passivo")
           .in("id", processoIds.slice(i, i + 200));
         (procs || []).forEach((p: any) =>
           procInfoById.set(String(p.id), {
             uf: p.uf ?? "",
             comarca: p.comarca ?? "",
             numero: p.numero ?? "",
+            poloAtivo: p.polo_ativo ?? "",
+            poloPassivo: p.polo_passivo ?? "",
           }),
         );
       }
@@ -1747,7 +1763,7 @@ export default function PainelControle() {
         return `${d}/${m}/${y}`;
       };
 
-      const linhas = itensAud
+      const linhas = dedupLinhasAudiencia(itensAud
         .map((it: any) => {
           const rawId = String(it.id);
           const aud = rawId.startsWith("audiencia-det-")
@@ -1759,15 +1775,15 @@ export default function PainelControle() {
             (aud?.hora ?? "").slice(0, 5) ||
             (it.dia_inteiro ? "" : horaBrt(it.data_inicio)) ||
             (it.hora_fatal ?? "").slice(0, 5);
-          const tipoAud = [aud?.tipo_audiencia, aud?.modalidade].filter(Boolean).join(" ").trim();
+          const tipoAud = tipoComModalidade(aud?.tipo_audiencia, aud?.modalidade);
           return {
             data: fmtData(it.data_vencimento ?? it.data_inicio ?? aud?.data_audiencia),
             hora,
             processo: it.processo?.numero ?? aud?.processo_numero ?? proc?.numero ?? "",
             comarca: aud?.comarca ?? proc?.comarca ?? "",
             uf: proc?.uf ?? "",
-            poloAtivo: aud?.polo_ativo ?? "",
-            cliente: aud?.cliente ?? "",
+            poloAtivo: aud?.polo_ativo || proc?.poloAtivo || "",
+            cliente: aud?.cliente || proc?.poloPassivo || "",
             terceirizado: aud?.terceirizado ?? "",
             tipo: tipoAud || aud?.titulo || it.titulo || "",
             resumo: aud?.resumo_objeto ?? "",
@@ -1784,7 +1800,7 @@ export default function PainelControle() {
           a._ordemData === b._ordemData
             ? a._ordemHora.localeCompare(b._ordemHora)
             : a._ordemData.localeCompare(b._ordemData),
-        );
+        ));
 
       const wb = new ExcelJS.Workbook();
       wb.creator = "JurisControl";
