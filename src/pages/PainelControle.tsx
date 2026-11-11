@@ -976,7 +976,7 @@ export default function PainelControle() {
         const isResp =
           item.responsavel_id === userId ||
           (item as any).responsaveis_ids?.includes(userId) ||
-          item.criado_por === userId;
+          ((item as any).tipo === "evento" && item.criado_por === userId);
         const isEnvolvido = item.participantes?.some((p) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -1896,7 +1896,7 @@ export default function PainelControle() {
         const isResp =
           item.responsavel_id === userId ||
           (item as any).responsaveis_ids?.includes(userId) ||
-          item.criado_por === userId;
+          ((item as any).tipo === "evento" && item.criado_por === userId);
         const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
