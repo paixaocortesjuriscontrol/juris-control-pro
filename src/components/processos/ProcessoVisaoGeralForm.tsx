@@ -1668,6 +1668,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                       </FormField>
                     </>
                   )}
+                  <FormField label="Pasta do Cliente">
+                    <Input className={inputCls} value={form.pasta_cliente || ""} onChange={(e) => update("pasta_cliente", e.target.value)} />
+                  </FormField>
                   <FormField label="Objeto da ação (assunto)" className="md:col-span-2">
                     <AssuntoPicker
                       coordenacaoIds={isUserAdmin ? (form.coordenacao_id ? [form.coordenacao_id] : []) : membrosCoordenacoes}
@@ -2143,9 +2146,6 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <FormField label="Pasta Física">
                     <Input className={inputCls} value={form.pasta_fisica || ""} onChange={(e) => update("pasta_fisica", e.target.value)} />
-                  </FormField>
-                  <FormField label="Pasta do Cliente">
-                    <Input className={inputCls} value={form.pasta_cliente || ""} onChange={(e) => update("pasta_cliente", e.target.value)} />
                   </FormField>
                   <FormField label="Descrição" className="md:col-span-2">
                     <Textarea className="text-sm min-h-[80px]" value={form.descricao || ""} onChange={(e) => update("descricao", e.target.value)} />
