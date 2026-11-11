@@ -7,6 +7,7 @@ interface ItemDrawerProps {
   onOpenChange: (open: boolean) => void;
   titulo: string;
   subtitulo?: string | null;
+  partes?: { ativo: string; passivo: string } | null;
   children: React.ReactNode;
   className?: string;
 }
@@ -20,6 +21,7 @@ export function ItemDrawer({
   onOpenChange,
   titulo,
   subtitulo,
+  partes,
   children,
   className,
 }: ItemDrawerProps) {
@@ -46,6 +48,16 @@ export function ItemDrawer({
               </SheetPrimitive.Description>
             ) : (
               <SheetPrimitive.Description className="sr-only">Detalhes do item</SheetPrimitive.Description>
+            )}
+            {(partes?.ativo || partes?.passivo) && (
+              <div className="mt-1 space-y-0.5 text-[11px] leading-snug text-primary-foreground/80">
+                {partes.ativo && (
+                  <p className="break-words"><strong>Reclamante:</strong> {partes.ativo}</p>
+                )}
+                {partes.passivo && (
+                  <p className="break-words"><strong>Reclamada:</strong> {partes.passivo}</p>
+                )}
+              </div>
             )}
             <SheetPrimitive.Close
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md bg-primary-foreground/15 transition-colors hover:bg-primary-foreground/25"

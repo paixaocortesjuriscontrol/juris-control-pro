@@ -98,6 +98,7 @@ import TstPrazos from "@/pages/TstPrazos";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import { EquipeItensAgenda, type StatusFiltro } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
+import { partesDoItem, usePartesDosProcessos } from "@/hooks/usePartesDosProcessos";
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
@@ -288,6 +289,11 @@ export default function PainelControle() {
   const [somenteHoje, setSomenteHoje] = useState(false);
   // ===== Atalho "Protocolados/Baixados" (Coordenação Dra. Beatriz Costa) =====
   const [modoProtocoladosBaixados, setModoProtocoladosBaixados] = useState(false);
+  const itensPartesSelecionadas = useMemo(() => selectedItem ? [selectedItem] : [], [selectedItem]);
+  const { data: partesProcessoSelecionado } = usePartesDosProcessos(itensPartesSelecionadas);
+  const partesItemSelecionado = selectedItem
+    ? partesDoItem(selectedItem, partesProcessoSelecionado)
+    : null;
 
   // ===== Drill-down vindo do Ranking de Atendimento =====
   const [drill, setDrill] = useState<{
@@ -3442,6 +3448,7 @@ export default function PainelControle() {
         onOpenChange={(o) => { if (!o) setSelectedItem(null); }}
         titulo={selectedItem?.titulo || "Detalhe do item"}
         subtitulo={selectedItem?.processo?.numero ?? null}
+        partes={partesItemSelecionado}
       >
         {selectedItem && (
           <EdicaoItemPanel

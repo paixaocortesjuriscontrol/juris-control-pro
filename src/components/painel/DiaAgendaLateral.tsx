@@ -52,6 +52,7 @@ import {
   type InfoCobranca,
 } from "@/hooks/useCobrancasItens";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
+import { partesDoItem, usePartesDosProcessos, type PartesProcesso } from "@/hooks/usePartesDosProcessos";
 
 
 export const TIPO_TEXTO: Record<string, string> = {
@@ -173,6 +174,7 @@ export function AgendaItemRow({
   autoriaComentario,
   infoCobranca,
   corFaixa,
+  partes,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -187,6 +189,7 @@ export function AgendaItemRow({
   infoCobranca?: InfoCobranca | null;
   /** Cor da etapa do workflow (ou do modelo), igual à faixa do calendário. */
   corFaixa?: string | null;
+  partes?: PartesProcesso | null;
 
 }) {
 
@@ -244,6 +247,15 @@ export function AgendaItemRow({
           <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
             {[item.processo?.assunto, item.processo?.numero].filter(Boolean).join(" - ")}
           </p>
+        )}
+        {(partes?.ativo || partes?.passivo) && (
+          <div
+            className="mt-0.5 space-y-0.5 text-[11px] leading-snug text-muted-foreground"
+            title={`Reclamante: ${partes.ativo || "—"}\nReclamada: ${partes.passivo || "—"}`}
+          >
+            {partes.ativo && <p className="break-words"><strong>Reclamante:</strong> {partes.ativo}</p>}
+            {partes.passivo && <p className="break-words"><strong>Reclamada:</strong> {partes.passivo}</p>}
+          </div>
         )}
         {item.responsavel?.nome && (
           <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -338,6 +350,7 @@ export function DiaAgendaLateral({
   }, [itensDePublicacaoMap]);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
   const { data: mapaCobrancas } = useCobrancasItens(itens, getEscopoCobrancaPreferido());
+  const { data: partesPorProcesso } = usePartesDosProcessos(itens);
   // Cobranças feitas na tarefa/prazo dono da atividade: a atividade também
   // mostra o selinho.
   const paisDasAtividades = useMemo(
@@ -410,6 +423,7 @@ export function DiaAgendaLateral({
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
               corFaixa={modeloPorTarefa?.get(getItemRawId(item.id))?.cor}
+              partes={partesDoItem(item, partesPorProcesso)}
             />
           ))}
           {atividades.map((a: any) => {
