@@ -1,5 +1,5 @@
 import { useSessionState } from "@/hooks/useSessionState";
-import { tipoComModalidade, dedupLinhasAudiencia } from "@/lib/planilhaAudiencias";
+import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -1763,7 +1763,9 @@ export default function PainelControle() {
         return `${d}/${m}/${y}`;
       };
 
-      const linhas = dedupLinhasAudiencia(itensAud
+      // Repetidas no sistema saem repetidas na planilha: uma linha por cadastro,
+      // cada uma com a sua data de cadastro.
+      const linhas = ordenarLinhasAudiencia(itensAud
         .map((it: any) => {
           const rawId = String(it.id);
           const aud = rawId.startsWith("audiencia-det-")
@@ -1798,12 +1800,7 @@ export default function PainelControle() {
             _ordemData: String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
             _ordemHora: hora,
           };
-        })
-        .sort((a, b) =>
-          a._ordemData === b._ordemData
-            ? a._ordemHora.localeCompare(b._ordemHora)
-            : a._ordemData.localeCompare(b._ordemData),
-        ));
+        }));
 
       const wb = new ExcelJS.Workbook();
       wb.creator = "JurisControl";
@@ -1812,7 +1809,7 @@ export default function PainelControle() {
       const cabecalho = [
         "DATA", "HORA", "NÚMERO PROCESSO", "COMARCA", "UF", "PÓLO ATIVO", "CLIENTE",
         "TERCEIRIZADO", "TIPO DE AUDIÊNCIA", "RESUMO DO OBJETO", "PREPOSTO", "TESTEMUNHA",
-        "ADVOGADO / CORRESPONDENTE", "OBS", "STATUS FINAL", "CADASTRO NO SISTEMA",
+        "ADVOGADO / CORRESPONDENTE", "OBS", "STATUS FINAL", "DATA DE CADASTRO",
       ];
       const headerRow = ws.addRow(cabecalho);
       headerRow.height = 22;

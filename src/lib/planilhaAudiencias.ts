@@ -8,22 +8,18 @@ export function tipoComModalidade(tipo?: string | null, modalidade?: string | nu
   return norm(t).includes(norm(m)) ? t : `${t} ${m}`;
 }
 
-/** Uma linha por processo + data + hora; junta as datas de cadastro dos repetidos em `cadastro`. */
-export function dedupLinhasAudiencia<T extends { processo: string; data: string; hora: string; cadastro?: string }>(linhas: T[]): T[] {
-  const porChave = new Map<string, T>();
-  const saida: T[] = [];
-  for (const l of linhas) {
-    const dig = (l.processo || "").replace(/\D/g, "");
-    if (!dig) { saida.push(l); continue; }
-    const k = `${dig}|${l.data}|${l.hora}`;
-    const ex = porChave.get(k);
-    if (ex) {
-      if (l.cadastro) ex.cadastro = ex.cadastro ? `${ex.cadastro} | ${l.cadastro}` : l.cadastro;
-      continue;
-    }
-    const copia = { ...l };
-    porChave.set(k, copia);
-    saida.push(copia);
-  }
-  return saida;
+/**
+ * Ordena as linhas da planilha de audiências SEM juntar as repetidas.
+ * Audiência cadastrada duas vezes no sistema sai em duas linhas, cada uma
+ * com a sua própria data de cadastro.
+ */
+export function ordenarLinhasAudiencia<
+  T extends { data: string; hora: string; _ordemData?: string; _ordemHora?: string },
+>(linhas: T[]): T[] {
+  return [...linhas].sort((a, b) => {
+    const da = a._ordemData ?? a.data;
+    const db = b._ordemData ?? b.data;
+    if (da !== db) return da.localeCompare(db);
+    return (a._ordemHora ?? a.hora).localeCompare(b._ordemHora ?? b.hora);
+  });
 }
