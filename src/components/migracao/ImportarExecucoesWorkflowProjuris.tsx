@@ -12,16 +12,26 @@ const db = supabase as any;
 const ARQS = ["workflow", "etapaworkflow", "workflowcontrole", "workflowexecucao"] as const;
 const COORD_SANTANDER_CIVEL = "968631d0-6659-46f1-b45d-899892cb0121";
 const NOME_MIGRACAO = "Fluxos (workflows) em execução do Projuris";
-const LOTE = 150;
+const LOTE = 300;
 
-async function mapaChaves(tipo: string, chaves: string[]) {
+async function emPool<T>(itens: T[], conc: number, fn: (x: T) => Promise<void>) {
+  let i = 0;
+  await Promise.all(Array.from({ length: Math.min(conc, itens.length) }, async () => {
+    while (i < itens.length) { const x = itens[i++]; await fn(x); }
+  }));
+}
+function fatiar<T>(a: T[], n: number) { const r: T[][] = []; for (let k = 0; k < a.length; k += n) r.push(a.slice(k, k + n)); return r; }
+
+async function mapaChaves(tipo: string, chaves: string[], prog?: (feitos: number, total: number) => void) {
   const m = new Map<string, string>();
-  for (let k = 0; k < chaves.length; k += LOTE) {
+  let feitos = 0;
+  await emPool(fatiar(chaves, LOTE), 6, async (lote) => {
     const { data, error } = await db.from("migracoes_projuris_itens").select("chave_externa,registro_id")
-      .eq("tipo", tipo).in("chave_externa", chaves.slice(k, k + LOTE)).not("registro_id", "is", null);
+      .eq("tipo", tipo).in("chave_externa", lote).not("registro_id", "is", null);
     if (error) throw error;
     for (const r of data || []) m.set(r.chave_externa, r.registro_id);
-  }
+    feitos += lote.length; prog?.(feitos, chaves.length);
+  });
   return m;
 }
 
@@ -74,22 +84,23 @@ export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }
       setProg(10);
 
       setFase("Conferindo fluxos já importados");
-      const jaFeitos = await mapaChaves("workflow_execucao", planos.map((p) => p.cdcontrole));
+      const f = (n: number) => n.toLocaleString("pt-BR");
+      const jaFeitos = await mapaChaves("workflow_execucao", planos.map((p) => p.cdcontrole), (a, t) => { setFase(`Conferindo fluxos já importados: ${f(a)} de ${f(t)}`); setProg(10 + Math.round((a / t) * 10)); });
       const novos = planos.filter((p) => !jaFeitos.has(p.cdcontrole) && workflowId.has(p.workflowOrigem));
       setProg(20);
 
       setFase("Localizando tarefas e processos migrados");
-      const tarefaId = await mapaChaves("tarefa", [...new Set(novos.flatMap((p) => p.etapas.map((e) => e.cdtarefa).filter(Boolean) as string[]))]);
-      setProg(45);
-      const processoId = await mapaChaves("processo", [...new Set(novos.map((p) => p.cdprocesso).filter(Boolean) as string[])]);
+      const tarefaId = await mapaChaves("tarefa", [...new Set(novos.flatMap((p) => p.etapas.map((e) => e.cdtarefa).filter(Boolean) as string[]))], (a, t) => { setFase(`Localizando tarefas migradas: ${f(a)} de ${f(t)}`); setProg(20 + Math.round((a / t) * 25)); });
+      const processoId = await mapaChaves("processo", [...new Set(novos.map((p) => p.cdprocesso).filter(Boolean) as string[])], (a, t) => { setFase(`Localizando processos migrados: ${f(a)} de ${f(t)}`); setProg(45 + Math.round((a / t) * 10)); });
       const procDaTarefa = new Map<string, string>();
       const tids = [...new Set(tarefaId.values())];
-      for (let k = 0; k < tids.length; k += LOTE) {
-        const { data, error } = await db.from("tarefas").select("id,processo_id").in("id", tids.slice(k, k + LOTE));
+      let lidas = 0;
+      await emPool(fatiar(tids, 150), 6, async (lote) => {
+        const { data, error } = await db.from("tarefas").select("id,processo_id").in("id", lote);
         if (error) throw error;
         for (const t of data || []) if (t.processo_id) procDaTarefa.set(t.id, t.processo_id);
-        setProg(45 + Math.round((k / Math.max(tids.length, 1)) * 20));
-      }
+        lidas += lote.length; setFase(`Lendo processos das tarefas: ${f(lidas)} de ${f(tids.length)}`); setProg(55 + Math.round((lidas / tids.length) * 10));
+      });
 
       const { data: mig, error: e2 } = await db.from("migracoes_projuris")
         .insert({ coordenacao_id: COORD_SANTANDER_CIVEL, nome: NOME_MIGRACAO, status: "em_andamento", criado_por: userId }).select("id").single();
@@ -97,8 +108,8 @@ export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }
 
       setFase("Gravando fluxos");
       let criados = 0, automaticos = 0, abertasSemTarefa = 0;
-      for (let k = 0; k < novos.length; k += 100) {
-        const lote = novos.slice(k, k + 100).map((p) => {
+      await emPool(fatiar(novos, 100), 3, async (bloco) => {
+        const lote = bloco.map((p) => {
           const id = crypto.randomUUID();
           const etapas = p.etapas.map((e) => ({
             execucao_id: id, etapa_id: e.etapaId, ordem: e.ordem, item_tipo: e.tipoItem, status: e.status, sucesso: e.sucesso,
@@ -121,8 +132,9 @@ export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }
         const { error: c } = await db.from("migracoes_projuris_itens").insert(lote.map((l) => ({ migracao_id: mig.id, tipo: "workflow_execucao", chave_externa: l.chave, registro_id: l.exec.id, status: "criado" })));
         if (c) throw c;
         criados += lote.length;
-        setProg(65 + Math.round((k / Math.max(novos.length, 1)) * 35));
-      }
+        setFase(`Gravando fluxos: ${f(criados)} de ${f(novos.length)}`);
+        setProg(65 + Math.round((criados / Math.max(novos.length, 1)) * 35));
+      });
       const contadores = { fluxos: criados, em_andamento_automaticos: automaticos, abertas_sem_tarefa: abertasSemTarefa, ja_importados: jaFeitos.size, sem_modelo: semModelo };
       await db.from("migracoes_projuris").update({ status: "concluida", contadores }).eq("id", mig.id);
       setProg(100); setFase("");
