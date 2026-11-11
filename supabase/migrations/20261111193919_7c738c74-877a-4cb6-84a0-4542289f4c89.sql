@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_modelos_titulo_ativo_nome ON public.modelos_titulo_coordenacao (nome) WHERE ativo = true;
+CREATE INDEX IF NOT EXISTS idx_membros_coord_usuario_coord ON public.membros_coordenacao (usuario_id, coordenacao_id);

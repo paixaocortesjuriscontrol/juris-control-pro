@@ -34,6 +34,8 @@ export default function ModelosTitulo() {
   const podeEditar = (cid?: string | null) => isAdminOrCoordinator && (isAdmin || (!!cid && minhasIds.has(cid)));
   const coordsEditaveis = isAdmin ? coords : coords.filter((c: any) => minhasIds.has(c.id));
   const [tipo, setTipo] = useState<TipoModelo>("tarefa");
+  const [limite, setLimite] = useState(100);
+  useEffect(() => { setLimite(100); }, [tipo, coordId]);
   const [editando, setEditando] = useState<Partial<ModeloTitulo> | null>(null);
 
   const { data: modelos = [], isLoading } = useModelosTitulo({
@@ -219,7 +221,7 @@ export default function ModelosTitulo() {
                     <Badge variant="secondary">{modelosPorTipo.get(t.value)?.length}</Badge>
                   </CardHeader>
                   <CardContent className="grid gap-2">
-                    {tipo === t.value && modelosPorTipo.get(t.value)?.map((m) => (
+                    {tipo === t.value && modelosPorTipo.get(t.value)?.slice(0, limite).map((m) => (
                       <div key={m.id} className="flex items-start justify-between border rounded p-2 gap-2"
                         style={(m.padroes as any)?.cor ? { borderLeft: `4px solid ${(m.padroes as any).cor}` } : undefined}>
                         <div className="min-w-0">
@@ -240,6 +242,11 @@ export default function ModelosTitulo() {
                         )}
                       </div>
                     ))}
+                    {tipo === t.value && (modelosPorTipo.get(t.value)?.length ?? 0) > limite && (
+                      <Button variant="outline" onClick={() => setLimite((l) => l + 200)}>
+                        Mostrar mais ({(modelosPorTipo.get(t.value)?.length ?? 0) - limite} restantes)
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
               )}
