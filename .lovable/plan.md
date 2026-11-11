@@ -1,22 +1,22 @@
-# Reclamação da Dra. Janaina: coordenação sumindo em atividades e prazos
+# Coordenação vazia ao abrir prazo, atividade, evento ou audiência
 
-## O que já foi conferido
-- No banco, nenhuma tarefa, prazo, evento ou audiência está sem coordenação.
-- Nos últimos 3 dias, nenhum salvamento trocou a coordenação de uma atividade ou de um prazo dela. Os únicos itens que mudaram de coordenação foram os processos que você pediu para mover em 09/11.
-- Até agora, nada indica que a coordenação tenha sido apagada. Se ela sumiu, o mais provável é que ela não esteja aparecendo na tela.
+## O que foi conferido
+- O prazo do print, "Comprovar recolhimento contribuições previdenciárias e fiscais" (0000404-07.2024.5.10.0002), está gravado com a **Coordenação Dra. Janaina Catunda**. Nenhum item ficou sem coordenação no sistema.
+- O problema é só na tela: ao abrir o item, o campo **Coordenação** aparece como "Selecione a coordenação". Isso dá a impressão de que a coordenação foi perdida, e a pessoa precisa escolher de novo antes de salvar.
+- A mudança de ontem contribuiu para isso. Desde ontem, quem tem mais de uma coordenação vê esse campo, e a tela tem duas falhas ao abrir um item salvo:
+  1. Quando o item é aberto a partir da agenda ou da publicação, a tela às vezes não recebe a coordenação gravada e deixa o campo vazio.
+  2. O campo tenta escolher sozinho a coordenação da pessoa, mas faz isso só uma vez, logo ao abrir. Logo depois, a tela limpa o campo enquanto carrega o item, e ele fica vazio.
 
-## Pode ser a mudança de ontem?
-Pode, mas só na tela, e isso ainda não está confirmado. A mudança de ontem fez o campo Coordenação mostrar todas as coordenações para quem é coordenador. Isso vale nas telas de Prazo, Evento, Audiência e Tarefa delegada.
-Esse campo só mostra o nome que está na lista dele. Para quem não é coordenador, a lista tem só as coordenações de que a pessoa faz parte. Se o item é de uma coordenação que não está na lista, o campo aparece vazio, mesmo com a coordenação gravada. Isso pode passar a impressão de que a coordenação foi perdida.
-O campo também escolhe sozinho a coordenação do usuário quando está vazio. Ao abrir um item salvo, ele pode fazer isso antes de o item terminar de carregar. Hoje isso não trocou nenhum item dela, mas é um risco.
+## O que vai mudar
+1. **Item já salvo:** o campo mostra sempre a coordenação gravada. Se ela não tiver chegado com o item, a tela busca no próprio item. Ela aparece mesmo que não esteja na lista de quem abriu.
+2. **Item novo:** a coordenação da pessoa já vem escolhida e não some enquanto a tela termina de carregar.
+3. **Ao editar, sem troca sozinha:** num item salvo, a tela nunca troca a coordenação por conta própria. Ela só muda se a pessoa escolher outra.
+4. As telas de **Prazo, Evento, Audiência e Gerar parcelas** passam a funcionar igual.
 
-## O que fazer
-1. Confirmar a tela: pedir à Dra. Janaina um print e o número de um processo em que a coordenação aparece vazia. Depois, olhar esse item no banco.
-2. Mostrar sempre a coordenação gravada: se o item for de uma coordenação que não está na lista da pessoa, o campo mostra o nome dela mesmo assim, em vez de ficar vazio.
-3. Evitar troca automática ao editar: em item já salvo, o campo não escolhe a coordenação sozinho. Isso só acontece ao criar um item novo.
-4. Conferir de novo no banco que nada mudou de coordenação sem alguém escolher.
+Não muda nada no banco nem em quem pode ver o quê.
 
 ## Detalhes técnicos
-- `src/components/shared/CoordenacaoSelect.tsx`: quando `value` não está em `coordenacoes`, buscar `id, nome` desse ID e incluir na lista (só para mostrar). Criar a prop `isEdicao` ou `autoSelect`, que desliga o `useEffect` de pré-seleção.
-- Passar a nova prop em `PrazoDialog`, `EventoDialog`, `AudienciaFormSimplificado` e `GerarParcelasDialog` quando estiverem editando.
-- Nenhuma mudança no banco nem nas permissões.
+- `src/components/shared/CoordenacaoSelect.tsx`: a pré-seleção roda sempre que `value` estiver vazio e `defaultId` existir, com dependências `[value, defaultId]`, para não se perder na corrida com o carregamento. Nova prop `autoSelect` (padrão `true`), que as telas de edição passam como `false`. Quando `value` não está na lista, buscar `id, nome` dele e incluir na lista só para mostrar.
+- `src/components/prazos/PrazoDialog.tsx`: na edição, se `prazo.coordenacao_id` não vier, ler `coordenacao_id` em `tarefas` pelo `id`. Não usar `unicaCoordenacaoId` como valor quando for edição.
+- Fazer o mesmo em `EventoDialog.tsx`, `AudienciaFormSimplificado.tsx` e `GerarParcelasDialog.tsx`, cada um na sua tabela.
+- Testar abrindo o prazo do print com uma conta real, se houver sessão. Se não houver, avisar que não foi testado.
