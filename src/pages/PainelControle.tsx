@@ -1,5 +1,5 @@
 import { useSessionState } from "@/hooks/useSessionState";
-import { tipoComModalidade, dedupLinhasAudiencia } from "@/lib/planilhaAudiencias";
+import { tipoComModalidade } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -1763,7 +1763,8 @@ export default function PainelControle() {
         return `${d}/${m}/${y}`;
       };
 
-      const linhas = dedupLinhasAudiencia(itensAud
+      // Sem juntar repetidas: a planilha espelha exatamente os cadastros do sistema.
+      const linhas = itensAud
         .map((it: any) => {
           const rawId = String(it.id);
           const aud = rawId.startsWith("audiencia-det-")
@@ -1800,7 +1801,7 @@ export default function PainelControle() {
           a._ordemData === b._ordemData
             ? a._ordemHora.localeCompare(b._ordemHora)
             : a._ordemData.localeCompare(b._ordemData),
-        ));
+        );
 
       const wb = new ExcelJS.Workbook();
       wb.creator = "JurisControl";
