@@ -32,7 +32,16 @@ type Entrada = {
   texto?: string;
   situacaoDe?: string | null;
   situacaoPara?: string | null;
+  participante?: { papel?: string; usuario_id?: string; origem?: string } | null;
 };
+
+const ACAO_PARTICIPANTE: Record<string, string> = {
+  participante_incluido: "Incluiu",
+  participante_removido: "Retirou",
+  participante_mantido: "Manteve",
+};
+const PAPEL_LABEL: Record<string, string> = { responsavel: "responsável", envolvido: "envolvido(a)", advogado: "advogado(a)" };
+const ORIGEM_LABEL: Record<string, string> = { manual: "manual", automatico: "automático (responsáveis fixos)", sistema: "sistema" };
 
 function normalizarCampos(v: any): Entrada["campos"] {
   if (Array.isArray(v)) return v;
@@ -62,7 +71,7 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
       const [aud, com] = await Promise.all([
         (supabase as any)
           .from("auditoria_tarefas")
-          .select("id, created_at, usuario_id, acao, origem, campos_alterados, sucesso, erro_mensagem")
+          .select("id, created_at, usuario_id, acao, origem, campos_alterados, sucesso, erro_mensagem, dados_entrada")
           .eq("tarefa_id", itemId)
           .order("created_at", { ascending: false })
           .limit(200),
@@ -86,6 +95,7 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
           origem: r.origem,
           campos: normalizarCampos(r.campos_alterados),
           texto: r.sucesso === false ? r.erro_mensagem : undefined,
+          participante: String(r.acao || "").startsWith("participante_") ? r.dados_entrada : null,
         });
       });
 
@@ -103,7 +113,12 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
         });
       });
 
-      const autorIds = Array.from(new Set(entradas.map((e) => e.autorId).filter(Boolean))) as string[];
+      const autorIds = Array.from(
+        new Set([
+          ...entradas.map((e) => e.autorId),
+          ...entradas.map((e) => e.participante?.usuario_id),
+        ].filter(Boolean)),
+      ) as string[];
       let autores: Record<string, { nome?: string; email?: string }> = {};
       if (autorIds.length > 0) {
         const [{ data: perfisBasic }, { data: perfis }] = await Promise.all([
@@ -181,6 +196,22 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
                     {e.texto}
                   </p>
                 )}
+              </div>
+            ) : e.participante ? (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant={e.acao === "participante_removido" ? "destructive" : "secondary"}>
+                  {ACAO_PARTICIPANTE[e.acao || ""] || "Participante"}
+                </Badge>
+                <span className="font-medium">
+                  {(() => {
+                    const p = e.participante?.usuario_id ? autores[e.participante.usuario_id] : undefined;
+                    return p?.nome || p?.email || "pessoa";
+                  })()}
+                </span>
+                <span className="text-muted-foreground">
+                  como {PAPEL_LABEL[e.participante?.papel || ""] || e.participante?.papel}
+                  {e.participante?.origem ? ` · ${ORIGEM_LABEL[e.participante.origem] || e.participante.origem}` : ""}
+                </span>
               </div>
             ) : (
               <div className="space-y-1">

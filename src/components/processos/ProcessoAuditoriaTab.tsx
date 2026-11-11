@@ -103,6 +103,11 @@ const resumoAlteracao = (r: AuditRow): string => {
   }
   if (r.acao === "criar") return "Registro criado";
   if (r.acao === "deletar") return "Registro excluído";
+  if (r.acao?.startsWith("participante_")) {
+    const e: any = r.dados_entrada || {};
+    const verbo = r.acao === "participante_incluido" ? "Incluiu" : r.acao === "participante_removido" ? "Retirou" : "Manteve";
+    return `${verbo} ${e.papel === "responsavel" ? "responsável" : e.papel === "advogado" ? "advogado(a)" : "envolvido(a)"} (${e.origem || "manual"})`;
+  }
   if (r.acao === "processo_reativado") {
     const e: any = r.dados_entrada || {};
     const data = e.data_hora_encerramento || e.data_encerramento || e.data_arquivamento;

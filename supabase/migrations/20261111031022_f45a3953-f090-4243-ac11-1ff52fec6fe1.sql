@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.audit_participante_item() FROM PUBLIC, anon, authenticated;
