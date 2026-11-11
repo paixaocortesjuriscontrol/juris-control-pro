@@ -1,4 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+const expect = (v: unknown) => ({ toBe: (x: unknown) => assert.equal(v, x), toEqual: (x: unknown) => assert.deepEqual(v, x), toHaveLength: (n: number) => assert.equal((v as unknown[]).length, n) });
 import { montarExecucoesWorkflow } from "./execucoesWorkflowProjuris";
 
 const imp = [
