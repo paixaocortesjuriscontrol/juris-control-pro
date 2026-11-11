@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Save, X } from "lucide-react";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useModelosTitulo, useSaveModeloTitulo, useDeleteModeloTitulo, type TipoModelo, type ModeloTitulo } from "@/hooks/useModelosTitulo";
@@ -32,12 +33,11 @@ export default function ModelosTitulo() {
   const minhasIds = useMemo(() => new Set(minhas.map((c) => c.id)), [minhas]);
   const podeEditar = (cid?: string | null) => isAdminOrCoordinator && (isAdmin || (!!cid && minhasIds.has(cid)));
   const coordsEditaveis = isAdmin ? coords : coords.filter((c: any) => minhasIds.has(c.id));
-  const [tipo, setTipo] = useState<string>("");
+  const [tipo, setTipo] = useState<TipoModelo>("tarefa");
   const [editando, setEditando] = useState<Partial<ModeloTitulo> | null>(null);
 
   const { data: modelos = [], isLoading } = useModelosTitulo({
     coordenacao_id: coordId && coordId !== "__all__" ? coordId : undefined,
-    tipo: tipo && tipo !== "__all__" ? (tipo as TipoModelo) : undefined,
   });
   const salvar = useSaveModeloTitulo();
   const remover = useDeleteModeloTitulo();
@@ -53,7 +53,7 @@ export default function ModelosTitulo() {
   }, [modelos]);
 
   function novo() {
-    setEditando({ coordenacao_id: (coordId && podeEditar(coordId) ? coordId : coordsEditaveis[0]?.id), tipo: (tipo || "tarefa") as TipoModelo, nome: "", titulo: "", descricao: "", prioridade: "media", padroes: {} });
+    setEditando({ coordenacao_id: (coordId && podeEditar(coordId) ? coordId : coordsEditaveis[0]?.id), tipo, nome: "", titulo: "", descricao: "", prioridade: "media", padroes: {} });
   }
 
   async function submit() {
@@ -90,13 +90,6 @@ export default function ModelosTitulo() {
             <SelectContent>
               <SelectItem value="__all__">Todas</SelectItem>
               {coords.map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={tipo} onValueChange={setTipo}>
-            <SelectTrigger className="w-40"><SelectValue placeholder="Todos os tipos" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__all__">Todos</SelectItem>
-              {TIPOS.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -203,41 +196,56 @@ export default function ModelosTitulo() {
           </Card>
         )}
 
-        <div className="space-y-4">
+        <Tabs value={tipo} onValueChange={(value) => setTipo(value as TipoModelo)} className="space-y-4">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start">
+            {TIPOS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value} className="gap-2">
+                {t.label}
+                <Badge variant="secondary">{modelosPorTipo.get(t.value)?.length ?? 0}</Badge>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+
           {isLoading && <p className="text-sm text-muted-foreground">Carregando…</p>}
           {!isLoading && modelos.length === 0 && <p className="text-sm text-muted-foreground">Nenhum modelo cadastrado.</p>}
-          {Array.from(modelosPorTipo.entries()).map(([t, list]) => (
-            <Card key={t}>
-              <CardHeader className="pb-2 flex flex-row items-center gap-2">
-                <CardTitle className="text-base">{TIPOS.find(x => x.value === t)?.label}</CardTitle>
-                <Badge variant="secondary">{list.length}</Badge>
-              </CardHeader>
-              <CardContent className="grid gap-2">
-                {list.map((m) => (
-                  <div key={m.id} className="flex items-start justify-between border rounded p-2 gap-2"
-                    style={(m.padroes as any)?.cor ? { borderLeft: `4px solid ${(m.padroes as any).cor}` } : undefined}>
-                    <div className="min-w-0">
-                      <div className="font-medium text-sm truncate">
-                        {m.nome}
-                        {(m.padroes as any)?.checklist_modelo_id && <Badge variant="outline" className="ml-2 text-[10px]">Checklist</Badge>}
+          {!isLoading && modelos.length > 0 && TIPOS.map((t) => (
+            <TabsContent key={t.value} value={t.value} className="mt-0">
+              {(modelosPorTipo.get(t.value)?.length ?? 0) === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum modelo de {t.label.toLowerCase()} cadastrado.</p>
+              ) : (
+                <Card>
+                  <CardHeader className="pb-2 flex flex-row items-center gap-2">
+                    <CardTitle className="text-base">{t.label}</CardTitle>
+                    <Badge variant="secondary">{modelosPorTipo.get(t.value)?.length}</Badge>
+                  </CardHeader>
+                  <CardContent className="grid gap-2">
+                    {tipo === t.value && modelosPorTipo.get(t.value)?.map((m) => (
+                      <div key={m.id} className="flex items-start justify-between border rounded p-2 gap-2"
+                        style={(m.padroes as any)?.cor ? { borderLeft: `4px solid ${(m.padroes as any).cor}` } : undefined}>
+                        <div className="min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {m.nome}
+                            {(m.padroes as any)?.checklist_modelo_id && <Badge variant="outline" className="ml-2 text-[10px]">Checklist</Badge>}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{m.titulo}</div>
+                          {m.descricao && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.descricao}</div>}
+                        </div>
+                        {podeEditar(m.coordenacao_id) && (
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button size="sm" variant="ghost" onClick={() => setEditando(m)}>Editar</Button>
+                            <Button size="sm" variant="ghost" onClick={() => remover.mutate(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground truncate">{m.titulo}</div>
-                      {m.descricao && <div className="text-xs text-muted-foreground mt-1 line-clamp-2">{m.descricao}</div>}
-                    </div>
-                    {podeEditar(m.coordenacao_id) && (
-                      <div className="flex gap-1 flex-shrink-0">
-                        <Button size="sm" variant="ghost" onClick={() => setEditando(m)}>Editar</Button>
-                        <Button size="sm" variant="ghost" onClick={() => remover.mutate(m.id)}>
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
           ))}
-        </div>
+        </Tabs>
       </div>
     </MainLayout>
   );
