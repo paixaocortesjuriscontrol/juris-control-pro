@@ -1,32 +1,20 @@
-# Onde rodam as rotinas do sistema
+# Planilha de audiências da Dra. Janaina — correções
 
-## O "servidor do sistema"
-Quando falei em "servidor do sistema", me referia ao **Supabase**, o serviço em nuvem contratado na sua conta (projeto bfxahrrvoqxcdmfsvnrk). Ele não é a VPS da Hostinger nem a AWS. Nele ficam:
-- **O banco de dados:** processos, tarefas, publicações, usuários e tudo o mais.
-- **104 rotinas** que rodam sob demanda: DJEN Pautas, Kurier, envio de alertas, WhatsApp, Judit e outras.
-- **26 agendamentos automáticos:** buscas de pautas nos horários definidos, alertas, encerramento de buscas travadas e a geração de Pautas/Distribuições TST a cada 15 minutos.
+## O que foi confirmado no banco
+- **Nome das partes vazio:** nenhuma das audiências conferidas tem o campo "polo ativo" preenchido. A planilha só lê esse campo e não busca as partes no processo.
+- **"Presencial Presencial":** a planilha junta o tipo ("Instrução Presencial") com a modalidade ("Presencial"), repetindo a palavra.
+- **Duplicadas na planilha:** 0001915-25.2025.5.18.0053 (17/11 11:30) e 0001596-71.2026.5.10.0012 (18/11 08:07) têm **dois registros iguais** gravados (mesmo processo, data e hora), criados em dias diferentes. A planilha mostra os dois.
+- **Faltando na planilha:** 0000300-87 (17/11 15:00) e 0000535-54 (19/11 13:30) existem como pendentes. A causa ainda não está confirmada.
 
-A correção do DJEN Pautas desta tarde foi feita aqui. Por isso não foi preciso mexer na VPS.
+## O que vou fazer
+1. **Partes:** quando a audiência não tiver o polo ativo, preencher com as partes do processo (reclamante e cliente/reclamada), sem advogados.
+2. **Tipo de audiência:** só acrescentar a modalidade quando ela já não estiver escrita no tipo.
+3. **Duplicadas:** na planilha, mostrar uma linha só quando processo + data + hora forem iguais. Depois, perguntar se quer que eu junte os registros repetidos no banco (sem apagar comentários/vínculos).
+4. **Faltando:** rodar a busca da planilha com o período e filtros dela para ver em qual etapa as duas caem (coordenação, filtro do painel ou data em Brasília) e corrigir essa etapa.
+5. Teste pequeno: "Instrução Presencial" + "Presencial" vira "Instrução Presencial"; duas linhas iguais viram uma.
 
-## Os outros dois lugares
-- **VPS Hostinger (31.97.173.98):** roda só o programa do **DJEN Servidor** (`jc-monitor-servidor`). Ele é atualizado com `git pull` e `pm2 restart`.
-- **Lovable:** hospeda as telas que os usuários abrem em juriscontrol.adv.br.
-
-```text
-Usuários -> Telas (Lovable) -> Supabase (banco + 104 rotinas + 26 agendamentos)
-                                   ^
-                    VPS Hostinger (DJEN Servidor) grava no Supabase
-```
-
-## Próximo passo, se quiser migrar para a AWS
-Ao aprovar este plano, eu levanto um mapa completo:
-- cada rotina e o que ela faz;
-- cada agendamento, com seu horário;
-- quais chaves e senhas cada uma usa;
-- o que depende da VPS.
-
-Junto, mando uma estimativa do caminho para cada opção:
-- **VPS para a AWS:** é a mudança mais simples, levar o programa do DJEN Servidor para uma máquina EC2.
-- **Supabase para a AWS:** é a mudança maior. Envolve o banco (RDS/Postgres), as rotinas (Lambda) e os agendamentos (EventBridge). O login de usuários e as regras de acesso também teriam de ser refeitos.
-
-Nada será alterado nessa etapa. Ela é só de levantamento.
+## Detalhes técnicos
+- Arquivo: `src/pages/PainelControle.tsx` (`buscarItensAudienciasExport` / `exportarAudienciasPlanilha`).
+- Partes: buscar `processos_partes` (polo ativo/passivo) por `processo_id` em lotes de 200, junto da consulta de UF/comarca.
+- Dedup por `numero|data|hora` após montar `linhas`.
+- Nenhuma mudança de permissões.
