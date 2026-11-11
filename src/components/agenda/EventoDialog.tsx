@@ -295,7 +295,11 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       setSituacao(((evento as any).status as any) || "pendente");
       setSituacaoInicial(((evento as any).status as any) || "pendente");
       setComentarioSituacao("");
-      setCoordenacaoId(((evento as any).coordenacao_id as string) || unicaCoordenacaoId || "");
+      setCoordenacaoId(((evento as any).coordenacao_id as string) || "");
+      if (!(evento as any).coordenacao_id && (evento as any).id) {
+        supabase.from("eventos_agenda").select("coordenacao_id").eq("id", (evento as any).id).maybeSingle()
+          .then(({ data: row }) => setCoordenacaoId((prev) => prev || (row as any)?.coordenacao_id || unicaCoordenacaoId || ""));
+      }
 
       const min = alertasEvento && alertasEvento.length > 0 ? alertasEvento[0] : 0;
       const { valor, unidade } = minutosParaUnidade(min);
@@ -900,6 +904,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             {precisaSelecionar && hasPublicacao && (
               <CoordenacaoSelect
  delegacao
+              autoSelect={!evento}
                 value={coordenacaoId}
                 onChange={setCoordenacaoId}
                 required
@@ -912,6 +917,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                 <div className="pb-2 border-b mb-2">
                   <CoordenacaoSelect
  delegacao
+              autoSelect={!evento}
                     value={coordenacaoId}
                     onChange={setCoordenacaoId}
                     required

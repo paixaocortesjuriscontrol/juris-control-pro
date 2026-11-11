@@ -19,6 +19,8 @@ interface CoordenacaoSelectProps {
   className?: string;
   /** Delegação: perfis/cargos com "coordenador" no nome veem todas as coordenações. */
   delegacao?: boolean;
+  /** Pré-seleciona a coordenação do usuário quando vazio (desligar na edição). */
+  autoSelect?: boolean;
 }
 
 /**
@@ -35,6 +37,7 @@ export function CoordenacaoSelect({
   required,
   className,
   delegacao,
+  autoSelect = true,
 }: CoordenacaoSelectProps) {
   const { user } = useAuth();
 
@@ -98,16 +101,30 @@ export function CoordenacaoSelect({
     staleTime: 5 * 60 * 1000,
   });
 
-  const coordenacoes = data?.coordenacoes ?? [];
+  const listaBase = data?.coordenacoes ?? [];
   const defaultId = data?.defaultId ?? null;
+  const faltaNaLista = !!value && !!data && !listaBase.some((c: any) => c.id === value);
 
-  // Pré-selecionar coordenação do usuário quando vazio
+  // Coordenação gravada fora da lista do usuário: busca o nome só para exibir.
+  const { data: extra } = useQuery({
+    queryKey: ["coordenacao-select-extra", value],
+    queryFn: async () => {
+      const { data: c } = await supabase.from("coordenacoes").select("id, nome").eq("id", value as string).maybeSingle();
+      return c;
+    },
+    enabled: faltaNaLista,
+    staleTime: 5 * 60 * 1000,
+  });
+  const coordenacoes = faltaNaLista && extra ? [extra, ...listaBase] : listaBase;
+
+  // Pré-selecionar coordenação do usuário quando vazio (reage também a limpezas
+  // feitas pelo formulário durante o carregamento).
   useEffect(() => {
-    if (!value && defaultId) {
+    if (autoSelect && !value && defaultId) {
       onChange(defaultId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [defaultId]);
+  }, [value, defaultId, autoSelect]);
 
   return (
     <div className={className}>

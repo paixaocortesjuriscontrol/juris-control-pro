@@ -449,8 +449,11 @@ export function PrazoDialog({
         const envIds = (envs || []).map((e: any) => e.usuario_id);
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
-        // Nunca herdar a coordenação do processo: usar a do item ou a do usuário logado.
-        setCoordenacaoId((prev) => prev || unicaCoordenacaoId || "");
+        // Nunca herdar a coordenação do processo: usar a gravada no item.
+        if (!(prazo as any).coordenacao_id) {
+          const { data: row } = await supabase.from("tarefas").select("coordenacao_id").eq("id", prazo.id).maybeSingle();
+          setCoordenacaoId((prev) => prev || (row as any)?.coordenacao_id || unicaCoordenacaoId || "");
+        }
       })();
     } else {
       resetFormForNew();
@@ -1220,6 +1223,7 @@ export function PrazoDialog({
           {precisaSelecionar && (
             <CoordenacaoSelect
  delegacao
+              autoSelect={!prazo}
               value={coordenacaoId}
               onChange={setCoordenacaoId}
               className="space-y-1.5"

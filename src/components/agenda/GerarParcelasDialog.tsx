@@ -685,6 +685,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
           <form id="parcelamento-form-content" onSubmit={handleSubmit} className="space-y-4 pb-4">
             {precisaSelecionar && (
               <CoordenacaoSelect
+              autoSelect={!evento}
                 value={coordenacaoId}
                 onChange={setCoordenacaoId}
                 required
