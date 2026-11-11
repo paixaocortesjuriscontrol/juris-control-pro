@@ -111,7 +111,7 @@ export function ListaAtividadesProjuris({ itens, onItemClick }: Props) {
               key={`${item.origem}-${item.id}-${item.data_inicio}`}
               type="button"
               onClick={() => onItemClick(item)}
-              className="w-full text-left grid grid-cols-[1fr_1.4fr_1.6fr_auto_auto] gap-4 items-center px-4 py-2 border-l-4 border-l-primary hover:bg-muted/50"
+              className="w-full text-left grid grid-cols-[6.5rem_minmax(0,1.15fr)_minmax(0,1.8fr)_auto_auto] gap-3 items-center px-4 py-2 border-l-4 border-l-primary hover:bg-muted/50"
             >
               <div className="space-y-1">
                 <Campo rotulo="Prevista" valor={prevista ? format(prevista, "dd/MM/yyyy") : null} alerta={!!atrasoP} />
