@@ -1,3 +1,4 @@
+import { WorkflowEtapasDoItem } from "@/components/workflows/WorkflowEtapasDoItem";
 import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
@@ -1150,6 +1151,11 @@ export function NovaTarefaDialog({
           {tarefaParaEditar?.id && (
             <div className="pb-4">
               <TarefaPublicacaoVinculada tarefaId={tarefaParaEditar.id} />
+            </div>
+          )}
+          {tarefaParaEditar?.id && (
+            <div className="pb-4">
+              <WorkflowEtapasDoItem itemId={tarefaParaEditar.id} />
             </div>
           )}
           <Form {...form}>
