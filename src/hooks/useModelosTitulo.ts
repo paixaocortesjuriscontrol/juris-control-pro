@@ -24,6 +24,7 @@ const KEY = ["modelos-titulo"];
 export function useModelosTitulo(filtros?: { coordenacao_id?: string; tipo?: TipoModelo }) {
   return useQuery({
     queryKey: [...KEY, filtros],
+    staleTime: 60 * 1000,
     queryFn: async () => {
       let q = supabase.from("modelos_titulo_coordenacao").select("*").eq("ativo", true).order("nome");
       if (filtros?.coordenacao_id) q = q.eq("coordenacao_id", filtros.coordenacao_id);
@@ -31,10 +32,10 @@ export function useModelosTitulo(filtros?: { coordenacao_id?: string; tipo?: Tip
       const { data, error } = await q;
       if (error) throw error;
       const coords = Array.from(new Set((data ?? []).map((m: any) => m.coordenacao_id).filter(Boolean)));
-      try {
-        const { precarregarFeriados } = await import("@/lib/feriados");
-        await Promise.all(coords.map((c) => precarregarFeriados(c as string)));
-      } catch { /* sem feriados */ }
+      // Feriados em segundo plano: não segura a lista na tela.
+      import("@/lib/feriados")
+        .then(({ precarregarFeriados }) => Promise.all(coords.map((c) => precarregarFeriados(c as string))))
+        .catch(() => { /* sem feriados */ });
       return (data ?? []) as ModeloTitulo[];
     },
   });
