@@ -1296,14 +1296,11 @@ export function NovaTarefaDialog({
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {coordExtra && !coordenacoesDisponiveis.some((c) => c.id === coordExtra.id) && (
-                            <SelectItem value={coordExtra.id}>{coordExtra.nome}</SelectItem>
-                          )}
-                          {coordenacoesDisponiveis.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.nome}{c.area ? ` - ${c.area}` : ""}
-                            </SelectItem>
-                          ))}
+                          {[...(coordExtra ? [coordExtra] : []), ...coordenacoesDisponiveis]
+                            .filter((c: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === c.id) === i)
+                            .map((c: any) => (
+                              <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+                            ))}
                         </SelectContent>
                       </Select>
                       <FormMessage />

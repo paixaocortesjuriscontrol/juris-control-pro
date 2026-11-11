@@ -1,3 +1,4 @@
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { decidirPassoPosSalvacaoPrazo } from "@/lib/prazoFluxoPosSalvacao";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -156,6 +157,7 @@ export function PrazoDialog({
   const outroPrazoClickedRef = useRef(false);
   const anexosRef = useRef<ItemAnexosHandle>(null);
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
+
   // Perfis bloqueados e quem não pode reagendar não alteram datas de itens existentes.
 
   // Quando editando um prazo existente, carregar publicação vinculada (se houver)
@@ -260,6 +262,11 @@ export function PrazoDialog({
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+  // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
+  const { data: coordPadraoNovo } = useCoordenacaoPadrao();
+  useEffect(() => {
+    if (open !== false && !!!prazo && !coordenacaoId && coordPadraoNovo) setCoordenacaoId(coordPadraoNovo);
+  }, [open, !!prazo, coordenacaoId, coordPadraoNovo]);
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((prazo as any)?.coordenacao_id as string) || coordenacaoId || null, "PRAZO");
   const travarDatas = datasBloqueadas && !!prazo;
   const [situacao, setSituacao] = useState<string>("pendente");

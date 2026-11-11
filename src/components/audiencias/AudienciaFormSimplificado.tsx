@@ -1,3 +1,4 @@
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
@@ -174,6 +175,12 @@ export function AudienciaFormSimplificado({
   const [coordenacaoId, setCoordenacaoId] = useState<string>(
     audienciaParaEditar?.coordenacao_id ?? ""
   );
+
+  // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
+  const { data: coordPadraoNovo } = useCoordenacaoPadrao();
+  useEffect(() => {
+    if (!isEditing && !coordenacaoId && coordPadraoNovo) setCoordenacaoId(coordPadraoNovo);
+  }, [isEditing, coordenacaoId, coordPadraoNovo]);
   const { data: coordenadoresIds = [] } = useCoordenadoresDaCoordenacao(coordenacaoId || null, "AUDIÊNCIA");
   const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(coordenacaoId || null, "AUDIÊNCIA");
   // Envolvidos fixos configurados na coordenação para este tipo

@@ -1,3 +1,4 @@
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
@@ -134,6 +135,12 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const { precisaSelecionar, unicaCoordenacaoId } = useCoordenacoesDoUsuario();
   const { user } = useAuth();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
+
+  // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
+  const { data: coordPadraoNovo } = useCoordenacaoPadrao();
+  useEffect(() => {
+    if (open !== false && !isEditing && !coordenacaoId && coordPadraoNovo) setCoordenacaoId(coordPadraoNovo);
+  }, [open, isEditing, coordenacaoId, coordPadraoNovo]);
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((evento as any)?.coordenacao_id as string) || coordenacaoId || null, "EVENTO");
   const travarDatas = datasBloqueadas && isEditing;
 
