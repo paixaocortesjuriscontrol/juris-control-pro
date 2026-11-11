@@ -324,34 +324,23 @@ export default function ProcessoDetalhes() {
 
       const merged = [...(porProcessoId.data || []), ...(porNumeroProcesso.data || [])];
       const unicasPorId = Array.from(new Map(merged.map((aud) => [aud.id, aud])).values());
-      const audienciasAgrupadas = new Map<string, AudienciaProcessoItem>();
-
+      // Não junta repetidas: todas aparecem, marcadas, para o advogado cancelar a sobra.
+      const grupos = new Map<string, any[]>();
       for (const audiencia of unicasPorId) {
-        const businessKey = getAudienciaBusinessKey(audiencia);
-        const existente = audienciasAgrupadas.get(businessKey);
-        const duplicateIds = Array.from(
-          new Set([...(existente?._duplicateIds || []), audiencia.id])
-        );
-        const cadastros = [...(existente?._cadastros || []), audiencia.created_at].filter(Boolean).sort() as string[];
-
-        if (!existente) {
-          audienciasAgrupadas.set(businessKey, {
+        const k = getAudienciaBusinessKey(audiencia);
+        grupos.set(k, [...(grupos.get(k) || []), audiencia]);
+      }
+      const audienciasAgrupadas = new Map<string, AudienciaProcessoItem>();
+      for (const grupo of grupos.values()) {
+        const ativas = grupo.filter((g: any) => !String(g.status || "").startsWith("cancelado"));
+        const cadastros = ativas.map((g: any) => g.created_at).filter(Boolean).sort() as string[];
+        for (const audiencia of grupo) {
+          audienciasAgrupadas.set(audiencia.id, {
             ...audiencia,
-            _duplicateIds: duplicateIds,
+            _duplicateIds: grupo.map((g: any) => g.id),
             _cadastros: cadastros,
           });
-          continue;
         }
-
-        const existenteTs = new Date(existente.updated_at || existente.created_at).getTime();
-        const atualTs = new Date(audiencia.updated_at || audiencia.created_at).getTime();
-        const preferida = atualTs >= existenteTs ? audiencia : existente;
-
-        audienciasAgrupadas.set(businessKey, {
-          ...preferida,
-          _duplicateIds: duplicateIds,
-          _cadastros: cadastros,
-        });
       }
 
       const deduplicadas = filtrarItensPorCoordenacao(

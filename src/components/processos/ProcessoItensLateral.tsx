@@ -181,6 +181,9 @@ function ProcessoItemRow({
         {datas.length > 0 && (
           <p className="text-[12px] text-muted-foreground">{datas.join("  ·  ")}</p>
         )}
+        {(item as any)._aviso_duplicada && (
+          <p className="text-[11px] font-medium text-destructive">{(item as any)._aviso_duplicada}</p>
+        )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
           {item.responsavel?.nome && (
@@ -394,6 +397,25 @@ export function ProcessoItensLateral({
           local: a.local_audiencia || a.vara_camara || null,
           processo,
         } as ItemAgendaUnificado);
+      }
+
+      // Marca audiências cadastradas mais de uma vez (mesmo dia e horário), sem esconder nenhuma.
+      {
+        const fmt = (d: string) => new Date(d).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", " às");
+        const grupos = new Map<string, any[]>();
+        for (const a of ((audienciasRes.data as any[]) || [])) {
+          if (String(a.status || "").startsWith("cancelado")) continue;
+          const k = `${String(a.data_audiencia || "").slice(0, 16)}|${(a.hora || "").slice(0, 5)}`;
+          grupos.set(k, [...(grupos.get(k) || []), a]);
+        }
+        for (const g of grupos.values()) {
+          if (g.length < 2) continue;
+          const cad = g.map((a) => a.created_at).filter(Boolean).sort().map(fmt).join("; ");
+          for (const a of g) {
+            const it: any = lista.find((i: any) => i.id === `audiencia-det-${a.id}`);
+            if (it) it._aviso_duplicada = `Cadastrada ${g.length} vezes (${cad}). Esta: ${a.created_at ? fmt(a.created_at) : "—"}`;
+          }
+        }
       }
 
       const recorrentes = lista.filter((i: any) => i.recorrencia_pai_id);
