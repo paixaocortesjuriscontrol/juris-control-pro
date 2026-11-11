@@ -137,7 +137,7 @@ export function CoordenacaoSelect({
         {label}
         {required && <span className="text-destructive">*</span>}
       </Label>
-      <Select value={value ?? ""} onValueChange={onChange}>
+      <Select value={value ?? ""} onValueChange={(v) => { if (v) onChange(v); }}>
         <SelectTrigger className="h-10 mt-1.5">
           <SelectValue placeholder="Selecione a coordenação" />
         </SelectTrigger>

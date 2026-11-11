@@ -288,6 +288,16 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
+  // Coordenação gravada fora da lista de quem abriu: busca o nome só para exibir.
+  const { data: coordExtra } = useQuery({
+    queryKey: ["coordenacao-select-extra", coordenacaoId],
+    queryFn: async () => {
+      const { data } = await supabase.from("coordenacoes").select("id, nome").eq("id", coordenacaoId).maybeSingle();
+      return data as { id: string; nome: string } | null;
+    },
+    enabled: !!coordenacaoId && !coordenacoesDisponiveis.some((c) => c.id === coordenacaoId),
+    staleTime: 5 * 60 * 1000,
+  });
   // Item novo: se a coordenação ficou vazia (listas carregaram depois), preenche com a do usuário.
   useEffect(() => {
     if (open && !tarefaParaEditar && !coordenacaoId && unicaCoordenacaoId) {
@@ -1279,13 +1289,16 @@ export function NovaTarefaDialog({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Coordenação</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
+                      <Select onValueChange={(v) => { if (v) field.onChange(v); }} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Selecione a coordenação" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
+                          {coordExtra && !coordenacoesDisponiveis.some((c) => c.id === coordExtra.id) && (
+                            <SelectItem value={coordExtra.id}>{coordExtra.nome}</SelectItem>
+                          )}
                           {coordenacoesDisponiveis.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.nome}{c.area ? ` - ${c.area}` : ""}
