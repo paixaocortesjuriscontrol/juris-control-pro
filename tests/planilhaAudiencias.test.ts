@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { tipoComModalidade, dedupLinhasAudiencia } from "./planilhaAudiencias";
+import { describe, it, expect } from "bun:test";
+import { tipoComModalidade, dedupLinhasAudiencia } from "../src/lib/planilhaAudiencias";
 
 describe("planilha de audiências", () => {
   it("não repete Presencial", () => {
