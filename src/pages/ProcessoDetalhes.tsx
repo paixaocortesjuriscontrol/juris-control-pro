@@ -127,6 +127,7 @@ type ViewMode = "detalhes" | "editar";
 
 type AudienciaProcessoItem = AudienciaDetectada & {
   _duplicateIds?: string[];
+  _cadastros?: string[];
 };
 
 const areaLabels: Record<string, string> = {
@@ -331,11 +332,13 @@ export default function ProcessoDetalhes() {
         const duplicateIds = Array.from(
           new Set([...(existente?._duplicateIds || []), audiencia.id])
         );
+        const cadastros = [...(existente?._cadastros || []), audiencia.created_at].filter(Boolean).sort() as string[];
 
         if (!existente) {
           audienciasAgrupadas.set(businessKey, {
             ...audiencia,
             _duplicateIds: duplicateIds,
+            _cadastros: cadastros,
           });
           continue;
         }
@@ -347,6 +350,7 @@ export default function ProcessoDetalhes() {
         audienciasAgrupadas.set(businessKey, {
           ...preferida,
           _duplicateIds: duplicateIds,
+          _cadastros: cadastros,
         });
       }
 

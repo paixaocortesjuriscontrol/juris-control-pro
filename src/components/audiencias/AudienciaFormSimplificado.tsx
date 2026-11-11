@@ -412,6 +412,33 @@ export function AudienciaFormSimplificado({
       }
     }
 
+    // Aviso de audiência já cadastrada no mesmo processo, dia e horário.
+    if (!isEditing && (processoIdParaSalvar || processoNumeroParaSalvar) && dataAudienciaUsar) {
+      const dia = String(dataAudienciaUsar).slice(0, 10);
+      let q: any = (supabase as any)
+        .from("audiencias_detectadas")
+        .select("id, hora, data_audiencia, created_at, status")
+        .gte("data_audiencia", `${dia}T00:00:00-03:00`)
+        .lte("data_audiencia", `${dia}T23:59:59-03:00`)
+        .neq("status", "cancelado");
+      q = processoIdParaSalvar ? q.eq("processo_id", processoIdParaSalvar) : q.eq("processo_numero", processoNumeroParaSalvar);
+      const { data: mesmas } = await q;
+      const horaNova = (form.hora || "").slice(0, 5);
+      const horaDe = (a: any) =>
+        (a.hora || "").slice(0, 5) ||
+        new Date(a.data_audiencia).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" });
+      const iguais = ((mesmas as any[]) || []).filter((a) => !horaNova || horaDe(a) === horaNova);
+      if (iguais.length > 0) {
+        const quando = iguais
+          .map((a) => new Date(a.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }))
+          .join(", ");
+        const ok = window.confirm(
+          `Já existe ${iguais.length > 1 ? iguais.length + " audiências cadastradas" : "uma audiência cadastrada"} neste processo em ${dia.split("-").reverse().join("/")}${horaNova ? " às " + horaNova : ""} (cadastro em ${quando}).\n\nDeseja cadastrar mesmo assim?`,
+        );
+        if (!ok) return;
+      }
+    }
+
     const payload: NovaAudiencia = {
       processo_id: processoIdParaSalvar,
       processo_numero: processoNumeroParaSalvar || "",

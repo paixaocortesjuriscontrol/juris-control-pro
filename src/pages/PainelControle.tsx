@@ -1727,7 +1727,7 @@ export default function PainelControle() {
         const { data } = await supabase
           .from("audiencias_detectadas")
           .select(
-            "id, titulo, tipo_audiencia, modalidade, comarca, polo_ativo, cliente, terceirizado, preposto, testemunhas, advogado, hora, resumo_objeto, observacoes, processo_numero, processo_id",
+            "id, created_at, titulo, tipo_audiencia, modalidade, comarca, polo_ativo, cliente, terceirizado, preposto, testemunhas, advogado, hora, resumo_objeto, observacoes, processo_numero, processo_id",
           )
           .in("id", audIds.slice(i, i + 200));
         (data || []).forEach((a: any) => audDetalhes.set(String(a.id), a));
@@ -1792,6 +1792,9 @@ export default function PainelControle() {
             advogado: aud?.advogado ?? "",
             obs: aud?.observacoes ?? it.descricao ?? "",
             status: (it.status ?? "pendente").toString().toUpperCase(),
+            cadastro: (aud?.created_at ?? it.created_at)
+              ? new Date(aud?.created_at ?? it.created_at).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }).replace(",", "")
+              : "",
             _ordemData: String(it.data_vencimento ?? it.data_inicio ?? "").slice(0, 10),
             _ordemHora: hora,
           };
@@ -1809,7 +1812,7 @@ export default function PainelControle() {
       const cabecalho = [
         "DATA", "HORA", "NÚMERO PROCESSO", "COMARCA", "UF", "PÓLO ATIVO", "CLIENTE",
         "TERCEIRIZADO", "TIPO DE AUDIÊNCIA", "RESUMO DO OBJETO", "PREPOSTO", "TESTEMUNHA",
-        "ADVOGADO / CORRESPONDENTE", "OBS", "STATUS FINAL",
+        "ADVOGADO / CORRESPONDENTE", "OBS", "STATUS FINAL", "CADASTRO NO SISTEMA",
       ];
       const headerRow = ws.addRow(cabecalho);
       headerRow.height = 22;
@@ -1834,7 +1837,7 @@ export default function PainelControle() {
       for (const l of linhas) {
         const row = ws.addRow([
           l.data, l.hora, l.processo, l.comarca, l.uf, l.poloAtivo, l.cliente,
-          l.terceirizado, l.tipo, l.resumo, l.preposto, l.testemunha, l.advogado, l.obs, l.status,
+          l.terceirizado, l.tipo, l.resumo, l.preposto, l.testemunha, l.advogado, l.obs, l.status, l.cadastro,
         ]);
         row.eachCell({ includeEmpty: true }, (cell, colNum) => {
           cell.font = { name: "Calibri", size: 10, color: { argb: "FF1A202C" } };
@@ -1842,12 +1845,12 @@ export default function PainelControle() {
           cell.alignment = {
             horizontal: colNum <= 5 || colNum === 15 ? "center" : "left",
             vertical: "middle",
-            wrapText: colNum === 10 || colNum === 14,
+            wrapText: colNum === 10 || colNum === 14 || colNum === 16,
           };
         });
       }
 
-      const larguras = [11, 7, 26, 16, 6, 28, 12, 13, 26, 40, 18, 16, 22, 24, 14];
+      const larguras = [11, 7, 26, 16, 6, 28, 12, 13, 26, 40, 18, 16, 22, 24, 14, 22];
       larguras.forEach((w, i) => (ws.getColumn(i + 1).width = w));
 
       const buffer = await wb.xlsx.writeBuffer();

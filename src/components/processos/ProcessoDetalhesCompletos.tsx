@@ -1430,7 +1430,13 @@ export function ProcessoDetalhesCompletos({
                                       </p>
                                     )}
                                     <div className="flex items-center gap-3 text-[11px] text-muted-foreground flex-wrap">
-                                      {aud.created_at && <span>Registrada em {formatDate(aud.created_at)}</span>}
+                                      {(aud as any)._cadastros?.length > 1 ? (
+                                        <span className="font-medium text-destructive">
+                                          Cadastrada {(aud as any)._cadastros.length} vezes: {(aud as any)._cadastros.map((c: string) => formatDateTime(c)).join("; ")}
+                                        </span>
+                                      ) : (
+                                        aud.created_at && <span>Registrada em {formatDateTime(aud.created_at)}</span>
+                                      )}
                                       {aud.origem && <span className="capitalize">Origem: {aud.origem}</span>}
                                     </div>
                                   </div>
