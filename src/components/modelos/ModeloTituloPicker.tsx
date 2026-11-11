@@ -18,19 +18,16 @@ interface Props {
 /** Botão de sugestões de títulos (Modelos de tarefas por coordenação). */
 export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }: Props) {
   const [open, setOpen] = useState(false);
-  // Busca TODOS os modelos do tipo (o usuário só enxerga o que tem acesso).
-  // Nunca filtramos pela coordenação na query para o botão não sumir ao trocar de coordenação.
-  // Busca modelos de todos os tipos: o seletor mostra toda coordenação com modelo,
-  // e os do tipo da tela aparecem primeiro.
-  const { data: todosModelos = [] } = useModelosTitulo();
+  // Busca somente modelos do tipo da tela; a coordenação continua sendo escolhida no seletor.
+  const { data: modelosDoTipo = [] } = useModelosTitulo({ tipo });
   const { isAdmin, coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
 
   // Só exibe modelos das coordenações às quais o usuário logado pertence (admin vê todas).
   const modelos = useMemo(() => {
-    if (isAdmin) return todosModelos;
+    if (isAdmin) return modelosDoTipo;
     const permitidas = new Set(minhasCoordenacoes.map((c) => c.id));
-    return todosModelos.filter((m) => permitidas.has(m.coordenacao_id));
-  }, [todosModelos, isAdmin, minhasCoordenacoes]);
+    return modelosDoTipo.filter((m) => permitidas.has(m.coordenacao_id));
+  }, [modelosDoTipo, isAdmin, minhasCoordenacoes]);
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-nomes-modelos"],
@@ -67,10 +64,7 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
     (minhasCoordenacoes.find((c) => coordsComModelos.some((x: any) => x.id === c.id))?.id) ||
     coordsComModelos[0]?.id || "";
   const coordAtiva = mostrarSeletor ? (coordEscolhida || coordPadrao) : (minhasCoordenacoes[0]?.id || "");
-  const visiveis = (coordAtiva ? modelos.filter((m) => m.coordenacao_id === coordAtiva) : modelos)
-    .slice()
-    .sort((a, b) => Number(b.tipo === tipo) - Number(a.tipo === tipo));
-  const rotuloTipo: Record<string, string> = { prazo: "Prazo", tarefa: "Tarefa", evento: "Evento", audiencia: "Audiência" };
+  const visiveis = coordAtiva ? modelos.filter((m) => m.coordenacao_id === coordAtiva) : modelos;
 
   if (modelos.length === 0) return null;
 
@@ -87,11 +81,6 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
       <span className="flex items-center gap-1.5 text-sm font-medium">
         <Check className="h-3.5 w-3.5 opacity-0" />
         {m.nome}
-        {m.tipo !== tipo && (
-          <span className="ml-1 rounded border px-1 text-[10px] font-normal text-muted-foreground">
-            {rotuloTipo[m.tipo] ?? m.tipo}
-          </span>
-        )}
       </span>
       <span className="pl-5 text-xs text-muted-foreground line-clamp-2">{m.titulo}</span>
       {nomePorId[m.coordenacao_id] && (
