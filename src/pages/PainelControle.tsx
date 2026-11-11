@@ -95,6 +95,7 @@ import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import TstPrazos from "@/pages/TstPrazos";
+import { ListaAtividadesProjuris } from "@/components/painel/ListaAtividadesProjuris";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import { EquipeItensAgenda, type StatusFiltro } from "@/components/painel/EquipeItensAgenda";
 import PainelAudiencias from "@/pages/PainelAudiencias";
@@ -130,12 +131,13 @@ import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 const TIME_ZONE = "America/Sao_Paulo";
 
 type TabMode = "pessoal" | "escritorio";
-type ViewMode = "agenda" | "lista" | "kanban" | "equipe" | "prazos" | "audiencias" | "notificacoes";
+type ViewMode = "agenda" | "lista" | "kanban" | "atividades" | "equipe" | "prazos" | "audiencias" | "notificacoes";
 
 const isPainelViewMode = (value: string | null): value is ViewMode =>
   value === "agenda" ||
   value === "lista" ||
   value === "kanban" ||
+  value === "atividades" ||
   value === "equipe" ||
   value === "prazos" ||
   value === "audiencias" ||
@@ -2857,6 +2859,15 @@ export default function PainelControle() {
                 </Button>
                 <Button
                   size="sm"
+                  variant={viewMode === "atividades" ? "default" : "outline"}
+                  className="h-7 px-2 text-[11px]"
+                  onClick={() => setViewMode("atividades")}
+                  title="Lista de atividades (igual ao Projuris)"
+                >
+                  Atividades
+                </Button>
+                <Button
+                  size="sm"
                   variant={viewMode === "equipe" ? "default" : "outline"}
                   className="h-7 px-2 text-[11px]"
                   onClick={() => setViewMode("equipe")}
@@ -3097,6 +3108,13 @@ export default function PainelControle() {
         ) : viewMode === "kanban" ? (
           <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
             <KanbanItensAgenda
+              itens={comDataPublicacao(itensPainelFiltrados)}
+              onItemClick={handleItemClick}
+            />
+          </div>
+        ) : viewMode === "atividades" ? (
+          <div className="flex-1 min-h-0 overflow-auto p-4 md:p-6">
+            <ListaAtividadesProjuris
               itens={comDataPublicacao(itensPainelFiltrados)}
               onItemClick={handleItemClick}
             />
