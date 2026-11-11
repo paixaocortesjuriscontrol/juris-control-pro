@@ -27,6 +27,7 @@ async function mapaChaves(tipo: string, chaves: string[]) {
 
 export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }) {
   const [arquivos, setArquivos] = useState<Record<string, File>>({});
+  const [ignorados, setIgnorados] = useState<string[]>([]);
   const [prog, setProg] = useState(0);
   const [fase, setFase] = useState("");
   const [rodando, setRodando] = useState(false);
@@ -34,11 +35,15 @@ export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }
 
   const escolher = (fs: FileList | null) => {
     const m = { ...arquivos };
+    const ign: string[] = [];
+    const ALIAS: Record<string, string> = { etapaworflow: "etapaworkflow", etapasworkflow: "etapaworkflow", etapasworflow: "etapaworkflow" };
     for (const f of Array.from(fs || [])) {
-      const n = f.name.toLowerCase().replace(/\.csv$/, "").replace(/[\s_-]*(\(\d+\)|-\d+|_\d+|\d+)?\s*$/, "").trim();
-      if ((ARQS as readonly string[]).includes(n)) m[n] = f;
+      let n = f.name.toLowerCase().replace(/\.csv$/, "").replace(/\s*(\(\d+\)|-\d+|_\d+|\d+)\s*$/, "").replace(/[\s_-]/g, "").trim();
+      n = ALIAS[n] || n;
+      if ((ARQS as readonly string[]).includes(n)) m[n] = f; else ign.push(f.name);
     }
     setArquivos(m);
+    setIgnorados(ign);
   };
 
   const importar = async () => {
@@ -156,11 +161,12 @@ export function ImportarExecucoesWorkflowProjuris({ userId }: { userId: string }
     <Card>
       <CardHeader>
         <CardTitle>Fluxos (workflows) em execução do Projuris</CardTitle>
-        <CardDescription>Envie workflow.csv, etapaworkflow.csv, workflowcontrole.csv e workflowexecucao.csv. Cada fluxo iniciado no Projuris vira uma execução do modelo já importado, na Coordenação Santander Cível, ligada às tarefas já migradas. Fluxos parados numa etapa continuam automáticos; os encerrados ficam como histórico. Os modelos continuam desligados até a revisão.</CardDescription>
+        <CardDescription>Envie workflow.csv, etapaworkflow.csv, workflowcontrole.csv e workflowexecucao.csv. Cada fluxo iniciado no Projuris vira uma execução do modelo já importado, na Coordenação Santander Cível, ligada às tarefas já migradas. Fluxos parados numa etapa continuam automáticos; os encerrados ficam como histórico. Os modelos continuam desligados até a revisão. Pode escolher os arquivos aos poucos; etapaworkflowtarefa.csv e workflowgatilhoautomatico.csv não são necessários.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <input type="file" accept=".csv" multiple onChange={(e) => escolher(e.target.files)} />
         <p className="text-xs text-muted-foreground">{ARQS.map((k) => `${k}: ${arquivos[k] ? "ok" : "falta"}`).join(" · ")}</p>
+        {ignorados.length > 0 && <p className="text-xs text-muted-foreground">Não usados: {ignorados.join(", ")}</p>}
         {rodando && <><Progress value={prog} /><p className="text-xs text-muted-foreground">{fase}</p></>}
         <div className="flex gap-2">
           <Button disabled={!pronto || rodando} onClick={importar}>{rodando && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Importar fluxos</Button>
