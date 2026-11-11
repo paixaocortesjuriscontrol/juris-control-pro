@@ -691,6 +691,7 @@ export async function avancarExecucaoWorkflow(
       let ok: boolean;
       if (refId) {
         const ref = etapas.find((e) => e.etapa_id === refId);
+        if (ref && ref.status !== "concluida" && ref.status !== "cancelada") continue; // ramo ainda não chegou lá
         ok = ref?.status === "concluida" && !!ref?.sucesso;
       } else {
         ok = !!etapaConcluida.sucesso;
@@ -699,7 +700,9 @@ export async function avancarExecucaoWorkflow(
         await supabase
           .from("workflow_execucao_etapas")
           .update({ status: "cancelada", sucesso: false })
-          .eq("id", cand.id);
+          .eq("id", cand.id)
+          .eq("status", "pendente");
+        cand.status = "cancelada" as any;
         continue;
       }
       elegiveis.push(cand);
@@ -709,76 +712,209 @@ export async function avancarExecucaoWorkflow(
     elegiveis.push(cand);
   }
 
-  if (elegiveis.length === 0) {
-    await supabase
-      .from("workflow_execucoes")
-      .update({ status: "concluido" })
-      .eq("id", execucaoId);
-    return { concluido: true };
-  }
+  const criadas = await materializarEtapas(execucaoCast, elegiveis, etapaConcluida);
+  return { concluido: await encerrarSeTerminou(execucaoId, criadas) };
+}
 
+/**
+ * Só encerra a execução quando não sobra nenhuma etapa ativa (com item) nem
+ * pendente. Antes, qualquer rodada sem próxima etapa encerrava o fluxo,
+ * mesmo com outros ramos em aberto.
+ */
+async function encerrarSeTerminou(execucaoId: string, criadas: number): Promise<boolean> {
+  if (criadas > 0) return false;
+  const { data } = await supabase
+    .from("workflow_execucao_etapas")
+    .select("id, status, item_id")
+    .eq("execucao_id", execucaoId)
+    .in("status", ["pendente", "materializada"]);
+  if ((data || []).length > 0) return false;
+  await supabase
+    .from("workflow_execucoes")
+    .update({ status: "concluido" })
+    .eq("id", execucaoId)
+    .eq("status", "em_andamento");
+  return true;
+}
+
+/**
+ * Cria os itens das etapas elegíveis. Cada etapa é "reservada" antes
+ * (pendente → materializada) para que duas telas abertas não criem a mesma
+ * tarefa duas vezes; se a criação falhar, a etapa volta a pendente e é
+ * retomada na próxima conferência.
+ */
+async function materializarEtapas(
+  execucaoCast: any,
+  elegiveis: WorkflowExecucaoEtapa[],
+  etapaReferencia: WorkflowExecucaoEtapa | null
+): Promise<number> {
+  if (elegiveis.length === 0) return 0;
   const dataReferencia = new Date();
-  const responsavelAnterior = etapaConcluida.item_id
-    ? await buscarResponsavelItem(etapaConcluida.item_tipo, etapaConcluida.item_id)
+  const responsavelAnterior = etapaReferencia?.item_id
+    ? await buscarResponsavelItem(etapaReferencia.item_tipo, etapaReferencia.item_id)
     : null;
 
+  let criadas = 0;
   for (const proxima of elegiveis) {
-    const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
-      responsavelAnterior,
-      iniciadorId: execucaoCast.iniciado_por,
-    });
-
-    const item = await criarItemWorkflow(
-      execucaoCast as WorkflowExecucao,
-      proxima.etapa as WorkflowEtapa,
-      dataReferencia,
-      responsavel,
-      execucaoCast.processo_id,
-      execucaoCast.processo_numero
-    );
-
-    // Etapas seguintes herdam a mesma publicação de origem do workflow
-    if (item?.id && execucaoCast.publicacao_origem_id) {
-      try {
-        await vincularItemPublicacao(
-          { id: item.id, tipo: String(item.tipo || (proxima.etapa as WorkflowEtapa).tipo_item || "tarefa") },
-          { tipo: execucaoCast.publicacao_origem_tipo, id: execucaoCast.publicacao_origem_id },
-        );
-      } catch (e) {
-        console.error("Falha ao vincular publicação ao item do workflow", e);
-      }
-    }
-
-
-    const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
-      | "dias_corridos"
-      | "dias_uteis";
-    const coordFer2 = (execucaoCast as any)?.coordenacao_id || null;
-    try { await precarregarFeriados(coordFer2); } catch { /* sem feriados */ }
-    const dataPrevista = proxima.etapa?.dias_previsto
-      ? formatarDataISOBrasilia(
-          calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp, coordFer2)
-        )
-      : formatarDataISOBrasilia(dataReferencia);
-    const dataFatal = proxima.etapa?.dias_fatal
-      ? formatarDataISOBrasilia(
-          calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp, coordFer2)
-        )
-      : dataPrevista;
-
-    await supabase
+    const { data: reservada } = await supabase
       .from("workflow_execucao_etapas")
-      .update({
-        status: "materializada",
-        item_id: item?.id || null,
-        item_tipo: item?.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
-        data_prevista_calculada: dataPrevista,
-        data_fatal_calculada: dataFatal,
-      })
-      .eq("id", proxima.id);
+      .update({ status: "materializada" })
+      .eq("id", proxima.id)
+      .eq("status", "pendente")
+      .select("id");
+    if (!reservada || reservada.length === 0) continue; // outra tela já criou
+
+    try {
+      const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
+        responsavelAnterior,
+        iniciadorId: execucaoCast.iniciado_por,
+      });
+
+      const item = await criarItemWorkflow(
+        execucaoCast as WorkflowExecucao,
+        proxima.etapa as WorkflowEtapa,
+        dataReferencia,
+        responsavel,
+        execucaoCast.processo_id,
+        execucaoCast.processo_numero
+      );
+      if (!item?.id) throw new Error("Item da etapa não foi criado");
+
+      // Etapas seguintes herdam a mesma publicação de origem do workflow
+      if (execucaoCast.publicacao_origem_id) {
+        try {
+          await vincularItemPublicacao(
+            { id: item.id, tipo: String(item.tipo || (proxima.etapa as WorkflowEtapa).tipo_item || "tarefa") },
+            { tipo: execucaoCast.publicacao_origem_tipo, id: execucaoCast.publicacao_origem_id },
+          );
+        } catch (e) {
+          console.error("Falha ao vincular publicação ao item do workflow", e);
+        }
+      }
+
+      const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
+        | "dias_corridos"
+        | "dias_uteis";
+      const coordFer2 = (execucaoCast as any)?.coordenacao_id || null;
+      try { await precarregarFeriados(coordFer2); } catch { /* sem feriados */ }
+      const dataPrevista = proxima.etapa?.dias_previsto
+        ? formatarDataISOBrasilia(
+            calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp, coordFer2)
+          )
+        : formatarDataISOBrasilia(dataReferencia);
+      const dataFatal = proxima.etapa?.dias_fatal
+        ? formatarDataISOBrasilia(
+            calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp, coordFer2)
+          )
+        : dataPrevista;
+
+      const { error: updErr } = await supabase
+        .from("workflow_execucao_etapas")
+        .update({
+          status: "materializada",
+          item_id: item.id,
+          item_tipo: item.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
+          data_prevista_calculada: dataPrevista,
+          data_fatal_calculada: dataFatal,
+        })
+        .eq("id", proxima.id);
+      if (updErr) throw updErr;
+      proxima.status = "materializada" as any;
+      proxima.item_id = item.id as any;
+      criadas++;
+    } catch (err) {
+      console.error("Falha ao criar etapa do workflow; será retomada", proxima.id, err);
+      await supabase
+        .from("workflow_execucao_etapas")
+        .update({ status: "pendente" })
+        .eq("id", proxima.id)
+        .is("item_id", null);
+    }
+  }
+  return criadas;
+}
+
+/**
+ * Retoma execuções em andamento que ficaram sem nenhuma etapa ativa
+ * (ex.: a criação da próxima etapa foi interrompida, ou fluxo migrado cuja
+ * etapa aberta não tinha tarefa). Materializa a primeira etapa pendente
+ * cujo pré-requisito já foi resolvido.
+ */
+export async function retomarExecucoesTravadas(): Promise<number> {
+  const limite = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+  // Reservas interrompidas (sem item há mais de 3 min) voltam a pendente.
+  await supabase
+    .from("workflow_execucao_etapas")
+    .update({ status: "pendente" })
+    .eq("status", "materializada")
+    .is("item_id", null)
+    .lt("updated_at", limite);
+
+  const ids: string[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
+      .from("workflow_execucoes")
+      .select("id")
+      .eq("status", "em_andamento")
+      .range(de, de + 999);
+    if (error || !data) break;
+    ids.push(...data.map((d: any) => d.id));
+    if (data.length < 1000) break;
   }
 
-  return { concluido: false };
+  let retomadas = 0;
+  for (let i = 0; i < ids.length; i += 80) {
+    const lote = ids.slice(i, i + 80);
+    const { data: rows } = await supabase
+      .from("workflow_execucao_etapas")
+      .select("*, etapa:workflow_etapas(*)")
+      .in("execucao_id", lote);
+    const porExec = new Map<string, WorkflowExecucaoEtapa[]>();
+    for (const r of (rows as any[]) || []) {
+      const l = porExec.get(r.execucao_id) || [];
+      l.push(r);
+      porExec.set(r.execucao_id, l);
+    }
+    for (const [execId, etapas] of porExec) {
+      if (etapas.some((e) => e.status === "materializada")) continue; // tem etapa ativa
+      const pendentes = etapas
+        .filter((e) => e.status === "pendente")
+        .sort((a, b) => (a.etapa?.ordem || 0) - (b.etapa?.ordem || 0));
+      if (pendentes.length === 0) {
+        await encerrarSeTerminou(execId, 0);
+        continue;
+      }
+      const resolvida = (e?: WorkflowExecucaoEtapa) =>
+        !e || e.status === "concluida" || e.status === "cancelada";
+      const elegivel = pendentes.find((p) => {
+        const refId = p.etapa?.etapa_anterior_id;
+        if (refId) return resolvida(etapas.find((e) => e.etapa_id === refId));
+        return etapas
+          .filter((e) => (e.etapa?.ordem || 0) < (p.etapa?.ordem || 0))
+          .every((e) => resolvida(e));
+      });
+      if (!elegivel) continue;
+      const refId = elegivel.etapa?.etapa_anterior_id;
+      const referencia =
+        (refId && etapas.find((e) => e.etapa_id === refId)) ||
+        etapas
+          .filter((e) => e.status === "concluida")
+          .sort((a, b) => (b.etapa?.ordem || 0) - (a.etapa?.ordem || 0))[0] ||
+        null;
+      const { data: exec } = await supabase
+        .from("workflow_execucoes")
+        .select("*")
+        .eq("id", execId)
+        .maybeSingle();
+      if (!exec) continue;
+      try {
+        retomadas += await materializarEtapas(exec, [elegivel], referencia);
+      } catch (err) {
+        console.error("Falha ao retomar workflow", execId, err);
+      }
+    }
+  }
+  return retomadas;
 }
 
 /** Lê a situação atual de um item criado por workflow. */
@@ -841,6 +977,11 @@ export async function sincronizarWorkflowsPorItens(): Promise<number> {
     } catch (err) {
       console.error("Falha ao avançar workflow", row.execucao_id, err);
     }
+  }
+  try {
+    avancadas += await retomarExecucoesTravadas();
+  } catch (err) {
+    console.error("Falha ao retomar workflows parados", err);
   }
   return avancadas;
 }
