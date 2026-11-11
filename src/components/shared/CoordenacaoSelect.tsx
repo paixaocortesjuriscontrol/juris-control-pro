@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -102,7 +103,11 @@ export function CoordenacaoSelect({
   });
 
   const listaBase = data?.coordenacoes ?? [];
-  const defaultId = data?.defaultId ?? null;
+  const { data: coordPadraoPerfil } = useCoordenacaoPadrao();
+  // Padrão: coordenação do perfil do usuário (se estiver na lista); senão a sugerida.
+  const defaultId =
+    (coordPadraoPerfil && listaBase.some((c: any) => c.id === coordPadraoPerfil) ? coordPadraoPerfil : null) ??
+    data?.defaultId ?? null;
   const faltaNaLista = !!value && !!data && !listaBase.some((c: any) => c.id === value);
 
   // Coordenação gravada fora da lista do usuário: busca o nome só para exibir.

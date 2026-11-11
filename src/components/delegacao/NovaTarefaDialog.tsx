@@ -53,6 +53,7 @@ import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "
 import { Label } from "@/components/ui/label";
 import { TarefaPublicacaoVinculada } from "@/components/shared/TarefaPublicacaoVinculada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { BotaoPreencherIA } from "@/components/tarefas/BotaoPreencherIA";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
@@ -239,7 +240,14 @@ export function NovaTarefaDialog({
     ? [...baseCoords, ...todasCoordsDelegacao.filter((c) => !baseCoords.some((b) => b.id === c.id))]
     : baseCoords;
   const precisaSelecionar = precisaSelecionarBase || coordenacoesDisponiveis.length > 1;
-  const unicaCoordenacaoId = unicaBase; // usada como sugestão inicial
+  const { data: coordPadraoPerfil } = useCoordenacaoPadrao();
+  // Sugestão inicial: coordenação padrão do usuário (perfil) se ele tiver acesso;
+  // senão, a primeira coordenação da qual ele é membro.
+  const unicaCoordenacaoId =
+    (coordPadraoPerfil && coordenacoesDisponiveis.some((c) => c.id === coordPadraoPerfil) ? coordPadraoPerfil : "") ||
+    unicaBase ||
+    coordenacoesUsuario[0]?.id ||
+    "";
   
   // Buscar usuário atual para salvar criado_por
   const { data: userData } = useQuery({
@@ -280,6 +288,13 @@ export function NovaTarefaDialog({
 
   const tipoVinculo = form.watch("tipo_vinculo");
   const coordenacaoId = form.watch("coordenacao_id");
+  // Item novo: se a coordenação ficou vazia (listas carregaram depois), preenche com a do usuário.
+  useEffect(() => {
+    if (open && !tarefaParaEditar && !coordenacaoId && unicaCoordenacaoId) {
+      form.setValue("coordenacao_id", unicaCoordenacaoId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, tarefaParaEditar, coordenacaoId, unicaCoordenacaoId]);
   useEffect(() => {
     coordFeriadosAtual = coordenacaoId || null;
     if (coordenacaoId) void precarregarFeriados(coordenacaoId).catch(() => {});
@@ -529,7 +544,7 @@ export function NovaTarefaDialog({
   // abertura e pelo pós-Save quando o wrapper deve continuar aberto para
   // cadastrar outro item (Análise DJEN).
   const resetFormForNew = () => {
-    const coordenacaoInicial = unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
+    const coordenacaoInicial = form.getValues("coordenacao_id") || unicaCoordenacaoId || (coordenacoesDisponiveis.length === 1 ? coordenacoesDisponiveis[0].id : "");
     form.reset({
       tipo_vinculo: "processo",
       coordenacao_id: coordenacaoInicial,
