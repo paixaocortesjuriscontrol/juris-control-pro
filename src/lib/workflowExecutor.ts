@@ -978,11 +978,6 @@ export async function sincronizarWorkflowsPorItens(): Promise<number> {
       console.error("Falha ao avançar workflow", row.execucao_id, err);
     }
   }
-  try {
-    avancadas += await retomarExecucoesTravadas();
-  } catch (err) {
-    console.error("Falha ao retomar workflows parados", err);
-  }
   return avancadas;
 }
 
