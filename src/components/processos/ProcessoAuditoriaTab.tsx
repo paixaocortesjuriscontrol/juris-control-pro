@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
+import { labelCampo, formatValor } from "@/lib/auditoriaCampos";
 
 interface Props {
   processoId?: string | null;
@@ -42,21 +43,6 @@ type AuditRow = {
   erro_mensagem: string | null;
 };
 
-const LABELS: Record<string, string> = {
-  titulo: "Título", descricao: "Descrição", observacoes: "Observações",
-  observacao: "Observação", status: "Situação", situacao: "Situação",
-  prioridade: "Prioridade", data_vencimento: "Data de vencimento",
-  data_fatal: "Data fatal", data_cumprimento: "Data de cumprimento",
-  tratado_em: "Tratado em", responsavel_id: "Responsável",
-  coordenacao_id: "Coordenação", processo_id: "Processo",
-  data_inicio: "Data de início", data_fim: "Data de término",
-  tipo: "Tipo", tipo_tarefa: "Tipo", local: "Local", valor: "Valor",
-  numero: "Número do processo", cliente: "Cliente", comarca: "Comarca",
-  vara: "Vara", objeto_acao: "Objeto da ação", pedido: "Pedido",
-  data_audiencia: "Data da audiência", nome_arquivo: "Arquivo",
-};
-const labelCampo = (c: string) => LABELS[c] || c.replace(/_/g, " ");
-
 const TIPO_LABEL: Record<string, string> = {
   processo: "Processo", tarefa: "Tarefa", prazo: "Prazo", evento: "Evento",
   audiencia: "Audiência", parcelamento: "Parcelamento", documento: "Documento",
@@ -70,16 +56,6 @@ const ACAO_META: Record<string, { label: string; icon: any; className: string }>
 };
 const acaoMeta = (a: string) =>
   ACAO_META[a] || { label: a?.replace(/_/g, " ") || "—", icon: AlertTriangle, className: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300" };
-
-const formatValor = (v: any): string => {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "boolean") return v ? "Sim" : "Não";
-  if (typeof v === "object") return JSON.stringify(v);
-  const s = String(v);
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
-  if (m) return m[4] ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : `${m[3]}/${m[2]}/${m[1]}`;
-  return s.length > 160 ? `${s.slice(0, 160)}…` : s;
-};
 
 const formatDataHora = (iso: string) => {
   const d = new Date(iso);
@@ -392,7 +368,7 @@ export function ProcessoAuditoriaTab({ processoId, processoNumero }: Props) {
                     <div className="rounded-md border divide-y">
                       {getDiff(selected).map((d, i) => (
                         <div key={i} className="p-2 grid grid-cols-3 gap-2 text-xs">
-                          <span className="font-medium capitalize">{labelCampo(d.campo)}</span>
+                          <span className="font-medium">{labelCampo(d.campo)}</span>
                           <span className="text-muted-foreground line-through break-words">{formatValor(d.de)}</span>
                           <span className="break-words">{formatValor(d.para)}</span>
                         </div>
@@ -412,7 +388,7 @@ export function ProcessoAuditoriaTab({ processoId, processoNumero }: Props) {
                         .slice(0, 40)
                         .map(([k, v]) => (
                           <div key={k} className="p-2 grid grid-cols-2 gap-2 text-xs">
-                            <span className="font-medium capitalize">{labelCampo(k)}</span>
+                            <span className="font-medium">{labelCampo(k)}</span>
                             <span className="break-words">{formatValor(v)}</span>
                           </div>
                         ))}
