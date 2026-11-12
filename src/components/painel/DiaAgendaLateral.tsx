@@ -1,3 +1,4 @@
+import { corFaixaPadraoItem } from "@/lib/tipoItemAgenda";
 import { useMemo } from "react";
 import { format, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -422,7 +423,7 @@ export function DiaAgendaLateral({
               temComentario={temComentarioItem(itensComComentarios, item)}
               autoriaComentario={autoriaComentarioItem(itensComComentarios, item)}
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
-              corFaixa={modeloPorTarefa?.get(getItemRawId(item.id))?.cor}
+              corFaixa={modeloPorTarefa?.get(getItemRawId(item.id))?.cor || corFaixaPadraoItem(item)}
               partes={partesDoItem(item, partesPorProcesso)}
             />
           ))}
