@@ -3,6 +3,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { aplicarPessoasModelo } from "@/lib/pessoasModelo";
 import {
   aplicarPadroesEmObjeto,
   resolverPadroes,
@@ -700,6 +701,7 @@ export function AudienciaFormSimplificado({
             tipo="audiencia"
             coordenacaoId={coordenacaoId}
             onSelect={(m) => {
+                aplicarPessoasModelo(m, setResponsaveisIds, setEnvolvidosIds);
               const anterior = modeloPadroesRef.current || {};
               const p = resolverPadroes(m);
               const prazoCalculado = resolverPrazoModelo(m, publicacaoDataBase || null);

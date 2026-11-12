@@ -1,3 +1,4 @@
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -96,8 +97,10 @@ export default function ModelosTitulo() {
           </Select>
         </div>
 
-        {editando && (
-          <Card>
+        <Sheet open={!!editando} onOpenChange={(o) => { if (!o) setEditando(null); }}>
+          <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto p-0">
+          {editando && (
+          <Card className="border-0 shadow-none">
             <CardHeader><CardTitle className="text-base">{editando.id ? "Editar" : "Novo"} modelo</CardTitle></CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-2">
               <div>
@@ -161,7 +164,7 @@ export default function ModelosTitulo() {
                   value={((editando.padroes as any)?.cor as string) || "#64748b"}
                   onChange={(e) => setEditando((s) => ({ ...s!, padroes: { ...((s!.padroes ?? {}) as any), cor: e.target.value } }))} />
               </div>
-              {(editando.tipo ?? "tarefa") === "tarefa" && (
+              {(editando.tipo ?? "tarefa") !== "parcela" && (
                 <>
                   <div className="md:col-span-2">
                     <label className="text-xs text-muted-foreground">Responsáveis padrão (entram ao usar o modelo)</label>
@@ -196,7 +199,9 @@ export default function ModelosTitulo() {
               </div>
             </CardContent>
           </Card>
-        )}
+          )}
+          </SheetContent>
+        </Sheet>
 
         <Tabs value={tipo} onValueChange={(value) => setTipo(value as TipoModelo)} className="space-y-4">
           <TabsList className="flex h-auto w-full flex-wrap justify-start">

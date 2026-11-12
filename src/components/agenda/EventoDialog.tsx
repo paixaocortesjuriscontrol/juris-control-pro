@@ -3,6 +3,7 @@ import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
+import { aplicarPessoasModelo } from "@/lib/pessoasModelo";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
@@ -683,6 +684,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   tipo="evento"
                   coordenacaoId={coordenacaoId}
                   onSelect={(m) => {
+                aplicarPessoasModelo(m, setResponsaveisIds, setEnvolvidosIds);
                     const anterior = modeloPadroesRef.current;
                     const p = resolverPadroes(m);
                     setTitulo(m.titulo);
