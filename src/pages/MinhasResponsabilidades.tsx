@@ -23,6 +23,14 @@ import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLatera
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
+import { PainelFiltros, PAINEL_FILTROS_DEFAULT, type PainelFiltrosState } from "@/components/painel/PainelFiltros";
+import { statusCasaSituacao } from "@/hooks/useSituacoesPainel";
+import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
+import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
+import { useCobrancasItens, infoCobrancaItem } from "@/hooks/useCobrancasItens";
+import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { isItemTratado } from "@/components/shared/TratadoCheck";
+import { itemSemProcessoEPublicacao } from "@/lib/vinculoItem";
 
 type Periodo = "mes" | "trimestre" | "ano";
 const PERIODOS: { v: Periodo; l: string }[] = [
@@ -152,6 +160,7 @@ export default function MinhasResponsabilidades() {
   const [busca, setBusca] = useState("");
   const [buscaProc, setBuscaProc] = useState("");
   const [statusProc, setStatusProc] = useState("todos");
+  const [pf, setPf] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
   const atividades = useQuery({
     queryKey: ["minhas-responsabilidades", "atividades", uid, periodo],
@@ -229,7 +238,56 @@ export default function MinhasResponsabilidades() {
     },
   });
 
-  const itens = atividades.data ?? [];
+  const brutos = atividades.data ?? [];
+  const itensAgendaFmt = useMemo(() => brutos.map(paraItemAgenda), [brutos]);
+  const { data: mapaComentarios } = useItensComComentarios(itensAgendaFmt as any);
+  const { data: itensDePub } = useItensDePublicacao(itensAgendaFmt as any, true);
+  const { data: mapaCobrancas } = useCobrancasItens(itensAgendaFmt as any, "minhas");
+  const itens = useMemo(() => brutos.filter((raw, idx) => {
+    const item: any = itensAgendaFmt[idx];
+    if (pf.classificacoes.length > 0) {
+      const t = raw._tipo === "tarefa" && String(raw.tipo_tarefa ?? "").toUpperCase() === "ATA" ? "ata" : raw._tipo;
+      if (!pf.classificacoes.includes(t)) return false;
+    }
+    const rawId = getItemRawId(String(item.id));
+    const dePub = !!itensDePub?.has(rawId);
+    const origem = pf.origemPublicacao ?? "todas";
+    if (origem !== "todas" && (origem === "com" ? !dePub : dePub)) return false;
+    if (pf.semVinculo && !itemSemProcessoEPublicacao(item, dePub)) return false;
+    if (pf.comentarios !== "todas") {
+      const tem = temComentarioItem(mapaComentarios as any, item);
+      if (pf.comentarios === "com" ? !tem : tem) return false;
+    }
+    if (pf.cobrancas !== "todas") {
+      const hoje = !!infoCobrancaItem(mapaCobrancas as any, item)?.hoje;
+      if (pf.cobrancas === "hoje" ? !hoje : hoje) return false;
+    }
+    if (pf.statusGroup !== "todas") {
+      const cancel = ["cancelado", "cancelado_oculto"].includes(String(item.status ?? ""));
+      const concl = isItemTratado(item);
+      if (pf.statusGroup === "a_concluir" && (concl || cancel)) return false;
+      if (pf.statusGroup === "concluidas" && !concl) return false;
+      if (pf.statusGroup === "canceladas" && !cancel) return false;
+    }
+    if (pf.situacoes.length > 0 && !pf.situacoes.some((v) => statusCasaSituacao(item.status, v))) return false;
+    if (pf.souResponsavel && !pf.estouEnvolvido && raw._papel !== "responsavel") return false;
+    if (pf.estouEnvolvido && !pf.souResponsavel && raw._papel !== "envolvido") return false;
+    if (pf.responsavelIds.length > 0) {
+      const ids = new Set<string>([item.responsavel_id, ...(item.responsaveis_ids ?? []), ...((item.participantes ?? []).map((p: any) => p.usuario_id))].filter(Boolean));
+      if (!pf.responsavelIds.some((id) => ids.has(id))) return false;
+    }
+    if (pf.periodoInicio || pf.periodoFim) {
+      let d: string | undefined;
+      if (pf.periodoPorPublicacao) d = item.data_publicacao_origem ?? itensDePub?.get(rawId) ?? undefined;
+      else if (pf.dataFatal && !pf.dataPrevista) d = raw.data_fatal ?? raw.data_vencimento ?? item.data_inicio;
+      else d = raw.data_vencimento ?? raw.data_fatal ?? item.data_inicio;
+      const dd = String(d ?? "").slice(0, 10);
+      if (!dd) return false;
+      if (pf.periodoInicio && dd < pf.periodoInicio) return false;
+      if (pf.periodoFim && dd > pf.periodoFim) return false;
+    }
+    return true;
+  }), [brutos, itensAgendaFmt, pf, itensDePub, mapaComentarios, mapaCobrancas]);
   const contagem = useMemo(() => {
     const c: Record<StatusFiltro, number> = { todos: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, cancelados: 0 };
     itens.forEach((i) => {
@@ -324,6 +382,7 @@ export default function MinhasResponsabilidades() {
                 <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
               ))}
               <Input className="max-w-xs" placeholder="Buscar por título ou processo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+              <PainelFiltros filtros={pf} onChange={setPf} />
             </div>
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
