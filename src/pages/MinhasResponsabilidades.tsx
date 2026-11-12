@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { addMonths, endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
 import { useUserRole } from "@/hooks/useUserRole";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -123,8 +122,9 @@ const fmt = (raw?: string | null) => {
 export default function MinhasResponsabilidades() {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
-  const [coordSel, setCoordSel] = useState<string>("todas");
-  const [usuarioSel, setUsuarioSel] = useState<string>("");
+  const [pf, setPf] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const coordSel = pf.verDeCoordenacao ?? "todas";
+  const usuarioSel = isAdmin ? pf.verDeUsuario ?? "" : "";
   const uid = (isAdmin && usuarioSel) || user?.id || "";
 
   const coordenacoes = useQuery({
@@ -165,7 +165,6 @@ export default function MinhasResponsabilidades() {
   const [busca, setBusca] = useState("");
   const [buscaProc, setBuscaProc] = useState("");
   const [statusProc, setStatusProc] = useState("todos");
-  const [pf, setPf] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
 
   const atividades = useQuery({
     queryKey: ["minhas-responsabilidades", "atividades", uid, periodo],
@@ -338,26 +337,19 @@ export default function MinhasResponsabilidades() {
   return (
     <MainLayout title="Minhas responsabilidades" subtitle="Tudo que está com você: atividades, processos e workflows">
       <div className="space-y-4">
-        {isAdmin && (
-          <div className="flex flex-wrap gap-2 items-center rounded-md border p-2 bg-muted/30">
-            <span className="text-sm text-muted-foreground">Ver responsabilidades de:</span>
-            <Select value={coordSel} onValueChange={(v) => { setCoordSel(v); setUsuarioSel(""); }}>
-              <SelectTrigger className="w-56 h-8"><SelectValue placeholder="Coordenação" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas as coordenações</SelectItem>
-                {(coordenacoes.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Select value={usuarioSel || "eu"} onValueChange={(v) => setUsuarioSel(v === "eu" ? "" : v)}>
-              <SelectTrigger className="w-56 h-8"><SelectValue placeholder="Usuário" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="eu">Eu mesmo</SelectItem>
-                {(usuarios.data ?? []).filter((u) => u.id !== user?.id).map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <PainelFiltros filtros={pf} onChange={setPf} ocultarResponsaveis />
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2 items-center justify-between rounded-md border p-2 bg-muted/30">
+          <PainelFiltros
+            filtros={pf}
+            onChange={setPf}
+            ocultarResponsaveis
+            escopoPessoa={isAdmin ? { coordenacoes: coordenacoes.data ?? [], usuarios: (usuarios.data ?? []).filter((u) => u.id !== user?.id) } : undefined}
+          />
+          <span className="text-xs text-muted-foreground">
+            {isAdmin && usuarioSel
+              ? `Vendo as responsabilidades de ${(usuarios.data ?? []).find((u) => u.id === usuarioSel)?.nome ?? "outra pessoa"}`
+              : "Mostrando as suas responsabilidades"}
+          </span>
+        </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {resumo.map((r) => (
             <Card key={r.l}><CardContent className="p-4">
@@ -390,7 +382,6 @@ export default function MinhasResponsabilidades() {
                 <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
               ))}
               <Input className="max-w-xs" placeholder="Buscar por título ou processo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
-              {!isAdmin && <PainelFiltros filtros={pf} onChange={setPf} ocultarResponsaveis />}
             </div>
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}

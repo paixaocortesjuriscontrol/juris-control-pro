@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -38,6 +39,9 @@ export interface PainelFiltrosState {
   periodoFim: string;    // yyyy-MM-dd
   // Responsáveis selecionados
   responsavelIds: string[];
+  // Escopo "ver responsabilidades de" (telas que abrem itens de outras pessoas)
+  verDeCoordenacao?: string; // "todas" ou id da coordenação
+  verDeUsuario?: string;     // "" = eu mesmo
 }
 
 export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
@@ -57,6 +61,8 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   periodoInicio: "",
   periodoFim: "",
   responsavelIds: [],
+  verDeCoordenacao: "todas",
+  verDeUsuario: "",
 };
 
 const CLASSIFICACOES = [
@@ -95,8 +101,10 @@ const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }
 interface PainelFiltrosProps {
   filtros: PainelFiltrosState;
   onChange: (filtros: PainelFiltrosState) => void;
-  /** Esconde a escolha de responsáveis (quando a tela já tem seu próprio seletor de pessoa). */
+  /** Esconde a escolha de responsáveis (quando a tela usa a escolha de pessoa do próprio painel). */
   ocultarResponsaveis?: boolean;
+  /** Mostra dentro do painel a escolha de quem se está vendo (telas abertas a outras pessoas). */
+  escopoPessoa?: { coordenacoes: { id: string; nome: string }[]; usuarios: { id: string; nome: string }[] };
 }
 
 /** Botão de opção única estilo pílula (segmented). */
@@ -162,7 +170,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false }: PainelFiltrosProps) {
+export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, escopoPessoa }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
   const { options: situacoesOptions } = useSituacoesPainel();
   // Rascunho local: só aplica ao clicar em "Filtrar"
@@ -187,6 +195,7 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false }
     filtros.statusGroup !== "todas",
     !!filtros.periodoInicio || !!filtros.periodoFim,
     filtros.responsavelIds.length > 0,
+    (filtros.verDeUsuario ?? "") !== "",
   ].filter(Boolean).length;
 
   const toggleSituacao = (val: string) => {
@@ -237,6 +246,44 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false }
 
         {/* Corpo: seções distribuídas verticalmente */}
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
+          {/* Ver responsabilidades de */}
+          {escopoPessoa && (
+            <div>
+              <SectionTitle>Ver responsabilidades de</SectionTitle>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="min-w-0">
+                  <Label className="text-[10px] text-muted-foreground mb-1 block">Coordenação</Label>
+                  <Select
+                    value={draft.verDeCoordenacao ?? "todas"}
+                    onValueChange={(v) => setDraft({ ...draft, verDeCoordenacao: v, verDeUsuario: "" })}
+                  >
+                    <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="Coordenação" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todas">Todas as coordenações</SelectItem>
+                      {escopoPessoa.coordenacoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="min-w-0">
+                  <Label className="text-[10px] text-muted-foreground mb-1 block">Pessoa</Label>
+                  <Select
+                    value={draft.verDeUsuario || "eu"}
+                    onValueChange={(v) => setDraft({ ...draft, verDeUsuario: v === "eu" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-9 w-full text-sm"><SelectValue placeholder="Eu mesmo" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="eu">Eu mesmo</SelectItem>
+                      {escopoPessoa.usuarios.map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                A coordenação serve só para encurtar a lista de pessoas.
+              </p>
+            </div>
+          )}
+
           {/* Período */}
           <div>
             <SectionTitle>Período</SectionTitle>
