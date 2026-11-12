@@ -24,6 +24,7 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoPdf";
 import { gerarRelatorioAuditoriaExcel } from "@/lib/relatorioAuditoriaCoordenacaoExcel";
+import { labelCampo, labelOrigem, formatValor } from "@/lib/auditoriaCampos";
 import { toast } from "sonner";
 
 interface AuditoriaRow {
@@ -47,47 +48,6 @@ interface AuditoriaRow {
 
 const TIPOS = ["tarefa", "prazo", "evento", "audiencia", "parcelamento"] as const;
 const ACOES = ["criar", "atualizar", "deletar", "erro_criar", "erro_atualizar", "erro_deletar"] as const;
-
-const LABELS: Record<string, string> = {
-  titulo: "Título",
-  descricao: "Descrição",
-  observacoes: "Observações",
-  observacao: "Observação",
-  status: "Situação",
-  situacao: "Situação",
-  prioridade: "Prioridade",
-  data_vencimento: "Data de vencimento",
-  data_fatal: "Data fatal",
-  data_cumprimento: "Data de cumprimento",
-  tratado_em: "Tratado em",
-  responsavel_id: "Responsável",
-  coordenacao_id: "Coordenação",
-  processo_id: "Processo",
-  data_inicio: "Data de início",
-  data_fim: "Data de término",
-  tipo: "Tipo",
-  tipo_tarefa: "Tipo",
-  local: "Local",
-  valor: "Valor",
-};
-
-const labelCampo = (campo: string) => LABELS[campo] || campo.replace(/_/g, " ");
-
-const labelOrigem = (origem: string) => {
-  if (origem?.startsWith("db_trigger:tarefas")) return "Tarefas/Prazos (sistema)";
-  if (origem?.startsWith("db_trigger:eventos_agenda")) return "Agenda (sistema)";
-  return origem;
-};
-
-const formatValor = (v: any): string => {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "boolean") return v ? "Sim" : "Não";
-  if (typeof v === "object") return JSON.stringify(v);
-  const s = String(v);
-  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
-  if (m) return m[4] ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : `${m[3]}/${m[2]}/${m[1]}`;
-  return s.length > 120 ? `${s.slice(0, 120)}…` : s;
-};
 
 const getDiff = (r: AuditoriaRow): { campo: string; de: any; para: any }[] => {
   if (Array.isArray(r.campos_alterados)) return r.campos_alterados;

@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, History, MessageSquareQuote } from "lucide-react";
-import { format, parseISO } from "date-fns";
-import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { dataHoraBrt } from "@/utils/date";
+import { labelCampo, labelAcao, labelOrigem, formatValor } from "@/lib/auditoriaCampos";
 import type { TipoItemAtividade } from "./ItemAtividades";
 
 interface Props {
@@ -53,12 +53,6 @@ function normalizarCampos(v: any): Entrada["campos"] {
     }));
   }
   return [];
-}
-
-function fmtValor(v: any) {
-  if (v === null || v === undefined || v === "") return "—";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
 }
 
 export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props) {
@@ -178,7 +172,7 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
                 <span className="text-muted-foreground">{autor.email}</span>
               )}
               <span className="text-muted-foreground ml-auto">
-                {format(parseISO(e.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                {dataHoraBrt(e.created_at)}
               </span>
             </div>
 
@@ -216,16 +210,16 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
             ) : (
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge variant="outline">{e.acao || "alteração"}</Badge>
-                  {e.origem && <span className="text-muted-foreground">{e.origem}</span>}
+                  <Badge variant="outline">{labelAcao(e.acao)}</Badge>
+                  {e.origem && <span className="text-muted-foreground">{labelOrigem(e.origem)}</span>}
                 </div>
                 {e.campos && e.campos.length > 0 && (
                   <ul className="space-y-0.5">
                     {e.campos.map((c, i) => (
                       <li key={i} className="text-muted-foreground">
-                        <span className="font-medium text-foreground">{c.campo}</span>:{" "}
-                        {fmtValor(c.de ?? c.anterior)} <span className="mx-0.5">→</span>{" "}
-                        {fmtValor(c.para ?? c.novo)}
+                        <span className="font-medium text-foreground">{labelCampo(c.campo || "")}</span>:{" "}
+                        {formatValor(c.de ?? c.anterior)} <span className="mx-0.5">→</span>{" "}
+                        {formatValor(c.para ?? c.novo)}
                       </li>
                     ))}
                   </ul>
