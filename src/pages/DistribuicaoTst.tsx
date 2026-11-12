@@ -29,6 +29,7 @@ import { useSemMateriaDossiePorResponsavel } from "@/hooks/useSemMateriaDossiePo
 import { fetchAllFilteredBennerIds, fetchProcessosComPartes, gerarRelatorioPartesPdf, buildFiltrosResumo } from "@/lib/relatorioPartesPdf";
 import { gerarRelatorioExcelDistribuicaoTst } from "@/lib/relatorioExcelDistribuicaoTst";
 import { DjenAutomaticoSheet } from "@/components/distribuicao-tst/DjenAutomaticoSheet";
+import { RelatorioDistribuicaoSheet } from "@/components/distribuicao-tst/RelatorioDistribuicaoSheet";
 import { TotalPorSituacaoCard } from "@/components/distribuicao-tst/TotalPorSituacaoCard";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -2083,6 +2084,7 @@ export default function DistribuicaoTst() {
             fetchTabsData();
             refetchDjenAutomaticoCount();
           }} />
+          <RelatorioDistribuicaoSheet />
           <Button
             variant="ghost"
             size="icon"
