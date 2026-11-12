@@ -95,6 +95,8 @@ const STATUS_GROUPS: { value: PainelFiltrosState["statusGroup"]; label: string }
 interface PainelFiltrosProps {
   filtros: PainelFiltrosState;
   onChange: (filtros: PainelFiltrosState) => void;
+  /** Esconde a escolha de responsáveis (quando a tela já tem seu próprio seletor de pessoa). */
+  ocultarResponsaveis?: boolean;
 }
 
 /** Botão de opção única estilo pílula (segmented). */
@@ -160,7 +162,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
+export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
   const { options: situacoesOptions } = useSituacoesPainel();
   // Rascunho local: só aplica ao clicar em "Filtrar"
@@ -276,7 +278,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
           </div>
 
           {/* Responsáveis */}
-          <div>
+          {!ocultarResponsaveis && <div>
             <SectionTitle>Responsáveis</SectionTitle>
             <PeoplePicker
               selectedIds={draft.responsavelIds}
@@ -284,7 +286,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
               placeholder="Filtrar por responsável"
               emptyLabel="Todos os responsáveis"
             />
-          </div>
+          </div>}
 
           {/* Envolvimento */}
           <div>

@@ -339,22 +339,23 @@ export default function MinhasResponsabilidades() {
     <MainLayout title="Minhas responsabilidades" subtitle="Tudo que está com você: atividades, processos e workflows">
       <div className="space-y-4">
         {isAdmin && (
-          <div className="flex flex-wrap gap-2 items-center">
+          <div className="flex flex-wrap gap-2 items-center rounded-md border p-2 bg-muted/30">
             <span className="text-sm text-muted-foreground">Ver responsabilidades de:</span>
             <Select value={coordSel} onValueChange={(v) => { setCoordSel(v); setUsuarioSel(""); }}>
-              <SelectTrigger className="w-64"><SelectValue placeholder="Coordenação" /></SelectTrigger>
+              <SelectTrigger className="w-56 h-8"><SelectValue placeholder="Coordenação" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todas">Todas as coordenações</SelectItem>
                 {(coordenacoes.data ?? []).map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={usuarioSel || "eu"} onValueChange={(v) => setUsuarioSel(v === "eu" ? "" : v)}>
-              <SelectTrigger className="w-64"><SelectValue placeholder="Usuário" /></SelectTrigger>
+              <SelectTrigger className="w-56 h-8"><SelectValue placeholder="Usuário" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="eu">Eu mesmo</SelectItem>
                 {(usuarios.data ?? []).filter((u) => u.id !== user?.id).map((u) => <SelectItem key={u.id} value={u.id}>{u.nome}</SelectItem>)}
               </SelectContent>
             </Select>
+            <PainelFiltros filtros={pf} onChange={setPf} ocultarResponsaveis />
           </div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -389,7 +390,7 @@ export default function MinhasResponsabilidades() {
                 <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
               ))}
               <Input className="max-w-xs" placeholder="Buscar por título ou processo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
-              <PainelFiltros filtros={pf} onChange={setPf} />
+              {!isAdmin && <PainelFiltros filtros={pf} onChange={setPf} ocultarResponsaveis />}
             </div>
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
