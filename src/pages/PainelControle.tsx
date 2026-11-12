@@ -1,6 +1,7 @@
 import { useSessionState } from "@/hooks/useSessionState";
 import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
+import { itemSemProcessoEPublicacao } from "@/lib/vinculoItem";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
@@ -959,8 +960,14 @@ export default function PainelControle() {
         if (!match) return false;
       }
 
-      // Comentários
+      // Comentários e origem
       if (!itemPassaFiltroComentario(item)) return false;
+
+      // Localiza itens que ficaram sem processo e sem publicação vinculada.
+      if (painelFiltros.semVinculo) {
+        const temPublicacao = !!itensDePublicacao?.has(getItemRawId(String(item.id)));
+        if (!itemSemProcessoEPublicacao(item, temPublicacao)) return false;
+      }
 
       // Status (grupo simplificado)
       if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {

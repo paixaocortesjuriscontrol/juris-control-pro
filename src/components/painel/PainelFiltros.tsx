@@ -26,6 +26,8 @@ export interface PainelFiltrosState {
   cobrancas: "todas" | "hoje" | "nao_hoje";
   // Itens criados a partir de publicações
   origemPublicacao?: "todas" | "com" | "sem";
+  // Somente itens sem processo e sem publicação
+  semVinculo: boolean;
   // Período filtrado pela data da publicação (em vez de data prevista/fatal)
   periodoPorPublicacao?: boolean;
 
@@ -48,6 +50,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   comentarios: "todas",
   cobrancas: "todas",
   origemPublicacao: "todas",
+  semVinculo: false,
   periodoPorPublicacao: false,
 
   statusGroup: "todas",
@@ -176,6 +179,7 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
     filtros.comentarios !== "todas",
     filtros.cobrancas !== "todas",
     (filtros.origemPublicacao ?? "todas") !== "todas",
+    filtros.semVinculo,
     filtros.periodoPorPublicacao,
 
     filtros.statusGroup !== "todas",
@@ -413,6 +417,12 @@ export function PainelFiltros({ filtros, onChange }: PainelFiltrosProps) {
                   {opcao.label}
                 </PillOption>
               ))}
+              <ChipToggle
+                active={draft.semVinculo}
+                onToggle={() => setDraft({ ...draft, semVinculo: !draft.semVinculo })}
+              >
+                Sem processo e sem publicação
+              </ChipToggle>
             </div>
           </div>
 
