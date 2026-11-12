@@ -1,7 +1,7 @@
 import { useSessionState } from "@/hooks/useSessionState";
 import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
-import { itemSemProcessoEPublicacao } from "@/lib/vinculoItem";
+import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
@@ -903,7 +903,10 @@ export default function PainelControle() {
   const itemPassaFiltroComentario = useCallback(
     (item: ItemAgendaUnificado) => {
       if (filtroOrigemPub !== "todas") {
-        const dePub = !!itensDePublicacao?.has(getItemRawId(String(item.id)));
+        const dePub = itemVeioDePublicacao(
+          { origem_registro: (item as any).origem_registro },
+          !!itensDePublicacao?.has(getItemRawId(String(item.id))),
+        );
         if (filtroOrigemPub === "com" ? !dePub : dePub) return false;
       }
       // Botão "Minhas cobranças" / "Cobranças da equipe": mostra apenas os itens cobrados.

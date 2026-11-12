@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { consultarIndicadoresEmLotes } from "@/lib/consultaIndicadores";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +30,9 @@ export function useItensDePublicacao(itens: ItemBase[], enabled: boolean) {
     queryKey: ["itens-de-publicacao", t.join(","), a.join(","), userId],
     enabled: enabled && (t.length > 0 || a.length > 0),
     staleTime: 60_000,
+    // Mantém o resultado anterior enquanto a agenda carrega mais páginas,
+    // para o filtro "Origem" não piscar mostrando tudo.
+    placeholderData: keepPreviousData,
     queryFn: async () => {
       const sb = supabase as any;
       const emLotes = (ids: string[], tabela: string, campos: string, fk: string, excluirNulos = false) =>

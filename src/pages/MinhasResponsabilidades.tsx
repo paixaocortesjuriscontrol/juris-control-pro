@@ -30,7 +30,7 @@ import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 import { useCobrancasItens, infoCobrancaItem } from "@/hooks/useCobrancasItens";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
-import { itemSemProcessoEPublicacao } from "@/lib/vinculoItem";
+import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
 
 type Periodo = "mes" | "trimestre" | "ano";
 const PERIODOS: { v: Periodo; l: string }[] = [
@@ -66,6 +66,11 @@ function paraItemAgenda(i: any): any {
     id: isAud ? `audiencia-det-${i.id}` : i.id,
     tipo: isAud ? "audiencia" : i._tipo,
     origem: i._fonte === "tarefas" ? "tarefa" : "evento",
+    // A busca pessoal devolve "origem" do cadastro (projuris, analise_djen...);
+    // guardamos à parte porque "origem" acima identifica a fonte do item.
+    origem_registro: i.origem ?? null,
+    responsaveis_ids: Array.isArray(i.responsaveis) ? i.responsaveis : [],
+    participantes: (Array.isArray(i.envolvidos) ? i.envolvidos : []).map((u: string) => ({ usuario_id: u })),
     data_inicio: i.data_inicio ?? i.data_vencimento ?? i.data_fatal ?? i.data ?? null,
   };
 }
@@ -241,7 +246,7 @@ export default function MinhasResponsabilidades() {
   const brutos = atividades.data ?? [];
   const itensAgendaFmt = useMemo(() => brutos.map(paraItemAgenda), [brutos]);
   const { data: mapaComentarios } = useItensComComentarios(itensAgendaFmt as any);
-  const { data: itensDePub } = useItensDePublicacao(itensAgendaFmt as any, true);
+  const { data: itensDePub, isPending: pubCarregando } = useItensDePublicacao(itensAgendaFmt as any, true);
   const { data: mapaCobrancas } = useCobrancasItens(itensAgendaFmt as any, "minhas");
   const itens = useMemo(() => brutos.filter((raw, idx) => {
     const item: any = itensAgendaFmt[idx];
@@ -250,8 +255,10 @@ export default function MinhasResponsabilidades() {
       if (!pf.classificacoes.includes(t)) return false;
     }
     const rawId = getItemRawId(String(item.id));
-    const dePub = !!itensDePub?.has(rawId);
     const origem = pf.origemPublicacao ?? "todas";
+    // Enquanto os vínculos não chegam, não dá para separar a origem: esconde.
+    if ((origem !== "todas" || pf.semVinculo) && pubCarregando && brutos.length > 0) return false;
+    const dePub = itemVeioDePublicacao(item, !!itensDePub?.has(rawId));
     if (origem !== "todas" && (origem === "com" ? !dePub : dePub)) return false;
     if (pf.semVinculo && !itemSemProcessoEPublicacao(item, dePub)) return false;
     if (pf.comentarios !== "todas") {
@@ -287,7 +294,7 @@ export default function MinhasResponsabilidades() {
       if (pf.periodoFim && dd > pf.periodoFim) return false;
     }
     return true;
-  }), [brutos, itensAgendaFmt, pf, itensDePub, mapaComentarios, mapaCobrancas]);
+  }), [brutos, itensAgendaFmt, pf, itensDePub, pubCarregando, mapaComentarios, mapaCobrancas]);
   const contagem = useMemo(() => {
     const c: Record<StatusFiltro, number> = { todos: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, cancelados: 0 };
     itens.forEach((i) => {

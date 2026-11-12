@@ -23,6 +23,8 @@ export interface ItemAgendaUnificado {
   descricao: string | null;
   tipo: string;
   origem: "evento" | "tarefa"; // Para identificar a origem
+  /** Origem do cadastro da tarefa (projuris, analise_djen...). */
+  origem_registro?: string | null;
   data_inicio: string;
   data_fim: string | null;
   dia_inteiro: boolean;
@@ -1011,6 +1013,7 @@ export async function fetchAgendaPage(
                   descricao: tarefa.descricao,
                   tipo: tipoTarefa,
                   origem: "tarefa",
+                  origem_registro: (tarefa as any).origem ?? null,
                   data_inicio: `${format(occ, "yyyy-MM-dd")}T00:00:00`,
                   data_fim: null,
                   dia_inteiro: true,
