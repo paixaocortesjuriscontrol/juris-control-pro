@@ -115,7 +115,34 @@ export interface DistribuicaoTst {
 export type DistribuicaoTstInsert = Omit<DistribuicaoTst, "id" | "created_at" | "updated_at">;
 
 const PAGE_SIZE = 100;
-const LARGE_ID_FILTER_CHUNK = 200;
+// 200 UUIDs deixavam a URL perto de 8 KB; com os demais filtros ela podia
+// ultrapassar o limite do PostgREST e falhar antes de chegar ao banco.
+const LARGE_ID_FILTER_CHUNK = 50;
+
+async function consultarDistribuicoesComRetry(
+  criarConsulta: () => Promise<any>,
+  tentativas = 3,
+): Promise<any> {
+  let ultimoResultado: any = null;
+  let ultimoErro: any = null;
+
+  for (let tentativa = 0; tentativa < tentativas; tentativa++) {
+    try {
+      const resultado = await criarConsulta();
+      ultimoResultado = resultado;
+      if (!resultado?.error) return resultado;
+      ultimoErro = resultado.error;
+    } catch (erro) {
+      ultimoErro = erro;
+    }
+
+    if (tentativa < tentativas - 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400 * (tentativa + 1)));
+    }
+  }
+
+  return ultimoResultado || { data: null, error: ultimoErro || new Error("Falha ao carregar distribuições") };
+}
 
 /**
  * Aplica o filtro do Select "Parte Recorrente" na coluna `recorrente`
@@ -1034,37 +1061,15 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
         setLoading(false);
         return;
       }
-      // URL com muitos UUIDs estoura ("Failed to fetch") → executa em chunks de 200.
-      // Muitos chunks disparados em paralelo (ex.: 5k+ IDs → 25+ requisições)
-      // também causam "TypeError: Failed to fetch" (limite de conexões/rede).
-      // Usamos um pool com concorrência limitada + retry para requisições
-      // transitórias.
-      const CHUNK = 200;
-      const CONCURRENCY = 4;
-      const MAX_RETRIES = 3;
+      // Lotes pequenos evitam URLs acima do limite e o pool baixo evita
+      // estourar as conexões simultâneas do navegador.
+      const CONCURRENCY = 2;
       const chunks: string[][] = [];
-      for (let i = 0; i < chunkSource.length; i += CHUNK) {
-        chunks.push(chunkSource.slice(i, i + CHUNK));
+      for (let i = 0; i < chunkSource.length; i += LARGE_ID_FILTER_CHUNK) {
+        chunks.push(chunkSource.slice(i, i + LARGE_ID_FILTER_CHUNK));
       }
-      const runChunk = async (c: string[]) => {
-        let lastErr: any = null;
-        for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-          try {
-            const res: any = await buildQuery(c, false);
-            if (res?.error) {
-              lastErr = res.error;
-              // Erros de rede/timeout costumam vir sem code; retenta.
-              await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-              continue;
-            }
-            return res;
-          } catch (e: any) {
-            lastErr = e;
-            await new Promise((r) => setTimeout(r, 300 * (attempt + 1)));
-          }
-        }
-        return { data: null, error: lastErr || new Error("Falha ao carregar chunk") };
-      };
+      const runChunk = (c: string[]) =>
+        consultarDistribuicoesComRetry(() => buildQuery(c, false));
       const results: any[] = new Array(chunks.length);
       let cursor = 0;
       const workers = Array.from({ length: Math.min(CONCURRENCY, chunks.length) }, async () => {
@@ -1129,8 +1134,9 @@ export function useDistribuicoesTst(filters: DistribuicaoTstFilters = {}) {
       rawRows = merged.slice(from, from + PAGE_SIZE);
     } else {
       const from = (page - 1) * PAGE_SIZE;
-      const query = buildQuery(null, true).range(from, from + PAGE_SIZE - 1);
-      const { data, error, count: c } = await query;
+      const { data, error, count: c } = await consultarDistribuicoesComRetry(
+        () => buildQuery(null, true).range(from, from + PAGE_SIZE - 1),
+      );
       if (error) {
         toast.error("Erro ao carregar distribuições: " + error.message);
         setLoading(false);
