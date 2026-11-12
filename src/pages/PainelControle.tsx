@@ -1,4 +1,3 @@
-import { corFaixaPadraoItem } from "@/lib/tipoItemAgenda";
 import { useSessionState } from "@/hooks/useSessionState";
 import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
@@ -3322,7 +3321,7 @@ export default function PainelControle() {
                                       : TIPO_CORES[corKeyItem(item)] || "bg-muted border border-border text-muted-foreground"
                                   )}
                                   style={(() => {
-                                    const cor = modeloPorTarefa?.get(getItemRawId(item.id))?.cor || corFaixaPadraoItem(item);
+                                    const cor = modeloPorTarefa?.get(getItemRawId(item.id))?.cor;
                                     return cor && !isCancelado ? { borderLeft: `6px solid ${cor}` } : undefined;
                                   })()}
                                   onClick={(e) => {

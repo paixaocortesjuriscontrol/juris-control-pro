@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, Save, X } from "lucide-react";
-import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { useModelosTitulo, useSaveModeloTitulo, useDeleteModeloTitulo, type TipoModelo, type ModeloTitulo } from "@/hooks/useModelosTitulo";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
@@ -27,7 +26,12 @@ const TIPOS: { value: TipoModelo; label: string }[] = [
 
 export default function ModelosTitulo() {
   const { isAdminOrCoordinator } = useUserRole();
-  const { data: coords = [] } = useCoordenacoesFull();
+  // Lista leve (só id/nome): a versão completa carrega estatísticas e membros e deixava a tela lenta.
+  const { data: coords = [] } = useQuery({
+    queryKey: ["coordenacoes-id-nome"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => ((await supabase.from("coordenacoes").select("id,nome").order("nome")).data || []),
+  });
   const { isAdmin, coordenacoes: minhas } = useCoordenacoesDoUsuario();
   const [coordId, setCoordId] = useState<string>("");
   useEffect(() => { if (!coordId && !isAdmin && minhas.length) setCoordId(minhas[0].id); }, [coordId, isAdmin, minhas]);

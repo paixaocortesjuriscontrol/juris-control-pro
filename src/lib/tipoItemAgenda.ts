@@ -21,10 +21,3 @@ export function isItemAta(item: any): boolean {
 export function rotuloTipoItem(item: any, labels: Record<string, string>): string {
   return labels[corKeyItem(item)] ?? labels[item?.tipo] ?? "Tarefa";
 }
-
-/** Cor da faixa lateral quando o item não tem modelo: audiências e eventos usam a cor do tipo. */
-export function corFaixaPadraoItem(item: { tipo?: string | null }): string | null {
-  if (item?.tipo === "audiencia") return "#f59e0b";
-  if (item?.tipo === "evento") return "#16a34a";
-  return null;
-}
