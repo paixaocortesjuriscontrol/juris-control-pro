@@ -56,4 +56,3 @@
 - Task SELECT RLS also allows users listed in tarefa_responsaveis/tarefa_envolvidos (via `sou_participante_tarefa`, auth.uid() only), so people assigned across coordinations see their items even without process access.
 - DJEN Servidor run completion stays light: TST Pautas/Distribuições generation runs in the 15-min pos-djen-servidor-gerar-tst cron, not the status trigger (it hit statement timeout).
 - Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
-- "Atividades na agenda" chips come only from loaded items (model name or title), so users see just types on their agenda.
