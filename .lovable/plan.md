@@ -1,24 +1,24 @@
-# Filtro por modelo de tarefa no Painel de Controle
+# Filtro "Atividades da minha agenda" no Painel de Controle
 
 ## Objetivo
-Permitir que o colaborador da Santander Cível (e de qualquer coordenação) encontre primeiro as tarefas mais relevantes, como "Simulador 1ª fase" e "Simulador 2ª fase", sem rolar as 55 tarefas.
+O colaborador encontra primeiro o que é prioridade (ex.: Defesas, depois Recursos como Apelação e Recurso inominado, Simulador 1ª/2ª fase) dentro da **sua própria agenda do dia ou período escolhido**, sem uma lista genérica com todos os modelos cadastrados.
 
-## O que muda para o usuário
-1. **Novo filtro "Modelo da tarefa"** dentro do botão Filtros (Painel de Controle e Minhas responsabilidades):
-   - Lista com busca dos modelos de tarefas da coordenação (os mesmos da tela Modelos de tarefas), com a cor de cada um.
-   - Pode marcar vários (ex.: Simulador 1ª fase + Simulador 2ª fase).
-   - Mostra só as tarefas criadas a partir desses modelos.
-2. **Filtro "Título contém"**: campo de texto no mesmo painel (ex.: digitar "simulador") para achar também tarefas cadastradas sem modelo, mas com o nome no título.
-3. **Filtros salvos por pessoa**: o último filtro escolhido fica guardado para aquele usuário, para ele não precisar marcar de novo todo dia.
-4. A planilha gerada do Painel respeita esses filtros, como já acontece com os outros.
+## Como vai funcionar
+1. No Painel de Controle (e em Minhas responsabilidades) aparece uma faixa **"Atividades na agenda"** logo acima da lista.
+2. Ela lê os itens que estão na tela naquele momento (dia/período, pessoa e demais filtros já aplicados) — **tarefas e prazos** — e mostra só os nomes que realmente existem ali, cada um com a quantidade. Exemplo:
+   `Defesa (70)  Recurso – Apelação (18)  Recurso inominado (12)  Manifestação (25)`
+3. Nomes ordenados pela quantidade (os mais frequentes primeiro), com campo de busca quando houver muitos.
+4. Clicar em um ou mais nomes mostra só essas atividades; clicar de novo desmarca. Botão "Limpar".
+5. Ao mudar o dia ou a pessoa, a lista de nomes se refaz sozinha com a agenda nova; nomes que não existem mais saem da seleção.
+6. O nome usado é o **modelo da atividade** parametrizado na coordenação (ex.: Santander Cível); quando o item não tem modelo, usa o título dele.
+7. Vale para qualquer colaborador e qualquer coordenação; a planilha do Painel segue a mesma seleção.
 
 ## Fora do escopo
-- Não muda contagens dos cartões de resumo além do que os outros filtros já fazem.
-- Não altera permissões nem dados.
+- Não muda permissões, dados, nem os cartões de contagem.
 
 ## Detalhes técnicos
-- `PainelFiltrosState`: novos campos `modeloIds: string[]` e `tituloContem: string`, com padrão vazio.
-- `PainelFiltros.tsx`: seção com combobox multisseleção (modelos ativos de `modelos_titulo_coordenacao` das coordenações do escopo, deduplicados por nome) e input de texto.
-- Filtro aplicado no cliente em `PainelControle.tsx` e `MinhasResponsabilidades.tsx`, usando a leitura já existente de `tarefas.modelo_tarefa_id` por período (sem mudar as RPCs da agenda); título comparado sem acento e sem maiúsculas.
-- Persistência por usuário em localStorage (`painel-filtros:<userId>`), apenas preferência de tela.
-- Testes da função de filtro (modelo e título) junto aos testes existentes.
+- Nova função pura `agruparAtividadesDaAgenda(itens, modeloPorTarefa)` em `src/lib/` que devolve `{chave, nome, cor, quantidade}`; chave = `modelo_tarefa_id` ou título normalizado (sem acento/maiúsculas).
+- Usa a leitura já existente de `tarefas.modelo_tarefa_id` por período no `PainelControle.tsx` (sem mudar RPCs da agenda); inclui tipos tarefa e prazo.
+- Novo campo `atividadesSelecionadas: string[]` no estado de filtros, aplicado no cliente depois dos filtros atuais; a contagem de chips é feita antes desse filtro para não sumirem opções.
+- Componente `AtividadesDaAgendaChips.tsx` reutilizado nas duas telas.
+- Testes da função de agrupamento e do filtro junto aos testes existentes.
