@@ -3124,6 +3124,7 @@ export default function PainelControle() {
               </div>
             )}
 
+            {!modoProtocoladosBaixados && (
             <div className="mx-4 mt-3 rounded-lg border bg-card px-3 py-2 space-y-2">
               {listaPorDia && (
                 <div className="flex items-center gap-2">
@@ -3150,6 +3151,7 @@ export default function PainelControle() {
                 />
               </div>
             </div>
+            )}
             <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
