@@ -18,6 +18,10 @@ export const nomeClienteSemPapel = (s: string | null | undefined): string | null
 export const separarEtiquetas = (s: string | null | undefined): string[] =>
   Array.from(new Set(String(s ?? "").split(/[;,\n]/).map(e => e.trim()).filter(Boolean)));
 
+/** CAPTURA na planilha liga o acompanhamento; o gatilho do banco mantém a etiqueta. */
+export const temEtiquetaCaptura = (etiquetas: string[]): boolean =>
+  etiquetas.some(e => normNome(e) === ETIQUETA_GERENCIADA);
+
 export interface LinhaCompleta {
   numero: string;
   etiquetas: string[];
@@ -106,7 +110,7 @@ export async function importarPlanilhaCompleta(opts: {
     else etqMap.set(normNome(nome), data.id);
   }
   if (nomesEtq.some(n => normNome(n) === ETIQUETA_GERENCIADA)) {
-    avisos.push("Etiqueta CAPTURA não aplicada: ela é colocada automaticamente pelo Acompanhamento Especial.");
+    avisos.push("CAPTURA ativou o Acompanhamento Especial; a etiqueta será mantida automaticamente pelo sistema.");
   }
 
   // 5) Inserção em lotes
@@ -127,6 +131,7 @@ export async function importarPlanilhaCompleta(opts: {
       coordenacao_id: coordenacaoId,
       advogado_responsavel_id: (u.responsavel && respMap.get(normNome(u.responsavel))) || opts.membroPadraoId || null,
       cliente_id: (u.cliente && cliMap.get(normNome(u.cliente))) || opts.clientePadraoId || null,
+      acompanhamento_especial: temEtiquetaCaptura(u.etiquetas),
     }));
     let inseridos: { id: string; numero: string }[] = [];
     const { data, error } = await supabase.from("processos").insert(rows as any).select("id, numero");

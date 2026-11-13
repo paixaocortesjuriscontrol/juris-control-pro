@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas } from "./importacaoPlanilhaCompleta";
+import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas, temEtiquetaCaptura } from "./importacaoPlanilhaCompleta";
 
 const l = (numero: string, etiquetas: string[], dados: Record<string, any> = {}) =>
   ({ numero, etiquetas, responsavel: null, cliente: null, linhaOriginal: 2, dados });
@@ -17,4 +17,9 @@ test("tira o papel do nome do cliente", () => {
 });
 test("separa etiquetas", () => {
   assert.deepEqual(separarEtiquetas("OUTLIER; LGPD,OUTLIER"), ["OUTLIER", "LGPD"]);
+});
+test("CAPTURA liga o Acompanhamento Especial, inclusive em linha repetida", () => {
+  const r = juntarRepetidos([l("0001-1.2024.8.26.0001", ["OUTLIER"]), l("0001120248260001", ["captura"])]);
+  assert.equal(temEtiquetaCaptura(r.unicos[0].etiquetas), true);
+  assert.equal(temEtiquetaCaptura(["OUTLIER"]), false);
 });
