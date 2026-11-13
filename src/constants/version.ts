@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.0.3";
+export const APP_VERSION = "10.0.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.0.4", date: "2026-11-13", notes: "Painel de Controle: modo Lista abre mais rápido buscando primeiro somente os itens do dia escolhido, enquanto os totais continuam sendo carregados; o quadro da Lista cresce com todas as atividades, sem limite vertical nem barra de rolagem interna" },
   { version: "10.0.3", date: "2026-11-13", notes: "Coordenações: quadro Quem pode configurar agendamentos (por cargo ou membro, para tarefas, prazos, audiências e eventos; tudo começa liberado e quem fica bloqueado só muda a situação); Clientes: campo Coordenações no cadastro e filtro considerando esse vínculo; 34 empresas do Grupo Santander cadastradas e vinculadas ao Santander Cível; Workflows: qualquer membro da coordenação pode criar e editar" },
   { version: "9.8.5", date: "2026-11-03", notes: "Workflows: excluir passa a arquivar, com filtro Excluídos e botão Restaurar; qualquer coordenador da coordenação exclui, restaura e edita os workflows da equipe; workflow com execução em andamento não pode ser excluído; assistente de coordenador limitado à própria coordenação; Processos e Casos: campo Etiquetas já na criação do processo; Painel de Controle: Exportar Audiências e planilha de prazos seguem o tipo escolhido na janela, sem depender do botão da agenda" },
   { version: "9.8.4", date: "2026-11-03", notes: "Coordenações: cartão Feriados na página da coordenação, com a chave 'Considerar feriados nacionais como dias não úteis' (vem desligada, cada equipe decide), feriados nacionais prontos (inclusive Carnaval, Sexta-feira Santa e Corpus Christi) e feriados próprios; com a chave ligada, prazos em dias úteis pulam esses feriados em tarefas, modelos de tarefas e workflows; Modelos de tarefas: campos Responsáveis padrão e Envolvidos padrão preenchem a nova tarefa ao escolher o modelo; Envio em lote de processos (Santander Cível e Trabalhista): botão 'Baixar planilha modelo' com a planilha oficial de importação" },
