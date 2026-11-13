@@ -7,6 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+
+function mensagemErroAuth(msg: string) {
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+    return "Não foi possível conectar ao servidor. Verifique sua internet, desative VPN/antivírus/bloqueador que filtre sites, ou tente em janela anônima ou outra rede (ex.: 4G do celular).";
+  }
+  return msg;
+}
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -115,7 +122,7 @@ const Auth = () => {
           } else if (error.message.includes("Invalid login credentials")) {
             toast.error("Email ou senha incorretos");
           } else {
-            toast.error(error.message);
+            toast.error(mensagemErroAuth(error.message));
           }
         } else {
           toast.success("Login realizado com sucesso!");
@@ -127,7 +134,7 @@ const Auth = () => {
           if (error.message.includes("already registered")) {
             toast.error("Este email já está cadastrado");
           } else {
-            toast.error(error.message);
+            toast.error(mensagemErroAuth(error.message));
           }
         } else {
           toast.success("Conta criada com sucesso!");
