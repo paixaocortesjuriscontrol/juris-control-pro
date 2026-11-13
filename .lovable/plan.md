@@ -12,7 +12,10 @@
 ## O que será apagado (somente Santander Cível)
 1. Todas as tarefas, prazos, audiências e eventos da coordenação, com seus vínculos (responsáveis, envolvidos, comentários, checklists, etiquetas aplicadas, ligações com publicações).
 2. Todas as execuções de workflow da coordenação (os modelos de workflow ficam).
-3. Os processos da coordenação, EXCETO os que têm algum item de outra coordenação ligado — esses processos ficam, para não afetar as outras equipes. Ao final informo quantos ficaram.
+3. Os 855 processos que têm itens de outras coordenações saem do Santander Cível e passam para a coordenação dona desses itens (Santander Trabalhista, Dra. Renata Oficial, Citibank, Dr. Thomás). Se um processo tiver itens de mais de uma, vai para a que tiver mais itens nele. Os itens das outras equipes continuam intactos e ligados ao processo.
+4. Todos os demais processos do Santander Cível são apagados.
+
+Confirmado na verificação: o Santander Cível tem 1.112 processos da Justiça do Trabalho (834 com itens do Santander Trabalhista); nenhum deles existe no Santander Trabalhista, o que indica importação no lugar errado. Os 278 trabalhistas sem itens de outras equipes serão apagados junto com o Cível.
 
 ## O que NÃO será tocado
 - Nada de outras coordenações.
