@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import {
   Dialog,
@@ -86,6 +87,36 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
   const queryClient = useQueryClient();
 
   const isEditing = !!cliente;
+  const [coordsSel, setCoordsSel] = useState<string[]>([]);
+  const [coordsOrig, setCoordsOrig] = useState<string[]>([]);
+  const { data: coordenacoes = [] } = useQuery({
+    queryKey: ["coordenacoes-nomes-cliente"],
+    enabled: open,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.from("coordenacoes").select("id, nome").order("nome");
+      return ((data as any[]) || []).filter((c) => !/^INATIVA/i.test(c.nome));
+    },
+  });
+  useEffect(() => {
+    if (!open) return;
+    if (!cliente?.id) { setCoordsSel([]); setCoordsOrig([]); return; }
+    (supabase as any).from("clientes_coordenacoes").select("coordenacao_id").eq("cliente_id", cliente.id)
+      .then(({ data }: any) => { const ids = (data || []).map((r: any) => r.coordenacao_id); setCoordsSel(ids); setCoordsOrig(ids); });
+  }, [open, cliente?.id]);
+  const salvarCoordenacoes = async (clienteId: string) => {
+    const add = coordsSel.filter((c) => !coordsOrig.includes(c));
+    const rem = coordsOrig.filter((c) => !coordsSel.includes(c));
+    if (add.length) {
+      const { error } = await (supabase as any).from("clientes_coordenacoes")
+        .upsert(add.map((coordenacao_id) => ({ cliente_id: clienteId, coordenacao_id })), { onConflict: "cliente_id,coordenacao_id", ignoreDuplicates: true });
+      if (error) throw new Error("Cliente salvo, mas você não pode vincular uma das coordenações: " + error.message);
+    }
+    if (rem.length) {
+      const { error } = await (supabase as any).from("clientes_coordenacoes").delete().eq("cliente_id", clienteId).in("coordenacao_id", rem);
+      if (error) throw new Error("Cliente salvo, mas você não pode desvincular uma das coordenações: " + error.message);
+    }
+  };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -167,6 +198,7 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
           title: "Cliente atualizado",
           description: "O cliente foi atualizado com sucesso.",
         });
+        await salvarCoordenacoes(cliente.id);
         if (data) onSaved?.(data as any);
       } else {
         const { data, error } = await supabase
@@ -184,10 +216,12 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
           title: "Cliente cadastrado",
           description: "O cliente foi cadastrado com sucesso.",
         });
+        await salvarCoordenacoes((data as any).id);
         if (data) onSaved?.(data as any);
       }
 
       await queryClient.invalidateQueries({ queryKey: ["clientes"] });
+      await queryClient.invalidateQueries({ queryKey: ["clientes-coordenacoes"] });
       await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
       form.reset();
       onOpenChange(false);
@@ -322,6 +356,21 @@ export function ClienteDialog({ open, onOpenChange, cliente, onSaved }: ClienteD
                 </FormItem>
               )}
             />
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Coordenações</p>
+              <div className="max-h-36 overflow-y-auto rounded-md border p-2 space-y-1">
+                {coordenacoes.map((c: any) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={coordsSel.includes(c.id)}
+                      onCheckedChange={(v) => setCoordsSel((s) => (v ? [...s, c.id] : s.filter((x) => x !== c.id)))}
+                    />
+                    {c.nome}
+                  </label>
+                ))}
+              </div>
+            </div>
 
             <FormField
               control={form.control}

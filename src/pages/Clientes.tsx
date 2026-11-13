@@ -109,6 +109,16 @@ export default function Clientes() {
         if (rows.length < PAGE) break;
         from += PAGE;
       }
+      const { data: vinc } = await (supabase as any)
+        .from("clientes_coordenacoes")
+        .select("cliente_id, coordenacao_id");
+      for (const r of (vinc as any[]) || []) {
+        const nome = nomes.get(r.coordenacao_id);
+        if (!nome) continue;
+        const set = map.get(r.cliente_id) || new Set<string>();
+        set.add(nome);
+        map.set(r.cliente_id, set);
+      }
       const out = new Map<string, string[]>();
       for (const [k, v] of map) out.set(k, Array.from(v).sort());
       return out;

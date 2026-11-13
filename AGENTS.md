@@ -56,3 +56,5 @@
 - Task SELECT RLS also allows users listed in tarefa_responsaveis/tarefa_envolvidos (via `sou_participante_tarefa`, auth.uid() only), so people assigned across coordinations see their items even without process access.
 - DJEN Servidor run completion stays light: TST Pautas/Distribuições generation runs in the 15-min pos-djen-servidor-gerar-tst cron, not the status trigger (it hit statement timeout).
 - Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
+- Scheduling permissions per coordination live in `permissoes_agendamento_coordenacao` (cargo or member, per tipo tarefa/prazo/audiencia/evento; no row = allowed, member > cargo) and are enforced by the `bloquear_configuracao_agendamento` trigger (blocked users may only change status fields; sessionless jobs, admins and the coordinator are exempt), so the rule holds for every screen and import.
+- Client↔coordination links are explicit in `clientes_coordenacoes`; the Clientes list merges them with coordinations derived from linked processes.
