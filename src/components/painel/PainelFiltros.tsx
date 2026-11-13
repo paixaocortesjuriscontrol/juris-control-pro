@@ -343,6 +343,18 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, 
             />
           </div>}
 
+          {/* Tipo de tarefa (na agenda) */}
+          {atividadesOpcoes && (
+            <div>
+              <SectionTitle>Tipo de tarefa (na agenda)</SectionTitle>
+              <AtividadesDaAgendaChips
+                opcoes={atividadesOpcoes}
+                selecionadas={draft.atividadesSelecionadas ?? []}
+                onChange={(v) => setDraft({ ...draft, atividadesSelecionadas: v })}
+              />
+            </div>
+          )}
+
           {/* Envolvimento */}
           <div>
             <SectionTitle>Envolvimento</SectionTitle>
@@ -459,17 +471,6 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, 
               ))}
             </div>
           </div>
-
-          {atividadesOpcoes && (
-            <div>
-              <SectionTitle>Tipo de tarefa (na agenda)</SectionTitle>
-              <AtividadesDaAgendaChips
-                opcoes={atividadesOpcoes}
-                selecionadas={draft.atividadesSelecionadas ?? []}
-                onChange={(v) => setDraft({ ...draft, atividadesSelecionadas: v })}
-              />
-            </div>
-          )}
 
           {/* Origem */}
           <div>
