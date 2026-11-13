@@ -55,4 +55,4 @@
 - Each coordination can turn off full office view (`coordenacoes.escritorio_visao_completa`); `escopoEscritorio` then drops it from the office scope, and when only such coordinations remain the user sees only items where they are responsible/involved. Coordinators and admins are exempt; it is a Painel filter, not RLS, to avoid breaking other screens.
 - Task SELECT RLS also allows users listed in tarefa_responsaveis/tarefa_envolvidos (via `sou_participante_tarefa`, auth.uid() only), so people assigned across coordinations see their items even without process access.
 - DJEN Servidor run completion stays light: TST Pautas/Distribuições generation runs in the 15-min pos-djen-servidor-gerar-tst cron, not the status trigger (it hit statement timeout).
-- Menu access: permissoes_menu_coordenacao (member>cargo>allowed) after permissoes_menu_usuario; UI only.
+- Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
