@@ -91,6 +91,8 @@ import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
+import { agruparAtividadesDaAgenda, chaveAtividade, dataDoItemNaAgenda } from "@/lib/atividadesDaAgenda";
+import { AtividadesDaAgendaChips } from "@/components/painel/AtividadesDaAgendaChips";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { toast } from "sonner";
@@ -273,6 +275,8 @@ export default function PainelControle() {
     return isPainelViewMode(viewParam) ? viewParam : "agenda";
   });
   const [mesAtual, setMesAtual] = useState(new Date());
+  /** Dia exibido na visão Lista (yyyy-MM-dd); vazio = hoje. */
+  const [diaLista, setDiaLista] = useState<string>("");
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -939,7 +943,7 @@ export default function PainelControle() {
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
-    (item: any, ignorarPeriodo = false, ignorarClassificacao = false) => {
+    (item: any, ignorarPeriodo = false, ignorarClassificacao = false, ignorarAtividades = false) => {
       // Classificação filter (exportações escolhem o próprio tipo e ignoram o botão do painel)
       if (!ignorarClassificacao && painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
@@ -961,6 +965,13 @@ export default function PainelControle() {
           (painelFiltros.classificacoes.includes("evento") && isEvento) ||
           (painelFiltros.classificacoes.includes("tarefa") && isTarefa);
         if (!match) return false;
+      }
+
+      // Tipo de tarefa escolhido entre os que estão na agenda
+      const atividadesSel = painelFiltros.atividadesSelecionadas ?? [];
+      if (!ignorarAtividades && atividadesSel.length > 0) {
+        const a = chaveAtividade(item, modeloPorTarefa);
+        if (!a || !atividadesSel.includes(a.chave)) return false;
       }
 
       // Comentários e origem
@@ -1089,7 +1100,7 @@ export default function PainelControle() {
 
       return true;
     },
-    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto, itensDePublicacao],
+    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto, itensDePublicacao, modeloPorTarefa],
 
 
   );
@@ -1211,6 +1222,29 @@ export default function PainelControle() {
     }
     return base;
   }, [vencidosAtivo, vencidosQuery.data, itensPainelFiltrados, passaFiltrosPainel, drill, drillQuery.data, hoje_str, modoProtocoladosBaixados, buscaGlobalAtiva, buscaGlobalQuery.data, painelFiltros.situacoes, painelFiltros.statusGroup, situacaoFilter]);
+
+  // ===== Visão Lista: só o dia escolhido (quando não há período, ranking ou busca) =====
+  const diaListaEfetivo = diaLista || hoje_str;
+  const listaPorDia =
+    viewMode === "lista" && !drill && !buscaGlobalAtiva && !modoProtocoladosBaixados &&
+    !painelFiltros.periodoInicio && !painelFiltros.periodoFim && !somenteHoje;
+  const usarFatalLista = painelFiltros.dataFatal && !painelFiltros.dataPrevista;
+  const itensListaExibidos = useMemo(
+    () => (listaPorDia ? itensListaEquipe.filter((i: any) => dataDoItemNaAgenda(i, usarFatalLista) === diaListaEfetivo) : itensListaEquipe),
+    [listaPorDia, itensListaEquipe, diaListaEfetivo, usarFatalLista],
+  );
+  const navDiaLista = (delta: number) => {
+    const d = addDays(new Date(`${diaListaEfetivo}T12:00:00`), delta);
+    setDiaLista(format(d, "yyyy-MM-dd"));
+    if (d.getMonth() !== mesAtual.getMonth() || d.getFullYear() !== mesAtual.getFullYear()) setMesAtual(d);
+  };
+
+  // Tipos de tarefa presentes na agenda carregada (contados sem o próprio filtro de tipo)
+  const atividadesOpcoes = useMemo(() => {
+    let base = itensAgenda.filter((i) => passaFiltrosPainel(i, false, false, true));
+    if (listaPorDia) base = base.filter((i: any) => dataDoItemNaAgenda(i, usarFatalLista) === diaListaEfetivo);
+    return agruparAtividadesDaAgenda(base, modeloPorTarefa);
+  }, [itensAgenda, passaFiltrosPainel, listaPorDia, diaListaEfetivo, usarFatalLista, modeloPorTarefa]);
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" | "ata" => {
@@ -2984,7 +3018,7 @@ export default function PainelControle() {
                     ? "Somente minhas cobranças"
                     : "Somente cobranças da equipe"}
               </Button>
-              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} />
+              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} atividadesOpcoes={atividadesOpcoes} />
 
           </div>
         </div>
@@ -3090,11 +3124,37 @@ export default function PainelControle() {
               </div>
             )}
 
+            <div className="mx-4 mt-3 rounded-lg border bg-card px-3 py-2 space-y-2">
+              {listaPorDia && (
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => navDiaLista(-1)} aria-label="Dia anterior">
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <Input type="date" value={diaListaEfetivo} onChange={(e) => { if (e.target.value) { setDiaLista(e.target.value); const d = new Date(`${e.target.value}T12:00:00`); if (d.getMonth() !== mesAtual.getMonth() || d.getFullYear() !== mesAtual.getFullYear()) setMesAtual(d); } }} className="h-7 w-[150px] text-xs px-2" />
+                  <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => navDiaLista(1)} aria-label="Próximo dia">
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                  {diaListaEfetivo !== hoje_str && (
+                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDiaLista("")}>Hoje</Button>
+                  )}
+                  <span className="text-xs text-muted-foreground ml-auto">{itensListaExibidos.length} itens no dia</span>
+                </div>
+              )}
+              <div>
+                <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
+                <AtividadesDaAgendaChips
+                  compacto
+                  opcoes={atividadesOpcoes}
+                  selecionadas={painelFiltros.atividadesSelecionadas ?? []}
+                  onChange={(v) => setPainelFiltros((s) => ({ ...s, atividadesSelecionadas: v }))}
+                />
+              </div>
+            </div>
             <div className="flex-1 min-h-0 overflow-hidden">
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
-              externalItems={comDataPublicacao(itensListaEquipe)}
+              externalItems={comDataPublicacao(itensListaExibidos)}
               externalLoading={
                 buscaGlobalAtiva && !drill
                   ? buscaGlobalQuery.isLoading

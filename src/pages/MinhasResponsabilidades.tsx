@@ -22,6 +22,8 @@ import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLatera
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
+import { agruparAtividadesDaAgenda, chaveAtividade } from "@/lib/atividadesDaAgenda";
+import { AtividadesDaAgendaChips } from "@/components/painel/AtividadesDaAgendaChips";
 import { PainelFiltros, PAINEL_FILTROS_DEFAULT, type PainelFiltrosState } from "@/components/painel/PainelFiltros";
 import { statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
@@ -304,14 +306,20 @@ export default function MinhasResponsabilidades() {
     return c;
   }, [itens, tipo]);
 
+  const atividadesOpcoes = useMemo(
+    () => agruparAtividadesDaAgenda(itens.filter((i) => tipo === "todos" || i._tipo === tipo).map((i: any) => ({ ...i, tipo: i._tipo }))),
+    [itens, tipo],
+  );
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
+    const sel = pf.atividadesSelecionadas ?? [];
     return itens
+      .filter((i: any) => { if (sel.length === 0) return true; const a = chaveAtividade({ ...i, tipo: i._tipo }); return !!a && sel.includes(a.chave); })
       .filter((i) => tipo === "todos" || i._tipo === tipo)
       .filter((i) => filtro === "todos" || STATUS_PARA_FILTRO[classificarStatus(i)] === filtro)
       .filter((i) => !q || [i.titulo, i.processo?.numero, i.processo?.assunto].some((v) => String(v ?? "").toLowerCase().includes(q)))
       .sort((a, b) => String(a.data_fatal ?? a.data_vencimento ?? a.data_inicio ?? "").localeCompare(String(b.data_fatal ?? b.data_vencimento ?? b.data_inicio ?? "")));
-  }, [itens, tipo, filtro, busca]);
+  }, [itens, tipo, filtro, busca, pf.atividadesSelecionadas]);
 
   const procs = useMemo(() => {
     const q = buscaProc.trim().toLowerCase();
@@ -342,6 +350,7 @@ export default function MinhasResponsabilidades() {
             filtros={pf}
             onChange={setPf}
             ocultarResponsaveis
+            atividadesOpcoes={atividadesOpcoes}
             escopoPessoa={isAdmin ? { coordenacoes: coordenacoes.data ?? [], usuarios: (usuarios.data ?? []).filter((u) => u.id !== user?.id) } : undefined}
           />
           <span className="text-xs text-muted-foreground">
@@ -349,6 +358,10 @@ export default function MinhasResponsabilidades() {
               ? `Vendo as responsabilidades de ${(usuarios.data ?? []).find((u) => u.id === usuarioSel)?.nome ?? "outra pessoa"}`
               : "Mostrando as suas responsabilidades"}
           </span>
+        </div>
+        <div className="rounded-md border p-2">
+          <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
+          <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {resumo.map((r) => (

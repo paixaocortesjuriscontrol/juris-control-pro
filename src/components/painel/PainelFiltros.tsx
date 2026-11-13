@@ -9,6 +9,8 @@ import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
+import { AtividadesDaAgendaChips } from "@/components/painel/AtividadesDaAgendaChips";
+import type { AtividadeAgenda } from "@/lib/atividadesDaAgenda";
 
 export interface PainelFiltrosState {
   // Prazo
@@ -29,6 +31,8 @@ export interface PainelFiltrosState {
   origemPublicacao?: "todas" | "com" | "sem";
   // Somente itens sem processo e sem publicação
   semVinculo: boolean;
+  /** Atividades (modelo ou título) escolhidas entre as que existem na agenda carregada. */
+  atividadesSelecionadas?: string[];
   // Período filtrado pela data da publicação (em vez de data prevista/fatal)
   periodoPorPublicacao?: boolean;
 
@@ -55,6 +59,7 @@ export const PAINEL_FILTROS_DEFAULT: PainelFiltrosState = {
   cobrancas: "todas",
   origemPublicacao: "todas",
   semVinculo: false,
+  atividadesSelecionadas: [],
   periodoPorPublicacao: false,
 
   statusGroup: "todas",
@@ -105,6 +110,8 @@ interface PainelFiltrosProps {
   ocultarResponsaveis?: boolean;
   /** Mostra dentro do painel a escolha de quem se está vendo (telas abertas a outras pessoas). */
   escopoPessoa?: { coordenacoes: { id: string; nome: string }[]; usuarios: { id: string; nome: string }[] };
+  /** Tipos de tarefa presentes na agenda carregada (mostra a seção "Tipo de tarefa"). */
+  atividadesOpcoes?: AtividadeAgenda[];
 }
 
 /** Botão de opção única estilo pílula (segmented). */
@@ -170,7 +177,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, escopoPessoa }: PainelFiltrosProps) {
+export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, escopoPessoa, atividadesOpcoes }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
   const { options: situacoesOptions } = useSituacoesPainel();
   // Rascunho local: só aplica ao clicar em "Filtrar"
@@ -190,6 +197,7 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, 
     filtros.cobrancas !== "todas",
     (filtros.origemPublicacao ?? "todas") !== "todas",
     filtros.semVinculo,
+    (filtros.atividadesSelecionadas ?? []).length > 0,
     filtros.periodoPorPublicacao,
 
     filtros.statusGroup !== "todas",
@@ -451,6 +459,17 @@ export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, 
               ))}
             </div>
           </div>
+
+          {atividadesOpcoes && (
+            <div>
+              <SectionTitle>Tipo de tarefa (na agenda)</SectionTitle>
+              <AtividadesDaAgendaChips
+                opcoes={atividadesOpcoes}
+                selecionadas={draft.atividadesSelecionadas ?? []}
+                onChange={(v) => setDraft({ ...draft, atividadesSelecionadas: v })}
+              />
+            </div>
+          )}
 
           {/* Origem */}
           <div>
