@@ -15,7 +15,7 @@
 - Cada coordenação ganha o quadro **Quem pode configurar agendamentos**, em **Coordenações → (a coordenação) → Permissões e configurações**. Ele segue o modelo de "Acesso aos menus", com as abas **Por cargo** e **Por membro**.
 - Para cada tipo (Tarefa, Prazo, Audiência, Evento), o coordenador liga ou desliga **Criar e configurar** para cada cargo ou membro.
 - Quem tem a opção desligada só pode **mudar a situação** e comentar nos itens daquele tipo. Não pode criar nem alterar título, datas, responsáveis ou outros campos.
-- **Padrão sugerido ao ativar:** coordenador, assistente de coordenação e controladoria têm tudo ligado. Os demais cargos ficam só com Eventos ligado. Enquanto a coordenação não mexer no quadro, tudo continua liberado como hoje, para não travar outras equipes. O Santander Cível já sai configurado com esse padrão.
+- **Começa tudo liberado:** todos os cargos podem criar e configurar qualquer agendamento, em todas as coordenações, inclusive o Santander Cível. Cada coordenação desliga depois o que quiser.
 - O admin sempre pode tudo. A regra de um item vale pela coordenação do próprio item.
 - A regra vale no banco de dados (não só na tela). Assim ela também vale para a Análise DJEN, as importações e os atalhos. Na tela, as opções bloqueadas somem do botão Adicionar e os campos aparecem travados, com só a Situação livre.
 - Workflows continuam gerando as etapas normalmente.
