@@ -54,6 +54,7 @@ const roleLabels: Record<AppRole, string> = {
   admin: "Administrador",
   coordenador: "Advogado Coordenador",
   assistente_coordenador: "Assistente Coordenador",
+  controladoria: "Controladoria",
   assistente_juridico_geral: "Assistente Jurídico Geral",
   advogado: "Advogado",
   advogado_temporario: "Advogado DJEN Conferência",
@@ -67,6 +68,7 @@ const roleBadgeColors: Record<AppRole, string> = {
   admin: "bg-destructive text-destructive-foreground",
   coordenador: "bg-[hsl(var(--area-empresarial))] text-white",
   assistente_coordenador: "bg-[hsl(var(--area-empresarial))]/70 text-white",
+  controladoria: "bg-secondary text-secondary-foreground",
   assistente_juridico_geral: "bg-[hsl(var(--area-empresarial))]/50 text-white",
   advogado: "bg-primary text-primary-foreground",
   advogado_temporario: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
@@ -696,6 +698,7 @@ const Administracao = () => {
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                         <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
+                        <SelectItem value="controladoria">Controladoria</SelectItem>
                         <SelectItem value="assistente_juridico_geral">Assistente Jurídico Geral</SelectItem>
                         <SelectItem value="advogado">Advogado</SelectItem>
                         <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>

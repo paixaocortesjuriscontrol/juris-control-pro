@@ -21,6 +21,7 @@ const PERFIS: { value: string; label: string }[] = [
   { value: "admin", label: "Administrador" },
   { value: "coordenador", label: "Coordenador" },
   { value: "assistente_coordenador", label: "Assistente Coordenador" },
+  { value: "controladoria", label: "Controladoria" },
   { value: "advogado", label: "Advogado" },
   { value: "advogado_temporario", label: "Advogado Temporário" },
   { value: "estagiario", label: "Estagiário" },

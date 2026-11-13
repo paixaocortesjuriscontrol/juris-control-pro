@@ -15,6 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
   estagiario: "Estagiário",
   secretaria: "Secretária",
   assistente_coordenador: "Assistente Coordenador",
+  controladoria: "Controladoria",
   advogado_temporario: "Advogado Temporário",
   cliente: "Cliente",
 };
@@ -22,6 +23,7 @@ const ROLE_LABELS: Record<string, string> = {
 const CARGO_LABELS: Record<string, string> = {
   coordenador: "Coordenador",
   assistente_coordenador: "Assistente Coordenador",
+  controladoria: "Controladoria",
   advogado_senior: "Advogado Sênior",
   advogado: "Advogado",
   estagiario: "Estagiário",

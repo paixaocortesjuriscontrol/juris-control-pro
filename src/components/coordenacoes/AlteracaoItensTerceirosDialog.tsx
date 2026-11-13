@@ -10,6 +10,7 @@ import { Loader2, Save, UserCog } from "lucide-react";
 
 const PERFIS = [
   { value: "assistente_coordenador", label: "Assistente Coordenador" },
+  { value: "controladoria", label: "Controladoria" },
   { value: "advogado", label: "Advogado" },
   { value: "advogado_temporario", label: "Advogado Temporário" },
   { value: "assistente", label: "Assistente" },
