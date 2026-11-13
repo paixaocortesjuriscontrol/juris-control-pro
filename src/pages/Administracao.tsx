@@ -1123,6 +1123,7 @@ const Administracao = () => {
                       <SelectItem value="admin">Administrador</SelectItem>
                       <SelectItem value="coordenador">Advogado Coordenador</SelectItem>
                       <SelectItem value="assistente_coordenador">Assistente Coordenador</SelectItem>
+                      <SelectItem value="controladoria">Controladoria</SelectItem>
                       <SelectItem value="assistente_juridico_geral">Assistente Jurídico Geral</SelectItem>
                       <SelectItem value="advogado">Advogado</SelectItem>
                       <SelectItem value="advogado_temporario">Advogado DJEN Conferência</SelectItem>
