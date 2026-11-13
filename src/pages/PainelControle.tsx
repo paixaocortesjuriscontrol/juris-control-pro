@@ -2528,7 +2528,7 @@ export default function PainelControle() {
         </div>
       }
     >
-    <div className="flex flex-col min-w-0 -m-4 md:-m-6 md:h-[calc(100vh-64px)]">
+    <div className={`flex flex-col min-w-0 -m-4 md:-m-6 ${viewMode === "lista" ? "md:min-h-[calc(100vh-64px)]" : "md:h-[calc(100vh-64px)]"}`}>
         {/* Header */}
         <div className="px-4 md:px-6 py-3 md:py-4 bg-card border-b border-border flex-shrink-0 space-y-2">
           {relatorioAudOpen && (
@@ -3063,7 +3063,7 @@ export default function PainelControle() {
 
         {/* Corpo principal: calendário + painel detalhe OU lista de atividades */}
         {viewMode === "lista" ? (
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className="flex flex-col">
             {modoProtocoladosBaixados && (
               <div className="mx-4 mt-3 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
                 <div className="flex flex-wrap items-end gap-2">
@@ -3190,7 +3190,7 @@ export default function PainelControle() {
               </div>
             </div>
             )}
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div>
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}

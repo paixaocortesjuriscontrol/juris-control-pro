@@ -733,15 +733,13 @@ export default function ListaAtividadesView({
       )}
       <div className={cn(
         "flex flex-col gap-4 bg-muted/30",
-        embedded ? "p-3 md:p-4 h-full min-h-0 overflow-hidden" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]"
+        embedded ? "p-3 md:p-4" : "p-4 lg:p-6 min-h-[calc(100vh-4rem)]"
       )}>
 
         <div
           className={cn(
             "grid grid-cols-1",
-            showLocalFilters ? "gap-4 lg:grid-cols-[280px_1fr]" : "gap-2 lg:grid-cols-1 grid-rows-[auto_minmax(0,1fr)]",
-
-            embedded && "flex-1 min-h-0 lg:overflow-hidden"
+            showLocalFilters ? "gap-4 lg:grid-cols-[280px_1fr]" : "gap-2 lg:grid-cols-1"
           )}
         >
           {!showLocalFilters && (
@@ -946,10 +944,7 @@ export default function ListaAtividadesView({
           </Card>}
 
           {/* Tabela */}
-          <Card className={cn(
-            "overflow-hidden",
-            embedded && "lg:h-full lg:min-h-0 lg:flex lg:flex-col"
-          )}>
+          <Card className="overflow-hidden">
             {/* Toolbar de bulk */}
             <div className="flex items-center justify-between border-b px-3 py-2 bg-muted/40 flex-shrink-0">
               <div className="text-xs text-muted-foreground">
@@ -995,7 +990,7 @@ export default function ListaAtividadesView({
               </div>
             </div>
 
-            <div className={cn("overflow-auto", embedded && "lg:flex-1 lg:min-h-0")}>
+            <div className="overflow-x-auto">
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
