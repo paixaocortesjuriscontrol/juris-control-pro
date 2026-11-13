@@ -1233,6 +1233,44 @@ export default function PainelControle() {
     () => (listaPorDia ? itensListaEquipe.filter((i: any) => dataDoItemNaAgenda(i, usarFatalLista) === diaListaEfetivo) : itensListaEquipe),
     [listaPorDia, itensListaEquipe, diaListaEfetivo, usarFatalLista],
   );
+  // Carga rápida da Lista: busca só o dia escolhido enquanto o mês inteiro ainda carrega.
+  const listaDiaRapidaAtiva = listaPorDia && totaisCarregando;
+  const listaDiaQuery = useQuery({
+    queryKey: ["painel-lista-dia", JSON.stringify(filters), diaListaEfetivo, user?.id],
+    enabled: listaDiaRapidaAtiva,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const f: any = {
+        ...filters,
+        dataInicio: new Date(`${diaListaEfetivo}T00:00:00`),
+        dataFim: new Date(`${diaListaEfetivo}T23:59:59`),
+      };
+      delete f.enabled;
+      const coletados: any[] = [];
+      for (let page = 0; page < 10; page++) {
+        const pageItens = await fetchAgendaPage(f, page, user?.id);
+        coletados.push(...pageItens);
+        if (proximaPaginaAgenda(pageItens, page + 1) === undefined) break;
+      }
+      const vistos = new Set<string>();
+      return coletados.filter((it) => {
+        const k = `${it.origem}:${it.id}`;
+        if (vistos.has(k)) return false;
+        vistos.add(k);
+        return true;
+      });
+    },
+  });
+  const usarListaDiaRapida = listaDiaRapidaAtiva && !!listaDiaQuery.data;
+  const itensListaVisiveis = useMemo(
+    () =>
+      usarListaDiaRapida
+        ? (listaDiaQuery.data as any[]).filter(
+            (i: any) => passaFiltrosPainel(i) && dataDoItemNaAgenda(i, usarFatalLista) === diaListaEfetivo,
+          )
+        : itensListaExibidos,
+    [usarListaDiaRapida, listaDiaQuery.data, passaFiltrosPainel, usarFatalLista, diaListaEfetivo, itensListaExibidos],
+  );
   const navDiaLista = (delta: number) => {
     const d = addDays(new Date(`${diaListaEfetivo}T12:00:00`), delta);
     setDiaLista(format(d, "yyyy-MM-dd"));
@@ -3138,7 +3176,7 @@ export default function PainelControle() {
                   {diaListaEfetivo !== hoje_str && (
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDiaLista("")}>Hoje</Button>
                   )}
-                  <span className="text-xs text-muted-foreground ml-auto">{itensListaExibidos.length} itens no dia</span>
+                  <span className="text-xs text-muted-foreground ml-auto">{itensListaVisiveis.length} itens no dia</span>
                 </div>
               )}
               <div>
@@ -3156,11 +3194,13 @@ export default function PainelControle() {
             <ListaAtividadesView
               embedded
               onRequestNovo={() => { setSelectedItem(null); setViewMode("agenda"); setNovoItemData(null); setNovoItemTipo("tarefa"); }}
-              externalItems={comDataPublicacao(itensListaExibidos)}
+              externalItems={comDataPublicacao(itensListaVisiveis)}
               externalLoading={
                 buscaGlobalAtiva && !drill
                   ? buscaGlobalQuery.isLoading
-                  : isLoading || (vencidosAtivo && vencidosQuery.isLoading)
+                  : listaPorDia
+                    ? (listaDiaRapidaAtiva ? !usarListaDiaRapida && listaDiaQuery.isLoading : isLoading)
+                    : isLoading || (vencidosAtivo && vencidosQuery.isLoading)
               }
               forcedCoordenacaoId={
                 tabMode === "pessoal"
