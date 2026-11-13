@@ -1,0 +1,2 @@
+CREATE TABLE backup_limpeza_santander.proc_coord_resp_restantes AS SELECT * FROM public.processos_coordenacoes_responsaveis WHERE coordenacao_id='968631d0-6659-46f1-b45d-899892cb0121';
+REVOKE ALL ON backup_limpeza_santander.proc_coord_resp_restantes FROM anon, authenticated;
