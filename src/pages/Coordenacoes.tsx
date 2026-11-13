@@ -41,6 +41,7 @@ import { PermissoesSituacaoDialog } from "@/components/coordenacoes/PermissoesSi
 import { FeriadosCoordenacaoDialog } from "@/components/coordenacoes/FeriadosCoordenacaoDialog";
 import { AssuntosCoordenacaoDialog } from "@/components/coordenacoes/AssuntosCoordenacaoDialog";
 import { PermissoesReagendamentoDialog } from "@/components/coordenacoes/PermissoesReagendamentoDialog";
+import { AcessoMenusCoordenacaoDialog } from "@/components/coordenacoes/AcessoMenusCoordenacaoDialog";
 import { AlteracaoItensTerceirosDialog } from "@/components/coordenacoes/AlteracaoItensTerceirosDialog";
 import { ConfigAcompanhamentoEspecialDialog } from "@/components/coordenacoes/ConfigAcompanhamentoEspecialDialog";
 import { TransferirProcessosDialog } from "@/components/processos/TransferirProcessosDialog";
@@ -97,6 +98,7 @@ const Coordenacoes = () => {
   const [feriadosDialog, setFeriadosDialog] = useState(false);
   const [loteDialog, setLoteDialog] = useState(false);
   const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
+  const [acessoMenusDialog, setAcessoMenusDialog] = useState(false);
   const [configAcompDialog, setConfigAcompDialog] = useState(false);
   const [nivelAcessoMembro, setNivelAcessoMembro] = useState<any>(null);
   const [removeMembroId, setRemoveMembroId] = useState<string | null>(null);
@@ -151,6 +153,7 @@ const Coordenacoes = () => {
   const cargoOptions = [
     { value: "coordenador", label: "Coordenador" },
     { value: "assistente_coordenador", label: "Assistente Coordenador" },
+    { value: "controladoria", label: "Controladoria" },
     { value: "advogado_senior", label: "Advogado Sênior" },
     { value: "advogado", label: "Advogado" },
     { value: "estagiario", label: "Estagiário" },
@@ -450,6 +453,7 @@ const Coordenacoes = () => {
                   titulo: "Permissões e configurações",
                   descricao: "Regras de quem pode alterar o quê nesta coordenação.",
                   itens: [
+                    { label: "Acesso aos menus", icon: ShieldCheck, desc: "Quais menus cada cargo ou membro vê.", onClick: () => setAcessoMenusDialog(true) },
                     { label: "Permissões de Situação", icon: ShieldCheck, desc: "Quem pode alterar cada situação.", onClick: () => setPermSituacaoDialog(true) },
                     { label: "Quem Pode Reagendar", icon: RefreshCw, desc: "Define quem pode reagendar itens.", onClick: () => setPermReagendamentoDialog(true) },
                     { label: "Alterar Itens de Outros", icon: ShieldCheck, desc: "Quem pode alterar itens de outros membros.", onClick: () => setAltTerceirosDialog(true) },
@@ -769,6 +773,13 @@ const Coordenacoes = () => {
           <PermissoesSituacaoDialog
             open={permSituacaoDialog}
             onOpenChange={setPermSituacaoDialog}
+            coordenacaoId={selectedCoord.id}
+            coordenacaoNome={selectedCoord.nome}
+          />
+
+          <AcessoMenusCoordenacaoDialog
+            open={acessoMenusDialog}
+            onOpenChange={setAcessoMenusDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />

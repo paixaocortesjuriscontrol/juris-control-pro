@@ -35,6 +35,7 @@ const CARGOS_OPTIONS = [
   { value: "coordenador", label: "Coordenador" },
   { value: "assistente_coordenador", label: "Assistente Coordenador" },
   { value: "assistente_juridico_geral", label: "Assistente Jurídico Geral" },
+  { value: "controladoria", label: "Controladoria" },
   { value: "advogado_senior", label: "Advogado Sênior" },
   { value: "advogado", label: "Advogado" },
   { value: "estagiario", label: "Estagiário" },

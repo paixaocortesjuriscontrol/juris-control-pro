@@ -7631,6 +7631,61 @@ export type Database = {
           },
         ]
       }
+      permissoes_menu_coordenacao: {
+        Row: {
+          cargo: string | null
+          coordenacao_id: string
+          created_at: string
+          id: string
+          menu_path: string
+          permitido: boolean
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          coordenacao_id: string
+          created_at?: string
+          id?: string
+          menu_path: string
+          permitido?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          coordenacao_id?: string
+          created_at?: string
+          id?: string
+          menu_path?: string
+          permitido?: boolean
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissoes_menu_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_menu_coordenacao_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "permissoes_menu_coordenacao_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_basic"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissoes_menu_usuario: {
         Row: {
           created_at: string
