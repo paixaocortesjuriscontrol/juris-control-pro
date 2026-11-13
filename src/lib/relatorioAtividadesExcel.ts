@@ -15,6 +15,7 @@ export interface RelatorioAtividadesOpts {
     totalBanco: number;
     totalExportado: number;
     tiposCobertos: string;
+    porTipo?: { tipo: string; banco: number; exportado: number; faltando: number }[];
     observacao?: string;
     faltantes: Record<string, any>[];
   };
@@ -167,6 +168,26 @@ export async function gerarRelatorioAtividadesExcel(o: RelatorioAtividadesOpts) 
     linha("Tipos conferidos", cf.tiposCobertos);
     linha("Encontrados no banco com esses filtros", cf.totalBanco);
     linha("Presentes nesta planilha", cf.totalExportado);
+    if (cf.porTipo?.length) {
+      r++;
+      ["Tipo", "No sistema", "Na planilha", "Faltando", "Resultado"].forEach((h, i) => {
+        const c = cs.getCell(r, i + 1);
+        c.value = h;
+        c.font = { name: "Arial", bold: true, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+        c.border = borda();
+      });
+      cf.porTipo.forEach((p) => {
+        r++;
+        [p.tipo, p.banco, p.exportado, p.faltando, p.faltando ? "FALTANDO" : "OK"].forEach((v, i) => {
+          const c = cs.getCell(r, i + 1);
+          c.value = v;
+          c.font = { name: "Arial", bold: i === 4, color: i === 4 ? { argb: p.faltando ? "FFC62828" : "FF2E7D32" } : undefined };
+          c.border = borda();
+        });
+      });
+      r += 2;
+    }
     cs.mergeCells(r, 1, r, 6);
     const res = cs.getCell(r, 1);
     res.value = ok

@@ -1,16 +1,21 @@
 /**
  * Conferência independente da exportação "Exportar Atividade" do Painel:
- * lê as tarefas/prazos direto da tabela (mesma sessão, RLS valendo) com os
- * filtros escolhidos e compara com o que foi para a planilha.
+ * lê tarefas/prazos/atas, audiências e eventos direto das tabelas (mesma
+ * sessão, RLS valendo) com os filtros escolhidos e compara com a planilha.
  */
-export type TipoConferido = "prazo" | "tarefa" | "ata";
+export type TipoConferido = "prazo" | "tarefa" | "ata" | "audiencia" | "evento";
+export const TIPOS_CONFERIDOS: TipoConferido[] = ["prazo", "tarefa", "ata", "audiencia", "evento"];
+export const NOMES_TIPO_CONFERIDO: Record<TipoConferido, string> = {
+  prazo: "Prazos", tarefa: "Tarefas", ata: "Atas", audiencia: "Audiências", evento: "Eventos",
+};
 
-export interface TarefaConferencia {
-  id: string;
+export interface ItemConferencia {
+  /** "t:<id>" tarefa, "a:<id>" audiência, "e:<id>" evento */
+  chave: string;
+  tipo: TipoConferido | "outro";
   titulo?: string | null;
-  tipo_tarefa?: string | null;
   status?: string | null;
-  data_vencimento?: string | null;
+  data_vencimento?: string | null; // limite / data da audiência / início do evento
   data_fatal?: string | null;
   created_at?: string | null;
   coordenacao_id?: string | null;
@@ -19,10 +24,10 @@ export interface TarefaConferencia {
 }
 
 export interface FiltrosConferencia {
-  inicio: string; // YYYY-MM-DD ("" = sem limite)
+  inicio: string;
   fim: string;
   tipos: string[];
-  situacoes: string[]; // valores "a|b"
+  situacoes: string[];
   coordIds: string[];
   pessoaIds: string[];
   papeis: { responsavel: boolean; envolvido: boolean };
@@ -41,19 +46,26 @@ export const classificarTarefa = (tipoTarefa?: string | null): TipoConferido | "
   const t = (tipoTarefa ?? "").toUpperCase().trim();
   if (t === "PRAZO") return "prazo";
   if (t === "ATA") return "ata";
-  if (["AUDIÊNCIA", "AUDIENCIA", "EVENTO", "PARCELAMENTO", "PARCELAMENTO_RECORRENTE"].includes(t)) return "outro";
+  if (t === "AUDIÊNCIA" || t === "AUDIENCIA") return "audiencia";
+  if (t === "EVENTO") return "evento";
+  if (t === "PARCELAMENTO" || t === "PARCELAMENTO_RECORRENTE") return "outro";
   return "tarefa";
 };
-
-/** Tipos escolhidos que a conferência cobre (tarefas/prazos/atas). */
-export const tiposConferidos = (tipos: string[]): TipoConferido[] => {
-  const todos: TipoConferido[] = ["prazo", "tarefa", "ata"];
-  return tipos.length === 0 ? todos : todos.filter((t) => tipos.includes(t));
+export const classificarEvento = (tipo?: string | null): TipoConferido | "outro" => {
+  const t = (tipo ?? "").toLowerCase();
+  if (t === "prazo" || t === "prazo_parcela") return "prazo";
+  if (t === "parcelamento") return "outro";
+  return "evento";
 };
+/** Audiência usa a mesma situação unificada da agenda. */
+export const statusAudiencia = (s?: string | null) =>
+  s === "cumprido" || s === "concluido" ? "concluido" : s || "pendente";
 
-export function tarefaCasaFiltros(t: TarefaConferencia, f: FiltrosConferencia): boolean {
-  const tipo = classificarTarefa(t.tipo_tarefa);
-  if (tipo === "outro" || !tiposConferidos(f.tipos).includes(tipo)) return false;
+export const tiposConferidos = (tipos: string[]): TipoConferido[] =>
+  tipos.length === 0 ? TIPOS_CONFERIDOS : TIPOS_CONFERIDOS.filter((t) => tipos.includes(t));
+
+export function itemCasaFiltros(t: ItemConferencia, f: FiltrosConferencia): boolean {
+  if (t.tipo === "outro" || !tiposConferidos(f.tipos).includes(t.tipo)) return false;
   const st = (t.status ?? "").toLowerCase();
   if (f.situacoes.length > 0) {
     if (!f.situacoes.some((v) => v.split("|").includes(st))) return false;
@@ -76,83 +88,173 @@ export function tarefaCasaFiltros(t: TarefaConferencia, f: FiltrosConferencia): 
   return true;
 }
 
-/** ID-base de um item da agenda/planilha (tira sufixos de ocorrência). */
-export const idBaseTarefa = (id: string) => String(id).split(":")[0];
+/** Chave de um item exportado (agenda), sem sufixos de ocorrência. */
+export function chaveItemExportado(it: { id: any; origem?: string }): string | null {
+  const raw = String(it.id);
+  if (raw.startsWith("audiencia-det-")) return `a:${raw.replace("audiencia-det-", "")}`;
+  if (raw.startsWith("prazo-tst-")) return null;
+  if (it.origem === "tarefa") return `t:${raw.split(":")[0]}`;
+  if (it.origem === "evento") return `e:${raw.split(":")[0]}`;
+  return null;
+}
 
+export interface TotalPorTipo { tipo: TipoConferido; banco: number; exportado: number; faltando: number }
 export interface ResultadoConferencia {
   totalBanco: number;
   totalExportado: number;
-  faltantes: TarefaConferencia[];
+  faltantes: ItemConferencia[];
   tiposCobertos: TipoConferido[];
+  porTipo: TotalPorTipo[];
 }
 
 export function compararExportacao(
-  doBanco: TarefaConferencia[],
-  idsExportados: string[],
+  doBanco: ItemConferencia[],
+  chavesExportadas: string[],
   f: FiltrosConferencia,
 ): ResultadoConferencia {
-  const esperados = doBanco.filter((t) => tarefaCasaFiltros(t, f));
-  const exportados = new Set(idsExportados.map(idBaseTarefa));
-  const faltantes = esperados.filter((t) => !exportados.has(String(t.id)));
+  const vistos = new Set<string>();
+  const esperados = doBanco.filter((t) => {
+    if (vistos.has(t.chave) || !itemCasaFiltros(t, f)) return false;
+    vistos.add(t.chave);
+    return true;
+  });
+  const exportados = new Set(chavesExportadas);
+  const faltantes = esperados.filter((t) => !exportados.has(t.chave));
+  const tiposCobertos = tiposConferidos(f.tipos);
+  const porTipo = tiposCobertos.map((tipo) => {
+    const banco = esperados.filter((e) => e.tipo === tipo).length;
+    const faltando = faltantes.filter((e) => e.tipo === tipo).length;
+    return { tipo, banco, exportado: banco - faltando, faltando };
+  });
   return {
     totalBanco: esperados.length,
     totalExportado: esperados.length - faltantes.length,
     faltantes,
-    tiposCobertos: tiposConferidos(f.tipos),
+    tiposCobertos,
+    porTipo,
   };
 }
 
 type Lotes = <T>(consulta: (lote: string[]) => any, ids: string[]) => Promise<T[]>;
 
-/** Busca no banco as tarefas candidatas e seus responsáveis/envolvidos. */
-export async function buscarTarefasConferencia(
-  supabase: any,
-  inChunks: Lotes,
-  f: FiltrosConferencia,
-): Promise<TarefaConferencia[]> {
-  const cols = "id, titulo, tipo_tarefa, status, data_vencimento, data_fatal, created_at, coordenacao_id";
-  const ini = f.inicio ? new Date(f.inicio + "T00:00:00-03:00").toISOString() : null;
-  const fim = f.fim ? new Date(f.fim + "T23:59:59-03:00").toISOString() : null;
-  const statusEsc = Array.from(new Set(f.situacoes.flatMap((v) => v.split("|")).filter(Boolean)));
-
-  const montar = (campo: string) => {
-    let q = supabase.from("tarefas").select(cols);
-    if (ini) q = q.gte(campo, ini);
-    if (fim) q = q.lte(campo, fim);
-    if (f.coordIds.length > 0) q = q.in("coordenacao_id", f.coordIds);
-    if (statusEsc.length > 0) q = q.in("status", statusEsc);
-    return q;
-  };
-  const lerTudo = async (campo: string) => {
-    const out: any[] = [];
-    for (let p = 0; p < 200; p++) {
-      const { data, error } = await montar(campo).order("id").range(p * 1000, p * 1000 + 999);
-      if (error) throw error;
-      out.push(...(data ?? []));
-      if (!data || data.length < 1000) break;
-    }
-    return out;
-  };
-  const campos = f.referencia === "cadastro" ? ["created_at"] : ["data_vencimento", "data_fatal"];
-  const mapa = new Map<string, any>();
-  for (const c of campos) for (const r of await lerTudo(c)) mapa.set(String(r.id), r);
-  const linhas = Array.from(mapa.values()).filter((r) => classificarTarefa(r.tipo_tarefa) !== "outro");
-  const ids = linhas.map((r) => String(r.id));
-  const resp = new Map<string, string[]>();
-  const env = new Map<string, string[]>();
-  if (f.pessoaIds.length > 0 && ids.length > 0) {
-    const [rs, es] = await Promise.all([
-      inChunks<any>((l) => supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", l), ids),
-      inChunks<any>((l) => supabase.from("tarefa_envolvidos").select("tarefa_id, usuario_id").in("tarefa_id", l), ids),
-    ]);
-    const push = (m: Map<string, string[]>, r: any) => {
-      if (!r?.usuario_id) return;
-      const a = m.get(String(r.tarefa_id)) ?? [];
-      a.push(String(r.usuario_id));
-      m.set(String(r.tarefa_id), a);
-    };
-    (rs ?? []).forEach((r) => push(resp, r));
-    (es ?? []).forEach((r) => push(env, r));
+async function lerPaginado(montar: () => any) {
+  const out: any[] = [];
+  for (let p = 0; p < 200; p++) {
+    const { data, error } = await montar().order("id").range(p * 1000, p * 1000 + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) break;
   }
-  return linhas.map((r) => ({ ...r, id: String(r.id), responsaveis: resp.get(String(r.id)) ?? [], envolvidos: env.get(String(r.id)) ?? [] }));
+  return out;
+}
+
+async function vinculos(
+  supabase: any, inChunks: Lotes, tabela: string, campoItem: string, campoPessoa: string, ids: string[],
+) {
+  const m = new Map<string, string[]>();
+  if (ids.length === 0) return m;
+  const rows = await inChunks<any>(
+    (l) => supabase.from(tabela).select(`${campoItem}, ${campoPessoa}`).in(campoItem, l), ids,
+  );
+  (rows ?? []).forEach((r: any) => {
+    if (!r?.[campoPessoa]) return;
+    const k = String(r[campoItem]);
+    const a = m.get(k) ?? [];
+    a.push(String(r[campoPessoa]));
+    m.set(k, a);
+  });
+  return m;
+}
+
+function janela(f: FiltrosConferencia) {
+  return {
+    ini: f.inicio ? new Date(f.inicio + "T00:00:00-03:00").toISOString() : null,
+    fim: f.fim ? new Date(f.fim + "T23:59:59-03:00").toISOString() : null,
+  };
+}
+
+/** Busca no banco os itens candidatos de todos os tipos escolhidos. */
+export async function buscarItensConferencia(
+  supabase: any, inChunks: Lotes, f: FiltrosConferencia,
+): Promise<ItemConferencia[]> {
+  const tipos = tiposConferidos(f.tipos);
+  const { ini, fim } = janela(f);
+  const statusEsc = Array.from(new Set(f.situacoes.flatMap((v) => v.split("|")).filter(Boolean)));
+  const porPessoas = f.pessoaIds.length > 0;
+  const lerPorCampos = async (tabela: string, cols: string, campos: string[], aplicarStatus: boolean) => {
+    const mapa = new Map<string, any>();
+    for (const campo of campos) {
+      const rows = await lerPaginado(() => {
+        let q = supabase.from(tabela).select(cols);
+        if (ini) q = q.gte(campo, ini);
+        if (fim) q = q.lte(campo, fim);
+        if (f.coordIds.length > 0) q = q.in("coordenacao_id", f.coordIds);
+        if (aplicarStatus && statusEsc.length > 0) q = q.in("status", statusEsc);
+        return q;
+      });
+      rows.forEach((r) => mapa.set(String(r.id), r));
+    }
+    return Array.from(mapa.values());
+  };
+  const cad = f.referencia === "cadastro";
+  const out: ItemConferencia[] = [];
+
+  // Tarefas (prazos, tarefas, atas e as audiências/eventos antigos guardados como tarefa)
+  const tarefas = (await lerPorCampos(
+    "tarefas", "id, titulo, tipo_tarefa, status, data_vencimento, data_fatal, created_at, coordenacao_id",
+    cad ? ["created_at"] : ["data_vencimento", "data_fatal"], true,
+  )).filter((r) => tipos.includes(classificarTarefa(r.tipo_tarefa) as TipoConferido));
+  const tIds = tarefas.map((r) => String(r.id));
+  const [tResp, tEnv] = porPessoas
+    ? await Promise.all([
+        vinculos(supabase, inChunks, "tarefa_responsaveis", "tarefa_id", "usuario_id", tIds),
+        vinculos(supabase, inChunks, "tarefa_envolvidos", "tarefa_id", "usuario_id", tIds),
+      ])
+    : [new Map(), new Map()];
+  tarefas.forEach((r) => out.push({
+    chave: `t:${r.id}`, tipo: classificarTarefa(r.tipo_tarefa), titulo: r.titulo, status: r.status,
+    data_vencimento: r.data_vencimento, data_fatal: r.data_fatal, created_at: r.created_at,
+    coordenacao_id: r.coordenacao_id,
+    responsaveis: tResp.get(String(r.id)) ?? [], envolvidos: tEnv.get(String(r.id)) ?? [],
+  }));
+
+  if (tipos.includes("audiencia")) {
+    // Situação da audiência é convertida (cumprido → concluído), então filtra depois.
+    const auds = await lerPorCampos(
+      "audiencias_detectadas", "id, titulo, status, data_audiencia, created_at, coordenacao_id",
+      [cad ? "created_at" : "data_audiencia"], false,
+    );
+    const ids = auds.map((r) => String(r.id));
+    const [aResp, aEnv] = porPessoas
+      ? await Promise.all([
+          vinculos(supabase, inChunks, "audiencias_advogados", "audiencia_id", "advogado_id", ids),
+          vinculos(supabase, inChunks, "audiencia_envolvidos", "audiencia_id", "usuario_id", ids),
+        ])
+      : [new Map(), new Map()];
+    auds.forEach((r) => out.push({
+      chave: `a:${r.id}`, tipo: "audiencia", titulo: r.titulo, status: statusAudiencia(r.status),
+      data_vencimento: r.data_audiencia, created_at: r.created_at, coordenacao_id: r.coordenacao_id,
+      responsaveis: aResp.get(String(r.id)) ?? [], envolvidos: aEnv.get(String(r.id)) ?? [],
+    }));
+  }
+
+  if (tipos.includes("evento") || tipos.includes("prazo")) {
+    const evs = (await lerPorCampos(
+      "eventos_agenda", "id, titulo, tipo, status, data_inicio, created_at, coordenacao_id",
+      [cad ? "created_at" : "data_inicio"], true,
+    )).filter((r) => tipos.includes(classificarEvento(r.tipo) as TipoConferido));
+    const ids = evs.map((r) => String(r.id));
+    const [eResp, eEnv] = porPessoas
+      ? await Promise.all([
+          vinculos(supabase, inChunks, "evento_responsaveis", "evento_id", "usuario_id", ids),
+          vinculos(supabase, inChunks, "evento_envolvidos", "evento_id", "usuario_id", ids),
+        ])
+      : [new Map(), new Map()];
+    evs.forEach((r) => out.push({
+      chave: `e:${r.id}`, tipo: classificarEvento(r.tipo), titulo: r.titulo, status: r.status,
+      data_vencimento: r.data_inicio, created_at: r.created_at, coordenacao_id: r.coordenacao_id,
+      responsaveis: eResp.get(String(r.id)) ?? [], envolvidos: eEnv.get(String(r.id)) ?? [],
+    }));
+  }
+  return out;
 }

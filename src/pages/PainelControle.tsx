@@ -36,7 +36,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
-import { buscarTarefasConferencia, compararExportacao, tiposConferidos, classificarTarefa } from "@/lib/conferenciaExportacao";
+import { buscarItensConferencia, compararExportacao, tiposConferidos, chaveItemExportado, NOMES_TIPO_CONFERIDO } from "@/lib/conferenciaExportacao";
 import { ExportarAudienciasSheet } from "@/components/painel/ExportarAudienciasSheet";
 import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell, ArrowRightLeft } from "lucide-react";
@@ -1714,10 +1714,10 @@ export default function PainelControle() {
     const fmtD = (s?: string | null) => { const d = s ? s.slice(0, 10) : ""; return d ? d.split("-").reverse().join("/") : ""; };
     if (tiposConferidos(tipos).length > 0) {
       try {
-        const doBanco = await buscarTarefasConferencia(supabase, inChunks as any, fConf as any);
-        const idsExp = itensOrdenados.filter((it: any) => it.origem === "tarefa").map((it: any) => String(it.id));
+        const doBanco = await buscarItensConferencia(supabase, inChunks as any, fConf as any);
+        const idsExp = itensOrdenados.map((it: any) => chaveItemExportado(it)).filter(Boolean) as string[];
         const r = compararExportacao(doBanco, idsExp, fConf as any);
-        const nomesConf: Record<string, string> = { prazo: "Prazos", tarefa: "Tarefas", ata: "Atas" };
+        const nomesConf: Record<string, string> = NOMES_TIPO_CONFERIDO;
         const profFalt = new Set<string>();
         r.faltantes.forEach((t) => t.responsaveis.forEach((id) => profFalt.add(id)));
         const nomeFalt = new Map<string, string>(nomeById);
@@ -1730,15 +1730,16 @@ export default function PainelControle() {
           filtros: [] as [string, string][],
           totalBanco: r.totalBanco,
           totalExportado: r.totalExportado,
+          porTipo: r.porTipo.map((p) => ({ tipo: nomesConf[p.tipo], banco: p.banco, exportado: p.exportado, faltando: p.faltando })),
           tiposCobertos: r.tiposCobertos.map((t) => nomesConf[t]).join(", "),
           observacao: r.faltantes.length > 0
             ? "Motivo provável: algum filtro do Painel ligado na tela (etiquetas, origem, busca, cliente, processo etc.) também é aplicado à exportação. Limpe os filtros do Painel e exporte de novo."
             : undefined,
           faltantes: r.faltantes.map((t) => ({
             Título: t.titulo ?? "",
-            Tipo: nomesConf[classificarTarefa(t.tipo_tarefa)] ?? "",
+            Tipo: nomesConf[t.tipo] ?? "",
             Situação: t.status ?? "",
-            "Data limite": fmtD(t.data_vencimento),
+            "Data (limite/audiência/início)": fmtD(t.data_vencimento),
             "Data fatal": fmtD(t.data_fatal),
             Responsáveis: t.responsaveis.map((id) => nomeFalt.get(id) ?? "").filter(Boolean).join(", "),
           })),
