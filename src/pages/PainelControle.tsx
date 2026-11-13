@@ -36,6 +36,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
+import { buscarTarefasConferencia, compararExportacao, tiposConferidos, classificarTarefa } from "@/lib/conferenciaExportacao";
 import { ExportarAudienciasSheet } from "@/components/painel/ExportarAudienciasSheet";
 import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell, ArrowRightLeft } from "lucide-react";
@@ -1702,8 +1703,58 @@ export default function PainelControle() {
 
     });
 
+    // Conferência independente: lê tarefas/prazos direto do banco com os mesmos
+    // filtros e aponta o que não entrou na planilha.
+    let conferencia: any = undefined;
+    let avisoConferencia = "";
+    const fConf = {
+      inicio, fim, tipos, situacoes: situacoesSel, coordIds, pessoaIds,
+      papeis: papeisPessoas, referencia,
+    } as const;
+    const fmtD = (s?: string | null) => { const d = s ? s.slice(0, 10) : ""; return d ? d.split("-").reverse().join("/") : ""; };
+    if (tiposConferidos(tipos).length > 0) {
+      try {
+        const doBanco = await buscarTarefasConferencia(supabase, inChunks as any, fConf as any);
+        const idsExp = itensOrdenados.filter((it: any) => it.origem === "tarefa").map((it: any) => String(it.id));
+        const r = compararExportacao(doBanco, idsExp, fConf as any);
+        const nomesConf: Record<string, string> = { prazo: "Prazos", tarefa: "Tarefas", ata: "Atas" };
+        const profFalt = new Set<string>();
+        r.faltantes.forEach((t) => t.responsaveis.forEach((id) => profFalt.add(id)));
+        const nomeFalt = new Map<string, string>(nomeById);
+        const semNome = Array.from(profFalt).filter((id) => !nomeFalt.has(id));
+        if (semNome.length > 0) {
+          const ps = await inChunks((l: string[]) => supabase.from("profiles").select("id, nome").in("id", l), semNome);
+          (ps || []).forEach((p: any) => p?.id && nomeFalt.set(p.id, p.nome));
+        }
+        conferencia = {
+          filtros: [] as [string, string][],
+          totalBanco: r.totalBanco,
+          totalExportado: r.totalExportado,
+          tiposCobertos: r.tiposCobertos.map((t) => nomesConf[t]).join(", "),
+          observacao: r.faltantes.length > 0
+            ? "Motivo provável: algum filtro do Painel ligado na tela (etiquetas, origem, busca, cliente, processo etc.) também é aplicado à exportação. Limpe os filtros do Painel e exporte de novo."
+            : undefined,
+          faltantes: r.faltantes.map((t) => ({
+            Título: t.titulo ?? "",
+            Tipo: nomesConf[classificarTarefa(t.tipo_tarefa)] ?? "",
+            Situação: t.status ?? "",
+            "Data limite": fmtD(t.data_vencimento),
+            "Data fatal": fmtD(t.data_fatal),
+            Responsáveis: t.responsaveis.map((id) => nomeFalt.get(id) ?? "").filter(Boolean).join(", "),
+          })),
+        };
+        avisoConferencia = r.faltantes.length === 0
+          ? `Conferido: ${r.totalExportado} de ${r.totalBanco} ${conferencia.tiposCobertos.toLowerCase()}.`
+          : `Faltaram ${r.faltantes.length} de ${r.totalBanco} — veja a aba Conferência.`;
+      } catch (e) {
+        console.error("Conferência da exportação falhou", e);
+        avisoConferencia = "Não foi possível conferir a planilha automaticamente.";
+      }
+    }
+
     if (rowsFinal.length === 0) {
       toast.error("Nenhuma atividade encontrada para o período e tipos selecionados.");
+      if (conferencia?.totalBanco > 0) toast.warning(`Atenção: o banco tem ${conferencia.totalBanco} item(ns) com esses filtros. Limpe os filtros do Painel e tente de novo.`);
       return;
     }
     const fmtBr = (s: string) => (s ? s.split("-").reverse().join("/") : "");
@@ -1732,8 +1783,26 @@ export default function PainelControle() {
       periodoLabel,
       tiposLabel,
       nomeArquivo: `relatorio_atividades_${stamp}.xlsx`,
+      conferencia: conferencia
+        ? {
+            ...conferencia,
+            filtros: [
+              ["Período", periodoLabel],
+              ["Referência", referencia === "cadastro" ? "Data de cadastro" : "Data limite ou fatal"],
+              ["Tipos", tiposLabel],
+              ["Situações", situacoesSel.length ? Array.from(new Set(situacoesSel.flatMap((v) => v.split("|")))).join(", ") : "Todas"],
+              ["Coordenações", coordIds.length ? coordIds.map((id) => coordNomeById.get(id) ?? coordsFiltroEscritorio.find((c: any) => c.id === id)?.nome ?? id).join(", ") : "Todas"],
+              ["Pessoas", pessoaIds.length ? pessoaIds.map((id) => nomeById.get(id) ?? id).join(", ") : "Todas"],
+              ["Papel", papeisPessoas.responsavel && !papeisPessoas.envolvido ? "Responsável" : papeisPessoas.envolvido && !papeisPessoas.responsavel ? "Envolvido" : "Responsável ou envolvido"],
+            ],
+          }
+        : undefined,
     });
     toast.success(`${rowsFinal.length} atividade(s) exportada(s).`);
+    if (avisoConferencia) {
+      if (conferencia && conferencia.faltantes.length === 0) toast.success(avisoConferencia);
+      else toast.warning(avisoConferencia, { duration: 12000 });
+    }
   };
 
   // ===== Exportação de AUDIÊNCIAS no formato da planilha de controle =====

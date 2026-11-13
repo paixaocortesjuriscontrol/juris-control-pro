@@ -10,6 +10,14 @@ export interface RelatorioAtividadesOpts {
   tiposLabel: string;
   geradoPor?: string;
   nomeArquivo: string;
+  conferencia?: {
+    filtros: [string, string][];
+    totalBanco: number;
+    totalExportado: number;
+    tiposCobertos: string;
+    observacao?: string;
+    faltantes: Record<string, any>[];
+  };
 }
 
 const borda = () => {
@@ -134,6 +142,67 @@ export async function gerarRelatorioAtividadesExcel(o: RelatorioAtividadesOpts) 
   });
   if (colunas.length) {
     ws.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3 + o.linhas.length, column: colunas.length } };
+  }
+
+  // ===== Conferência =====
+  if (o.conferencia) {
+    const cf = o.conferencia;
+    const ok = cf.faltantes.length === 0;
+    const cs = wb.addWorksheet("Conferência", { views: [{ showGridLines: false }] });
+    cs.columns = [{ width: 34 }, { width: 50 }, { width: 18 }, { width: 18 }, { width: 14 }, { width: 14 }];
+    cs.mergeCells("A1:F1");
+    cs.getCell("A1").value = "Conferência da exportação";
+    cs.getCell("A1").font = { name: "Arial", size: 16, bold: true, color: { argb: "FFFFFFFF" } };
+    cs.getCell("A1").fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+    let r = 3;
+    const linha = (k: string, v: string | number) => {
+      cs.getCell(r, 1).value = k;
+      cs.getCell(r, 1).font = { name: "Arial", bold: true };
+      cs.getCell(r, 2).value = v;
+      cs.getCell(r, 2).font = { name: "Arial" };
+      r++;
+    };
+    cf.filtros.forEach(([k, v]) => linha(k, v));
+    r++;
+    linha("Tipos conferidos", cf.tiposCobertos);
+    linha("Encontrados no banco com esses filtros", cf.totalBanco);
+    linha("Presentes nesta planilha", cf.totalExportado);
+    cs.mergeCells(r, 1, r, 6);
+    const res = cs.getCell(r, 1);
+    res.value = ok
+      ? "CONFERIDO – nada faltando"
+      : `ATENÇÃO – ${cf.faltantes.length} item(ns) faltando (lista abaixo)`;
+    res.font = { name: "Arial", size: 13, bold: true, color: { argb: "FFFFFFFF" } };
+    res.fill = { type: "pattern", pattern: "solid", fgColor: { argb: ok ? "FF2E7D32" : "FFC62828" } };
+    r++;
+    if (cf.observacao) {
+      cs.mergeCells(r, 1, r, 6);
+      cs.getCell(r, 1).value = cf.observacao;
+      cs.getCell(r, 1).font = { name: "Arial", italic: true };
+      cs.getCell(r, 1).alignment = { wrapText: true };
+      cs.getRow(r).height = 32;
+      r++;
+    }
+    if (!ok) {
+      r++;
+      const cab = Object.keys(cf.faltantes[0]);
+      cab.forEach((h, i) => {
+        const c = cs.getCell(r, i + 1);
+        c.value = h;
+        c.font = { name: "Arial", bold: true, color: { argb: "FFFFFFFF" } };
+        c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } };
+        c.border = borda();
+      });
+      cf.faltantes.forEach((f) => {
+        r++;
+        cab.forEach((h, i) => {
+          const c = cs.getCell(r, i + 1);
+          c.value = f[h] ?? "";
+          c.font = { name: "Arial" };
+          c.border = borda();
+        });
+      });
+    }
   }
 
   const buf = await wb.xlsx.writeBuffer();
