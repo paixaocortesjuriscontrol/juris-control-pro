@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.bloquear_configuracao_agendamento() FROM PUBLIC, anon, authenticated;
