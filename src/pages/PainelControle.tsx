@@ -97,6 +97,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
 import { toast } from "sonner";
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
+import { EtiquetaFilter } from "@/components/etiquetas/EtiquetaFilter";
 import TstPrazos from "@/pages/TstPrazos";
 import { ListaAtividadesProjuris } from "@/components/painel/ListaAtividadesProjuris";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
@@ -277,6 +278,8 @@ export default function PainelControle() {
   const [mesAtual, setMesAtual] = useState(new Date());
   /** Dia exibido na visão Lista (yyyy-MM-dd); vazio = hoje. */
   const [diaLista, setDiaLista] = useState<string>("");
+  // Etiquetas da Lista: filtro exibido ao lado da data, no cabeçalho do modo Lista.
+  const [listaEtiquetas, setListaEtiquetas] = useSessionState<string[]>("lista-atv-etiquetas", []);
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -1228,6 +1231,13 @@ export default function PainelControle() {
   const listaPorDia =
     viewMode === "lista" && !drill && !buscaGlobalAtiva && !modoProtocoladosBaixados &&
     !painelFiltros.periodoInicio && !painelFiltros.periodoFim && !somenteHoje;
+  // Coordenação da Lista (usada também pelo filtro de etiquetas ao lado da data)
+  const listaForcedCoordenacaoId =
+    tabMode === "pessoal"
+      ? "all"
+      : isAdmin
+        ? (adminCoordFilter === "todas" ? "all" : adminCoordFilter)
+        : (coordenacoesUsuario[0] ?? "all");
   const usarFatalLista = painelFiltros.dataFatal && !painelFiltros.dataPrevista;
   const itensListaExibidos = useMemo(
     () => (listaPorDia ? itensListaEquipe.filter((i: any) => dataDoItemNaAgenda(i, usarFatalLista) === diaListaEfetivo) : itensListaEquipe),
@@ -3165,7 +3175,7 @@ export default function PainelControle() {
             {!modoProtocoladosBaixados && (
             <div className="mx-4 mt-3 rounded-lg border bg-card px-3 py-2 space-y-2">
               {listaPorDia && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <Button variant="outline" size="icon" className="h-7 w-7" onClick={() => navDiaLista(-1)} aria-label="Dia anterior">
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
@@ -3176,11 +3186,31 @@ export default function PainelControle() {
                   {diaListaEfetivo !== hoje_str && (
                     <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDiaLista("")}>Hoje</Button>
                   )}
-                  <span className="text-xs text-muted-foreground ml-auto">{itensListaVisiveis.length} itens no dia</span>
+                  <div className="ml-auto flex items-center gap-2 min-w-0 flex-wrap">
+                    <EtiquetaFilter
+                      modulo="itens"
+                      coordenacaoId={listaForcedCoordenacaoId && listaForcedCoordenacaoId !== "all" ? listaForcedCoordenacaoId : undefined}
+                      estrito
+                      value={listaEtiquetas}
+                      onChange={setListaEtiquetas}
+                    />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{itensListaVisiveis.length} itens no dia</span>
+                  </div>
                 </div>
               )}
               <div>
-                <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="text-[11px] font-semibold text-muted-foreground">Atividades na agenda</p>
+                  {!listaPorDia && (
+                    <EtiquetaFilter
+                      modulo="itens"
+                      coordenacaoId={listaForcedCoordenacaoId && listaForcedCoordenacaoId !== "all" ? listaForcedCoordenacaoId : undefined}
+                      estrito
+                      value={listaEtiquetas}
+                      onChange={setListaEtiquetas}
+                    />
+                  )}
+                </div>
                 <AtividadesDaAgendaChips
                   compacto
                   opcoes={atividadesOpcoes}
@@ -3202,14 +3232,11 @@ export default function PainelControle() {
                     ? (listaDiaRapidaAtiva ? !usarListaDiaRapida && listaDiaQuery.isLoading : isLoading)
                     : isLoading || (vencidosAtivo && vencidosQuery.isLoading)
               }
-              forcedCoordenacaoId={
-                tabMode === "pessoal"
-                  ? "all"
-                  : isAdmin
-                    ? (adminCoordFilter === "todas" ? "all" : adminCoordFilter)
-                    : (coordenacoesUsuario[0] ?? "all")
-              }
+              forcedCoordenacaoId={listaForcedCoordenacaoId}
               forcedResponsavelId={tabMode === "pessoal" ? (user?.id ?? undefined) : undefined}
+              etiquetasValue={listaEtiquetas}
+              onEtiquetasChange={setListaEtiquetas}
+              ocultarFiltroEtiquetas={!modoProtocoladosBaixados}
             />
             </div>
           </div>

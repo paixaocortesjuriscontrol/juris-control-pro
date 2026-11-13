@@ -189,6 +189,14 @@ interface ListaAtividadesViewProps {
    * Quando definido, fixa o responsável da lista (ex.: modo Pessoal mostra apenas tarefas do usuário).
    */
   forcedResponsavelId?: string;
+  /**
+   * Filtro de etiquetas controlado pela tela que embute a lista.
+   * Usado quando o filtro aparece fora da lista (ex.: ao lado da data no Painel).
+   */
+  etiquetasValue?: string[];
+  onEtiquetasChange?: (ids: string[]) => void;
+  /** Esconde a linha própria de etiquetas quando a tela que embute já mostra o filtro. */
+  ocultarFiltroEtiquetas?: boolean;
 }
 
 export default function ListaAtividadesView({
@@ -198,6 +206,9 @@ export default function ListaAtividadesView({
   externalLoading = false,
   forcedCoordenacaoId,
   forcedResponsavelId,
+  etiquetasValue,
+  onEtiquetasChange,
+  ocultarFiltroEtiquetas = false,
 }: ListaAtividadesViewProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -207,7 +218,13 @@ export default function ListaAtividadesView({
   const [detalhesPrazo, setDetalhesPrazo] = useState<ItemAgendaUnificado | null>(null);
   const [detalhesEditOnOpen, setDetalhesEditOnOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
-  const [etiquetasFiltro, setEtiquetasFiltro] = useSessionState<string[]>("lista-atv-etiquetas", []);
+  const [etiquetasInterno, setEtiquetasInterno] = useSessionState<string[]>("lista-atv-etiquetas", []);
+  // Quando a tela que embute controla o filtro (Painel mostra ao lado da data), usa o valor dela.
+  const etiquetasFiltro = etiquetasValue ?? etiquetasInterno;
+  const setEtiquetasFiltro = (ids: string[]) => {
+    if (onEtiquetasChange) onEtiquetasChange(ids);
+    else setEtiquetasInterno(ids);
+  };
   const [sortData, setSortData] = useSessionState<{ field: string; dir: "asc" | "desc" }>("lista-atv-sort", { field: "publicacao", dir: "desc" });
   const { setCollapsed } = useSidebarCollapsed();
 
@@ -270,6 +287,7 @@ export default function ListaAtividadesView({
     filters.coordenacaoId,
     filters.dataDe,
     filters.dataAte,
+    etiquetasFiltro,
   ]);
 
   const queryKey = useMemo(
@@ -742,7 +760,7 @@ export default function ListaAtividadesView({
             showLocalFilters ? "gap-4 lg:grid-cols-[280px_1fr]" : "gap-2 lg:grid-cols-1"
           )}
         >
-          {!showLocalFilters && (
+          {!showLocalFilters && !ocultarFiltroEtiquetas && (
             <div className="col-span-full">
               <EtiquetaFilter
                 modulo="itens"
