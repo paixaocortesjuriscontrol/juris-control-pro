@@ -1841,6 +1841,45 @@ export type Database = {
         }
         Relationships: []
       }
+      clientes_coordenacoes: {
+        Row: {
+          cliente_id: string
+          coordenacao_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+        }
+        Insert: {
+          cliente_id: string
+          coordenacao_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+        }
+        Update: {
+          cliente_id?: string
+          coordenacao_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clientes_coordenacoes_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clientes_coordenacoes_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clientes_grupos: {
         Row: {
           cliente_id: string
@@ -7631,6 +7670,47 @@ export type Database = {
           },
         ]
       }
+      permissoes_agendamento_coordenacao: {
+        Row: {
+          cargo: string | null
+          coordenacao_id: string
+          created_at: string
+          id: string
+          permitido: boolean
+          tipo_item: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          cargo?: string | null
+          coordenacao_id: string
+          created_at?: string
+          id?: string
+          permitido?: boolean
+          tipo_item: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          cargo?: string | null
+          coordenacao_id?: string
+          created_at?: string
+          id?: string
+          permitido?: boolean
+          tipo_item?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "permissoes_agendamento_coordenacao_coordenacao_id_fkey"
+            columns: ["coordenacao_id"]
+            isOneToOne: false
+            referencedRelation: "coordenacoes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       permissoes_menu_coordenacao: {
         Row: {
           cargo: string | null
@@ -12505,6 +12585,10 @@ export type Database = {
           }
       pode_arquivar_workflow: {
         Args: { _workflow_id: string }
+        Returns: boolean
+      }
+      pode_configurar_agendamento: {
+        Args: { _coord: string; _tipo: string; _user: string }
         Returns: boolean
       }
       pode_gerenciar_etiquetas: {
