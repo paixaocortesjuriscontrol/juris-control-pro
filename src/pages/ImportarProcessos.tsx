@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
+import { importarPlanilhaCompleta, nomeClienteSemPapel, separarEtiquetas } from "@/lib/importacaoPlanilhaCompleta";
 interface ValidationError {
   campo: string;
   mensagem: string;
@@ -87,6 +88,11 @@ interface ProcessoImport {
   transitadoJulgado?: boolean | null;
   resultado?: string | null;
   valorCondenacao?: number | null;
+  // Planilha completa (Número do Processo, Etiquetas, Cliente (cadastro) ...)
+  formatoCompleto?: boolean;
+  etiquetasLista?: string[];
+  clienteNome?: string | null;
+  extras?: Record<string, any>;
 }
 
 const validSituacoes = ["ativo", "pendente", "urgente", "encerrado", "arquivado", "em andamento", "finalizado"];
@@ -521,6 +527,47 @@ export default function ImportarProcessos() {
       const jsonData = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
       const parsed: ProcessoImport[] = jsonData.map((row: any, index: number): ProcessoImport => {
+        const completo = "Número do Processo" in row || "Polo Ativo (Reclamante / Autor)" in row;
+        if (completo) {
+          const p: ProcessoImport = {
+            numero: String(row["Número do Processo"] || row["Número do processo"] || "").trim(),
+            assunto: row["Objeto da Ação (assunto)"] || null,
+            situacao: row["Situação"] || null,
+            responsavel: row["Responsável"] || null,
+            descricao: row["Descrição"] || null,
+            justica: row["Justiça"] || null,
+            cidade: row["Comarca"] || null,
+            estado: row["UF"] || null,
+            instancia: row["Instância"] || null,
+            orgao: row["Tribunal"] || null,
+            orgaoJulgador: row["Órgao Julgador"] || row["Órgão Julgador"] || null,
+            rito: row["Rito Processual"] || null,
+            sistema: row["Sistema Judicial"] || null,
+            area: row["Área"] || null,
+            fase: null,
+            dataDistribuicao: null,
+            classeCNJ: null,
+            valorAcao: row["Valor da Causa"] ?? null,
+            parteAtiva: row["Polo Ativo (Reclamante / Autor)"] || null,
+            partePassiva: row["Polo Passivo (Reclamado / Réu)"] || null,
+            cpfCnpjAtivo: null,
+            cpfCnpjPassivo: null,
+            pastaCliente: row["Pasta do Cliente"] != null ? String(row["Pasta do Cliente"]) : null,
+            status: "pendente",
+            erros: [],
+            linhaOriginal: index + 2,
+            formatoCompleto: true,
+            etiquetasLista: separarEtiquetas(row["Etiquetas"]),
+            clienteNome: nomeClienteSemPapel(row["Cliente (cadastro)"]),
+            extras: {
+              tipo_processo: row["Tipo de Processo"] || null,
+              processos_relacionados: row["Processos Relacionados"] || null,
+            },
+          };
+          p.erros = validateProcesso(p);
+          p.status = p.erros.length > 0 ? "invalido" : "valido";
+          return p;
+        }
         const processo: ProcessoImport = {
           numero: String(row["Número do processo"] || row["Numero do processo"] || "").trim(),
           assunto: row["Assunto"] || null,
@@ -599,6 +646,77 @@ export default function ImportarProcessos() {
     planilhaCancelledRef.current = false;
     startImport("Importando planilha");
     setProgress(0);
+
+    if (validProcessos.some(p => p.formatoCompleto)) {
+      if (!selectedCoordenacao) {
+        toast({ title: "Escolha a coordenação", description: "Selecione a Coordenação Responsável antes de importar.", variant: "destructive" });
+        setImporting(false); endImport(); return;
+      }
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        const linhas = validProcessos.map(p => ({
+          numero: p.numero,
+          etiquetas: p.etiquetasLista ?? [],
+          responsavel: p.responsavel,
+          cliente: p.clienteNome ?? null,
+          linhaOriginal: p.linhaOriginal,
+          dados: {
+            assunto: p.assunto,
+            descricao: p.descricao,
+            area: mapAreaToEnum(p.area),
+            status: mapStatusToEnum(p.situacao),
+            situacao_original: getSituacaoOriginal(p.situacao),
+            tribunal: p.orgao,
+            vara: p.orgaoJulgador,
+            comarca: p.cidade,
+            uf: p.estado,
+            justica: p.justica,
+            instancia: p.instancia,
+            sistema: p.sistema,
+            valor_causa: parseNumber(p.valorAcao),
+            polo_ativo: p.parteAtiva,
+            polo_passivo: p.partePassiva,
+            pasta_cliente: p.pastaCliente ?? null,
+            responsaveis_projuris: p.responsavel,
+            ...(p.extras ?? {}),
+          },
+        }));
+        const r = await importarPlanilhaCompleta({
+          linhas,
+          coordenacaoId: selectedCoordenacao,
+          membroPadraoId: selectedMembro || null,
+          clientePadraoId: selectedCliente || null,
+          userId: auth.user?.id ?? null,
+          onProgress: (pct) => setProgress(pct),
+          cancelado: () => planilhaCancelledRef.current,
+        });
+        const porLinha = new Map(r.resultados.map(x => [x.linhaOriginal, x]));
+        const dig = (s: string) => s.replace(/\D/g, "");
+        const porNum = new Map(r.resultados.map(x => [dig(x.numero), x]));
+        setProcessos(prev => prev.map(p => {
+          if (p.status !== "valido") return p;
+          const x = porLinha.get(p.linhaOriginal) ?? porNum.get(dig(p.numero));
+          if (!x) return p;
+          if (x.status === "erro") return { ...p, status: "erro", erroImport: x.mensagem };
+          return { ...p, status: "sucesso", erroImport: x.status === "ja_existia" ? x.mensagem : (porLinha.has(p.linhaOriginal) ? undefined : "Linha repetida, juntada") };
+        }));
+        const importados = r.resultados.filter(x => x.status === "importado").length;
+        const jaExistiam = r.resultados.filter(x => x.status === "ja_existia").length;
+        const erros = r.resultados.filter(x => x.status === "erro").length;
+        toast({
+          title: "Importação concluída",
+          description: `${importados} importado(s), ${jaExistiam} já existiam, ${erros} erro(s), ${r.repetidas} linha(s) repetida(s) juntada(s).${r.avisos.length ? " Avisos: " + r.avisos.slice(0, 3).join(" ") : ""}`,
+          variant: erros > 0 ? "destructive" : "default",
+        });
+        if (r.avisos.length) console.warn("Avisos da importação:", r.avisos);
+        await queryClient.invalidateQueries({ queryKey: ["processos"] });
+      } catch (err: any) {
+        toast({ title: "Erro na importação", description: err?.message ?? String(err), variant: "destructive" });
+      }
+      setImporting(false);
+      endImport();
+      return;
+    }
 
     const updatedProcessos = [...processos];
     let successCount = 0;
