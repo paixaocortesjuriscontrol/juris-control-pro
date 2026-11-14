@@ -63,6 +63,9 @@ import { isItemAta, rotuloTipoItem } from "@/lib/tipoItemAgenda";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
+import { parseOcorrenciaId, salvarBaixaOcorrencia } from "@/lib/baixaOcorrencia";
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
+import { podeSelecionarItemLista } from "@/lib/selecaoItensLista";
 
 const PAGE_SIZE = 50;
 
@@ -746,7 +749,7 @@ export default function ListaAtividadesView({
     return <span className="text-muted-foreground text-[11px]">—</span>;
   }
 
-  const selectableRows = rows.filter((r) => tarefaToAgendaItem(r).origem === "tarefa" && !String(r.id).startsWith("prazo-tst-"));
+  const selectableRows = rows.filter((r) => podeSelecionarItemLista(tarefaToAgendaItem(r)));
   const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
   const someSelected = selected.size > 0 && !allSelected;
 
@@ -773,21 +776,66 @@ export default function ListaAtividadesView({
     if (selected.size === 0) return;
     setBulkLoading(true);
     try {
-      const ids = Array.from(selected);
-      const { error } = await supabase
-        .from("tarefas")
-        .update({
-          status: "cumprido",
-          data_cumprimento: new Date().toISOString(),
-        })
-        .in("id", ids);
-      if (error) throw error;
-      await queryClient.invalidateQueries({ queryKey: ["lista-atividades"] });
-      await queryClient.invalidateQueries({ queryKey: ["tarefas"] });
-      await queryClient.invalidateQueries({ queryKey: ["tarefas-paginated"] });
-      await queryClient.invalidateQueries({ queryKey: ["tarefas-stats"] });
+      const agora = new Date().toISOString();
+      const itens = rows
+        .filter((r) => selected.has(r.id))
+        .map((r) => ({ row: r, item: tarefaToAgendaItem(r) }));
+      const tarefaIds: string[] = [];
+      const eventoIds: string[] = [];
+      const audienciaIds: string[] = [];
+      const ocorrencias: { origem: "tarefa" | "evento"; itemId: string; dataOcorrencia: string }[] = [];
+
+      for (const { row, item } of itens) {
+        const { rawId, dataOcorrencia } = parseOcorrenciaId(String(row.id));
+        if (dataOcorrencia && (item.origem === "tarefa" || item.tipo === "evento")) {
+          ocorrencias.push({
+            origem: item.origem === "tarefa" ? "tarefa" : "evento",
+            itemId: rawId,
+            dataOcorrencia,
+          });
+        } else if (item.tipo === "audiencia") {
+          audienciaIds.push(getItemRawId(String(row.id)));
+        } else if (item.tipo === "evento") {
+          eventoIds.push(rawId);
+        } else if (item.origem === "tarefa") {
+          tarefaIds.push(rawId);
+        }
+      }
+
+      if (tarefaIds.length) {
+        const { error } = await supabase
+          .from("tarefas")
+          .update({ status: "cumprido", data_cumprimento: agora, updated_at: agora })
+          .in("id", tarefaIds);
+        if (error) throw error;
+      }
+      if (eventoIds.length) {
+        const { error } = await supabase
+          .from("eventos_agenda")
+          .update({ status: "concluido", concluido_em: agora, updated_at: agora })
+          .in("id", eventoIds);
+        if (error) throw error;
+      }
+      if (audienciaIds.length) {
+        const { error } = await supabase
+          .from("audiencias_detectadas")
+          .update({ status: "concluido", concluido_em: agora, updated_at: agora })
+          .in("id", audienciaIds);
+        if (error) throw error;
+      }
+      const { data: auth } = await supabase.auth.getUser();
+      for (const ocorrencia of ocorrencias) {
+        await salvarBaixaOcorrencia({
+          ...ocorrencia,
+          status: ocorrencia.origem === "tarefa" ? "cumprido" : "concluido",
+          observacao: null,
+          userId: auth.user?.id ?? null,
+        });
+      }
+
+      await invalidarItensAgenda(queryClient);
       setSelected(new Set());
-      toast.success(`${ids.length} tarefa(s) concluída(s)`);
+      toast.success(`${selected.size} item(ns) concluído(s)`);
     } catch (e: any) {
       toast.error("Erro ao concluir em lote: " + (e?.message || ""));
     } finally {
@@ -1186,7 +1234,7 @@ export default function ListaAtividadesView({
                           <TableCell className="px-2 py-3 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
-                              disabled={item.origem !== "tarefa" || String(r.id).startsWith("prazo-tst-")}
+                              disabled={!podeSelecionarItemLista(item)}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
