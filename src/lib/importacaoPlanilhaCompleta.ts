@@ -66,7 +66,7 @@ export async function importarPlanilhaCompleta(opts: {
   membroPadraoId?: string | null;
   clientePadraoId?: string | null;
   userId?: string | null;
-  onProgress?: (pct: number, texto: string) => void;
+  onProgress?: (pct: number, texto: string, stats?: { novos: number; corrigidos: number; erros: number }) => void;
   cancelado?: () => boolean;
 }) {
   const { coordenacaoId, onProgress } = opts;
@@ -84,6 +84,8 @@ export async function importarPlanilhaCompleta(opts: {
     if (!data || data.length < 1000) break;
   }
 
+  if (opts.cancelado?.()) return { resultados, avisos: ["Cancelado antes de gravar."], repetidas, totalUnicos: unicos.length, corrigidos: 0, etiquetasAcrescentadas: 0, errosEtiqueta: 0, cancelado: true };
+  onProgress?.(3, "Conferindo responsáveis, clientes e etiquetas");
   // 2) Responsáveis pelo nome (membros/perfis)
   const nomesResp = Array.from(new Set(unicos.map(u => u.responsavel).filter(Boolean) as string[]));
   const respMap = new Map<string, string>();
@@ -127,6 +129,7 @@ export async function importarPlanilhaCompleta(opts: {
       const { error } = await supabase.from("etiquetas_itens").insert(v);
       if (!error) continue;
       for (const item of v) {
+        if (opts.cancelado?.()) return;
         const r = await supabase.from("etiquetas_itens").insert(item);
         if (r.error) errosEtiqueta++;
       }
@@ -139,7 +142,7 @@ export async function importarPlanilhaCompleta(opts: {
   let corrigidos = 0, etiquetasAcrescentadas = 0;
   let feitosEx = 0;
   for (const lote of dividir(jaExist, 200)) {
-    if (opts.cancelado?.()) break;
+    if (opts.cancelado?.()) { avisos.push(`Cancelado durante a correção dos existentes (${feitosEx} de ${jaExist.length}).`); break; }
     const ids = lote.map(u => existentes.get(soDigitos(u.numero))!.id);
     const jaTem = new Set<string>();
     const { data: vs } = await supabase.from("etiquetas_itens").select("entidade_id, etiqueta_id").eq("entidade", "processo").in("entidade_id", ids);
@@ -163,7 +166,7 @@ export async function importarPlanilhaCompleta(opts: {
       if (error) avisos.push(`Falha ao ligar acompanhamento: ${error.message}`);
     }
     feitosEx += lote.length;
-    onProgress?.(5 + (feitosEx / Math.max(unicos.length, 1)) * 95, `Corrigindo existentes: ${feitosEx} de ${jaExist.length}`);
+    onProgress?.(5 + (feitosEx / Math.max(unicos.length, 1)) * 95, `Corrigindo existentes: ${feitosEx} de ${jaExist.length}`, { novos: 0, corrigidos, erros: 0 });
     await ceder();
   }
 
@@ -185,6 +188,7 @@ export async function importarPlanilhaCompleta(opts: {
     const { data, error } = await supabase.from("processos").insert(rows as any).select("id, numero");
     if (error) {
       for (let i = 0; i < rows.length; i++) {
+        if (opts.cancelado?.()) break;
         const r = await supabase.from("processos").insert(rows[i] as any).select("id, numero").single();
         if (r.error) resultados.push({ numero: lote[i].numero, linhaOriginal: lote[i].linhaOriginal, status: "erro", mensagem: r.error.message });
         else inseridos.push(r.data as any);
@@ -202,10 +206,10 @@ export async function importarPlanilhaCompleta(opts: {
     }
     await gravarVinculos(vinculos);
     feitos += lote.length;
-    onProgress?.(5 + ((feitosEx + feitos) / Math.max(unicos.length, 1)) * 95, `Novos: ${feitos} de ${novos.length}`);
+    onProgress?.(5 + ((feitosEx + feitos) / Math.max(unicos.length, 1)) * 95, `Gravando novos: ${feitos} de ${novos.length}`, { novos: resultados.filter(r => r.status === "importado").length, corrigidos, erros: resultados.filter(r => r.status === "erro").length });
     await ceder();
   }
   if (errosEtiqueta) avisos.push(`${errosEtiqueta} etiqueta(s) não puderam ser aplicadas.`);
 
-  return { resultados, avisos, repetidas, totalUnicos: unicos.length, corrigidos, etiquetasAcrescentadas, errosEtiqueta };
+  return { resultados, avisos, repetidas, totalUnicos: unicos.length, corrigidos, etiquetasAcrescentadas, errosEtiqueta, cancelado: !!opts.cancelado?.() };
 }

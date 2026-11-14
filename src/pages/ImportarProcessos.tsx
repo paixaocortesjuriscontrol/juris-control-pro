@@ -42,6 +42,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
+import { ProgressoImportacao, RelatorioFinalImportacao, type RelatorioImportacao } from "@/components/importar/PainelImportacaoCompleta";
 import { importarPlanilhaCompleta, nomeClienteSemPapel, separarEtiquetas } from "@/lib/importacaoPlanilhaCompleta";
 interface ValidationError {
   campo: string;
@@ -488,6 +489,11 @@ export default function ImportarProcessos() {
 
   // Excel/Planilha import state for andamentos
   const planilhaCancelledRef = useRef(false);
+  const [cancelandoPlanilha, setCancelandoPlanilha] = useState(false);
+  const [etapaCompleta, setEtapaCompleta] = useState("");
+  const [statsCompleta, setStatsCompleta] = useState({ novos: 0, corrigidos: 0, erros: 0 });
+  const [importandoCompleta, setImportandoCompleta] = useState(false);
+  const [relatorioCompleta, setRelatorioCompleta] = useState<RelatorioImportacao | null>(null);
   const [pedidosRelatorioTipo, setPedidosRelatorioTipo] = useState<TipoPedido>("todos");
   const { exportarRelatorioPedidos } = useRelatorioPedidos();
 
@@ -644,6 +650,7 @@ export default function ImportarProcessos() {
 
     setImporting(true);
     planilhaCancelledRef.current = false;
+    setCancelandoPlanilha(false);
     startImport("Importando planilha");
     setProgress(0);
 
@@ -652,6 +659,11 @@ export default function ImportarProcessos() {
         toast({ title: "Escolha a coordenação", description: "Selecione a Coordenação Responsável antes de importar.", variant: "destructive" });
         setImporting(false); endImport(); return;
       }
+      const inicio = new Date();
+      setRelatorioCompleta(null);
+      setImportandoCompleta(true);
+      setEtapaCompleta("Preparando");
+      setStatsCompleta({ novos: 0, corrigidos: 0, erros: 0 });
       try {
         const { data: auth } = await supabase.auth.getUser();
         const linhas = validProcessos.map(p => ({
@@ -687,32 +699,24 @@ export default function ImportarProcessos() {
           membroPadraoId: selectedMembro || null,
           clientePadraoId: selectedCliente || null,
           userId: auth.user?.id ?? null,
-          onProgress: (() => { let ult = 0; return (pct: number) => { const v = Math.floor(pct); if (v !== ult) { ult = v; setProgress(v); } }; })(),
+          onProgress: (() => { let ult = -1; return (pct: number, texto: string, st?: { novos: number; corrigidos: number; erros: number }) => { setEtapaCompleta(texto); if (st) setStatsCompleta(st); const v = Math.floor(pct); if (v !== ult) { ult = v; setProgress(v); } }; })(),
           cancelado: () => planilhaCancelledRef.current,
         });
-        const porLinha = new Map(r.resultados.map(x => [x.linhaOriginal, x]));
-        const dig = (s: string) => s.replace(/\D/g, "");
-        const porNum = new Map(r.resultados.map(x => [dig(x.numero), x]));
-        setProcessos(prev => prev.map(p => {
-          if (p.status !== "valido") return p;
-          const x = porLinha.get(p.linhaOriginal) ?? porNum.get(dig(p.numero));
-          if (!x) return p;
-          if (x.status === "erro") return { ...p, status: "erro", erroImport: x.mensagem };
-          return { ...p, status: "sucesso", erroImport: x.status === "ja_existia" ? x.mensagem : (porLinha.has(p.linhaOriginal) ? undefined : "Linha repetida, juntada") };
-        }));
-        const importados = r.resultados.filter(x => x.status === "importado").length;
-        const jaExistiam = r.resultados.filter(x => x.status === "ja_existia").length;
-        const erros = r.resultados.filter(x => x.status === "erro").length;
-        toast({
-          title: "Importação concluída",
-          description: `${importados} novo(s), ${jaExistiam} já existiam (${r.corrigidos} corrigido(s), ${r.etiquetasAcrescentadas} etiqueta(s) acrescentada(s)), ${erros} erro(s), ${r.repetidas} linha(s) repetida(s) juntada(s).${r.avisos.length ? " Avisos: " + r.avisos.slice(0, 3).join(" ") : ""}`,
-          variant: erros > 0 ? "destructive" : "default",
+        setRelatorioCompleta({
+          totalLinhas: processos.length,
+          invalidas: processos.filter(p => p.status === "invalido").map(p => ({ linha: p.linhaOriginal, numero: p.numero, motivo: p.erros.map(e => `${e.campo}: ${e.mensagem}`).join("; ") })),
+          repetidas: r.repetidas, resultados: r.resultados, corrigidos: r.corrigidos,
+          etiquetasAcrescentadas: r.etiquetasAcrescentadas, errosEtiqueta: r.errosEtiqueta,
+          avisos: r.avisos, cancelado: r.cancelado, inicio, fim: new Date(),
         });
+        toast({ title: r.cancelado ? "Importação cancelada" : "Importação concluída", description: "Veja o relatório completo na tela." });
         if (r.avisos.length) console.warn("Avisos da importação:", r.avisos);
         await queryClient.invalidateQueries({ queryKey: ["processos"] });
       } catch (err: any) {
         toast({ title: "Erro na importação", description: err?.message ?? String(err), variant: "destructive" });
       }
+      setImportandoCompleta(false);
+      setCancelandoPlanilha(false);
       setImporting(false);
       endImport();
       return;
@@ -6446,12 +6450,14 @@ export default function ImportarProcessos() {
                     {importing ? (
                       <Button 
                         variant="destructive" 
+                        disabled={cancelandoPlanilha}
                         onClick={() => {
                           planilhaCancelledRef.current = true;
+                          setCancelandoPlanilha(true);
                         }}
                       >
                         <XCircle className="h-4 w-4 mr-2" />
-                        Cancelar
+                        {cancelandoPlanilha ? "Cancelando…" : "Cancelar"}
                       </Button>
                     ) : (
                       <Button 
@@ -6491,8 +6497,17 @@ export default function ImportarProcessos() {
                   </div>
                 </div>
               </div>
-              {importing && (
+              {importing && !importandoCompleta && (
                 <Progress value={progress} className="mt-4" />
+              )}
+              {importandoCompleta && (
+                <div className="mt-4">
+                  <ProgressoImportacao pct={progress} etapa={etapaCompleta} stats={statsCompleta} cancelando={cancelandoPlanilha}
+                    onCancelar={() => { planilhaCancelledRef.current = true; setCancelandoPlanilha(true); }} />
+                </div>
+              )}
+              {relatorioCompleta && !importandoCompleta && (
+                <div className="mt-4"><RelatorioFinalImportacao r={relatorioCompleta} onFechar={() => setRelatorioCompleta(null)} /></div>
               )}
             </CardHeader>
             <CardContent>
