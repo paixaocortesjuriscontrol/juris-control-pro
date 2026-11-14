@@ -33,7 +33,7 @@
 ## 1) Gabriella Silva "não encontrada"
 - O cadastro dela existe e está ativo, mas o nome está escrito **"Grabriella Silva"** (com "r" a mais). A planilha traz "GABRIELLA SILVA", por isso a importação não a reconheceu (105 atividades ficaram sem ela).
 - Correção:
-  - corrigir o nome do cadastro para "Gabriella Silva" (só o nome, nada mais);
+  - nome do cadastro já corrigido por você para "Gabriella Silva";
   - a importação passa a aceitar pequenas diferenças de grafia (até 2 letras no primeiro nome, mesmo sobrenome) quando só existir uma pessoa parecida; se houver dúvida, continua indo para o relatório;
   - colocar Gabriella como responsável nas 105 atividades já importadas sem ela (somente as desta importação, pelo TAR.). Lucas Fournier (1 atividade) será conferido do mesmo jeito.
 - Lista de usuários do menu Administração: ela não aparece lá. A causa ainda não foi confirmada; o primeiro passo é abrir a tela com os dados reais e descobrir o que a esconde (filtro de filial, papel ou limite da lista), e então corrigir.
@@ -46,5 +46,5 @@
 ## Detalhes técnicos (novos itens)
 - `src/hooks/useCoordenacoes.ts`: trocar `select("id")` por `select("id", { count: "exact", head: true })` para principais; vínculos em `processos_responsaveis` contados à parte, sem baixar linhas (ou RPC de contagem distinta se precisar unir as duas).
 - `src/components/migracao/ImportarAgendaFuturaProjuris.tsx`: `casar` com distância de edição ≤ 2 no primeiro nome + sobrenome igual, só com candidato único.
-- Ajuste de dados: `profiles.nome` da Gabriella; inserir `tarefa_responsaveis`/`audiencias_advogados` para os itens da migração "Agenda Futura" cujo campo Responsáveis do Projuris contém GABRIELLA SILVA (lidos da planilha enviada), sem duplicar.
+- Ajuste de dados: inserir `tarefa_responsaveis`/`audiencias_advogados` para os itens da migração "Agenda Futura" cujo campo Responsáveis do Projuris contém GABRIELLA SILVA (lidos da planilha enviada), sem duplicar.
 - `src/pages/Administracao.tsx`: investigar por que o perfil não aparece antes de alterar.
