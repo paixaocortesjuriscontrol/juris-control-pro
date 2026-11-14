@@ -5,6 +5,7 @@ import { ImportarMarcadoresProjuris } from "@/components/migracao/ImportarMarcad
 import { ImportarExecucoesWorkflowProjuris } from "@/components/migracao/ImportarExecucoesWorkflowProjuris";
 import { ImportarAgendaFuturaProjuris } from "@/components/migracao/ImportarAgendaFuturaProjuris";
 import { ImportarCompromissosProjuris } from "@/components/migracao/ImportarCompromissosProjuris";
+import { ImportarTarefasWorkflowProjuris } from "@/components/migracao/ImportarTarefasWorkflowProjuris";
 import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -668,6 +669,7 @@ export default function MigracaoProjuris() {
         {user && <CorrigirTitulosProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} />}
         {user && <ImportarAgendaFuturaProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarCompromissosProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
+        {user && <ImportarTarefasWorkflowProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarChecklistsProjuris userId={user.id} />}
         {user && <ImportarMarcadoresProjuris userId={user.id} />}
         {user && <ImportarExecucoesWorkflowProjuris userId={user.id} />}
