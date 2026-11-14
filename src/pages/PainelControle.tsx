@@ -666,17 +666,9 @@ export default function PainelControle() {
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
-    // Filtro de situação vai direto ao banco: sem isso, com "Todas as coordenações"
-    // a busca pegava só as primeiras páginas e sumiam protocolados/baixados.
-    const sitSel = [
-      ...painelFiltros.situacoes,
-      ...(situacaoFilter && situacaoFilter !== "todos" ? [situacaoFilter] : []),
-    ].flatMap((v) => v.split("|")).filter(Boolean);
-    // Com os totalizadores visíveis, mantemos as demais situações carregadas:
-    // assim cada cartão continua mostrando seu total e permite trocar o filtro.
-    const statusScope = !mostrarTotalizadores && sitSel.length > 0
-      ? { statusIn: Array.from(new Set(sitSel.flatMap((v) => (v === "concluido" ? ["concluido", "cumprido"] : v === "cumprido" ? ["cumprido", "concluido"] : [v])))) }
-      : {};
+    // A situação é filtrada no cliente para que a lista de seleção mantenha
+    // os totais das demais opções e permita alternar diretamente entre elas.
+    const statusScope = {};
     const dateRange = modoProtocoladosBaixados
       ? {
           dataInicio: painelFiltros.periodoInicio
@@ -723,7 +715,7 @@ export default function PainelControle() {
       fetchAll: false,
       ...dateRange, ...statusScope,
     };
-  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, mostrarTotalizadores, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
@@ -2164,9 +2156,12 @@ export default function PainelControle() {
   // Cada situação obedece a TODOS os demais filtros. Somente os filtros de
   // situação são ignorados nesta contagem, para permitir trocar de um cartão
   // para outro sem precisar limpar a seleção antes.
-  const contagensPorSituacao = useMemo(() => {
+  const { contagensPorSituacao, totalTodasSituacoes } = useMemo(() => {
     const base = itensAgenda.filter((item) => passaFiltrosPainel(item, false, false, false, true));
-    return contarItensPorSituacao(base, situacoesOptions);
+    return {
+      contagensPorSituacao: contarItensPorSituacao(base, situacoesOptions),
+      totalTodasSituacoes: base.length,
+    };
   }, [itensAgenda, passaFiltrosPainel, situacoesOptions]);
 
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
@@ -2713,14 +2708,24 @@ export default function PainelControle() {
               </Button>
             </div>
             <Select value={situacaoFilter} onValueChange={setSituacaoFilter}>
-              <SelectTrigger className="h-7 w-[160px] text-xs" title="Filtrar por situação">
+              <SelectTrigger className="h-7 w-[190px] text-xs" title="Filtrar por situação">
                 <SelectValue placeholder="Situação" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="todos" className="[&>span:last-child]:flex-1">
+                  <span className="flex w-full items-center justify-between gap-5">
+                    <span>Todos</span>
+                    <span className="font-semibold text-muted-foreground">{totalTodasSituacoes}</span>
+                  </span>
+                </SelectItem>
                 {situacoesOptions.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
+                  <SelectItem key={s.value} value={s.value} className="[&>span:last-child]:flex-1">
+                    <span className="flex w-full items-center justify-between gap-5">
+                      <span>{s.label}</span>
+                      <span className="font-semibold text-muted-foreground">
+                        {contagensPorSituacao[s.value] ?? 0}
+                      </span>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -3046,43 +3051,6 @@ export default function PainelControle() {
                   </div>
                 </CardContent>
               </Card>
-            </div>
-          )}
-          {mostrarTotalizadores && !isLoading && situacoesOptions.length > 0 && (
-            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" aria-label="Totalizadores por situação">
-              {situacoesOptions.map((situacao) => {
-                const selecionada =
-                  (painelFiltros.situacoes.length === 1 && painelFiltros.situacoes[0] === situacao.value) ||
-                  (painelFiltros.situacoes.length === 0 && situacaoFilter === situacao.value);
-                return (
-                  <button
-                    key={situacao.value}
-                    type="button"
-                    aria-pressed={selecionada}
-                    title={`${selecionada ? "Remover" : "Aplicar"} filtro: ${situacao.label}`}
-                    onClick={() => {
-                      setModoProtocoladosBaixados(false);
-                      setSituacaoFilter("todos");
-                      setPainelFiltros((f) => ({
-                        ...f,
-                        statusGroup: "todas",
-                        situacoes: selecionada ? [] : [situacao.value],
-                      }));
-                    }}
-                    className={cn(
-                      "flex min-w-[132px] flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-left transition-colors hover:bg-accent",
-                      selecionada && "border-primary bg-accent ring-2 ring-primary/30",
-                    )}
-                  >
-                    <span className="text-[10px] md:text-xs font-medium leading-tight text-muted-foreground">
-                      {situacao.label}
-                    </span>
-                    <span className="text-lg md:text-xl font-bold leading-none text-foreground">
-                      {totalCard(contagensPorSituacao[situacao.value] ?? 0)}
-                    </span>
-                  </button>
-                );
-              })}
             </div>
           )}
         </div>
