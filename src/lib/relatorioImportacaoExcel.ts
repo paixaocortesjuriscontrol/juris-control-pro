@@ -66,12 +66,13 @@ export async function gerarRelatorioImportacaoExcel(d: DadosRelatorioExcel): Pro
 
   const atencao = [
     ...erros.map(r => [r.linhaOriginal, r.numero, "Erro", r.mensagem ?? ""]),
-    ...vinc.map(r => [r.linhaOriginal, r.numero, `Vinculado (${r.coordenacaoOutra ?? "outra coordenação"})`, r.mensagem ?? ""]),
     ...d.falhasEtiqueta.map(f => ["", f.numero, "Etiqueta não aplicada", `${f.etiqueta}: ${f.motivo}`]),
     ...d.clientesDetalhes.filter(c => c.status === "erro").map(c => ["", "", "Cliente com pendência", `${c.nome}: ${c.mensagem ?? "Não foi possível cadastrar ou vincular"}`]),
   ];
-  tabela(wb, "Atenção", "Itens que precisam de atenção", [{ h: "Linha", w: 8 }, { h: "Número do Processo", w: 28 }, { h: "Tipo", w: 38 }, { h: "O que aconteceu", w: 90 }], atencao,
-    i => atencao[i][2] === "Erro" ? COR.erro : String(atencao[i][2]).startsWith("Vinc") ? COR.vinculado_outra : "FFFCE4D6");
+  tabela(wb, "Atenção", "Somente erros e pendências reais", [{ h: "Linha", w: 8 }, { h: "Número do Processo", w: 28 }, { h: "Tipo", w: 38 }, { h: "O que aconteceu", w: 90 }], atencao,
+    i => atencao[i][2] === "Erro" ? COR.erro : "FFFCE4D6");
+  tabela(wb, "Vínculos", "Processos que já existiam em outra coordenação", [{ h: "Linha", w: 8 }, { h: "Número do Processo", w: 28 }, { h: "Coordenação original", w: 45 }, { h: "O que foi feito", w: 90 }],
+    vinc.map(r => [r.linhaOriginal, r.numero, r.coordenacaoOutra ?? "Outra coordenação", r.mensagem ?? ""]), () => COR.vinculado_outra);
   tabela(wb, "Clientes", "Clientes usados na importação", [{ h: "Cliente (como está na planilha)", w: 70 }, { h: "Tipo", w: 20 }, { h: "Processos", w: 14 }, { h: "Resultado", w: 24 }, { h: "Detalhe", w: 65 }],
     d.clientesDetalhes.map(c => [c.nome, c.tipo === "pessoa_juridica" ? "Pessoa jurídica" : "Pessoa física", c.processos, c.status === "cadastrado" ? "Cadastrado e vinculado" : c.status === "ja_existia" ? "Já existia; vinculado" : "Pendência", c.mensagem ?? ""]),
     i => d.clientesDetalhes[i].status === "erro" ? COR.erro : d.clientesDetalhes[i].status === "cadastrado" ? COR.importado : undefined);

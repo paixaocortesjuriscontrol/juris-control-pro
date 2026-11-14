@@ -716,6 +716,10 @@ export default function ImportarProcessos() {
         toast({ title: r.cancelado ? "Importação cancelada" : "Importação concluída", description: "Veja o relatório completo na tela." });
         if (r.avisos.length) console.warn("Avisos da importação:", r.avisos);
         await queryClient.invalidateQueries({ queryKey: ["processos"] });
+        await queryClient.invalidateQueries({ queryKey: ["clientes"] });
+        await queryClient.invalidateQueries({ queryKey: ["clientes-import"] });
+        await queryClient.invalidateQueries({ queryKey: ["clientes-coordenacoes"] });
+        await queryClient.invalidateQueries({ queryKey: ["clientes-select-processo"] });
       } catch (err: any) {
         toast({ title: "Erro na importação", description: err?.message ?? String(err), variant: "destructive" });
       }

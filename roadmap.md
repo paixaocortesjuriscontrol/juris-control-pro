@@ -1,10 +1,11 @@
 # Roadmap — Considerações 02/09
 
 ## Importação Santander Cível — relatório de 13/11/2026
-- [ ] Impedir nova tentativa de aplicar CAPTURA manualmente; confirmar as 428 etiquetas já existentes.
-- [ ] Cadastrar e vincular clientes ausentes à coordenação escolhida e preencher cliente vazio na reimportação.
-- [ ] Explicar no relatório os sete processos preexistentes em outras coordenações, sem alterar a coordenação original.
-- [ ] Testar regras, gerar build e salvar as alterações.
+- [x] Impedir nova tentativa de aplicar CAPTURA manualmente; confirmadas as 428 etiquetas já existentes e nenhum acompanhamento sem CAPTURA.
+- [x] Cadastrar e vincular os 49 clientes ausentes à Coordenação Santander Cível; reimportação preenche somente cliente vazio.
+- [x] Separar os sete processos preexistentes em outras coordenações na aba Vínculos, sem alterar a coordenação original.
+- [x] Testar 11 regras e confirmar build OK.
+- [ ] Publicar e reenviar a mesma planilha para preencher os clientes dos processos já importados; depende de publicação e sessão administrativa.
 
 ## Versão v9.8.5
 - [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.8.5.
