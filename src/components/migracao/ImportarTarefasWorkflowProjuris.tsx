@@ -224,6 +224,13 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
             {[["Prazos a importar", cont("prazo")], ["Tarefas a importar", cont("tarefa")], ["Puladas", linhas.length - aImportar]].map(([k, n]) => (
               <div key={k as string} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n}</Badge></div>
             ))}
+            {linhas.filter((l: any) => l.motivo).length > 0 && (
+              <ul className="space-y-1 rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+                {linhas.filter((l: any) => l.motivo).map((l: any, i: number) => (
+                  <li key={i}><span className="font-medium text-foreground">{l.titulo || "(sem título)"}{l.dig ? ` — ${formatarCnj(l.dig)}` : ""}{l.linha ? ` (linha ${l.linha})` : ""}:</span> {l.motivo}</li>
+                ))}
+              </ul>
+            )}
             <div className="flex gap-2">
               <Button disabled={rodando || !aImportar} onClick={importar}>{rodando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Importar {aImportar} atividades</Button>
               {rodando && <Button variant="outline" onClick={() => { cancelar.current = true; }}><X className="mr-1 h-4 w-4" />Cancelar</Button>}
