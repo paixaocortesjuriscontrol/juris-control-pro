@@ -4,6 +4,7 @@ import { ImportarTiposTarefaProjuris } from "@/components/migracao/ImportarTipos
 import { ImportarMarcadoresProjuris } from "@/components/migracao/ImportarMarcadoresProjuris";
 import { ImportarExecucoesWorkflowProjuris } from "@/components/migracao/ImportarExecucoesWorkflowProjuris";
 import { ImportarAgendaFuturaProjuris } from "@/components/migracao/ImportarAgendaFuturaProjuris";
+import { ImportarCompromissosProjuris } from "@/components/migracao/ImportarCompromissosProjuris";
 import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -608,7 +609,7 @@ export default function MigracaoProjuris() {
     };
     const t = toast.loading("Desfazendo lote...");
     try {
-      for (const [tipo, tabela] of [["comentario", "comentarios_tarefas"], ["audiencia", "audiencias_detectadas"], ["andamento", "movimentacoes"], ["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
+      for (const [tipo, tabela] of [["comentario", "comentarios_tarefas"], ["audiencia", "audiencias_detectadas"], ["evento", "eventos_agenda"], ["andamento", "movimentacoes"], ["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
         const lista = await ids(tipo);
         for (let k = 0; k < lista.length; k += 200) {
           const { error } = await supabase.from(tabela as any).delete().in("id", lista.slice(k, k + 200));
@@ -666,6 +667,7 @@ export default function MigracaoProjuris() {
         </Card>
         {user && <CorrigirTitulosProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} />}
         {user && <ImportarAgendaFuturaProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
+        {user && <ImportarCompromissosProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarChecklistsProjuris userId={user.id} />}
         {user && <ImportarMarcadoresProjuris userId={user.id} />}
         {user && <ImportarExecucoesWorkflowProjuris userId={user.id} />}
