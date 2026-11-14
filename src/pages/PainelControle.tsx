@@ -112,6 +112,7 @@ import { Sparkles } from "lucide-react";
 import { horaBrt, dataInicioAudiencia } from "@/utils/date";
 import { useModeloTarefaItens } from "@/hooks/useModeloTarefaItens";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
+import { contarItensPorSituacao } from "@/lib/situacoesPainel";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { useItensComComentarios, temComentarioItem, ultimoComentarioItem, chaveComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -392,8 +393,11 @@ export default function PainelControle() {
     })();
   }, [searchParams, setSearchParams]);
   const [situacaoFilter, setSituacaoFilter] = useSessionState<string>("painel-situacao", "todos");
-  const { options: situacoesOptions } = useSituacoesPainel();
   const [adminCoordFilter, setAdminCoordFilter] = useState<string>("todas");
+  const coordenacaoSituacoesPainel = tabMode === "escritorio" && adminCoordFilter !== "todas"
+    ? adminCoordFilter
+    : undefined;
+  const { options: situacoesOptions } = useSituacoesPainel(coordenacaoSituacoesPainel);
   const [painelFiltros, setPainelFiltros] = useSessionState<PainelFiltrosState>("painel-filtros", PAINEL_FILTROS_DEFAULT);
   // Escopo da marca "já cobrei": minhas cobranças ou as da equipe.
   const [escopoCobranca, setEscopoCobranca] = useState<EscopoCobranca>(getEscopoCobrancaPreferido());
@@ -668,7 +672,9 @@ export default function PainelControle() {
       ...painelFiltros.situacoes,
       ...(situacaoFilter && situacaoFilter !== "todos" ? [situacaoFilter] : []),
     ].flatMap((v) => v.split("|")).filter(Boolean);
-    const statusScope = sitSel.length > 0
+    // Com os totalizadores visíveis, mantemos as demais situações carregadas:
+    // assim cada cartão continua mostrando seu total e permite trocar o filtro.
+    const statusScope = !mostrarTotalizadores && sitSel.length > 0
       ? { statusIn: Array.from(new Set(sitSel.flatMap((v) => (v === "concluido" ? ["concluido", "cumprido"] : v === "cumprido" ? ["cumprido", "concluido"] : [v])))) }
       : {};
     const dateRange = modoProtocoladosBaixados
@@ -717,7 +723,7 @@ export default function PainelControle() {
       fetchAll: false,
       ...dateRange, ...statusScope,
     };
-  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
+  }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, mostrarTotalizadores, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds, JSON.stringify(painelFiltros.situacoes), situacaoFilter]);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
@@ -736,12 +742,13 @@ export default function PainelControle() {
       enabled: vencidosAtivo,
       // Desempenho: dos meses anteriores só interessam os itens em aberto
       // (salvo quando o usuário pede encerrados). Antes baixava 24 meses inteiros.
-      ...(!(filters as any).statusIn && !modoProtocoladosBaixados && !drill &&
+      ...(painelFiltros.situacoes.length === 0 && (!situacaoFilter || situacaoFilter === "todos") &&
+        !modoProtocoladosBaixados && !drill &&
         painelFiltros.statusGroup !== "concluidas" && painelFiltros.statusGroup !== "canceladas"
         ? { statusNotIn: ["cumprido", "concluido", "cancelado", "cancelado_oculto", "protocolado", "baixado", "tratado", "verificado", "concluido_sem_sucesso"] }
         : {}),
     }),
-    [filters, dataInicio, vencidosAtivo, modoProtocoladosBaixados, drill, painelFiltros.statusGroup],
+    [filters, dataInicio, vencidosAtivo, modoProtocoladosBaixados, drill, painelFiltros.statusGroup, JSON.stringify(painelFiltros.situacoes), situacaoFilter],
   );
   const vencidosQuery = useAgendaUnificada(filtersVencidos);
   useEffect(() => {
@@ -981,7 +988,7 @@ export default function PainelControle() {
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
-    (item: any, ignorarPeriodo = false, ignorarClassificacao = false, ignorarAtividades = false) => {
+    (item: any, ignorarPeriodo = false, ignorarClassificacao = false, ignorarAtividades = false, ignorarSituacoes = false) => {
       // Classificação filter (exportações escolhem o próprio tipo e ignoram o botão do painel)
       if (!ignorarClassificacao && painelFiltros.classificacoes.length > 0) {
         const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
@@ -1022,7 +1029,7 @@ export default function PainelControle() {
       }
 
       // Status (grupo simplificado)
-      if (painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
+      if (!ignorarSituacoes && painelFiltros.statusGroup && painelFiltros.statusGroup !== "todas") {
         const st = normalizeAgendaStatus(item.status);
         const concluido = isItemTratado(item);
         const cancelado = isItemCancelado(item);
@@ -1032,7 +1039,7 @@ export default function PainelControle() {
       }
 
       // Situação detalhada (avançado)
-      if (painelFiltros.situacoes.length > 0) {
+      if (!ignorarSituacoes && painelFiltros.situacoes.length > 0) {
         if (!painelFiltros.situacoes.some((v) => statusCasaSituacao(item.status, v))) return false;
       }
 
@@ -1112,7 +1119,7 @@ export default function PainelControle() {
       }
 
       // Filtro rápido de Situação (global)
-      if (situacaoFilter && situacaoFilter !== "todos") {
+      if (!ignorarSituacoes && situacaoFilter && situacaoFilter !== "todos") {
         if (!statusCasaSituacao(item.status, situacaoFilter)) return false;
       }
 
@@ -2154,6 +2161,14 @@ export default function PainelControle() {
     return c;
   }, [itensPainelFiltrados]);
 
+  // Cada situação obedece a TODOS os demais filtros. Somente os filtros de
+  // situação são ignorados nesta contagem, para permitir trocar de um cartão
+  // para outro sem precisar limpar a seleção antes.
+  const contagensPorSituacao = useMemo(() => {
+    const base = itensAgenda.filter((item) => passaFiltrosPainel(item, false, false, false, true));
+    return contarItensPorSituacao(base, situacoesOptions);
+  }, [itensAgenda, passaFiltrosPainel, situacoesOptions]);
+
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
@@ -3033,6 +3048,43 @@ export default function PainelControle() {
               </Card>
             </div>
           )}
+          {mostrarTotalizadores && !isLoading && situacoesOptions.length > 0 && (
+            <div className="mt-2 flex gap-1.5 overflow-x-auto pb-1" aria-label="Totalizadores por situação">
+              {situacoesOptions.map((situacao) => {
+                const selecionada =
+                  (painelFiltros.situacoes.length === 1 && painelFiltros.situacoes[0] === situacao.value) ||
+                  (painelFiltros.situacoes.length === 0 && situacaoFilter === situacao.value);
+                return (
+                  <button
+                    key={situacao.value}
+                    type="button"
+                    aria-pressed={selecionada}
+                    title={`${selecionada ? "Remover" : "Aplicar"} filtro: ${situacao.label}`}
+                    onClick={() => {
+                      setModoProtocoladosBaixados(false);
+                      setSituacaoFilter("todos");
+                      setPainelFiltros((f) => ({
+                        ...f,
+                        statusGroup: "todas",
+                        situacoes: selecionada ? [] : [situacao.value],
+                      }));
+                    }}
+                    className={cn(
+                      "flex min-w-[132px] flex-1 items-center justify-between gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-left transition-colors hover:bg-accent",
+                      selecionada && "border-primary bg-accent ring-2 ring-primary/30",
+                    )}
+                  >
+                    <span className="text-[10px] md:text-xs font-medium leading-tight text-muted-foreground">
+                      {situacao.label}
+                    </span>
+                    <span className="text-lg md:text-xl font-bold leading-none text-foreground">
+                      {totalCard(contagensPorSituacao[situacao.value] ?? 0)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Barra de visões, tipos e busca */}
@@ -3183,7 +3235,12 @@ export default function PainelControle() {
                     ? "Somente minhas cobranças"
                     : "Somente cobranças da equipe"}
               </Button>
-              <PainelFiltros filtros={painelFiltros} onChange={setPainelFiltros} atividadesOpcoes={atividadesOpcoes} />
+              <PainelFiltros
+                filtros={painelFiltros}
+                onChange={setPainelFiltros}
+                atividadesOpcoes={atividadesOpcoes}
+                coordenacaoId={coordenacaoSituacoesPainel}
+              />
 
           </div>
         </div>

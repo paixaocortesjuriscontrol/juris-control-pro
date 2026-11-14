@@ -112,6 +112,8 @@ interface PainelFiltrosProps {
   escopoPessoa?: { coordenacoes: { id: string; nome: string }[]; usuarios: { id: string; nome: string }[] };
   /** Tipos de tarefa presentes na agenda carregada (mostra a seção "Tipo de tarefa"). */
   atividadesOpcoes?: AtividadeAgenda[];
+  /** Limita as situações à coordenação escolhida no Painel. */
+  coordenacaoId?: string;
 }
 
 /** Botão de opção única estilo pílula (segmented). */
@@ -177,9 +179,9 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, escopoPessoa, atividadesOpcoes }: PainelFiltrosProps) {
+export function PainelFiltros({ filtros, onChange, ocultarResponsaveis = false, escopoPessoa, atividadesOpcoes, coordenacaoId }: PainelFiltrosProps) {
   const [open, setOpen] = useState(false);
-  const { options: situacoesOptions } = useSituacoesPainel();
+  const { options: situacoesOptions } = useSituacoesPainel(coordenacaoId);
   // Rascunho local: só aplica ao clicar em "Filtrar"
   const [draft, setDraft] = useState<PainelFiltrosState>(filtros);
 

@@ -3,91 +3,49 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
-import { situacoesBase, TipoSituacaoItem } from "@/constants/situacoesItem";
+import {
+  montarOpcoesSituacoes,
+  type RegraSituacaoPainel,
+  type SituacaoFiltroOption,
+} from "@/lib/situacoesPainel";
 
-const TIPOS: TipoSituacaoItem[] = ["prazo", "tarefa", "audiencia", "parcelamento", "evento"];
-
-/** Mapa tipo do formulário -> chave gravada em permissoes_situacao_tipo_tarefa */
-const TIPO_KEY: Record<TipoSituacaoItem, string> = {
-  prazo: "PRAZO",
-  tarefa: "TAREFA",
-  audiencia: "AUDIENCIA",
-  parcelamento: "PARCELAMENTO RECORRENTE",
-  evento: "EVENTO",
-};
-
-export interface SituacaoFiltroOption {
-  /** Valores possíveis gravados no status do item (pipe-joined) */
-  value: string;
-  label: string;
-  valores: string[];
-}
-
-/** Confere se o status do item bate com a opção selecionada no filtro */
-export function statusCasaSituacao(status: string | null | undefined, value: string): boolean {
-  const s = (status ?? "").toLowerCase();
-  return value.split("|").some((v) => v === s);
-}
+export { statusCasaSituacao } from "@/lib/situacoesPainel";
+export type { SituacaoFiltroOption } from "@/lib/situacoesPainel";
 
 /**
- * Situações disponíveis para os filtros do Painel de Controle.
- * Obedece a configuração "Quem pode mudar cada situação" (coluna Ativa) das
- * coordenações do usuário logado, sem duplicar rótulos.
+ * Situações disponíveis para os filtros e totalizadores do Painel de Controle.
+ * Obedece à coluna Ativa de "Quem pode mudar cada situação" nas coordenações
+ * do usuário. Quando uma coordenação é informada, considera somente ela.
  */
-export function useSituacoesPainel() {
+export function useSituacoesPainel(coordenacaoId?: string) {
   const { role } = useUserRole();
   const { isAdmin, coordenacoes, isLoading: coordLoading } = useCoordenacoesDoUsuario();
-  const coordIds = coordenacoes.map((c) => c.id);
+  const coordIds = coordenacaoId ? [coordenacaoId] : coordenacoes.map((c) => c.id);
+  const coordKey = coordIds.slice().sort().join(",");
 
   const { data: regras = [], isLoading } = useQuery({
-    queryKey: ["situacoes-painel-config", coordIds.slice().sort().join(",")],
+    queryKey: ["situacoes-painel-config", coordKey],
     enabled: coordIds.length > 0,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("permissoes_situacao_tipo_tarefa")
-        .select("situacao, tipo_tarefa, ativa")
+        .select("coordenacao_id, situacao, tipo_tarefa, ativa")
         .in("coordenacao_id", coordIds);
       if (error) throw error;
-      return (data || []) as { situacao: string; tipo_tarefa: string; ativa: boolean | null }[];
+      return (data || []) as RegraSituacaoPainel[];
     },
   });
 
-  const options = useMemo<SituacaoFiltroOption[]>(() => {
-    const tiposConfigurados = new Set(regras.map((r) => (r.tipo_tarefa || "").trim().toUpperCase()));
-
-    // Situação ativa: se existe configuração para o tipo e a situação está
-    // marcada como inativa, ela não entra. Sem configuração => liberada.
-    const ativa = (tipo: TipoSituacaoItem, valor: string) => {
-      const key = TIPO_KEY[tipo];
-      if (!tiposConfigurados.has(key)) return true;
-      const linhas = regras.filter(
-        (r) => (r.tipo_tarefa || "").trim().toUpperCase() === key && r.situacao === valor,
-      );
-      if (linhas.length === 0) return true;
-      return linhas.some((r) => r.ativa !== false);
-    };
-
-    const porLabel = new Map<string, SituacaoFiltroOption>();
-    for (const tipo of TIPOS) {
-      for (const s of situacoesBase(tipo)) {
-        if (!ativa(tipo, s.value)) continue;
-        const existente = porLabel.get(s.label);
-        if (existente) {
-          if (!existente.valores.includes(s.value)) existente.valores.push(s.value);
-        } else {
-          porLabel.set(s.label, { label: s.label, value: s.value, valores: [s.value] });
-        }
-      }
-    }
-
-    return Array.from(porLabel.values()).map((o) => ({ ...o, value: o.valores.join("|") }));
-  }, [regras]);
+  const options = useMemo<SituacaoFiltroOption[]>(
+    () => montarOpcoesSituacoes(regras, coordIds),
+    [regras, coordKey],
+  );
 
   return {
     options,
     isAdmin,
     role,
-    loading: coordLoading || isLoading,
+    loading: coordLoading || (coordIds.length > 0 && isLoading),
   };
 }

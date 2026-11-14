@@ -247,6 +247,7 @@ export function PermissoesSituacaoDialog({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["permissoes-situacao-coord", coordenacaoId] });
       await queryClient.invalidateQueries({ queryKey: ["permissoes-situacao"] });
+      await queryClient.invalidateQueries({ queryKey: ["situacoes-painel-config"] });
       toast({ title: "Permissões de situação salvas" });
       onOpenChange(false);
     },
