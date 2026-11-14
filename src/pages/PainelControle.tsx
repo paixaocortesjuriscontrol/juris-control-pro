@@ -94,6 +94,7 @@ import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
 import { agruparAtividadesDaAgenda, chaveAtividade, dataDoItemNaAgenda } from "@/lib/atividadesDaAgenda";
+import { subatividadeNaCoordenacao } from "@/lib/escopoSubatividades";
 import { AtividadesDaAgendaChips } from "@/components/painel/AtividadesDaAgendaChips";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMensagensNaoLidas } from "@/hooks/useMensagensNaoLidas";
@@ -2281,13 +2282,55 @@ export default function PainelControle() {
     },
   });
 
+  const idsPaisAtividades = useMemo(
+    () => Array.from(new Set((atividadesCalendario as any[])
+      .map((a) => String(a?.item_id ?? ""))
+      .filter(Boolean))).sort(),
+    [atividadesCalendario],
+  );
+
+  // O item-pai pode estar fora do mês exibido. Buscamos sua coordenação em
+  // lotes para a subatividade não atravessar o filtro de coordenação da tela.
+  const { data: coordenacaoPorItemPai = {} as Record<string, string> } = useQuery({
+    queryKey: ["painel-subatividades-coordenacoes", adminCoordFilter, idsPaisAtividades],
+    enabled: adminCoordFilter !== "todas" && idsPaisAtividades.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const [tarefas, eventos, audiencias] = await Promise.all([
+        inChunks(
+          (ids) => supabase.from("tarefas").select("id, coordenacao_id").in("id", ids),
+          idsPaisAtividades,
+          100,
+        ),
+        inChunks(
+          (ids) => supabase.from("eventos_agenda").select("id, coordenacao_id").in("id", ids),
+          idsPaisAtividades,
+          100,
+        ),
+        inChunks(
+          (ids) => supabase.from("audiencias_detectadas").select("id, coordenacao_id").in("id", ids),
+          idsPaisAtividades,
+          100,
+        ),
+      ]);
+      const mapa: Record<string, string> = {};
+      for (const row of [...tarefas, ...eventos, ...audiencias]) {
+        if (row?.id && row?.coordenacao_id) mapa[String(row.id)] = String(row.coordenacao_id);
+      }
+      return mapa;
+    },
+  });
+
   const atividadesPorDia = useMemo(() => {
     const map = new Map<string, any[]>();
     const tiposSel = painelFiltros.classificacoes as string[];
     (atividadesCalendario as any[]).forEach((a) => {
       const key = String(a.data_prevista).slice(0, 10);
       if (!key) return;
-      const pai = itemPorRawId.get(getItemRawId(String(a.item_id ?? "")));
+      const rawItemId = getItemRawId(String(a.item_id ?? ""));
+      const pai = itemPorRawId.get(rawItemId);
+      const coordenacaoPai = pai?.coordenacao_id ?? coordenacaoPorItemPai[rawItemId];
+      if (!subatividadeNaCoordenacao(adminCoordFilter, coordenacaoPai)) return;
       // Respeita o filtro de tipo das sub-abas (Prazos, Audiências, Tarefas...):
       // as atividades seguem a classificação do item pai.
       if (tiposSel.length > 0) {
@@ -2342,6 +2385,8 @@ export default function PainelControle() {
     painelFiltros.situacoes,
     painelFiltros.statusGroup,
     situacaoFilter,
+    adminCoordFilter,
+    coordenacaoPorItemPai,
   ]);
 
 
