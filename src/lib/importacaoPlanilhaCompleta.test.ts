@@ -23,3 +23,11 @@ test("CAPTURA liga o Acompanhamento Especial, inclusive em linha repetida", () =
   assert.equal(temEtiquetaCaptura(r.unicos[0].etiquetas), true);
   assert.equal(temEtiquetaCaptura(["OUTLIER"]), false);
 });
+import { vinculosFaltantes } from "./importacaoPlanilhaCompleta";
+test("vírgula gera várias etiquetas", () => {
+  assert.deepEqual(separarEtiquetas("CONTENCIOSO, OUTLIER, LGPD"), ["CONTENCIOSO", "OUTLIER", "LGPD"]);
+});
+test("reimportação só acrescenta etiquetas que faltam", () => {
+  assert.deepEqual(vinculosFaltantes("p1", ["e1", "e2", "e2"], new Set(["p1|e1"])), ["e2"]);
+  assert.deepEqual(vinculosFaltantes("p1", ["e1"], new Set(["p1|e1"])), []);
+});

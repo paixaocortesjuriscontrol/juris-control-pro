@@ -687,7 +687,7 @@ export default function ImportarProcessos() {
           membroPadraoId: selectedMembro || null,
           clientePadraoId: selectedCliente || null,
           userId: auth.user?.id ?? null,
-          onProgress: (pct) => setProgress(pct),
+          onProgress: (() => { let ult = 0; return (pct: number) => { const v = Math.floor(pct); if (v !== ult) { ult = v; setProgress(v); } }; })(),
           cancelado: () => planilhaCancelledRef.current,
         });
         const porLinha = new Map(r.resultados.map(x => [x.linhaOriginal, x]));
@@ -705,7 +705,7 @@ export default function ImportarProcessos() {
         const erros = r.resultados.filter(x => x.status === "erro").length;
         toast({
           title: "Importação concluída",
-          description: `${importados} importado(s), ${jaExistiam} já existiam, ${erros} erro(s), ${r.repetidas} linha(s) repetida(s) juntada(s).${r.avisos.length ? " Avisos: " + r.avisos.slice(0, 3).join(" ") : ""}`,
+          description: `${importados} novo(s), ${jaExistiam} já existiam (${r.corrigidos} corrigido(s), ${r.etiquetasAcrescentadas} etiqueta(s) acrescentada(s)), ${erros} erro(s), ${r.repetidas} linha(s) repetida(s) juntada(s).${r.avisos.length ? " Avisos: " + r.avisos.slice(0, 3).join(" ") : ""}`,
           variant: erros > 0 ? "destructive" : "default",
         });
         if (r.avisos.length) console.warn("Avisos da importação:", r.avisos);
@@ -6520,7 +6520,7 @@ export default function ImportarProcessos() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {processos.map((processo, index) => (
+                        {processos.slice(0, 500).map((processo, index) => (
                           <TableRow key={index} className={processo.status === "invalido" ? "bg-red-50 dark:bg-red-950/20" : processo.status === "erro" ? "bg-orange-50 dark:bg-orange-950/20" : ""}>
                             <TableCell className="text-muted-foreground">
                               {processo.linhaOriginal}
@@ -6568,6 +6568,9 @@ export default function ImportarProcessos() {
                             </TableCell>
                           </TableRow>
                         ))}
+                      {processos.length > 500 && (
+                          <TableRow><TableCell colSpan={20} className="text-center text-muted-foreground">Mostrando as primeiras 500 de {processos.length} linhas, para a tela não travar. Todas serão importadas.</TableCell></TableRow>
+                        )}
                       </TableBody>
                     </Table>
                   </div>
