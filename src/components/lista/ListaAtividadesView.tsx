@@ -63,7 +63,7 @@ import { isItemAta, rotuloTipoItem } from "@/lib/tipoItemAgenda";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { Prazo } from "@/hooks/usePrazos";
-import { parseOcorrenciaId, salvarBaixaOcorrencia } from "@/lib/baixaOcorrencia";
+import { concluirItensEmLote } from "@/lib/concluirItensEmLote";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { podeSelecionarItemLista } from "@/lib/selecaoItensLista";
 
@@ -776,66 +776,13 @@ export default function ListaAtividadesView({
     if (selected.size === 0) return;
     setBulkLoading(true);
     try {
-      const agora = new Date().toISOString();
       const itens = rows
         .filter((r) => selected.has(r.id))
-        .map((r) => ({ row: r, item: tarefaToAgendaItem(r) }));
-      const tarefaIds: string[] = [];
-      const eventoIds: string[] = [];
-      const audienciaIds: string[] = [];
-      const ocorrencias: { origem: "tarefa" | "evento"; itemId: string; dataOcorrencia: string }[] = [];
-
-      for (const { row, item } of itens) {
-        const { rawId, dataOcorrencia } = parseOcorrenciaId(String(row.id));
-        if (dataOcorrencia && (item.origem === "tarefa" || item.tipo === "evento")) {
-          ocorrencias.push({
-            origem: item.origem === "tarefa" ? "tarefa" : "evento",
-            itemId: rawId,
-            dataOcorrencia,
-          });
-        } else if (item.tipo === "audiencia") {
-          audienciaIds.push(getItemRawId(String(row.id)));
-        } else if (item.tipo === "evento") {
-          eventoIds.push(rawId);
-        } else if (item.origem === "tarefa") {
-          tarefaIds.push(rawId);
-        }
-      }
-
-      if (tarefaIds.length) {
-        const { error } = await supabase
-          .from("tarefas")
-          .update({ status: "cumprido", data_cumprimento: agora, updated_at: agora })
-          .in("id", tarefaIds);
-        if (error) throw error;
-      }
-      if (eventoIds.length) {
-        const { error } = await supabase
-          .from("eventos_agenda")
-          .update({ status: "concluido", concluido_em: agora, updated_at: agora })
-          .in("id", eventoIds);
-        if (error) throw error;
-      }
-      if (audienciaIds.length) {
-        const { error } = await supabase
-          .from("audiencias_detectadas")
-          .update({ status: "concluido", concluido_em: agora, updated_at: agora })
-          .in("id", audienciaIds);
-        if (error) throw error;
-      }
-      const { data: auth } = await supabase.auth.getUser();
-      for (const ocorrencia of ocorrencias) {
-        await salvarBaixaOcorrencia({
-          ...ocorrencia,
-          status: ocorrencia.origem === "tarefa" ? "cumprido" : "concluido",
-          observacao: null,
-          userId: auth.user?.id ?? null,
-        });
-      }
-
+        .map((r) => tarefaToAgendaItem(r));
+      const total = await concluirItensEmLote(itens);
       await invalidarItensAgenda(queryClient);
       setSelected(new Set());
-      toast.success(`${selected.size} item(ns) concluído(s)`);
+      toast.success(`${total} item(ns) concluído(s)`);
     } catch (e: any) {
       toast.error("Erro ao concluir em lote: " + (e?.message || ""));
     } finally {

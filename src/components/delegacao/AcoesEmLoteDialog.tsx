@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { concluirItensEmLote, type ItemConclusaoLote } from "@/lib/concluirItensEmLote";
+import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +36,7 @@ interface AcoesEmLoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedIds: string[];
+  selectedItens?: ItemConclusaoLote[];
   onSuccess: () => void;
 }
 
@@ -41,6 +44,7 @@ export function AcoesEmLoteDialog({
   open,
   onOpenChange,
   selectedIds,
+  selectedItens,
   onSuccess,
 }: AcoesEmLoteDialogProps) {
   const [loading, setLoading] = useState(false);
@@ -49,6 +53,8 @@ export function AcoesEmLoteDialog({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const itensSelecionados: ItemConclusaoLote[] = selectedItens ?? selectedIds.map((id) => ({ id, tipo: "tarefa", origem: "tarefa" }));
+  const somenteTarefas = itensSelecionados.every((item) => item.origem === "tarefa");
 
   // Fetch all profiles for reassignment
   const { data: profiles } = useQuery({
@@ -67,26 +73,18 @@ export function AcoesEmLoteDialog({
   const handleConcluirEmLote = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from("tarefas")
-        .update({
-          status: "cumprido",
-          data_cumprimento: new Date().toISOString(),
-        })
-        .in("id", selectedIds);
-
-      if (error) throw error;
-
+      const total = await concluirItensEmLote(itensSelecionados);
+      await invalidarItensAgenda(queryClient);
       toast({
-        title: "Tarefas concluídas!",
-        description: `${selectedIds.length} tarefa(s) foram concluídas.`,
+        title: "Itens concluídos!",
+        description: `${total} item(ns) foram concluídos.`,
       });
 
       onSuccess();
       onOpenChange(false);
     } catch (error: any) {
       toast({
-        title: "Erro ao concluir tarefas",
+        title: "Erro ao concluir itens",
         description: error.message,
         variant: "destructive",
       });
@@ -169,7 +167,7 @@ export function AcoesEmLoteDialog({
           <DialogHeader>
             <DialogTitle>Ações em lote</DialogTitle>
             <DialogDescription>
-              Executar ação para {selectedIds.length} tarefa(s) selecionada(s)
+              Executar ação para {selectedIds.length} item(ns) selecionado(s)
             </DialogDescription>
           </DialogHeader>
 
@@ -181,7 +179,7 @@ export function AcoesEmLoteDialog({
                   <CheckCircle2 className="w-5 h-5 text-green-500" />
                 </div>
                 <div>
-                  <p className="font-medium">Concluir tarefas</p>
+                  <p className="font-medium">Concluir itens</p>
                   <p className="text-sm text-muted-foreground">
                     Marcar todas como concluídas
                   </p>
@@ -205,7 +203,7 @@ export function AcoesEmLoteDialog({
                 <div>
                   <p className="font-medium">Reatribuir tarefas</p>
                   <p className="text-sm text-muted-foreground">
-                    Alterar responsável de todas
+                    {somenteTarefas ? "Alterar responsável de todas" : "Disponível apenas para uma seleção somente de tarefas"}
                   </p>
                 </div>
               </div>
@@ -225,7 +223,7 @@ export function AcoesEmLoteDialog({
                 <Button
                   size="sm"
                   onClick={handleReatribuirEmLote}
-                  disabled={loading || !novoResponsavel}
+                  disabled={loading || !novoResponsavel || !somenteTarefas}
                 >
                   {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Executar"}
                 </Button>
@@ -241,7 +239,7 @@ export function AcoesEmLoteDialog({
                 <div>
                   <p className="font-medium text-destructive">Excluir tarefas</p>
                   <p className="text-sm text-muted-foreground">
-                    Esta ação não pode ser desfeita
+                    {somenteTarefas ? "Esta ação não pode ser desfeita" : "Disponível apenas para uma seleção somente de tarefas"}
                   </p>
                 </div>
               </div>
@@ -249,7 +247,7 @@ export function AcoesEmLoteDialog({
                 size="sm"
                 variant="destructive"
                 onClick={() => setConfirmDeleteOpen(true)}
-                disabled={loading}
+                disabled={loading || !somenteTarefas}
               >
                 Excluir
               </Button>

@@ -53,6 +53,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { podeSelecionarItemLista } from "@/lib/selecaoItensLista";
 import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isToday, differenceInDays, addDays, parseISO, addWeeks, addMonths, isBefore, isAfter, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toZonedTime } from "date-fns-tz";
@@ -656,11 +657,13 @@ export default function MinhaAgenda() {
     );
   };
 
+  const itensSelecionaveis = itensFiltrados.filter(podeSelecionarItemLista);
+
   const toggleSelectAll = () => {
-    if (selectedItems.length === itensFiltrados.length) {
+    if (selectedItems.length === itensSelecionaveis.length) {
       setSelectedItems([]);
     } else {
-      setSelectedItems(itensFiltrados.filter(i => i.origem === "tarefa").map(a => a.id));
+      setSelectedItems(itensSelecionaveis.map((item) => item.id));
     }
   };
 
@@ -692,8 +695,8 @@ export default function MinhaAgenda() {
         )}
         onClick={() => handleOpenItem(item)}
       >
-        {/* Checkbox for batch selection (only tarefas) */}
-        {item.origem === "tarefa" && (
+        {/* Seleção para conclusão em lote */}
+        {podeSelecionarItemLista(item) && (
           <div className="pt-1">
             <Checkbox
               checked={isItemSelected}
@@ -1464,7 +1467,7 @@ export default function MinhaAgenda() {
                 </CardTitle>
                 <div className="hidden sm:flex items-center gap-2">
                   <Checkbox 
-                    checked={selectedItems.length === itensFiltrados.filter(i => i.origem === "tarefa").length && itensFiltrados.filter(i => i.origem === "tarefa").length > 0}
+                    checked={selectedItems.length === itensSelecionaveis.length && itensSelecionaveis.length > 0}
                     onCheckedChange={toggleSelectAll}
                   />
                   <span className="text-sm text-muted-foreground">Selecionar todas</span>
@@ -1556,6 +1559,7 @@ export default function MinhaAgenda() {
         open={acoesLoteOpen}
         onOpenChange={setAcoesLoteOpen}
         selectedIds={selectedItems}
+        selectedItens={itensFiltrados.filter((item) => selectedItems.includes(item.id))}
         onSuccess={() => {
           setSelectedItems([]);
           queryClient.invalidateQueries({ queryKey: ["agenda-unificada"] });
