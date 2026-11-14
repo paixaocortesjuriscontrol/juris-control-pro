@@ -608,6 +608,21 @@ export default function ListaAtividadesView({
     enabled: audienciaIds.length > 0,
   });
 
+  // Carrega os detalhes apenas das audiências na página visível, sem ampliar a busca da agenda.
+  const { data: audienciaDetalhesLookup } = useQuery({
+    queryKey: ["lista-audiencia-detalhes", audienciaIds],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audiencias_detectadas")
+        .select("id,tipo_audiencia,modalidade,local_audiencia,forum,sala_forum,vara_camara,comarca,preposto,testemunhas")
+        .in("id", audienciaIds);
+      if (error) throw error;
+      return Object.fromEntries((data || []).map((audiencia) => [audiencia.id, audiencia]));
+    },
+    enabled: audienciaIds.length > 0,
+    staleTime: 60_000,
+  });
+
   function fmtDateTime(dateStr?: string | null, horaStr?: string | null) {
     if (!dateStr) return "—";
     try {
@@ -1088,6 +1103,20 @@ export default function ListaAtividadesView({
                     rows.map((r) => {
                       const item = tarefaToAgendaItem(r);
                       const isSel = selected.has(r.id);
+                      const audiencia = item.tipo === "audiencia"
+                        ? audienciaDetalhesLookup?.[getItemRawId(r.id)]
+                        : undefined;
+                      const detalhesAudiencia = item.tipo === "audiencia" ? [
+                        ["Tipo", audiencia?.tipo_audiencia],
+                        ["Modalidade", audiencia?.modalidade],
+                        ["Local", audiencia?.local_audiencia || item.local],
+                        ["Fórum", audiencia?.forum !== audiencia?.local_audiencia ? audiencia?.forum : null],
+                        ["Sala", audiencia?.sala_forum],
+                        ["Vara / Câmara", audiencia?.vara_camara],
+                        ["Comarca", audiencia?.comarca],
+                        ["Preposto", audiencia?.preposto],
+                        ["Testemunhas", audiencia?.testemunhas],
+                      ].filter(([, valor]) => typeof valor === "string" && valor.trim()) : [];
                       return (
                         <TableRow
                           key={r.id}
@@ -1196,7 +1225,12 @@ export default function ListaAtividadesView({
                           </TableCell>
                           <TableCell className="py-3 align-top text-[11px]">
                             <div className="flex flex-col gap-0.5 min-w-0">
-                              {(r as any).local && (
+                              {item.tipo === "audiencia" && detalhesAudiencia.map(([rotulo, valor]) => (
+                                <div key={rotulo} className="text-foreground whitespace-normal break-words leading-relaxed">
+                                  <span className="text-muted-foreground">{rotulo}:</span> {valor}
+                                </div>
+                              ))}
+                              {item.tipo !== "audiencia" && (r as any).local && (
                                 <div className="text-foreground break-words line-clamp-1">
                                   <span className="text-muted-foreground">Local:</span> {(r as any).local}
                                 </div>
@@ -1211,7 +1245,7 @@ export default function ListaAtividadesView({
                                   <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao_julgador}
                                 </div>
                               )}
-                              {!(r as any).local && !(r as any).orgao && !(r as any).orgao_julgador && (
+                              {!detalhesAudiencia.length && !(r as any).local && !(r as any).orgao && !(r as any).orgao_julgador && (
                                 <span className="text-muted-foreground">—</span>
                               )}
                             </div>

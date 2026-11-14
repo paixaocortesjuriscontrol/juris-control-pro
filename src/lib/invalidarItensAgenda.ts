@@ -25,6 +25,7 @@ export const CHAVES_ITENS_AGENDA: string[] = [
   "audiencias-detectadas",
   "audiencias-processo",
   "audiencias-stats",
+  "lista-audiencia-detalhes",
   "painel-controle-audiencias-det-stats",
   "painel-controle-resumo-stats",
   "prazos-tst",
