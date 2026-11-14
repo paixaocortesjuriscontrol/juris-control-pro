@@ -1,5 +1,11 @@
 # Roadmap — Considerações 02/09
 
+## Desempenho da importação completa
+- [x] Substituir fallback de até 500 inserções individuais por divisão do lote com erro; teste com 500 itens preserva 499 válidos com no máximo 30 chamadas.
+- [x] Consolidar atualizações de clientes e acompanhamento da reimportação e aplicar a mesma divisão aos vínculos de etiquetas.
+- [x] Executar 13 testes, conferir build OK e salvar.
+- [ ] Confirmar o tempo de uma reimportação real após publicação; depende de sessão administrativa no Supabase externo.
+
 ## Importação Santander Cível — relatório de 13/11/2026
 - [x] Impedir nova tentativa de aplicar CAPTURA manualmente; confirmadas as 428 etiquetas já existentes e nenhum acompanhamento sem CAPTURA.
 - [x] Cadastrar e vincular os 49 clientes ausentes à Coordenação Santander Cível; reimportação preenche somente cliente vazio.

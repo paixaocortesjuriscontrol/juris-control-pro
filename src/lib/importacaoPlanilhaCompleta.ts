@@ -100,6 +100,31 @@ const ceder = () => new Promise(r => setTimeout(r, 0));
 const LOTE = 500;
 const dividir = <T,>(arr: T[], n: number) => { const r: T[][] = []; for (let i = 0; i < arr.length; i += n) r.push(arr.slice(i, i + n)); return r; };
 
+/** Isola linhas com erro dividindo o lote, em vez de desistir e gravar 500 linhas uma a uma. */
+export async function gravarComDivisao<T, R>({
+  itens,
+  gravar,
+  tratarErroUnitario,
+  cancelado,
+}: {
+  itens: T[];
+  gravar: (lote: T[]) => Promise<{ data: R[] | null; error: any }>;
+  tratarErroUnitario: (item: T, error: any) => Promise<R | null>;
+  cancelado?: () => boolean;
+}): Promise<R[]> {
+  if (!itens.length || cancelado?.()) return [];
+  const { data, error } = await gravar(itens);
+  if (!error) return data ?? [];
+  if (itens.length === 1) {
+    const tratado = await tratarErroUnitario(itens[0], error);
+    return tratado ? [tratado] : [];
+  }
+  const meio = Math.ceil(itens.length / 2);
+  const primeiro = await gravarComDivisao({ itens: itens.slice(0, meio), gravar, tratarErroUnitario, cancelado });
+  const segundo = await gravarComDivisao({ itens: itens.slice(meio), gravar, tratarErroUnitario, cancelado });
+  return [...primeiro, ...segundo];
+}
+
 export async function importarPlanilhaCompleta(opts: {
   linhas: LinhaCompleta[];
   coordenacaoId: string;
@@ -199,20 +224,26 @@ export async function importarPlanilhaCompleta(opts: {
     avisos.push("CAPTURA ativou o Acompanhamento Especial; a etiqueta será mantida automaticamente pelo sistema.");
   }
 
-  // Grava vínculos em lotes pequenos; se um lote falhar, tenta um a um.
+  // Vínculos também isolam a falha por divisão, sem transformar um erro em 300 chamadas individuais.
   let errosEtiqueta = 0;
   const falhasEtiqueta: { numero: string; etiqueta: string; motivo: string }[] = [];
-  const nomeEtqPorId = () => new Map(Array.from(etqMap.entries()).map(([n, id]) => [id, n]));
+  const nomeEtqPorId = new Map(Array.from(etqMap.entries()).map(([n, id]) => [id, n]));
   const numPorId = new Map<string, string>();
   const gravarVinculos = async (vinculos: any[], numero?: string) => {
     for (const v of dividir(vinculos, 300)) {
-      const { error } = await supabase.from("etiquetas_itens").insert(v);
-      if (!error) continue;
-      for (const item of v) {
-        if (opts.cancelado?.()) return;
-        const r = await supabase.from("etiquetas_itens").insert(item);
-        if (r.error) { errosEtiqueta++; falhasEtiqueta.push({ numero: numero ?? numPorId.get(item.entidade_id) ?? item.entidade_id, etiqueta: nomeEtqPorId().get(item.etiqueta_id) ?? item.etiqueta_id, motivo: traduzirErro(r.error) }); }
-      }
+      await gravarComDivisao<any, any>({
+        itens: v,
+        gravar: async parte => {
+          const { error } = await supabase.from("etiquetas_itens").insert(parte);
+          return { data: error ? null : parte, error };
+        },
+        tratarErroUnitario: async (item, error) => {
+          errosEtiqueta++;
+          falhasEtiqueta.push({ numero: numero ?? numPorId.get(item.entidade_id) ?? item.entidade_id, etiqueta: nomeEtqPorId.get(item.etiqueta_id) ?? item.etiqueta_id, motivo: traduzirErro(error) });
+          return null;
+        },
+        cancelado: opts.cancelado,
+      });
     }
   };
   const idsEtq = (u: LinhaCompleta) => etiquetasParaVincular(u.etiquetas).map(e => etqMap.get(normNome(e))).filter(Boolean) as string[];
@@ -221,22 +252,22 @@ export async function importarPlanilhaCompleta(opts: {
   const jaExist = unicos.filter(u => existentes.has(soDigitos(u.numero)));
   let corrigidos = 0, etiquetasAcrescentadas = 0;
   let feitosEx = 0;
-  for (const lote of dividir(jaExist, 200)) {
+  const ligarAcompanhamento = new Set<string>();
+  const clientesParaPreencher = new Map<string, string[]>();
+  for (const lote of dividir(jaExist, 500)) {
     if (opts.cancelado?.()) { avisos.push(`Cancelado durante a correção dos existentes (${feitosEx} de ${jaExist.length}).`); break; }
     const ids = lote.map(u => existentes.get(soDigitos(u.numero))!.id);
     const jaTem = new Set<string>();
     const { data: vs } = await supabase.from("etiquetas_itens").select("entidade_id, etiqueta_id").eq("entidade", "processo").in("entidade_id", ids);
     (vs ?? []).forEach((v: any) => jaTem.add(`${v.entidade_id}|${v.etiqueta_id}`));
     const vinculos: any[] = [];
-    const ligar: string[] = [];
-    const clientesParaPreencher = new Map<string, string[]>();
     for (const u of lote) {
       const ex = existentes.get(soDigitos(u.numero))!;
       numPorId.set(ex.id, u.numero);
       const falt = vinculosFaltantes(ex.id, idsEtq(u), jaTem);
       falt.forEach(e => vinculos.push({ etiqueta_id: e, entidade: "processo", entidade_id: ex.id, created_by: opts.userId ?? null }));
       const precisaAcomp = temEtiquetaCaptura(u.etiquetas) && !ex.acomp;
-      if (precisaAcomp) ligar.push(ex.id);
+      if (precisaAcomp) ligarAcompanhamento.add(ex.id);
       const clienteId = (u.cliente && cliMap.get(normNome(u.cliente))) || opts.clientePadraoId || null;
       const precisaCliente = !ex.clienteId && !!clienteId;
       if (precisaCliente && clienteId) clientesParaPreencher.set(clienteId, [...(clientesParaPreencher.get(clienteId) ?? []), ex.id]);
@@ -247,19 +278,24 @@ export async function importarPlanilhaCompleta(opts: {
         mensagem: correcoes.length ? `Já existia; ${correcoes.join(", ")}` : "Já existia; nada a corrigir" });
     }
     await gravarVinculos(vinculos);
-    for (const ch of dividir(ligar, 100)) {
-      const { error } = await supabase.from("processos").update({ acompanhamento_especial: true } as any).in("id", ch);
-      if (error) avisos.push(`Falha ao ligar acompanhamento: ${error.message}`);
-    }
-    for (const [clienteId, ids] of clientesParaPreencher) {
-      for (const ch of dividir(ids, 200)) {
-        const { error } = await supabase.from("processos").update({ cliente_id: clienteId } as any).in("id", ch).is("cliente_id", null);
-        if (error) avisos.push(`Falha ao preencher cliente em processos existentes: ${error.message}`);
-      }
-    }
     feitosEx += lote.length;
     onProgress?.(5 + (feitosEx / Math.max(unicos.length, 1)) * 95, `Corrigindo existentes: ${feitosEx} de ${jaExist.length}`, { novos: 0, corrigidos, erros: 0 });
     await ceder();
+  }
+
+  // Uma atualização por cliente, e não uma repetição a cada lote de processos.
+  onProgress?.(5 + (feitosEx / Math.max(unicos.length, 1)) * 95, "Aplicando clientes e acompanhamentos pendentes", { novos: 0, corrigidos, erros: 0 });
+  for (const ch of dividir(Array.from(ligarAcompanhamento), 500)) {
+    if (opts.cancelado?.()) break;
+    const { error } = await supabase.from("processos").update({ acompanhamento_especial: true } as any).in("id", ch);
+    if (error) avisos.push(`Falha ao ligar acompanhamento: ${error.message}`);
+  }
+  for (const [clienteId, ids] of clientesParaPreencher) {
+    for (const ch of dividir(ids, 500)) {
+      if (opts.cancelado?.()) break;
+      const { error } = await supabase.from("processos").update({ cliente_id: clienteId } as any).in("id", ch).is("cliente_id", null);
+      if (error) avisos.push(`Falha ao preencher cliente em processos existentes: ${error.message}`);
+    }
   }
 
   // Processo já cadastrado em outra coordenação: vincula esta como responsável e só preenche vazios.
@@ -324,21 +360,21 @@ export async function importarPlanilhaCompleta(opts: {
       cliente_id: (u.cliente && cliMap.get(normNome(u.cliente))) || opts.clientePadraoId || null,
       acompanhamento_especial: temEtiquetaCaptura(u.etiquetas),
     }));
-    let inseridos: { id: string; numero: string }[] = [];
-    const { data, error } = await supabase.from("processos").insert(rows as any).select("id, numero");
-    if (error) {
-      for (let i = 0; i < rows.length; i++) {
-        if (opts.cancelado?.()) break;
-        const r = await supabase.from("processos").insert(rows[i] as any).select("id, numero").single();
-        if (r.error) {
-          const dup = r.error.code === "23505" || /duplicate key/i.test(r.error.message);
-          const v = dup ? await vincularOutra(lote[i], rows[i]) : null;
-          if (v) resultados.push(v);
-          else resultados.push({ numero: lote[i].numero, linhaOriginal: lote[i].linhaOriginal, status: "erro", mensagem: traduzirErro(r.error) });
-        }
-        else inseridos.push(r.data as any);
-      }
-    } else inseridos = (data ?? []) as any;
+    const inseridos = await gravarComDivisao<{ u: LinhaCompleta; row: Record<string, any> }, { id: string; numero: string }>({
+      itens: lote.map((u, i) => ({ u, row: rows[i] })),
+      gravar: async parte => {
+        const r = await supabase.from("processos").insert(parte.map(p => p.row) as any).select("id, numero");
+        return { data: (r.data ?? null) as { id: string; numero: string }[] | null, error: r.error };
+      },
+      tratarErroUnitario: async ({ u, row }, error) => {
+        const dup = error?.code === "23505" || /duplicate key/i.test(error?.message ?? "");
+        const v = dup ? await vincularOutra(u, row) : null;
+        if (v) resultados.push(v);
+        else resultados.push({ numero: u.numero, linhaOriginal: u.linhaOriginal, status: "erro", mensagem: traduzirErro(error) });
+        return null;
+      },
+      cancelado: opts.cancelado,
+    });
 
     const idPorNum = new Map(inseridos.map(p => [soDigitos(p.numero), p.id]));
     const vinculos: any[] = [];

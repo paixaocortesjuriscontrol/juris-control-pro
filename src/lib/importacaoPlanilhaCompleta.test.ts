@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas, temEtiquetaCaptura, etiquetasParaVincular, tipoClientePorNome } from "./importacaoPlanilhaCompleta";
+import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas, temEtiquetaCaptura, etiquetasParaVincular, tipoClientePorNome, gravarComDivisao } from "./importacaoPlanilhaCompleta";
 
 const l = (numero: string, etiquetas: string[], dados: Record<string, any> = {}) =>
   ({ numero, etiquetas, responsavel: null, cliente: null, linhaOriginal: 2, dados });
@@ -48,4 +48,31 @@ test("cliente novo usa pessoa jurídica para empresa e física para pessoa", () 
   assert.equal(tipoClientePorNome("BANCO SANTANDER (BRASIL) S/A"), "pessoa_juridica");
   assert.equal(tipoClientePorNome("GOL LINHAS AEREAS S.A."), "pessoa_juridica");
   assert.equal(tipoClientePorNome("OSMAR MENDES PAIXAO CORTES"), "pessoa_fisica");
+});
+test("lote sem erro grava os 500 itens em uma única chamada", async () => {
+  let chamadas = 0;
+  const itens = Array.from({ length: 500 }, (_, i) => i);
+  const gravados = await gravarComDivisao({
+    itens,
+    gravar: async lote => { chamadas++; return { data: lote, error: null }; },
+    tratarErroUnitario: async item => item,
+  });
+  assert.equal(chamadas, 1);
+  assert.equal(gravados.length, 500);
+});
+test("uma duplicidade em 500 não causa 500 gravações individuais", async () => {
+  let chamadas = 0;
+  let falhasUnitarias = 0;
+  const itens = Array.from({ length: 500 }, (_, i) => i);
+  const gravados = await gravarComDivisao({
+    itens,
+    gravar: async lote => {
+      chamadas++;
+      return lote.includes(317) ? { data: null, error: { code: "23505" } } : { data: lote, error: null };
+    },
+    tratarErroUnitario: async () => { falhasUnitarias++; return null; },
+  });
+  assert.equal(gravados.length, 499);
+  assert.equal(falhasUnitarias, 1);
+  assert.ok(chamadas <= 30, `Foram feitas ${chamadas} chamadas; o limite esperado era 30`);
 });
