@@ -307,16 +307,26 @@ serve(async (req) => {
       .limit(2000);
 
     const paiTitulos = new Map<string, string>();
+    const paiCoordenacoes = new Map<string, string>();
     const ids = [...new Set((atividades ?? []).map((a: any) => a.item_id).filter(Boolean))];
     if (ids.length) {
       const [t, a2, e2] = await Promise.all([
-        supabase.from("tarefas").select("id, titulo").in("id", ids),
-        supabase.from("audiencias_detectadas").select("id, titulo, processo_numero").in("id", ids),
-        supabase.from("eventos_agenda").select("id, titulo").in("id", ids),
+        supabase.from("tarefas").select("id, titulo, coordenacao_id").in("id", ids),
+        supabase.from("audiencias_detectadas").select("id, titulo, processo_numero, coordenacao_id").in("id", ids),
+        supabase.from("eventos_agenda").select("id, titulo, coordenacao_id").in("id", ids),
       ]);
-      for (const r of (t.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? "");
-      for (const r of (a2.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? r.processo_numero ?? "");
-      for (const r of (e2.data ?? []) as any[]) paiTitulos.set(r.id, r.titulo ?? "");
+      for (const r of (t.data ?? []) as any[]) {
+        paiTitulos.set(r.id, r.titulo ?? "");
+        if (r.coordenacao_id) paiCoordenacoes.set(r.id, r.coordenacao_id);
+      }
+      for (const r of (a2.data ?? []) as any[]) {
+        paiTitulos.set(r.id, r.titulo ?? r.processo_numero ?? "");
+        if (r.coordenacao_id) paiCoordenacoes.set(r.id, r.coordenacao_id);
+      }
+      for (const r of (e2.data ?? []) as any[]) {
+        paiTitulos.set(r.id, r.titulo ?? "");
+        if (r.coordenacao_id) paiCoordenacoes.set(r.id, r.coordenacao_id);
+      }
     }
 
     const SIT_ATIV: Record<string, string> = {
@@ -328,6 +338,9 @@ serve(async (req) => {
     };
     curCoord = null;
     for (const a of (atividades ?? []) as any[]) {
+      // As preferências de notificação por coordenação também valem para a
+      // atividade interna, usando a coordenação do item principal.
+      curCoord = paiCoordenacoes.get(a.item_id) ?? null;
       const dest = new Set<string>();
       if (a.responsavel_id) dest.add(a.responsavel_id);
       if (a.criado_por) dest.add(a.criado_por);

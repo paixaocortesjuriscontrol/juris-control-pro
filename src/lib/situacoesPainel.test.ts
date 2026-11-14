@@ -23,6 +23,17 @@ test("situação desativada em todos os tipos configurados fica oculta", () => {
   assert.equal(opcoes.some((o) => o.valores.includes("pendente")), false);
 });
 
+test("coordenação escolhida não herda situação habilitada em outra", () => {
+  const tipos = ["TAREFA", "PRAZO", "AUDIENCIA", "EVENTO", "PARCELAMENTO RECORRENTE"];
+  const regras = tipos.flatMap((tipo_tarefa) => [
+    { coordenacao_id: "gol", tipo_tarefa, situacao: "pendente", ativa: true },
+    { coordenacao_id: "santander", tipo_tarefa, situacao: "pendente", ativa: false },
+  ]);
+  const opcoes = montarOpcoesSituacoes(regras, ["santander"]);
+
+  assert.equal(opcoes.some((o) => o.valores.includes("pendente")), false);
+});
+
 test("concluído com sucesso reúne os valores de tarefa e evento", () => {
   const opcoes = montarOpcoesSituacoes([]);
   const concluido = opcoes.find((o) => o.label.includes("Concluído com sucesso"));

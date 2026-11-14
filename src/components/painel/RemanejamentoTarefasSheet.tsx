@@ -102,7 +102,6 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
-  const { options: situacaoOptions } = useSituacoesPainel();
 
   const [tipoAtivo, setTipoAtivo] = useState<LoteTipo>("tarefa");
   const [filtros, setFiltros] = useState<PessoasEmLoteFiltros>({
@@ -114,6 +113,9 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
     situacoes: [],
     busca: "",
   });
+  const { options: situacaoOptions } = useSituacoesPainel(
+    filtros.coordenacaoIds.length === 1 ? filtros.coordenacaoIds[0] : undefined,
+  );
   const [buscou, setBuscou] = useState(false);
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [regras, setRegras] = useState<Record<string, Regra>>({});

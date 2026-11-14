@@ -61,7 +61,6 @@ export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
-  const { options: situacaoOptions } = useSituacoesPainel();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [buscou, setBuscou] = useState(false);
@@ -74,6 +73,9 @@ export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
     situacoes: [],
     busca: "",
   });
+  const { options: situacaoOptions } = useSituacoesPainel(
+    filtros.coordenacaoIds.length === 1 ? filtros.coordenacaoIds[0] : undefined,
+  );
 
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [atividadesSel, setAtividadesSel] = useState<Set<string>>(new Set());
