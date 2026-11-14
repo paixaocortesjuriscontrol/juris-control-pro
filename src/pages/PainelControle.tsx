@@ -945,6 +945,39 @@ export default function PainelControle() {
   );
 
 
+  // Itens em que as pessoas escolhidas no filtro "Responsáveis" estão vinculadas
+  // (responsáveis/envolvidos de tarefas, eventos e audiências). Eventos e
+  // audiências não trazem essas pessoas na agenda, então o filtro lateral
+  // não os encontrava.
+  const vinculosPessoasQuery = useQuery({
+    queryKey: ["painel-vinculos-pessoas", [...painelFiltros.responsavelIds].sort().join(",")],
+    enabled: painelFiltros.responsavelIds.length > 0,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const ids = painelFiltros.responsavelIds;
+      const fontes: [string, string, string][] = [
+        ["tarefa_responsaveis", "tarefa_id", "usuario_id"],
+        ["tarefa_envolvidos", "tarefa_id", "usuario_id"],
+        ["evento_responsaveis", "evento_id", "usuario_id"],
+        ["evento_envolvidos", "evento_id", "usuario_id"],
+        ["participantes_evento", "evento_id", "usuario_id"],
+        ["audiencias_advogados", "audiencia_id", "advogado_id"],
+        ["audiencia_envolvidos", "audiencia_id", "usuario_id"],
+      ];
+      const set = new Set<string>();
+      await Promise.all(fontes.map(async ([tabela, col, userCol]) => {
+        for (let from = 0; ; from += 1000) {
+          const { data, error } = await (supabase as any).from(tabela).select(col).in(userCol, ids).range(from, from + 999);
+          if (error) throw error;
+          (data || []).forEach((r: any) => r[col] && set.add(String(r[col])));
+          if (!data || data.length < 1000) break;
+        }
+      }));
+      return set;
+    },
+  });
+  const vinculosPessoas = vinculosPessoasQuery.data;
+
   // Predicado de filtros da tela. `ignorarPeriodo` é usado na exportação, que
   // define seu próprio período (independente do mês exibido no calendário).
   const passaFiltrosPainel = useCallback(
@@ -1028,7 +1061,10 @@ export default function PainelControle() {
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          envolvido;
+          envolvido ||
+          ((item as any).tipo === "evento" && item.criado_por && painelFiltros.responsavelIds.includes(item.criado_por)) ||
+          !!vinculosPessoas?.has(getItemRawId(String(item.id))) ||
+          (!!item.recorrencia_pai_id && !!vinculosPessoas?.has(String(item.recorrencia_pai_id)));
         if (!isMatch) return false;
       }
 
@@ -1105,7 +1141,7 @@ export default function PainelControle() {
 
       return true;
     },
-    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto, itensDePublicacao, modeloPorTarefa],
+    [painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, buscaProcessoDigits, buscaTexto, itensDePublicacao, modeloPorTarefa, vinculosPessoas],
 
 
   );
@@ -2083,7 +2119,10 @@ export default function PainelControle() {
         const isMatch =
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
-          envolvido;
+          envolvido ||
+          ((item as any).tipo === "evento" && item.criado_por && painelFiltros.responsavelIds.includes(item.criado_por)) ||
+          !!vinculosPessoas?.has(getItemRawId(String(item.id))) ||
+          (!!item.recorrencia_pai_id && !!vinculosPessoas?.has(String(item.recorrencia_pai_id)));
         if (!isMatch) return false;
       }
       if (somenteHoje) {
@@ -2106,7 +2145,7 @@ export default function PainelControle() {
     });
     base.forEach((it) => { counts[classificarItem(it)]++; });
     return counts;
-  }, [itensAgenda, painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter]);
+  }, [itensAgenda, painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter, vinculosPessoas]);
 
   // Segundo número dos cards: itens exibidos com TODOS os filtros selecionados.
   const contagensFiltradas = useMemo(() => {
