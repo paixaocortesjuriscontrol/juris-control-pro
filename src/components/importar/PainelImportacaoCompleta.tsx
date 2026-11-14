@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import { gerarRelatorioImportacaoExcel } from "@/lib/relatorioImportacaoExcel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -14,6 +14,10 @@ export interface RelatorioImportacao {
   etiquetasAcrescentadas: number;
   errosEtiqueta: number;
   avisos: string[];
+  falhasEtiqueta: { numero: string; etiqueta: string; motivo: string }[];
+  clientesNaoEncontrados: { nome: string; processos: number }[];
+  coordenacao: string;
+  usuario: string;
   cancelado: boolean;
   inicio: Date;
   fim: Date;
@@ -65,32 +69,13 @@ export function RelatorioFinalImportacao({ r, onFechar }: { r: RelatorioImportac
   const erros = r.resultados.filter(x => x.status === "erro");
   const ok = !r.cancelado && erros.length === 0 && r.errosEtiqueta === 0;
 
-  const baixar = () => {
-    const wb = XLSX.utils.book_new();
-    const resumo = [
-      ["Relatório de importação"], [],
-      ["Início (Brasília)", fmt(r.inicio)], ["Fim (Brasília)", fmt(r.fim)],
-      ["Situação", r.cancelado ? "CANCELADA" : ok ? "CONCLUÍDA SEM ERROS" : "CONCLUÍDA COM PENDÊNCIAS"], [],
-      ["Linhas na planilha", r.totalLinhas],
-      ["Linhas sem número de processo (ignoradas)", r.invalidas.length],
-      ["Linhas repetidas juntadas", r.repetidas],
-      ["Processos novos cadastrados", novos.length],
-      ["Já existiam na coordenação", existentes.length],
-      ["Já existentes corrigidos", r.corrigidos],
-      ["Etiquetas acrescentadas nos existentes", r.etiquetasAcrescentadas],
-      ["Processos com erro", erros.length],
-      ["Etiquetas que não puderam ser aplicadas", r.errosEtiqueta],
-      [], ["Avisos"], ...r.avisos.map(a => [a]),
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(resumo), "Resumo");
-    const det = r.resultados.map(x => ({
-      Linha: x.linhaOriginal, "Número do Processo": x.numero,
-      Resultado: x.status === "importado" ? "Novo" : x.status === "ja_existia" ? "Já existia" : "Erro",
-      Detalhe: x.mensagem ?? "",
-    }));
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(det), "Processos");
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(r.invalidas.map(i => ({ Linha: i.linha, "Número do Processo": i.numero, Motivo: i.motivo }))), "Linhas ignoradas");
-    XLSX.writeFile(wb, `relatorio_importacao_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  const vinculados = r.resultados.filter(x => x.status === "vinculado_outra");
+  const baixar = async () => {
+    const blob = await gerarRelatorioImportacaoExcel({ ...r, situacao: r.cancelado ? "CANCELADA" : ok ? "CONCLUÍDA SEM ERROS" : "CONCLUÍDA COM PENDÊNCIAS" });
+    const url = URL.createObjectURL(blob);
+    const el = document.createElement("a");
+    el.href = url; el.download = `relatorio_importacao_${new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })}.xlsx`;
+    el.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
   };
 
   return (
@@ -109,10 +94,11 @@ export function RelatorioFinalImportacao({ r, onFechar }: { r: RelatorioImportac
             <Button variant="outline" onClick={onFechar}>Fechar</Button>
           </div>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
           <Num titulo="Linhas na planilha" valor={r.totalLinhas} />
           <Num titulo="Novos cadastrados" valor={novos.length} />
           <Num titulo="Já existiam" valor={existentes.length} />
+          <Num titulo="Vinculados de outra coordenação" valor={vinculados.length} />
           <Num titulo="Erros" valor={erros.length} destaque={erros.length > 0} />
         </div>
         <div className="grid md:grid-cols-3 gap-3 text-sm">

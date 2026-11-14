@@ -31,3 +31,13 @@ test("reimportação só acrescenta etiquetas que faltam", () => {
   assert.deepEqual(vinculosFaltantes("p1", ["e1", "e2", "e2"], new Set(["p1|e1"])), ["e2"]);
   assert.deepEqual(vinculosFaltantes("p1", ["e1"], new Set(["p1|e1"])), []);
 });
+import { camposParaPreencher, traduzirErro } from "./importacaoPlanilhaCompleta";
+test("só preenche campos vazios, nunca troca dado existente", () => {
+  assert.deepEqual(camposParaPreencher({ comarca: "SP", uf: null, polo_ativo: "" }, { comarca: "RJ", uf: "SP", polo_ativo: "Fulano", vara: "" }), { uf: "SP", polo_ativo: "Fulano" });
+});
+test("traduz número duplicado", () => {
+  assert.equal(traduzirErro({ code: "23505", message: 'duplicate key value violates unique constraint "processos_numero_digits_uidx"' }), "Número já cadastrado no sistema.");
+});
+test("cliente combinado usa o primeiro nome", () => {
+  assert.equal(nomeClienteSemPapel("BANCO SANTANDER (BRASIL) S/A (Requerido), OSMAR MENDES PAIXAO CORTES"), "BANCO SANTANDER (BRASIL) S/A");
+});
