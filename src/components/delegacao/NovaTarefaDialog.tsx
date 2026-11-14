@@ -61,6 +61,7 @@ import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
+import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
 
 type AnexoComAnalise = {
   file?: File;
@@ -164,7 +165,7 @@ interface NovaTarefaDialogProps {
    * desta publicação".
    */
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
-  /** Tipo gravado em tipo_tarefa ao criar (ex.: "ATA"). */
+  /** Tipo gravado ao criar ou ao converter um item existente (ex.: "ATA"). */
   tipoTarefa?: string;
 }
 
@@ -727,6 +728,7 @@ export function NovaTarefaDialog({
         const updatePayload: Record<string, any> = {
           responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
+          ...(tipoTarefa ? camposTipoTarefa(tipoTarefa) : {}),
           descricao: values.descricao || null,
           data_base: values.data_base || null,
           data_vencimento: values.data_vencimento,

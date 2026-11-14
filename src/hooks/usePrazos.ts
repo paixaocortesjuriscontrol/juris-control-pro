@@ -318,6 +318,7 @@ export function useCreateTarefa() {
       observacoes?: string;
       criado_por?: string;
       tipo_tarefa?: string | null;
+      tipo_registro?: string | null;
       data_base?: string | null;
       data_fatal?: string | null;
       grupos_trabalho?: string | null;
@@ -423,6 +424,7 @@ export function useUpdateTarefa() {
       observacoes?: string;
       data_cumprimento?: string | null;
       tipo_tarefa?: string | null;
+      tipo_registro?: string | null;
       data_base?: string | null;
       data_fatal?: string | null;
       grupos_trabalho?: string | null;

@@ -51,6 +51,9 @@ export function NovoItemPanel({
   const { isAdmin } = useUserRole();
   const ocorrenciaRecorrente = isOcorrenciaRecorrente(itemParaEditar);
   const registroParaEditar = itemParaEditar?._registro_pai ?? itemParaEditar;
+  const tiposCompativeis: NovoItemTipo[] = ["tarefa", "prazo", "ata"];
+  const podeConverterTipo = !!itemParaEditar && tiposCompativeis.includes(tipoInicial);
+  const tipoMudou = !!registroParaEditar && tipo !== tipoInicial;
 
   const { data: membrosCoordenacoes = [] } = useQuery({
     queryKey: ["membros-coordenacoes-novo-item-panel", user?.id],
@@ -97,11 +100,17 @@ export function NovoItemPanel({
           ×
         </Button>
       </div>
-      {!itemParaEditar && <SeletorTipoItem tipo={tipo} onChange={setTipo} />}
+      {(!itemParaEditar || podeConverterTipo) && (
+        <SeletorTipoItem
+          tipo={tipo}
+          onChange={setTipo}
+          tipos={itemParaEditar ? tiposCompativeis : undefined}
+        />
+      )}
       <div key={tipo} className={embedded ? "w-full" : "flex-1 min-h-0 overflow-hidden"}>
         {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
-            tipoTarefa={tipo === "ata" ? "ATA" : undefined}
+            tipoTarefa={tipo === "ata" ? "ATA" : tipoMudou ? "TAREFA" : undefined}
             inline
             embedded={embedded}
             open
@@ -133,6 +142,7 @@ export function NovoItemPanel({
             open
             onOpenChange={(o) => { handleOpenChange(o); if (!o) void onSuccess(); }}
             prazo={registroParaEditar}
+            tipoTarefa={tipoMudou ? "PRAZO" : undefined}
             defaultProcessoId={processoPreSelecionado?.id}
             publicacao={publicacao ?? undefined}
             ocultarSituacao={ocorrenciaRecorrente}

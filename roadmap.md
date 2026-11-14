@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Conversão de prazo em tarefa na edição
+- [x] Exibir Tarefa/Prazo/Ata no painel de item existente, preservando o mesmo cadastro e mostrando o título.
+- [x] Salvar tipo_tarefa e tipo_registro coerentes; três testes, verificação de digitação e prévia sem erros.
+- [ ] Conferir a conversão em sessão autenticada; o Supabase externo não disponibiliza sessão neste ambiente.
+
 ## Desempenho da importação completa
 - [x] Substituir fallback de até 500 inserções individuais por divisão do lote com erro; teste com 500 itens preserva 499 válidos com no máximo 30 chamadas.
 - [x] Consolidar atualizações de clientes e acompanhamento da reimportação e aplicar a mesma divisão aos vínculos de etiquetas.

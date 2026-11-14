@@ -10,12 +10,21 @@ const OPCOES: { v: NovoItemTipo; l: string }[] = [
   { v: "parcelamento", l: "Parcelamento" },
 ];
 
-/** Troca o tipo do item que está sendo criado (Tarefa, Prazo, Evento...). */
-export function SeletorTipoItem({ tipo, onChange }: { tipo: NovoItemTipo; onChange: (t: NovoItemTipo) => void }) {
+/** Troca o tipo do item, com opções restritas quando a edição usa a mesma tabela. */
+export function SeletorTipoItem({
+  tipo,
+  onChange,
+  tipos,
+}: {
+  tipo: NovoItemTipo;
+  onChange: (t: NovoItemTipo) => void;
+  tipos?: NovoItemTipo[];
+}) {
+  const opcoes = tipos ? OPCOES.filter((o) => tipos.includes(o.v)) : OPCOES;
   return (
     <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b bg-muted/30 flex-shrink-0">
       <span className="text-xs text-muted-foreground mr-1">Tipo:</span>
-      {OPCOES.map((o) => (
+      {opcoes.map((o) => (
         <button
           key={o.v}
           type="button"

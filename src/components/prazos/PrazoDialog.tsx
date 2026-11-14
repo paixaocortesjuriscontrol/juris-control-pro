@@ -59,6 +59,7 @@ import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
+import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
 
 type Unidade = "uteis" | "corridos";
 
@@ -130,6 +131,8 @@ type PrazoDialogProps = {
    * de "Itens criados a partir desta publicação".
    */
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
+  /** Ao converter um item existente, força a classificação escolhida no painel. */
+  tipoTarefa?: string;
 };
 
 export function PrazoDialog({
@@ -147,6 +150,7 @@ export function PrazoDialog({
   secondarySave,
   tertiarySave,
   onAfterCreate,
+  tipoTarefa,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -590,12 +594,9 @@ export function PrazoDialog({
             status: situacao as any,
             data_cumprimento: situacao === "cumprido" ? new Date().toISOString() : null,
           }),
-      // Preserva o tipo original quando estamos editando uma tarefa/prazo
-      // existente. Só fixa "PRAZO" quando é uma criação nova a partir deste
-      // diálogo. Isso impede que editar uma tarefa via TarefaDetalhesPanel
-      // (que reaproveita este diálogo) converta silenciosamente a tarefa
-      // em PRAZO e a faça sumir da lista de tarefas.
-      tipo_tarefa: prazo?.tipo_tarefa || "PRAZO",
+      // Preserva o tipo em uma edição comum; uma conversão explícita atualiza
+      // os dois campos para o item continuar nas listagens e contagens corretas.
+      ...camposTipoTarefa(tipoTarefa || prazo?.tipo_tarefa || "PRAZO"),
       data_base: format(dataBase, "yyyy-MM-dd"),
       prazo_dias: prazoDias > 0 ? prazoDias : null,
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,

@@ -19,6 +19,8 @@ import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import { BaixaOcorrenciaBar } from "@/components/agenda/BaixaOcorrenciaBar";
 import { isOcorrenciaRecorrente } from "@/lib/baixaOcorrencia";
+import { SeletorTipoItem } from "@/components/shared/SeletorTipoItem";
+import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 
 function PrazoFatalReadOnlyPanel({
   processo,
@@ -173,6 +175,15 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
   const isAudiencia = typeof item.id === "string" && item.id.startsWith("audiencia-det-");
   const isPrazo = item.tipo === "prazo" || String(item.tipo_tarefa || "").toUpperCase().trim() === "PRAZO";
   const isEvento = (item.origem === "evento" || isParcelamento) && !isPrazoFatalTst && !isAudiencia;
+  const tipoTarefaInicial: NovoItemTipo = isPrazo
+    ? "prazo"
+    : String(item.tipo_tarefa || "").toUpperCase().trim() === "ATA" ? "ata" : "tarefa";
+  const [tipoEdicao, setTipoEdicao] = useState<NovoItemTipo>(tipoTarefaInicial);
+  const tipoMudou = tipoEdicao !== tipoTarefaInicial;
+
+  useEffect(() => {
+    setTipoEdicao(tipoTarefaInicial);
+  }, [item.id, tipoTarefaInicial]);
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["coordenacoes-edicao-painel-lateral", isAdmin, user?.id],
@@ -260,7 +271,14 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           </Button>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      {!isPrazoFatalTst && !isAudiencia && !isEvento && tarefa && (
+        <SeletorTipoItem
+          tipo={tipoEdicao}
+          onChange={setTipoEdicao}
+          tipos={["tarefa", "prazo", "ata"]}
+        />
+      )}
+      <div key={tipoEdicao} className="flex-1 min-h-0 overflow-hidden">
         {isPrazoFatalTst ? (
           evento && (
             <PrazoFatalReadOnlyPanel
@@ -303,7 +321,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
-        ) : isPrazo ? (
+        ) : tipoEdicao === "prazo" ? (
           tarefa && (
             <PrazoDialog
               inline
@@ -312,6 +330,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
                 if (!o) closeAfter();
               }}
               prazo={tarefa}
+              tipoTarefa={tipoMudou ? "PRAZO" : undefined}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
@@ -325,6 +344,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
               }}
               coordenacoes={coordenacoes}
               tarefaParaEditar={tarefa}
+              tipoTarefa={tipoMudou ? (tipoEdicao === "ata" ? "ATA" : "TAREFA") : undefined}
               onSuccess={onUpdate}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
