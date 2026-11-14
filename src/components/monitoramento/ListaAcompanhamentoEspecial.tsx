@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, Download } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { exportarExcelAcompanhamentoEspecial } from "@/lib/exportAcompanhamentoEspecialExcel";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,6 +17,7 @@ export function ListaAcompanhamentoEspecial() {
   const [coord, setCoord] = useState("todas");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(0);
+  const [exportando, setExportando] = useState(false);
 
   const { data: coords = [] } = useQuery({
     queryKey: ["acomp-esp-coordenacoes"],
@@ -46,6 +49,24 @@ export function ListaAcompanhamentoEspecial() {
   const total = data?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
+  const exportar = async () => {
+    setExportando(true);
+    const id = toast.loading("Gerando planilha do acompanhamento especial…");
+    try {
+      const n = await exportarExcelAcompanhamentoEspecial({
+        coord,
+        busca,
+        onProgress: (m) => toast.loading(m, { id }),
+      });
+      if (n === 0) toast.warning("Nenhum processo encontrado com estes filtros.", { id });
+      else toast.success(`Planilha gerada com ${n.toLocaleString("pt-BR")} processo(s).`, { id });
+    } catch (e: any) {
+      toast.error(e?.message || "Não foi possível gerar a planilha.", { id });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div className="flex flex-col">
       <div className="px-4 md:px-6 py-3 border-b border-border bg-card flex flex-wrap items-center gap-2">
@@ -61,6 +82,10 @@ export function ListaAcompanhamentoEspecial() {
           </SelectContent>
         </Select>
         <span className="text-xs text-muted-foreground ml-auto">{total.toLocaleString("pt-BR")} processo(s) em acompanhamento especial</span>
+        <Button size="sm" variant="outline" className="h-9 gap-2" onClick={exportar} disabled={exportando || total === 0}>
+          {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+          Exportar Excel
+        </Button>
       </div>
       {isLoading ? (
         <div className="p-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin" /></div>
