@@ -608,6 +608,45 @@ export default function ListaAtividadesView({
     enabled: audienciaIds.length > 0,
   });
 
+  // Eventos/tarefas sem responsável direto: lê os vínculos (evento_responsaveis/tarefa_responsaveis) da página visível.
+  const semRespIds = useMemo(() => {
+    const ids = new Set<string>();
+    rows.forEach((r: any) => {
+      const rid = String(r.id ?? "");
+      if (rid.startsWith("audiencia-det-") || r.responsavel?.nome || r.participantes?.length) return;
+      const m = rid.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      if (m) ids.add(m[0]);
+    });
+    return [...ids].sort();
+  }, [rows]);
+
+  const { data: vinculoRespLookup } = useQuery({
+    queryKey: ["lista-vinculo-responsaveis", semRespIds],
+    queryFn: async () => {
+      const map: Record<string, string[]> = {};
+      const [ev, ta] = await Promise.all([
+        supabase.from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", semRespIds),
+        supabase.from("tarefa_responsaveis").select("tarefa_id, usuario_id").in("tarefa_id", semRespIds),
+      ]);
+      const rels = [
+        ...((ev.data as any[]) || []).map((r) => [r.evento_id, r.usuario_id]),
+        ...((ta.data as any[]) || []).map((r) => [r.tarefa_id, r.usuario_id]),
+      ] as [string, string][];
+      const uids = [...new Set(rels.map((r) => r[1]))];
+      if (!uids.length) return map;
+      const { data: profs } = await supabase.from("profiles").select("id,nome").in("id", uids);
+      const nome: Record<string, string> = {};
+      (profs || []).forEach((p: any) => { nome[p.id] = p.nome; });
+      rels.forEach(([item, u]) => {
+        const n = nome[u]; if (!n) return;
+        (map[item] ||= []).includes(n) || map[item].push(n);
+      });
+      return map;
+    },
+    enabled: semRespIds.length > 0,
+    staleTime: 60_000,
+  });
+
   // Carrega os detalhes apenas das audiências na página visível, sem ampliar a busca da agenda.
   const { data: audienciaDetalhesLookup } = useQuery({
     queryKey: ["lista-audiencia-detalhes", audienciaIds],
@@ -670,6 +709,22 @@ export default function ListaAtividadesView({
           <span className="text-[11px] text-foreground truncate">{row.responsavel.nome}</span>
         </div>
       );
+    }
+    {
+      const m = rid.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+      const nomesV = (m && vinculoRespLookup?.[m[0]]) || [];
+      if (nomesV.length && !row.participantes?.length) {
+        return (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-6 w-6 rounded-full bg-primary/15 text-primary text-[9px] font-semibold flex items-center justify-center shrink-0">
+              {initials(nomesV[0])}
+            </div>
+            <span className="text-[11px] text-foreground truncate">
+              {nomesV[0]}{nomesV.length > 1 ? ` +${nomesV.length - 1}` : ""}
+            </span>
+          </div>
+        );
+      }
     }
     const parts = row.participantes as { usuario?: { nome: string } }[] | undefined;
     if (parts && parts.length > 0) {
