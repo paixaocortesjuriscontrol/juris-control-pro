@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas, temEtiquetaCaptura } from "./importacaoPlanilhaCompleta";
+import { juntarRepetidos, nomeClienteSemPapel, separarEtiquetas, temEtiquetaCaptura, etiquetasParaVincular, tipoClientePorNome } from "./importacaoPlanilhaCompleta";
 
 const l = (numero: string, etiquetas: string[], dados: Record<string, any> = {}) =>
   ({ numero, etiquetas, responsavel: null, cliente: null, linhaOriginal: 2, dados });
@@ -40,4 +40,12 @@ test("traduz número duplicado", () => {
 });
 test("cliente combinado usa o primeiro nome", () => {
   assert.equal(nomeClienteSemPapel("BANCO SANTANDER (BRASIL) S/A (Requerido), OSMAR MENDES PAIXAO CORTES"), "BANCO SANTANDER (BRASIL) S/A");
+});
+test("CAPTURA nunca é inserida manualmente; as demais etiquetas são preservadas", () => {
+  assert.deepEqual(etiquetasParaVincular(["CAPTURA", "OUTLIER", "captura", "LGPD"]), ["OUTLIER", "LGPD"]);
+});
+test("cliente novo usa pessoa jurídica para empresa e física para pessoa", () => {
+  assert.equal(tipoClientePorNome("BANCO SANTANDER (BRASIL) S/A"), "pessoa_juridica");
+  assert.equal(tipoClientePorNome("GOL LINHAS AEREAS S.A."), "pessoa_juridica");
+  assert.equal(tipoClientePorNome("OSMAR MENDES PAIXAO CORTES"), "pessoa_fisica");
 });

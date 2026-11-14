@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { CheckCircle2, AlertTriangle, FileDown, Loader2, XCircle, Copy, Wrench, Ban } from "lucide-react";
-import type { ResultadoLinha } from "@/lib/importacaoPlanilhaCompleta";
+import type { ResultadoCliente, ResultadoLinha } from "@/lib/importacaoPlanilhaCompleta";
 
 export interface RelatorioImportacao {
   totalLinhas: number;
@@ -16,6 +16,8 @@ export interface RelatorioImportacao {
   avisos: string[];
   falhasEtiqueta: { numero: string; etiqueta: string; motivo: string }[];
   clientesNaoEncontrados: { nome: string; processos: number }[];
+  clientesDetalhes: ResultadoCliente[];
+  clientesCriados: number;
   coordenacao: string;
   usuario: string;
   cancelado: boolean;
@@ -67,7 +69,7 @@ export function RelatorioFinalImportacao({ r, onFechar }: { r: RelatorioImportac
   const novos = r.resultados.filter(x => x.status === "importado");
   const existentes = r.resultados.filter(x => x.status === "ja_existia");
   const erros = r.resultados.filter(x => x.status === "erro");
-  const ok = !r.cancelado && erros.length === 0 && r.errosEtiqueta === 0;
+  const ok = !r.cancelado && erros.length === 0 && r.errosEtiqueta === 0 && r.clientesNaoEncontrados.length === 0;
 
   const vinculados = r.resultados.filter(x => x.status === "vinculado_outra");
   const baixar = async () => {
@@ -105,6 +107,7 @@ export function RelatorioFinalImportacao({ r, onFechar }: { r: RelatorioImportac
           <Linha icone={<Wrench className="h-4 w-4" />} texto={`${r.corrigidos.toLocaleString("pt-BR")} existentes corrigidos, ${r.etiquetasAcrescentadas.toLocaleString("pt-BR")} etiquetas acrescentadas`} />
           <Linha icone={<Copy className="h-4 w-4" />} texto={`${r.repetidas} linhas repetidas juntadas em um só processo`} />
           <Linha icone={<Ban className="h-4 w-4" />} texto={`${r.invalidas.length} linhas sem número de processo ignoradas`} />
+          <Linha icone={<CheckCircle2 className="h-4 w-4" />} texto={`${r.clientesCriados} clientes novos cadastrados e vinculados; ${r.clientesNaoEncontrados.length} com pendência`} />
         </div>
         {(erros.length > 0 || r.avisos.length > 0) && (
           <div className="rounded-lg border p-3 max-h-60 overflow-auto text-sm space-y-1">

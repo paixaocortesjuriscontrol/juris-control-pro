@@ -709,6 +709,7 @@ export default function ImportarProcessos() {
           etiquetasAcrescentadas: r.etiquetasAcrescentadas, errosEtiqueta: r.errosEtiqueta,
           avisos: r.avisos, cancelado: r.cancelado, inicio, fim: new Date(),
           falhasEtiqueta: r.falhasEtiqueta, clientesNaoEncontrados: r.clientesNaoEncontrados,
+          clientesDetalhes: r.clientesDetalhes, clientesCriados: r.clientesCriados,
           coordenacao: (coordenacoes as any[])?.find((c: any) => c.id === selectedCoordenacao)?.nome ?? "",
           usuario: (auth.user?.user_metadata as any)?.nome ?? auth.user?.email ?? "",
         });

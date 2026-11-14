@@ -24,6 +24,22 @@ export const separarEtiquetas = (s: string | null | undefined): string[] =>
 export const temEtiquetaCaptura = (etiquetas: string[]): boolean =>
   etiquetas.some(e => normNome(e) === ETIQUETA_GERENCIADA);
 
+/** CAPTURA é mantida pelo gatilho; tentar inseri-la manualmente gera duplicidade. */
+export const etiquetasParaVincular = (etiquetas: string[]): string[] =>
+  etiquetas.filter(e => normNome(e) !== ETIQUETA_GERENCIADA);
+
+export const tipoClientePorNome = (nome: string): "pessoa_fisica" | "pessoa_juridica" =>
+  /\b(S\s*(?:\/|\.)\s*A\.?|LTDA|EIRELI|BANCO|SOCIEDADE|INSTITUI[CÇ][ÃA]O|CORRETORA|TECNOLOGIA|COM[ÉE]RCIO|ENTRETENIMENTO|MARKETING|TRANSPORTES|COMPANHIA)/i.test(nome)
+    ? "pessoa_juridica" : "pessoa_fisica";
+
+export interface ResultadoCliente {
+  nome: string;
+  processos: number;
+  tipo: "pessoa_fisica" | "pessoa_juridica";
+  status: "cadastrado" | "ja_existia" | "erro";
+  mensagem?: string;
+}
+
 export interface LinhaCompleta {
   numero: string;
   etiquetas: string[];
@@ -98,17 +114,17 @@ export async function importarPlanilhaCompleta(opts: {
   const resultados: ResultadoLinha[] = [];
   const avisos: string[] = [];
 
-  // 1) Processos que já existem nesta coordenação (não são alterados)
+  // 1) Processos desta coordenação: reimportar não duplica e só preenche dados vazios.
   onProgress?.(2, "Conferindo processos já cadastrados na coordenação");
-  const existentes = new Map<string, { id: string; acomp: boolean }>();
+  const existentes = new Map<string, { id: string; acomp: boolean; clienteId: string | null }>();
   for (let from = 0; ; from += 1000) {
-    const { data, error } = await supabase.from("processos").select("id, numero, acompanhamento_especial").eq("coordenacao_id", coordenacaoId).order("id").range(from, from + 999);
+    const { data, error } = await supabase.from("processos").select("id, numero, acompanhamento_especial, cliente_id").eq("coordenacao_id", coordenacaoId).order("id").range(from, from + 999);
     if (error) throw error;
-    (data ?? []).forEach((p: any) => existentes.set(soDigitos(p.numero), { id: p.id, acomp: !!p.acompanhamento_especial }));
+    (data ?? []).forEach((p: any) => existentes.set(soDigitos(p.numero), { id: p.id, acomp: !!p.acompanhamento_especial, clienteId: p.cliente_id ?? null }));
     if (!data || data.length < 1000) break;
   }
 
-  if (opts.cancelado?.()) return { resultados, falhasEtiqueta: [], clientesNaoEncontrados: [], avisos: ["Cancelado antes de gravar."], repetidas, totalUnicos: unicos.length, corrigidos: 0, etiquetasAcrescentadas: 0, errosEtiqueta: 0, cancelado: true };
+  if (opts.cancelado?.()) return { resultados, falhasEtiqueta: [], clientesNaoEncontrados: [], clientesDetalhes: [], clientesCriados: 0, avisos: ["Cancelado antes de gravar."], repetidas, totalUnicos: unicos.length, corrigidos: 0, etiquetasAcrescentadas: 0, errosEtiqueta: 0, cancelado: true };
   onProgress?.(3, "Conferindo responsáveis, clientes e etiquetas");
   // 2) Responsáveis pelo nome (membros/perfis)
   const nomesResp = Array.from(new Set(unicos.map(u => u.responsavel).filter(Boolean) as string[]));
@@ -119,15 +135,51 @@ export async function importarPlanilhaCompleta(opts: {
     else avisos.push(data?.length ? `Responsável "${nome}" tem mais de um cadastro; não vinculado.` : `Responsável "${nome}" não encontrado; não vinculado.`);
   }
 
-  // 3) Clientes pelo nome
+  // 3) Clientes: reutiliza o cadastro ou cria, sempre vinculando à coordenação escolhida.
   const nomesCli = Array.from(new Set(unicos.map(u => u.cliente).filter(Boolean) as string[]));
   const cliMap = new Map<string, string>();
   const clientesNaoEncontrados = new Map<string, number>();
+  const clientesDetalhes: ResultadoCliente[] = [];
+  let clientesCriados = 0;
   for (const nome of nomesCli) {
-    const { data } = await supabase.from("clientes").select("id, nome").ilike("nome", nome.replace(/[%_]/g, "\\$&"));
-    if (data?.length) cliMap.set(normNome(nome), data[0].id);
-    else clientesNaoEncontrados.set(nome, unicos.filter(u => u.cliente === nome).length);
+    if (opts.cancelado?.()) break;
+    const processos = unicos.filter(u => u.cliente === nome).length;
+    const tipo = tipoClientePorNome(nome);
+    let clienteId: string | null = null;
+    let status: ResultadoCliente["status"] = "ja_existia";
+    const { data, error: erroBusca } = await supabase.from("clientes").select("id, nome").ilike("nome", nome.replace(/[%_]/g, "\\$&"));
+    if (erroBusca) {
+      clientesNaoEncontrados.set(nome, processos);
+      clientesDetalhes.push({ nome, processos, tipo, status: "erro", mensagem: traduzirErro(erroBusca) });
+      continue;
+    }
+    if (data?.length) {
+      clienteId = data[0].id;
+      if (data.length > 1) avisos.push(`Cliente "${nome}" tem mais de um cadastro; o primeiro foi usado.`);
+    } else {
+      const { data: criado, error: erroCriacao } = await supabase.from("clientes")
+        .insert({ nome, tipo, created_by: opts.userId ?? null } as any).select("id").single();
+      if (erroCriacao || !criado) {
+        clientesNaoEncontrados.set(nome, processos);
+        clientesDetalhes.push({ nome, processos, tipo, status: "erro", mensagem: traduzirErro(erroCriacao) });
+        continue;
+      }
+      clienteId = criado.id;
+      status = "cadastrado";
+      clientesCriados++;
+    }
+    cliMap.set(normNome(nome), clienteId);
+    const { error: erroVinculo } = await supabase.from("clientes_coordenacoes")
+      .upsert({ cliente_id: clienteId, coordenacao_id: coordenacaoId, created_by: opts.userId ?? null } as any,
+        { onConflict: "cliente_id,coordenacao_id", ignoreDuplicates: true });
+    if (erroVinculo) {
+      clientesNaoEncontrados.set(nome, processos);
+      clientesDetalhes.push({ nome, processos, tipo, status: "erro", mensagem: `${status === "cadastrado" ? "Cliente cadastrado" : "Cliente já existia"}, mas não foi possível vincular à coordenação: ${traduzirErro(erroVinculo)}` });
+    } else {
+      clientesDetalhes.push({ nome, processos, tipo, status, mensagem: status === "cadastrado" ? "Cadastrado e vinculado à coordenação" : "Já existia; coordenação vinculada" });
+    }
   }
+  if (opts.cancelado?.()) return { resultados, falhasEtiqueta: [], clientesNaoEncontrados: Array.from(clientesNaoEncontrados.entries()).map(([nome, processos]) => ({ nome, processos })), clientesDetalhes, clientesCriados, avisos: [...avisos, "Cancelado durante o cadastro dos clientes."], repetidas, totalUnicos: unicos.length, corrigidos: 0, etiquetasAcrescentadas: 0, errosEtiqueta: 0, cancelado: true };
 
   // 4) Etiquetas da coordenação
   const nomesEtq = Array.from(new Set(unicos.flatMap(u => u.etiquetas)));
@@ -163,7 +215,7 @@ export async function importarPlanilhaCompleta(opts: {
       }
     }
   };
-  const idsEtq = (u: LinhaCompleta) => u.etiquetas.map(e => etqMap.get(normNome(e))).filter(Boolean) as string[];
+  const idsEtq = (u: LinhaCompleta) => etiquetasParaVincular(u.etiquetas).map(e => etqMap.get(normNome(e))).filter(Boolean) as string[];
 
   // 5) Já existentes: não duplica; completa etiquetas e liga acompanhamento
   const jaExist = unicos.filter(u => existentes.has(soDigitos(u.numero)));
@@ -177,6 +229,7 @@ export async function importarPlanilhaCompleta(opts: {
     (vs ?? []).forEach((v: any) => jaTem.add(`${v.entidade_id}|${v.etiqueta_id}`));
     const vinculos: any[] = [];
     const ligar: string[] = [];
+    const clientesParaPreencher = new Map<string, string[]>();
     for (const u of lote) {
       const ex = existentes.get(soDigitos(u.numero))!;
       numPorId.set(ex.id, u.numero);
@@ -184,15 +237,25 @@ export async function importarPlanilhaCompleta(opts: {
       falt.forEach(e => vinculos.push({ etiqueta_id: e, entidade: "processo", entidade_id: ex.id, created_by: opts.userId ?? null }));
       const precisaAcomp = temEtiquetaCaptura(u.etiquetas) && !ex.acomp;
       if (precisaAcomp) ligar.push(ex.id);
-      if (falt.length || precisaAcomp) corrigidos++;
+      const clienteId = (u.cliente && cliMap.get(normNome(u.cliente))) || opts.clientePadraoId || null;
+      const precisaCliente = !ex.clienteId && !!clienteId;
+      if (precisaCliente && clienteId) clientesParaPreencher.set(clienteId, [...(clientesParaPreencher.get(clienteId) ?? []), ex.id]);
+      if (falt.length || precisaAcomp || precisaCliente) corrigidos++;
       etiquetasAcrescentadas += falt.length;
+      const correcoes = [falt.length ? `${falt.length} etiqueta(s) acrescentada(s)` : "", precisaAcomp ? "acompanhamento ligado" : "", precisaCliente ? "cliente preenchido" : ""].filter(Boolean);
       resultados.push({ numero: u.numero, linhaOriginal: u.linhaOriginal, status: "ja_existia",
-        mensagem: falt.length || precisaAcomp ? `Já existia; ${falt.length} etiqueta(s) acrescentada(s)${precisaAcomp ? ", acompanhamento ligado" : ""}` : "Já existia; nada a corrigir" });
+        mensagem: correcoes.length ? `Já existia; ${correcoes.join(", ")}` : "Já existia; nada a corrigir" });
     }
     await gravarVinculos(vinculos);
     for (const ch of dividir(ligar, 100)) {
       const { error } = await supabase.from("processos").update({ acompanhamento_especial: true } as any).in("id", ch);
       if (error) avisos.push(`Falha ao ligar acompanhamento: ${error.message}`);
+    }
+    for (const [clienteId, ids] of clientesParaPreencher) {
+      for (const ch of dividir(ids, 200)) {
+        const { error } = await supabase.from("processos").update({ cliente_id: clienteId } as any).in("id", ch).is("cliente_id", null);
+        if (error) avisos.push(`Falha ao preencher cliente em processos existentes: ${error.message}`);
+      }
     }
     feitosEx += lote.length;
     onProgress?.(5 + (feitosEx / Math.max(unicos.length, 1)) * 95, `Corrigindo existentes: ${feitosEx} de ${jaExist.length}`, { novos: 0, corrigidos, erros: 0 });
@@ -282,7 +345,7 @@ export async function importarPlanilhaCompleta(opts: {
     for (const u of lote) {
       const id = idPorNum.get(soDigitos(u.numero));
       if (!id) continue;
-      existentes.set(soDigitos(u.numero), { id, acomp: true });
+      existentes.set(soDigitos(u.numero), { id, acomp: temEtiquetaCaptura(u.etiquetas), clienteId: (u.cliente && cliMap.get(normNome(u.cliente))) || opts.clientePadraoId || null });
       numPorId.set(id, u.numero);
       resultados.push({ numero: u.numero, linhaOriginal: u.linhaOriginal, status: "importado" });
       for (const eid of new Set(idsEtq(u))) vinculos.push({ etiqueta_id: eid, entidade: "processo", entidade_id: id, created_by: opts.userId ?? null });
@@ -293,8 +356,9 @@ export async function importarPlanilhaCompleta(opts: {
     await ceder();
   }
   if (errosEtiqueta) avisos.push(`${errosEtiqueta} etiqueta(s) não puderam ser aplicadas.`);
-  if (clientesNaoEncontrados.size) avisos.push(`${clientesNaoEncontrados.size} cliente(s) da planilha não estão cadastrados; veja a aba Clientes não encontrados.`);
+  if (clientesCriados) avisos.push(`${clientesCriados} cliente(s) cadastrado(s) e vinculado(s) à coordenação.`);
+  if (clientesNaoEncontrados.size) avisos.push(`${clientesNaoEncontrados.size} cliente(s) com pendência; veja a aba Clientes.`);
 
-  return { resultados, avisos, falhasEtiqueta,
+  return { resultados, avisos, falhasEtiqueta, clientesDetalhes, clientesCriados,
     clientesNaoEncontrados: Array.from(clientesNaoEncontrados.entries()).map(([nome, processos]) => ({ nome, processos })).sort((a, b) => b.processos - a.processos), repetidas, totalUnicos: unicos.length, corrigidos, etiquetasAcrescentadas, errosEtiqueta, cancelado: !!opts.cancelado?.() };
 }

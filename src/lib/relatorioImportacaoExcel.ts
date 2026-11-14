@@ -1,12 +1,13 @@
 import ExcelJS from "exceljs";
-import type { ResultadoLinha } from "@/lib/importacaoPlanilhaCompleta";
+import type { ResultadoCliente, ResultadoLinha } from "@/lib/importacaoPlanilhaCompleta";
 
 export interface DadosRelatorioExcel {
   coordenacao: string; usuario: string; inicio: Date; fim: Date; situacao: string;
   totalLinhas: number; invalidas: { linha: number; numero: string; motivo: string }[];
   repetidas: number; resultados: ResultadoLinha[]; corrigidos: number; etiquetasAcrescentadas: number;
   errosEtiqueta: number; falhasEtiqueta: { numero: string; etiqueta: string; motivo: string }[];
-  clientesNaoEncontrados: { nome: string; processos: number }[]; avisos: string[];
+  clientesNaoEncontrados: { nome: string; processos: number }[];
+  clientesDetalhes: ResultadoCliente[]; clientesCriados: number; avisos: string[];
 }
 
 const AZUL = "FF1F3864", CINZA = "FFF2F2F2", BRANCO = "FFFFFFFF";
@@ -51,7 +52,9 @@ export async function gerarRelatorioImportacaoExcel(d: DadosRelatorioExcel): Pro
     ["Processos novos cadastrados", cnt("importado"), COR.importado], ["Já existiam na coordenação", cnt("ja_existia"), COR.ja_existia],
     ["   dos quais corrigidos", d.corrigidos, COR.ja_existia], ["   etiquetas acrescentadas", d.etiquetasAcrescentadas, COR.ja_existia],
     ["Vinculados (existiam em outra coordenação)", vinc.length, COR.vinculado_outra], ["Processos com erro", erros.length, COR.erro],
-    ["Etiquetas não aplicadas", d.errosEtiqueta, COR.erro], ["Clientes não encontrados", d.clientesNaoEncontrados.length, COR.vinculado_outra],
+    ["Etiquetas não aplicadas", d.errosEtiqueta, d.errosEtiqueta ? COR.erro : COR.importado],
+    ["Clientes novos cadastrados e vinculados", d.clientesCriados, COR.importado],
+    ["Clientes com pendência", d.clientesNaoEncontrados.length, d.clientesNaoEncontrados.length ? COR.erro : COR.importado],
   ];
   const h = ws.getRow(10); h.getCell(2).value = "Indicador"; h.getCell(3).value = "Quantidade";
   [2, 3].forEach(c => { const x = h.getCell(c); x.font = { name: "Arial", bold: true, color: { argb: BRANCO } }; x.fill = { type: "pattern", pattern: "solid", fgColor: { argb: AZUL } }; x.border = borda; });
@@ -65,10 +68,13 @@ export async function gerarRelatorioImportacaoExcel(d: DadosRelatorioExcel): Pro
     ...erros.map(r => [r.linhaOriginal, r.numero, "Erro", r.mensagem ?? ""]),
     ...vinc.map(r => [r.linhaOriginal, r.numero, `Vinculado (${r.coordenacaoOutra ?? "outra coordenação"})`, r.mensagem ?? ""]),
     ...d.falhasEtiqueta.map(f => ["", f.numero, "Etiqueta não aplicada", `${f.etiqueta}: ${f.motivo}`]),
+    ...d.clientesDetalhes.filter(c => c.status === "erro").map(c => ["", "", "Cliente com pendência", `${c.nome}: ${c.mensagem ?? "Não foi possível cadastrar ou vincular"}`]),
   ];
   tabela(wb, "Atenção", "Itens que precisam de atenção", [{ h: "Linha", w: 8 }, { h: "Número do Processo", w: 28 }, { h: "Tipo", w: 38 }, { h: "O que aconteceu", w: 90 }], atencao,
     i => atencao[i][2] === "Erro" ? COR.erro : String(atencao[i][2]).startsWith("Vinc") ? COR.vinculado_outra : "FFFCE4D6");
-  tabela(wb, "Clientes não encontrados", "Clientes da planilha sem cadastro no sistema", [{ h: "Cliente (como está na planilha)", w: 80 }, { h: "Processos sem cliente", w: 22 }], d.clientesNaoEncontrados.map(c => [c.nome, c.processos]));
+  tabela(wb, "Clientes", "Clientes usados na importação", [{ h: "Cliente (como está na planilha)", w: 70 }, { h: "Tipo", w: 20 }, { h: "Processos", w: 14 }, { h: "Resultado", w: 24 }, { h: "Detalhe", w: 65 }],
+    d.clientesDetalhes.map(c => [c.nome, c.tipo === "pessoa_juridica" ? "Pessoa jurídica" : "Pessoa física", c.processos, c.status === "cadastrado" ? "Cadastrado e vinculado" : c.status === "ja_existia" ? "Já existia; vinculado" : "Pendência", c.mensagem ?? ""]),
+    i => d.clientesDetalhes[i].status === "erro" ? COR.erro : d.clientesDetalhes[i].status === "cadastrado" ? COR.importado : undefined);
   const ord = [...d.resultados].sort((a, b) => a.linhaOriginal - b.linhaOriginal);
   tabela(wb, "Processos", "Resultado processo a processo", [{ h: "Linha", w: 8 }, { h: "Número do Processo", w: 28 }, { h: "Resultado", w: 38 }, { h: "Detalhe", w: 90 }],
     ord.map(r => [r.linhaOriginal, r.numero, ROT[r.status], r.mensagem ?? ""]), i => ord[i].status === "importado" || ord[i].status === "ja_existia" ? (i % 2 ? CINZA : undefined) : COR[ord[i].status]);

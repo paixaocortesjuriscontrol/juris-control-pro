@@ -1,5 +1,11 @@
 # Roadmap — Considerações 02/09
 
+## Importação Santander Cível — relatório de 13/11/2026
+- [ ] Impedir nova tentativa de aplicar CAPTURA manualmente; confirmar as 428 etiquetas já existentes.
+- [ ] Cadastrar e vincular clientes ausentes à coordenação escolhida e preencher cliente vazio na reimportação.
+- [ ] Explicar no relatório os sete processos preexistentes em outras coordenações, sem alterar a coordenação original.
+- [ ] Testar regras, gerar build e salvar as alterações.
+
 ## Versão v9.8.5
 - [x] Registrar a release: número da versão no menu, histórico, capítulo de novidades nos manuais e cinco PDFs regenerados em `public/manuais`; atalhos das telas apontando para os arquivos v9.8.5.
 - [ ] Publicar e conferir o número v9.8.5 no menu e os downloads na tela autenticada — Supabase externo sem sessão neste ambiente.
