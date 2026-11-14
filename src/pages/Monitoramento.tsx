@@ -47,6 +47,7 @@ import { useEscopoAcompanhamentoEspecial } from "@/hooks/useEscopoAcompanhamento
 import { useUserRole } from "@/hooks/useUserRole";
 import { useMonitoramentoCounts } from "@/hooks/useMonitoramentoCounts";
 import { MainLayout } from "@/components/layout/MainLayout";
+import { ListaAcompanhamentoEspecial } from "@/components/monitoramento/ListaAcompanhamentoEspecial";
 import { CadastroAcompanhamentoEspecial } from "@/components/monitoramento/CadastroAcompanhamentoEspecial";
 
 
@@ -765,10 +766,18 @@ export default function Monitoramento() {
                   </Badge>
                 )}
               </TabsTrigger>
+              <TabsTrigger value="acompanhamento" className="gap-2">
+                <Radar className="w-3.5 h-3.5" />
+                Acompanhamento Especial
+              </TabsTrigger>
             </TabsList>
             <CadastroAcompanhamentoEspecial />
           </div>
         </div>
+
+        <TabsContent value="acompanhamento" className="m-0 flex flex-col">
+          <ListaAcompanhamentoEspecial />
+        </TabsContent>
 
         <TabsContent value="movimentacoes" className="m-0 flex flex-col">
           {/* Filtros */}

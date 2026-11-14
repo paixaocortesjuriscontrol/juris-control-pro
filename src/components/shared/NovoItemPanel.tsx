@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +12,7 @@ import { AudienciaFormSimplificado } from "@/components/audiencias/AudienciaForm
 import { ItemAtividades } from "@/components/comum/ItemAtividades";
 import { BaixaOcorrenciaBar } from "@/components/agenda/BaixaOcorrenciaBar";
 import { isOcorrenciaRecorrente } from "@/lib/baixaOcorrencia";
+import { SeletorTipoItem } from "@/components/shared/SeletorTipoItem";
 
 export type NovoItemTipo = "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento";
 
@@ -36,7 +38,7 @@ interface NovoItemPanelProps {
  * Mesmos formulários usados pelo Painel de Controle — reutilizado no Detalhe do Processo.
  */
 export function NovoItemPanel({
-  tipo,
+  tipo: tipoInicial,
   onClose,
   onSuccess,
   itemParaEditar = null,
@@ -44,6 +46,7 @@ export function NovoItemPanel({
   publicacao = null,
   embedded = false,
 }: NovoItemPanelProps) {
+  const [tipo, setTipo] = useState<NovoItemTipo>(tipoInicial);
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const ocorrenciaRecorrente = isOcorrenciaRecorrente(itemParaEditar);
@@ -94,7 +97,8 @@ export function NovoItemPanel({
           ×
         </Button>
       </div>
-      <div className={embedded ? "w-full" : "flex-1 min-h-0 overflow-hidden"}>
+      {!itemParaEditar && <SeletorTipoItem tipo={tipo} onChange={setTipo} />}
+      <div key={tipo} className={embedded ? "w-full" : "flex-1 min-h-0 overflow-hidden"}>
         {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
             tipoTarefa={tipo === "ata" ? "ATA" : undefined}

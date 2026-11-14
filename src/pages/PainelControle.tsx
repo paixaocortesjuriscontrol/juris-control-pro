@@ -65,6 +65,7 @@ import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { usePainelTotais, type PainelTotais } from "@/hooks/usePainelTotais";
+import { SeletorTipoItem } from "@/components/shared/SeletorTipoItem";
 import { escopoEscritorio } from "@/lib/escopoEscritorio";
 import { podeRemanejarNoPainel } from "@/lib/permissoesPainel";
 import { useAuth } from "@/contexts/AuthContext";
@@ -2107,6 +2108,13 @@ export default function PainelControle() {
     return counts;
   }, [itensAgenda, painelFiltros, itemPassaFiltroComentario, user?.id, somenteHoje, hoje_str, situacaoFilter]);
 
+  // Segundo número dos cards: itens exibidos com TODOS os filtros selecionados.
+  const contagensFiltradas = useMemo(() => {
+    const c = { tarefa: 0, ata: 0, evento: 0, prazo: 0, audiencia: 0, parcelamento: 0 };
+    itensPainelFiltrados.forEach((it) => { c[classificarItem(it)]++; });
+    return c;
+  }, [itensPainelFiltrados]);
+
   // Mapa de itens por dia (chave: "YYYY-MM-DD")
   // Concluídas aparecem no final de cada dia, pendentes primeiro
   const itensPorDia = useMemo(() => {
@@ -2857,7 +2865,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{totalCard(contagensPorClassificacao.tarefa, "tarefa")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-blue-700 dark:text-blue-300">{totalCard(contagensPorClassificacao.tarefa, "tarefa")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.tarefa}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-blue-600 dark:text-blue-400 truncate">Tarefas</p>
                     </div>
                     <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-blue-500/50 flex-shrink-0" />
@@ -2881,7 +2889,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalCard(contagensPorClassificacao.ata, "ata")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-violet-700 dark:text-violet-300">{totalCard(contagensPorClassificacao.ata, "ata")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.ata}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-violet-600 dark:text-violet-400 truncate">Atas</p>
                     </div>
                     <FileText className="w-4 h-4 md:w-5 md:h-5 text-violet-500/50 flex-shrink-0" />
@@ -2905,7 +2913,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{totalCard(contagensPorClassificacao.evento, "evento")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-green-700 dark:text-green-300">{totalCard(contagensPorClassificacao.evento, "evento")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.evento}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-green-700 dark:text-green-400 truncate">Eventos</p>
                     </div>
                     <CalendarPlus className="w-4 h-4 md:w-5 md:h-5 text-green-500/50 flex-shrink-0" />
@@ -2929,7 +2937,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{totalCard(contagensPorClassificacao.prazo, "prazo")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-red-700 dark:text-red-300">{totalCard(contagensPorClassificacao.prazo, "prazo")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.prazo}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-red-600 dark:text-red-400 truncate">Prazos</p>
                     </div>
                     <Clock className="w-4 h-4 md:w-5 md:h-5 text-red-500/50 flex-shrink-0" />
@@ -2953,7 +2961,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{totalCard(contagensPorClassificacao.audiencia, "audiencia")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-yellow-700 dark:text-yellow-300">{totalCard(contagensPorClassificacao.audiencia, "audiencia")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.audiencia}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-yellow-700 dark:text-yellow-400 truncate">Audiências</p>
                     </div>
                     <Gavel className="w-4 h-4 md:w-5 md:h-5 text-yellow-500/50 flex-shrink-0" />
@@ -2977,7 +2985,7 @@ export default function PainelControle() {
                 <CardContent className="px-2 py-1 md:px-3 md:py-1.5">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-baseline gap-1.5 min-w-0">
-                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{totalCard(contagensPorClassificacao.parcelamento, "parcelamento")}</p>
+                      <p className="text-lg md:text-xl font-bold leading-none text-emerald-700 dark:text-emerald-300">{totalCard(contagensPorClassificacao.parcelamento, "parcelamento")}<span className="text-sm font-semibold opacity-70" title="De acordo com os filtros selecionados">/{contagensFiltradas.parcelamento}</span></p>
                       <p className="text-[11px] md:text-xs font-medium leading-none text-emerald-600 dark:text-emerald-400 truncate">Parcelamentos</p>
                     </div>
                     <Coins className="w-4 h-4 md:w-5 md:h-5 text-emerald-500/50 flex-shrink-0" />
@@ -3727,6 +3735,7 @@ export default function PainelControle() {
             tipo={novoItemTipo}
             dataPadrao={novoItemData ?? undefined}
             hideHeader
+            onTrocarTipo={setNovoItemTipo}
             onClose={() => { setNovoItemTipo(null); setNovoItemData(null); }}
             onSuccess={async () => {
               setNovoItemTipo(null);
@@ -3827,8 +3836,10 @@ function NovoItemPanel({
   onClose,
   onSuccess,
   hideHeader,
+  onTrocarTipo,
 }: {
   tipo: "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento";
+  onTrocarTipo?: (t: "tarefa" | "ata" | "evento" | "prazo" | "audiencia" | "parcelamento") => void;
   dataPadrao?: string;
   onClose: () => void;
   onSuccess: () => void | Promise<void>;
@@ -3884,7 +3895,8 @@ function NovoItemPanel({
           </Button>
         </div>
       )}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      {onTrocarTipo && <SeletorTipoItem tipo={tipo} onChange={onTrocarTipo} />}
+      <div key={tipo} className="flex-1 min-h-0 overflow-hidden">
         {(tipo === "tarefa" || tipo === "ata") && (
           <NovaTarefaDialog
             inline
