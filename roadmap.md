@@ -1,5 +1,10 @@
 # Roadmap — Considerações 02/09
 
+## Agenda em Minhas Responsabilidades
+- [x] Adicionar a visão Agenda com Atrasadas, Hoje e Futuras, respeitando os filtros existentes.
+- [x] Testar a classificação por data (10 testes) e conferir a prévia sem erros.
+- [ ] Conferir a aba com usuário autenticado; o Supabase externo não disponibiliza sessão neste ambiente.
+
 ## Conversão de prazo em tarefa na edição
 - [x] Exibir Tarefa/Prazo/Ata no painel de item existente, preservando o mesmo cadastro e mostrando o título.
 - [x] Salvar tipo_tarefa e tipo_registro coerentes; três testes, verificação de digitação e prévia sem erros.

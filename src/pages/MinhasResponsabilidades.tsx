@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lerFonteAgendaPorTipo } from "@/lib/agendaRpc";
 import type { FonteAgenda } from "@/lib/agendaModoBusca";
 import { classificarStatus, STATUS_PARA_FILTRO, type StatusFiltro } from "@/lib/statusItemEquipe";
-import { papelDoUsuario, type PapelItem } from "@/lib/minhasResponsabilidades";
+import { grupoAgendaResponsabilidade, papelDoUsuario, type GrupoAgendaResponsabilidade, type PapelItem } from "@/lib/minhasResponsabilidades";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,11 @@ const FILTROS: { v: StatusFiltro; l: string }[] = [
 ];
 const TIPOS = ["todos", "tarefa", "prazo", "evento", "audiencia"] as const;
 const ROT_TIPO: Record<string, string> = { todos: "Todos", tarefa: "Tarefa", prazo: "Prazo", evento: "Evento", audiencia: "Audiência" };
+const GRUPOS_AGENDA = [
+  { v: "atrasadas", l: "Atrasadas" },
+  { v: "hoje", l: "Hoje" },
+  { v: "futuras", l: "Futura" },
+] as const;
 
 function tipoDoItem(fonte: FonteAgenda, i: any): string {
   if (fonte === "audiencias") return "audiencia";
@@ -167,6 +172,7 @@ export default function MinhasResponsabilidades() {
   const [busca, setBusca] = useState("");
   const [buscaProc, setBuscaProc] = useState("");
   const [statusProc, setStatusProc] = useState("todos");
+  const [grupoAgenda, setGrupoAgenda] = useState<Exclude<GrupoAgendaResponsabilidade, null>>("hoje");
 
   const atividades = useQuery({
     queryKey: ["minhas-responsabilidades", "atividades", uid, periodo],
@@ -321,6 +327,16 @@ export default function MinhasResponsabilidades() {
       .sort((a, b) => String(a.data_fatal ?? a.data_vencimento ?? a.data_inicio ?? "").localeCompare(String(b.data_fatal ?? b.data_vencimento ?? b.data_inicio ?? "")));
   }, [itens, tipo, filtro, busca, pf.atividadesSelecionadas]);
 
+  const agenda = useMemo(() => {
+    const hoje = format(new Date(), "yyyy-MM-dd");
+    const grupos: Record<Exclude<GrupoAgendaResponsabilidade, null>, any[]> = { atrasadas: [], hoje: [], futuras: [] };
+    filtrados.forEach((item) => {
+      const grupo = grupoAgendaResponsabilidade(item, hoje);
+      if (grupo) grupos[grupo].push(item);
+    });
+    return grupos;
+  }, [filtrados]);
+
   const procs = useMemo(() => {
     const q = buscaProc.trim().toLowerCase();
     return (processos.data ?? [])
@@ -341,6 +357,25 @@ export default function MinhasResponsabilidades() {
 
   const carregando = (q: { isLoading: boolean }) =>
     q.isLoading ? <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando...</div> : null;
+
+  const renderLinhaItem = (i: any) => {
+    const st = classificarStatus(i);
+    const riscado = ["cancelado", "protocolado", "baixado"].includes(String(i.status ?? ""));
+    return (
+      <button
+        key={`${i._fonte}:${i.id}`}
+        className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap items-center gap-2"
+        onClick={() => setItemSel(paraItemAgenda(i))}
+      >
+        <Badge variant="outline">{ROT_TIPO[i._tipo]}</Badge>
+        <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-primary")}>{i.titulo || "(sem título)"}</span>
+        {i.processo?.numero && <span className="text-xs text-muted-foreground">{i.processo.numero}</span>}
+        <span className="text-xs">{fmt(i.data_fatal ?? i.data_vencimento ?? i.data_inicio)}</span>
+        <Badge variant={st === "atrasada" ? "destructive" : "secondary"}>{st === "pendente" ? "Pendente" : st === "atrasada" ? "Atrasada" : st === "cumprida" ? "Cumprida" : "Cancelada"}</Badge>
+        <Badge variant={i._papel === "responsavel" ? "default" : "outline"}>{i._papel === "responsavel" ? "Responsável" : "Envolvido"}</Badge>
+      </button>
+    );
+  };
 
   return (
     <MainLayout title="Minhas responsabilidades" subtitle="Tudo que está com você: atividades, processos e workflows">
@@ -374,10 +409,29 @@ export default function MinhasResponsabilidades() {
 
         <Tabs defaultValue="atividades">
           <TabsList>
+            <TabsTrigger value="agenda">Agenda</TabsTrigger>
             <TabsTrigger value="atividades">Atividades ({itens.length})</TabsTrigger>
             <TabsTrigger value="processos">Processos ({processos.data?.length ?? 0})</TabsTrigger>
             <TabsTrigger value="workflows">Workflows ({workflows.data?.length ?? 0})</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="agenda" className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {GRUPOS_AGENDA.map((grupo) => (
+                <Button key={grupo.v} size="sm" variant={grupoAgenda === grupo.v ? "default" : "outline"} onClick={() => setGrupoAgenda(grupo.v)}>
+                  {grupo.l} ({agenda[grupo.v].length})
+                </Button>
+              ))}
+            </div>
+            {carregando(atividades)}
+            {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
+            <Card><CardContent className="p-0 divide-y">
+              {!atividades.isLoading && agenda[grupoAgenda].length === 0 && (
+                <div className="p-6 text-sm text-muted-foreground">Nenhuma atividade nesta visão.</div>
+              )}
+              {agenda[grupoAgenda].map(renderLinhaItem)}
+            </CardContent></Card>
+          </TabsContent>
 
           <TabsContent value="atividades" className="space-y-3">
             <div className="flex flex-wrap gap-2">
@@ -400,24 +454,7 @@ export default function MinhasResponsabilidades() {
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
             <Card><CardContent className="p-0 divide-y">
               {!atividades.isLoading && filtrados.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma atividade.</div>}
-              {filtrados.map((i) => {
-                const st = classificarStatus(i);
-                const riscado = ["cancelado", "protocolado", "baixado"].includes(String(i.status ?? ""));
-                return (
-                  <button
-                    key={`${i._fonte}:${i.id}`}
-                    className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap items-center gap-2"
-                    onClick={() => setItemSel(paraItemAgenda(i))}
-                  >
-                    <Badge variant="outline">{ROT_TIPO[i._tipo]}</Badge>
-                    <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-primary")}>{i.titulo || "(sem título)"}</span>
-                    {i.processo?.numero && <span className="text-xs text-muted-foreground">{i.processo.numero}</span>}
-                    <span className="text-xs">{fmt(i.data_fatal ?? i.data_vencimento ?? i.data_inicio)}</span>
-                    <Badge variant={st === "atrasada" ? "destructive" : "secondary"}>{st === "pendente" ? "Pendente" : st === "atrasada" ? "Atrasada" : st === "cumprida" ? "Cumprida" : "Cancelada"}</Badge>
-                    <Badge variant={i._papel === "responsavel" ? "default" : "outline"}>{i._papel === "responsavel" ? "Responsável" : "Envolvido"}</Badge>
-                  </button>
-                );
-              })}
+              {filtrados.map(renderLinhaItem)}
             </CardContent></Card>
           </TabsContent>
 
