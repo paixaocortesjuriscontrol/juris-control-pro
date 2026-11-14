@@ -3,6 +3,7 @@ import { CorrigirTitulosProjuris } from "@/components/migracao/CorrigirTitulosPr
 import { ImportarTiposTarefaProjuris } from "@/components/migracao/ImportarTiposTarefaProjuris";
 import { ImportarMarcadoresProjuris } from "@/components/migracao/ImportarMarcadoresProjuris";
 import { ImportarExecucoesWorkflowProjuris } from "@/components/migracao/ImportarExecucoesWorkflowProjuris";
+import { ImportarAgendaFuturaProjuris } from "@/components/migracao/ImportarAgendaFuturaProjuris";
 import { ComplementarPlanilhaProjuris } from "@/components/migracao/ComplementarPlanilhaProjuris";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
@@ -581,14 +582,14 @@ export default function MigracaoProjuris() {
       if (!data || data.length < 1000) break;
     }
     const wb = XLSX.utils.book_new();
-    for (const tipo of ["tarefa", "processo", "anexo", "comentario", "andamento", "recuperacao_complemento"]) {
+    for (const tipo of ["tarefa", "audiencia", "processo", "anexo", "comentario", "andamento", "recuperacao_complemento"]) {
       const rows = todos.filter((t) => t.tipo === tipo).map((t) => ({
         "Identificação Projuris / arquivo": t.chave_externa, "Situação": t.status, "Motivo": t.motivo || "",
         "Título": t.dados?.titulo || "", "Tipo": t.dados?.tipo || "",
         "Data": t.dados?.data ? t.dados.data.split("-").reverse().join("/") : "", "ID no Juris Control": t.registro_id || "",
         ...(tipo === "recuperacao_complemento" ? { "Processo": t.dados?.cnj || "", "Anterior": JSON.stringify(t.dados?.anterior ?? {}), "Recuperado": JSON.stringify(t.dados?.recuperado ?? {}), "Conflitos preservados": JSON.stringify(t.dados?.conflitos ?? {}) } : {}),
       }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), ({ tarefa: "Tarefas", processo: "Processos", anexo: "Anexos", comentario: "Comentarios", andamento: "Andamentos", recuperacao_complemento: "Complementos recuperados" } as Record<string, string>)[tipo]);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), ({ tarefa: "Tarefas", audiencia: "Audiencias", processo: "Processos", anexo: "Anexos", comentario: "Comentarios", andamento: "Andamentos", recuperacao_complemento: "Complementos recuperados" } as Record<string, string>)[tipo]);
     }
     XLSX.writeFile(wb, `Relatorio_Migracao_Projuris_${mid.slice(0, 8)}.xlsx`);
   };
@@ -607,7 +608,7 @@ export default function MigracaoProjuris() {
     };
     const t = toast.loading("Desfazendo lote...");
     try {
-      for (const [tipo, tabela] of [["comentario", "comentarios_tarefas"], ["andamento", "movimentacoes"], ["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
+      for (const [tipo, tabela] of [["comentario", "comentarios_tarefas"], ["audiencia", "audiencias_detectadas"], ["andamento", "movimentacoes"], ["anexo", "documentos"], ["tarefa", "tarefas"], ["processo", "processos"]] as const) {
         const lista = await ids(tipo);
         for (let k = 0; k < lista.length; k += 200) {
           const { error } = await supabase.from(tabela as any).delete().in("id", lista.slice(k, k + 200));
@@ -664,6 +665,7 @@ export default function MigracaoProjuris() {
           </CardContent>
         </Card>
         {user && <CorrigirTitulosProjuris coordId={coordId} nomeCoord={coords.find((c) => c.id === coordId)?.nome || ""} />}
+        {user && <ImportarAgendaFuturaProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarChecklistsProjuris userId={user.id} />}
         {user && <ImportarMarcadoresProjuris userId={user.id} />}
         {user && <ImportarExecucoesWorkflowProjuris userId={user.id} />}

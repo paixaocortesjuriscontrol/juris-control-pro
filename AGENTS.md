@@ -58,3 +58,4 @@
 - Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
 - Scheduling permissions: `permissoes_agendamento_coordenacao` (no row = allowed) enforced by trigger `bloquear_configuracao_agendamento`, so every screen/import obeys it.
 - Client coordinations: explicit `clientes_coordenacoes` merged with process-derived ones.
+- Projuris "Agenda futura" spreadsheet import (Santander Cível only) treats as hearings only the fixed lawyer-defined title list in `agendaFuturaProjuris.ts`; TAR./PRO. ids are audited in migracoes_projuris_itens (tipo tarefa/audiencia/processo) so future CSV migrations and re-runs dedupe, and comments are authored as "Importado Projuris" since Projuris exports no author.
