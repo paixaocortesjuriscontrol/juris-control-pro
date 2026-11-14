@@ -22,3 +22,10 @@ test("situações do Projuris", () => {
   assert.equal(statusAudiencia("Concluída com sucesso"), "concluido");
   assert.equal(statusAudiencia("Cancelado"), "cancelado");
 });
+import { casarNomeAproximado } from "./agendaFuturaProjuris";
+test("nome com pequena diferença de grafia casa com um único usuário", () => {
+  const us = [{ id: "g", nome: "Grabriella Silva" }, { id: "l", nome: "Lucas Delezuk" }, { id: "c", nome: "Lucas Carreiro" }];
+  assert.equal(casarNomeAproximado("GABRIELLA SILVA", us), "g");
+  assert.equal(casarNomeAproximado("LUCAS FOURNIER", us), null);
+  assert.equal(casarNomeAproximado("MARIA SILVA", us), null);
+});

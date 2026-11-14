@@ -48,3 +48,21 @@ export function tipoItem(titulo: string): { audiencia: boolean; tipo: string; re
 
 /** Remove o papel entre parênteses: "FULANO (Requerente)" → "FULANO". */
 export const semPapel = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, "").trim();
+
+const distancia = (a: string, b: string) => {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 1; j <= b.length; j++) d[0][j] = j;
+  for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++)
+    d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+  return d[a.length][b.length];
+};
+
+/** Aceita até 2 letras de diferença no primeiro nome, com o mesmo sobrenome, só se houver um único candidato. */
+export function casarNomeAproximado(nome: string, usuarios: { id: string; nome: string }[]): string | null {
+  const t = norm(nome).split(" "); if (t.length < 2) return null;
+  const c = usuarios.filter((u) => {
+    const ut = norm(u.nome).split(" ");
+    return ut.length > 1 && ut[ut.length - 1] === t[t.length - 1] && distancia(ut[0], t[0]) <= 2;
+  });
+  return c.length === 1 ? c[0].id : null;
+}

@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { executarFila } from "@/lib/projurisImportQueue";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Loader2, Upload, Download } from "lucide-react";
+import { Loader2, Upload, Download, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lerPlanilha, norm, digitos, formatarCnj, paraData, paraHora } from "@/lib/migracaoProjuris";
+import { casarNomeAproximado } from "./agendaFuturaProjuris";
 import { dividirPipe, statusAudiencia, statusTarefa, tipoItem, semPapel, TITULOS_AUDIENCIA } from "./agendaFuturaProjuris";
 
 const db = supabase as any;
@@ -26,8 +28,16 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
   const [linhas, setLinhas] = useState<any[] | null>(null);
   const [resumo, setResumo] = useState<[string, number][]>([]);
   const [msg, setMsg] = useState("");
-  const [prog, setProg] = useState({ feito: 0, total: 0 });
+  const [prog, setProg] = useState({ etapa: "", feito: 0, total: 0, inicio: 0, criados: 0, erros: 0 });
   const [rodando, setRodando] = useState(false);
+  const cancelar = useRef(false);
+  const ultimo = useRef(0);
+  const etapa = (nome: string, feito: number, total: number, extra: { criados?: number; erros?: number } = {}, forcar = false) => {
+    const agora = Date.now();
+    if (!forcar && agora - ultimo.current < 300 && feito < total) return;
+    ultimo.current = agora;
+    setProg((p) => ({ ...p, ...extra, etapa: nome, feito, total, inicio: p.etapa === nome ? p.inicio : agora }));
+  };
   const [relatorio, setRelatorio] = useState<any | null>(null);
 
   const ler = async (f: File | undefined) => {
@@ -62,11 +72,15 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
       // Já migradas (reconhece pelo TAR.)
       const tars = Array.from(new Set(ls.map((l) => l.tar).filter(Boolean)));
       const ja = new Set<string>();
-      for (let k = 0; k < tars.length; k += 200) {
-        const { data } = await db.from("migracoes_projuris_itens").select("chave_externa").in("tipo", ["tarefa", "audiencia"]).eq("status", "criado").in("chave_externa", tars.slice(k, k + 200));
+      const blocos = Array.from({ length: Math.ceil(tars.length / 200) }, (_, i) => tars.slice(i * 200, i * 200 + 200));
+      let feitos = 0; setMsg("");
+      await executarFila(blocos, async (b) => {
+        const { data, error } = await db.from("migracoes_projuris_itens").select("chave_externa").in("tipo", ["tarefa", "audiencia"]).eq("status", "criado").in("chave_externa", b);
+        if (error) throw error;
         (data || []).forEach((d: any) => ja.add(d.chave_externa));
-        setMsg(`Conferindo atividades já migradas: ${Math.min(k + 200, tars.length)} de ${tars.length}`);
-      }
+        feitos += b.length; etapa("Conferindo atividades já migradas", feitos, tars.length);
+      }, 4);
+      etapa("Conferência pronta", tars.length, tars.length, {}, true);
       const vistos = new Set<string>();
       ls.forEach((l) => {
         if (!l.tar) l.motivo = "Sem identificador da tarefa";
@@ -84,7 +98,7 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
 
   const importar = async () => {
     if (!linhas) return;
-    setRodando(true);
+    setRodando(true); cancelar.current = false;
     const ok = linhas.filter((l) => !l.motivo);
     const cont: Record<string, number> = { audiencias: 0, prazos: 0, tarefas: 0, processosCriados: 0, processosVinculados: 0, comentarios: 0, etiquetas: 0, erros: 0, pulados: linhas.length - ok.length };
     const semUsuario = new Map<string, number>(); const semModelo = new Map<string, number>(); const erros: any[] = [];
@@ -101,35 +115,41 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
         db.from("etiquetas").select("id, nome").eq("coordenacao_id", COORD),
         db.from("clientes").select("id, nome").ilike("nome", "BANCO SANTANDER (BRASIL)%").limit(1),
       ]);
+      const avisados = new Set<string>();
       const usuarios = (perfis || []) as { id: string; nome: string }[];
       const casar = (n: string) => {
         const k = norm(n); if (!k) return null;
         const ex = usuarios.filter((u) => norm(u.nome) === k); if (ex.length === 1) return ex[0].id;
         const t = k.split(" "); const p = usuarios.filter((u) => { const ut = norm(u.nome).split(" "); return ut[0] === t[0] && ut.includes(t[t.length - 1]); });
         if (p.length === 1) return p[0].id;
-        semUsuario.set(n, (semUsuario.get(n) || 0) + 1); return null;
+        const ap = casarNomeAproximado(n, usuarios); if (ap) return ap;
+        if (!avisados.has(n)) { avisados.add(n); semUsuario.set(n, 0); } return null;
       };
       const modeloPor = new Map<string, string>();
       (modelos || []).forEach((m: any) => { [m.nome, m.titulo].forEach((x) => x && !modeloPor.has(norm(x)) && modeloPor.set(norm(x), m.id)); });
       const modeloDe = (t: string) => { const id = modeloPor.get(norm(t)); if (!id) semModelo.set(t, (semModelo.get(t) || 0) + 1); return id || null; };
       const etqId = new Map<string, string>((etqs || []).map((e: any) => [norm(e.nome), e.id]));
       const faltam = Array.from(new Set(ok.flatMap((l) => l.etiquetas).filter((e: string) => norm(e) !== "captura" && !etqId.has(norm(e)))));
-      for (const nome of faltam) {
-        const { data, error } = await db.from("etiquetas").insert({ nome: String(nome).toUpperCase(), coordenacao_id: COORD, created_by: userId }).select("id").single();
-        if (!error && data) etqId.set(norm(nome), data.id);
+      etapa("Etiquetas", 0, 1, {}, true);
+      if (faltam.length) {
+        const { data, error } = await db.from("etiquetas").insert(faltam.map((nome) => ({ nome: String(nome).toUpperCase(), coordenacao_id: COORD, created_by: userId }))).select("id, nome");
+        if (error) erros.push({ Etapa: "Etiquetas", Erro: error.message });
+        (data || []).forEach((e: any) => etqId.set(norm(e.nome), e.id));
       }
+      etapa("Etiquetas", 1, 1, {}, true);
       const clienteId = cli?.[0]?.id || null;
 
       // Processos
       const digs = Array.from(new Set(ok.map((l) => l.dig).filter((d) => d.length === 20)));
       const proc = new Map<string, { id: string; coord: string | null; pro: string | null }>();
-      for (let k = 0; k < digs.length; k += 100) {
-        const parte = digs.slice(k, k + 100);
+      const blocosP = Array.from({ length: Math.ceil(digs.length / 100) }, (_, i) => digs.slice(i * 100, i * 100 + 100));
+      let achados = 0;
+      await executarFila(blocosP, async (parte) => {
         const { data, error } = await db.from("processos").select("id, numero, coordenacao_id, identificador_projuris").in("numero", [...parte, ...parte.map(formatarCnj)]);
         if (error) throw error;
         (data || []).forEach((p: any) => proc.set(digitos(p.numero), { id: p.id, coord: p.coordenacao_id, pro: p.identificador_projuris }));
-        setMsg(`Procurando processos: ${Math.min(k + 100, digs.length)} de ${digs.length}`);
-      }
+        achados += parte.length; etapa("Procurando processos", achados, digs.length);
+      }, 4);
       const primeira = new Map<string, any>(); ok.forEach((l) => l.dig.length === 20 && !primeira.has(l.dig) && primeira.set(l.dig, l));
       const outras = Array.from(primeira.keys()).filter((d) => proc.has(d) && proc.get(d)!.coord !== COORD);
       for (let k = 0; k < outras.length; k += LOTE) {
@@ -138,11 +158,17 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
       cont.processosVinculados = outras.length;
       await log(outras.map((d) => ({ tipo: "processo", chave_externa: d, registro_id: proc.get(d)!.id, status: "existente", motivo: "Já cadastrado em outra coordenação; Santander Cível adicionado como responsável", dados: { pro: primeira.get(d).pro } })));
       // Guarda o PRO. nos processos existentes que ainda não têm
-      for (const d of Array.from(primeira.keys()).filter((d) => proc.has(d) && !proc.get(d)!.pro && primeira.get(d).pro)) {
+      const semPro = Array.from(primeira.keys()).filter((d) => proc.has(d) && !proc.get(d)!.pro && primeira.get(d).pro);
+      let gravPro = 0;
+      await executarFila(semPro, async (d) => {
+        if (cancelar.current) return;
         await db.from("processos").update({ identificador_projuris: primeira.get(d).pro }).eq("id", proc.get(d)!.id).is("identificador_projuris", null);
-      }
+        gravPro++; etapa("Gravando número Projuris nos processos", gravPro, semPro.length);
+      }, 8);
       const novos = Array.from(primeira.keys()).filter((d) => !proc.has(d));
       for (let k = 0; k < novos.length; k += LOTE) {
+        if (cancelar.current) break;
+        etapa("Criando processos", k, novos.length, {}, true);
         const parte = novos.slice(k, k + LOTE).map((d) => primeira.get(d));
         const { data, error } = await db.from("processos").insert(parte.map((l: any) => ({
           numero: formatarCnj(l.dig), area: "civil", status: "ativo", coordenacao_id: COORD, cliente_id: clienteId,
@@ -156,22 +182,24 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
         (data || []).forEach((p: any) => proc.set(digitos(p.numero), { id: p.id, coord: COORD, pro: null }));
         await log((data || []).map((p: any) => ({ tipo: "processo", chave_externa: digitos(p.numero), registro_id: p.id, status: "criado", dados: { pro: primeira.get(digitos(p.numero))?.pro } })));
         cont.processosCriados += (data || []).length;
-        setMsg(`Criando processos: ${Math.min(k + LOTE, novos.length)} de ${novos.length}`); await ceder();
+        await ceder();
       }
       // CAPTURA em processos existentes liga o Acompanhamento Especial
       const capt = Array.from(primeira.values()).filter((l: any) => l.etiquetas.some((e: string) => norm(e) === "captura") && proc.has(l.dig)).map((l: any) => proc.get(l.dig)!.id);
       for (let k = 0; k < capt.length; k += LOTE) await db.from("processos").update({ acompanhamento_especial: true }).in("id", capt.slice(k, k + LOTE)).eq("acompanhamento_especial", false);
 
       // Atividades
-      setProg({ feito: 0, total: ok.length });
+      etapa("Gravando atividades", 0, ok.length, {}, true);
+      let gravadas = 0;
       const extras = (l: any) => [
         l.obs, l.compl ? `Descrição complementar: ${l.compl}` : "",
         `Importado Projuris — ${l.tar}${l.pro ? ` / ${l.pro}` : ""}`,
         l.criadoPor ? `Criada por (Projuris): ${l.criadoPor}` : "", l.concluidoPor ? `Concluída por (Projuris): ${l.concluidoPor}` : "",
         l.dig.length !== 20 ? "Sem processo válido na planilha" : "",
       ].filter(Boolean).join("\n");
-      for (let k = 0; k < ok.length; k += LOTE) {
-        const parte = ok.slice(k, k + LOTE);
+      const lotes = Array.from({ length: Math.ceil(ok.length / LOTE) }, (_, i) => ok.slice(i * LOTE, i * LOTE + LOTE));
+      await executarFila(lotes, async (parte) => {
+        if (cancelar.current) return;
         const tar = parte.filter((l) => !l.audiencia); const aud = parte.filter((l) => l.audiencia);
         const pid = (l: any) => proc.get(l.dig)?.id || null;
         const etqRows: any[] = []; const comRowsT: any[] = []; const comRowsA: any[] = [];
@@ -232,13 +260,20 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
             await log(rows.map((r: any, j: number) => ({ tipo: "audiencia", chave_externa: aud[j].tar, registro_id: r.id, status: "criado", dados: { titulo: aud[j].titulo, tipo: "AUDIÊNCIA", data: aud[j].prevista, pro: aud[j].pro } })));
           }
         }
-        if (etqRows.length) { const { error } = await db.from("etiquetas_itens").insert(etqRows); if (!error) cont.etiquetas += etqRows.length; }
-        if (comRowsT.length) { const { error } = await db.from("comentarios_tarefas").insert(comRowsT); if (!error) cont.comentarios += comRowsT.length; }
-        if (comRowsA.length) { const { error } = await db.from("comentarios_audiencias").insert(comRowsA); if (!error) cont.comentarios += comRowsA.length; }
-        setProg({ feito: Math.min(k + LOTE, ok.length), total: ok.length }); setMsg(""); await ceder();
-      }
-      await db.from("migracoes_projuris").update({ status: "concluida", contadores: cont }).eq("id", mid);
-      setRelatorio({ cont, semUsuario: Array.from(semUsuario), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo) });
+        const [r1, r2, r3] = await Promise.all([
+          etqRows.length ? db.from("etiquetas_itens").insert(etqRows) : { error: null },
+          comRowsT.length ? db.from("comentarios_tarefas").insert(comRowsT) : { error: null },
+          comRowsA.length ? db.from("comentarios_audiencias").insert(comRowsA) : { error: null },
+        ]);
+        if (r1.error) erros.push({ Etapa: "Etiquetas das atividades", Erro: r1.error.message }); else cont.etiquetas += etqRows.length;
+        if (r2.error) erros.push({ Etapa: "Comentários", Erro: r2.error.message }); else cont.comentarios += comRowsT.length;
+        if (r3.error) erros.push({ Etapa: "Comentários de audiências", Erro: r3.error.message }); else cont.comentarios += comRowsA.length;
+        gravadas += parte.length;
+        etapa("Gravando atividades", gravadas, ok.length, { criados: cont.audiencias + cont.prazos + cont.tarefas, erros: cont.erros });
+      }, 3);
+      etapa(cancelar.current ? "Cancelado" : "Finalizando", gravadas, ok.length, { criados: cont.audiencias + cont.prazos + cont.tarefas, erros: cont.erros }, true);
+      await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
+      setRelatorio({ cont, cancelado: cancelar.current, semUsuario: Array.from(semUsuario.keys()).map((n) => [n, ok.filter((l) => l.responsaveis.includes(n)).length]), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo) });
       toast.success(`Agenda futura: ${cont.audiencias} audiências, ${cont.prazos} prazos e ${cont.tarefas} tarefas importados.`);
       setLinhas(null); onConcluido?.();
     } catch (e: any) {
@@ -263,6 +298,8 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
 
   const aImportar = linhas ? linhas.filter((l) => !l.motivo).length : 0;
   const pct = prog.total ? Math.round((prog.feito / prog.total) * 100) : 0;
+  const decorrido = prog.inicio ? (Date.now() - prog.inicio) / 1000 : 0;
+  const restante = prog.feito > 0 && prog.feito < prog.total ? Math.round((decorrido / prog.feito) * (prog.total - prog.feito)) : null;
   return (
     <Card>
       <CardHeader>
@@ -277,13 +314,26 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
           <Upload className="h-6 w-6" /> Enviar AGENDA_FUTURA_PROJURIS.xlsx
           <input type="file" accept=".xlsx,.xls" className="hidden" disabled={rodando} onChange={(e) => { void ler(e.target.files?.[0]); e.target.value = ""; }} />
         </label>
+        {rodando && prog.etapa && (
+          <div className="space-y-1 rounded-md border bg-muted/30 p-3">
+            <div className="flex justify-between text-sm font-medium"><span>{cancelar.current ? "Cancelando…" : prog.etapa}</span><span>{pct}%</span></div>
+            <Progress value={pct} />
+            <p className="text-xs text-muted-foreground">
+              {prog.feito.toLocaleString("pt-BR")} de {prog.total.toLocaleString("pt-BR")}
+              {prog.criados ? ` · ${prog.criados.toLocaleString("pt-BR")} criados` : ""}{prog.erros ? ` · ${prog.erros} erros` : ""}
+              {restante !== null ? ` · faltam ~${restante >= 60 ? `${Math.ceil(restante / 60)} min` : `${restante} s`}` : ""}
+            </p>
+          </div>
+        )}
         {msg && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />{msg}</p>}
         {linhas && (
           <div className="space-y-2 rounded-md border p-3">
             <h4 className="text-sm font-semibold">Conferência (nada foi gravado ainda)</h4>
             {resumo.map(([k, n]) => <div key={k} className="flex justify-between text-sm"><span>{k}</span><Badge variant="secondary">{n.toLocaleString("pt-BR")}</Badge></div>)}
-            {rodando && prog.total > 0 && <div className="space-y-1"><Progress value={pct} /><p className="text-xs text-muted-foreground">{prog.feito} de {prog.total}</p></div>}
-            <Button disabled={rodando || !aImportar} onClick={importar}>{rodando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Importar {aImportar.toLocaleString("pt-BR")} atividades</Button>
+            <div className="flex gap-2">
+              <Button disabled={rodando || !aImportar} onClick={importar}>{rodando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Importar {aImportar.toLocaleString("pt-BR")} atividades</Button>
+              {rodando && <Button variant="outline" onClick={() => { cancelar.current = true; toast.info("Cancelando ao fim do lote atual…"); }}><X className="mr-1 h-4 w-4" />Cancelar</Button>}
+            </div>
           </div>
         )}
         {relatorio && (
