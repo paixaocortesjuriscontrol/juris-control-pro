@@ -7,7 +7,7 @@
 
 ## Como será a importação
 1. Nova opção na tela de Migração Projuris: "Agenda futura (planilha)", só para admin, gravando sempre na Coordenação Santander Cível.
-2. Tipo de cada item pelo título (mesma regra já usada no Projuris): audiência só quando o título indicar audiência (UNA, AC, AIJ, Sessão de julgamento etc.); os demais viram prazo ou tarefa.
+2. Audiências: somente os títulos indicados pelo advogado viram audiência — AC, AC PRESENCIAL, UNA, UNA PRESENCIAL, AIJ, AIJ PRESENCIAL e SESSÃO DE JULGAMENTO (na planilha: 175 + 53 + 115 + 86 + 27 + 17 + 26 = 499). Todos os outros títulos viram prazo ou tarefa pela regra atual, nunca audiência.
 3. Modelos de tarefa: o título é ligado ao modelo já existente na coordenação com o mesmo nome; se não houver, o título é mantido sem criar modelo novo.
 4. Números Projuris gravados: identificador da atividade (TAR.) e do processo (PRO.) ficam salvos e registrados na auditoria da migração, para a futura migração dos CSVs reconhecer e não duplicar.
 5. Processo: procura pelo número no sistema; se não existir, cria cadastro básico no Santander Cível (número, partes, pasta física/cliente, órgão, assunto, cliente Banco Santander) com o PRO. gravado. Se existir em outra coordenação, só adiciona o Santander Cível como responsável.
@@ -18,6 +18,7 @@
 10. Ao final, relatório Excel: criados por tipo, processos criados/vinculados, pessoas e modelos não encontrados, linhas com problema.
 
 ## Detalhes técnicos
-- Reaproveita `classificarTipo`, `migracoes_projuris` / `migracoes_projuris_itens` (tipo + chave_externa TAR./PRO.), leitura em Web Worker e gravação em lotes com divisão do lote em erro.
+- Lista fixa de títulos de audiência (comparação exata, sem acento/maiúsculas) antes de `classificarTipo`; reaproveita `migracoes_projuris` / `migracoes_projuris_itens` (tipo + chave_externa TAR./PRO.), leitura em Web Worker e gravação em lotes com divisão do lote em erro.
 - Itens vão para `tarefas` ou `audiencias_detectadas` conforme o tipo; `modelo_tarefa_id` quando houver modelo; `processos.projuris_*` para o PRO. (conferir coluna existente; se faltar, migração pequena só para adicionar a coluna).
 - Testes para divisão por "|", deduplicação de comentários, conversão de situação e classificação de tipo.
+- Teste garantindo que só os 7 títulos da lista viram audiência.
