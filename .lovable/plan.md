@@ -1,17 +1,23 @@
-# DJEN Servidor: TST sem publicações hoje (16/11/2026)
+# DJEN Servidor mais resistente a quedas (modelo "caderno")
 
-## O que foi confirmado
-- O DJEN Servidor rodou hoje às 04h30, 06h00 e 07h30. Tudo indica que nenhuma rodada rodou no sábado nem no domingo.
-- Na rodada das 04h30, a busca do TST falhou: 38 erros de conexão ("fetch failed") e cerca de 80 bloqueios temporários do DJEN (403) nas VPS. As buscas do TST trouxeram 0 publicações novas e 0 duplicadas, ou seja, não chegaram a ler nada.
-- Por isso estão zeradas as coordenações que dependem do TST pelo DJEN: Dra. Renata Oficial, Dra. Vanessa Gomes TST, JOMAGA/AVIANCA, Santander Trabalhista e Citibank. As 914 publicações do TST que entraram hoje vieram pelo Kurier, não pelo DJEN Servidor.
-- As rodadas das 06h00 e 07h30 foram rápidas e não repetiram o TST.
+## O que muda para você
+Hoje o DJEN Servidor pesquisa advogado por advogado e termo por termo no Comunica PJe. Quando o site cai ou bloqueia (como em 16/11/2026), as coordenações ficam sem publicações.
+A proposta é fazer como os serviços tipo Kurier: baixar de uma vez o **caderno completo do dia** de cada tribunal, guardar no sistema e fazer a busca por nome/OAB/termos dentro desse material guardado.
 
-## O que fazer
-1. Às 08h08, o site do Comunica PJe não respondeu e a consulta das publicações foi recusada (bloqueio 403). Assim que ele voltar, rodar uma repescagem só do TST para o dia 16/11/2026, sem esperar a rodada das 10h00.
-2. Depois que ela terminar, conferir quantas publicações entraram em cada coordenação, comparando com sexta (13/11).
-3. Se os bloqueios 403 continuarem, distribuir os termos do TST entre as outras VPS e aumentar a espera entre as tentativas, que já está prevista.
-4. Corrigir a regra que considera a busca "concluída" quando todas as tentativas do TST falham, para que esse tipo de falha conte como pendente e entre automaticamente na próxima repescagem.
+## Etapas
+1. **Download do caderno por tribunal e data** logo após a disponibilização (madrugada, ex.: 01h00, 03h00 e 05h00), com novas tentativas automáticas a cada 15 minutos até 09h00 quando houver falha ou bloqueio.
+2. **Guardar o caderno** (arquivo e comunicações extraídas) na base própria, com registro de tribunal, data, horário do download e situação.
+3. **Busca local**: os termos, advogados e partes de cada coordenação passam a ser conferidos dentro do caderno guardado, respeitando as regras atuais (parte só em partes; advogado só em advogados; escopo de tribunais por coordenação; isolamento por coordenação).
+4. **Gravação igual à de hoje** em `publicacoes_djen`, com a mesma deduplicação — sem duplicar o que a consulta normal ou o Kurier já trouxeram.
+5. **Consulta normal mantida como reserva**: se o caderno de um tribunal não for obtido, a rodada atual continua funcionando como hoje.
+6. **Registro de indisponibilidade**: guardar cada falha/bloqueio do DJEN com data e hora (BRT), para servir de prova em eventual contagem de prazo.
+7. **Tela de acompanhamento**: no DJEN Servidor, um quadro por tribunal mostrando se o caderno do dia foi baixado, quantas comunicações tem e quantas publicações geraram.
 
 ## Detalhes técnicos
-- Execução 4c8feb18 (04h30 BRT): os cartões parte, palavra-chave e processo do TST tiveram erro, mesmo com o lote marcado como concluído.
-- O item 4 muda o checkpoint (`unidadesConcluidas`) para não incluir uma unidade quando todas as consultas dela falharam.
+- Endpoint: `comunicaapi.pje.jus.br/api/v1/caderno/{tribunal}/{data}/{meio}` (retorna link para arquivo compactado). Não é usado hoje no projeto.
+- Download feito pelo monitor na VPS (`monitor-servidor`, com `proxyPool`), pois arquivos grandes e bloqueios 403 inviabilizam Edge Function.
+- Novas tabelas: `djen_cadernos` (tribunal, data, meio, status, tentativas, total) e `djen_indisponibilidades`; RLS somente leitura para usuários autenticados com acesso, escrita só service_role.
+- Primeiro passo de implementação: testar o endpoint para TST e um TRT e confirmar formato e tamanho reais antes de construir a busca local.
+
+## Fora do escopo agora
+- Integração com PJe por credencial de advogado e Domicílio Judicial Eletrônico (pode ser etapa futura).
