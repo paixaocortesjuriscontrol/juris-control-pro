@@ -66,7 +66,7 @@ import type { Prazo } from "@/hooks/usePrazos";
 import { concluirItensEmLote } from "@/lib/concluirItensEmLote";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { podeSelecionarItemLista } from "@/lib/selecaoItensLista";
-import { primeiraLinhaObservacao } from "@/lib/primeiraLinhaObservacao";
+import { primeiraLinhaObservacao, trechosObservacao, textoObservacaoSemTags } from "@/lib/primeiraLinhaObservacao";
 
 const PAGE_SIZE = 50;
 
@@ -1158,7 +1158,8 @@ export default function ListaAtividadesView({
                       const audiencia = item.tipo === "audiencia"
                         ? audienciaDetalhesLookup?.[getItemRawId(r.id)]
                         : undefined;
-                      const observacao = primeiraLinhaObservacao((r as any).observacoes);
+                      const observacaoTrechos = trechosObservacao(primeiraLinhaObservacao((r as any).observacoes));
+                      const observacao = observacaoTrechos.length > 0 && observacaoTrechos.some((t) => t.texto.trim());
                       const detalhesAudiencia = item.tipo === "audiencia" ? [
                         ["Tipo", audiencia?.tipo_audiencia],
                         ["Modalidade", audiencia?.modalidade],
@@ -1275,9 +1276,6 @@ export default function ListaAtividadesView({
                           <TableCell colSpan={7} className="pt-0 pb-2 text-[11px] text-muted-foreground">
                             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                               {r.processo?.assunto && <span className="text-foreground/80">{r.processo.assunto}</span>}
-                              {(r as any).processo_id && (
-                                <span><span className="font-medium text-foreground/70">Reclamante:</span> {partesAtivo || "—"} <span className="mx-1">x</span><span className="font-medium text-foreground/70">Reclamada:</span> {partesPassivo || "—"}</span>
-                              )}
                               {item.tipo === "audiencia" && detalhesAudiencia.map(([rotulo, valor]) => (
                                 <span key={rotulo}><span className="font-medium text-foreground/70">{rotulo}:</span> {valor}</span>
                               ))}
@@ -1295,14 +1293,23 @@ export default function ListaAtividadesView({
                                 />
                               </div>
                             </div>
+                            {(r as any).processo_id && (
+                              <div className="mt-0.5">
+                                <span className="font-medium text-foreground/70">Reclamante:</span> {partesAtivo || "—"}
+                                <span className="mx-2">x</span>
+                                <span className="font-medium text-foreground/70">Reclamada:</span> {partesPassivo || "—"}
+                              </div>
+                            )}
+
                           </TableCell>
                         </TableRow>
                         {observacao && (
                           <TableRow data-state={isSel ? "selected" : undefined} className={cn(rowCls, "border-b")} onClick={abrir}>
                             <TableCell />
                             <TableCell colSpan={7} className="pt-0 pb-3 text-[11px]">
-                              <div className="truncate" title={(r as any).observacoes}>
-                                <span className="font-medium text-muted-foreground">Observação:</span> {observacao}
+                              <div className="truncate" title={textoObservacaoSemTags((r as any).observacoes)}>
+                                <span className="font-medium text-muted-foreground">Observação:</span>{" "}
+                                {observacaoTrechos.map((t, i) => t.destaque ? <strong key={i} className="font-semibold text-foreground">{t.texto}</strong> : <span key={i}>{t.texto}</span>)}
                               </div>
                             </TableCell>
                           </TableRow>
