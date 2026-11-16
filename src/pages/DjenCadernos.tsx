@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Progress } from "@/components/ui/progress";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Download, Search } from "lucide-react";
+import { Loader2, Download, Search, X } from "lucide-react";
 import { toast } from "sonner";
 
 const TRIBUNAIS = ["TST", ...Array.from({ length: 24 }, (_, i) => `TRT${i + 1}`), "STJ", "TJSP", "TJMG", "TJRJ", "TJDFT", "TJGO", "TRF1"];
@@ -20,6 +21,9 @@ export default function DjenCadernos() {
   const [selecionados, setSelecionados] = useState<string[]>(["TST"]);
   const [data, setData] = useState(hojeBrt());
   const [baixando, setBaixando] = useState<string | null>(null);
+  const [progresso, setProgresso] = useState<{ tribunal: string; idx: number; qtd: number; gravadas: number; total: number } | null>(null);
+  const [cancelando, setCancelando] = useState(false);
+  const cancelarRef = useRef(false);
   const [cadernoAtivo, setCadernoAtivo] = useState<string | null>(null);
   const [campo, setCampo] = useState<"partes" | "advogados" | "numero_digitos">("partes");
   const [termo, setTermo] = useState("");
@@ -69,10 +73,16 @@ export default function DjenCadernos() {
   });
 
   const baixar = async () => {
-    for (const t of selecionados) {
+    cancelarRef.current = false;
+    setCancelando(false);
+    const lista = [...selecionados];
+    for (const [idx, t] of lista.entries()) {
+      if (cancelarRef.current) break;
       setBaixando(t);
+      setProgresso({ tribunal: t, idx, qtd: lista.length, gravadas: 0, total: 0 });
       let offset: number | null = 0;
       while (offset != null) {
+        if (cancelarRef.current) { toast.info(`${t}: download cancelado`); break; }
         const { data: r, error } = await supabase.functions.invoke("djen-cadernos-baixar", { body: { tribunal: t, data, offset } });
         if (error || !r?.ok) {
           let det = r?.erro || error?.message || "falha";
@@ -80,7 +90,8 @@ export default function DjenCadernos() {
           toast.error(`${t}: ${det}`);
           break;
         }
-        setBaixando(`${t} (${r.gravadas.toLocaleString("pt-BR")} de ${r.total.toLocaleString("pt-BR")})`);
+        setBaixando(t);
+        setProgresso({ tribunal: t, idx, qtd: lista.length, gravadas: r.gravadas ?? 0, total: r.total ?? 0 });
         await qc.invalidateQueries({ queryKey: ["djen-cadernos"] });
         if (r.proximo == null) toast.success(`${t}: ${r.total.toLocaleString("pt-BR")} comunicações`);
         offset = r.proximo;
@@ -88,7 +99,11 @@ export default function DjenCadernos() {
       await qc.invalidateQueries({ queryKey: ["djen-cadernos"] });
     }
     setBaixando(null);
+    setProgresso(null);
+    setCancelando(false);
   };
+  const cancelar = () => { cancelarRef.current = true; setCancelando(true); };
+  const pct = progresso && progresso.total > 0 ? Math.min(100, Math.round((progresso.gravadas / progresso.total) * 100)) : 0;
 
   const ativo = cadernos.data?.find((c) => c.id === cadernoAtivo);
 
@@ -107,9 +122,28 @@ export default function DjenCadernos() {
             <div className="flex gap-2 items-center">
               <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="w-44" />
               <Button onClick={baixar} disabled={!!baixando || !selecionados.length}>
-                {baixando ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Baixando {baixando}…</> : <><Download className="h-4 w-4 mr-2" />Baixar</>}
+                {baixando ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Baixando…</> : <><Download className="h-4 w-4 mr-2" />Baixar</>}
               </Button>
+              {baixando && (
+                <Button variant="outline" onClick={cancelar} disabled={cancelando}>
+                  {cancelando ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Cancelando…</> : <><X className="h-4 w-4 mr-2" />Cancelar</>}
+                </Button>
+              )}
             </div>
+            {progresso && (
+              <div className="space-y-1 rounded-md border p-3">
+                <div className="flex justify-between text-sm">
+                  <span className="font-medium">{progresso.tribunal} ({progresso.idx + 1} de {progresso.qtd})</span>
+                  <span className="text-muted-foreground">
+                    {progresso.total > 0
+                      ? `${progresso.gravadas.toLocaleString("pt-BR")} de ${progresso.total.toLocaleString("pt-BR")} comunicações · ${pct}%`
+                      : "Baixando o caderno…"}
+                  </span>
+                </div>
+                <Progress value={progresso.total > 0 ? pct : 5} />
+                {cancelando && <p className="text-xs text-muted-foreground">Para ao terminar a parte em andamento.</p>}
+              </div>
+            )}
             <p className="text-xs text-muted-foreground">
               Nada é gravado nas coordenações. Publicações gravadas no sistema neste dia: {comparacao.data?.total ?? "…"} (Kurier: {comparacao.data?.kurier ?? "…"}).
             </p>
