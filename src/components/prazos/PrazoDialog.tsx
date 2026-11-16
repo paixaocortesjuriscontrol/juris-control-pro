@@ -640,7 +640,22 @@ export function PrazoDialog({
     try {
       let tarefaId: string | null = null;
       if (prazo) {
-        await updatePrazo.mutateAsync({ id: prazo.id, ...payload });
+        // Envia só o que mudou: campos fixos do formulário (prioridade, alertas,
+        // data base recalculada) não podem sobrescrever o registro nem esbarrar
+        // na regra da coordenação que só libera mudar a situação.
+        const original = prazo as any;
+        const { prioridade: _p, alerta_dias: _ad, alerta_unidade: _au, ...resto } = payload as any;
+        if (original.data_base) delete resto.data_base;
+        // Sem repetição antes e depois: campos de recorrência não mudam (o banco guarda intervalo 1 por padrão).
+        if (!resto.recorrente && !original.recorrente) {
+          delete resto.recorrencia_tipo; delete resto.recorrencia_intervalo; delete resto.recorrencia_fim; delete resto.recorrencia_rrule;
+        }
+        const norm = (v: any) => (v === undefined || v === "" ? null : typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : v);
+        const mudancas: Record<string, any> = {};
+        for (const [k, v] of Object.entries(resto)) {
+          if (!(k in original) || norm(v) !== norm(original[k])) mudancas[k] = v;
+        }
+        await updatePrazo.mutateAsync({ id: prazo.id, ...mudancas } as any);
         tarefaId = prazo.id;
       } else {
         const result = await createPrazo.mutateAsync({ ...payload, criado_por: user?.id });
