@@ -88,6 +88,7 @@ function isAgendaItem(row: ListaRow): row is ItemAgendaUnificado {
 
 const STATUS_DOT: Record<string, string> = {
   pendente: "bg-amber-500",
+  a_confirmar: "bg-blue-500",
   cumprido: "bg-emerald-500",
   concluido: "bg-emerald-500",
   tratado: "bg-emerald-500",

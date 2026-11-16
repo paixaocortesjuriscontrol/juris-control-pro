@@ -1,4 +1,5 @@
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { decidirPassoPosSalvacaoPrazo } from "@/lib/prazoFluxoPosSalvacao";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -525,6 +526,10 @@ export function PrazoDialog({
     }
     if (!dataLimite) {
       toast.error("Informe a data limite");
+      return;
+    }
+    if (!prazo && (ehDataPassada(dataLimite) || ehDataPassada(dataFatal))) {
+      toast.error(MSG_DATA_PASSADA);
       return;
     }
     if (responsaveisIds.length === 0) {

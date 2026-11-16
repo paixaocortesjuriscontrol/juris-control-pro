@@ -3,6 +3,7 @@ import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
+import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
@@ -671,6 +672,10 @@ export function NovaTarefaDialog({
     logTentativa("inicio", { editar: !!tarefaParaEditar?.id, recorrenciaTipo, recorrenciaFim, situacao, responsaveisIds, values });
     if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim) {
       window.alert("Para criar um item com repetição, é obrigatório informar a data fim (campo \"Ou até a data\") ou a quantidade de vezes que deve aparecer.\n\nAssim o item não se repete para sempre no calendário.");
+      return;
+    }
+    if (!tarefaParaEditar?.id && (ehDataPassada(values.data_vencimento) || ehDataPassada(values.data_fatal))) {
+      toastSonner.error(MSG_DATA_PASSADA);
       return;
     }
     let comentarioSituacaoTxt = "";

@@ -1,4 +1,5 @@
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
@@ -333,6 +334,10 @@ export function AudienciaFormSimplificado({
     }
     if (!form.data_audiencia) {
       toast.error("Informe a data");
+      return;
+    }
+    if (!isEditing && ehDataPassada(form.data_audiencia)) {
+      toast.error(MSG_DATA_PASSADA);
       return;
     }
     const situacaoMudou = isEditing && situacao !== situacaoInicial;

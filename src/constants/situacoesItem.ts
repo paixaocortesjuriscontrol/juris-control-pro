@@ -46,7 +46,7 @@ export function situacaoExigeComentario(_valor?: string | null): boolean {
 export function situacoesBase(tipo: TipoSituacaoItem): SituacaoOption[] {
   const sucesso = valorConcluidoSucesso(tipo);
   const lista: SituacaoOption[] = [
-    { value: "a_confirmar", label: "⏱️ A confirmar" },
+    { value: "a_confirmar", label: "🔵 A confirmar" },
     { value: "pendente", label: "⏳ Pendente" },
     { value: "em_execucao", label: "▶️ Em execução" },
     { value: "revisao", label: "🔍 Revisão" },
