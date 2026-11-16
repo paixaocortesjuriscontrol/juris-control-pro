@@ -403,7 +403,7 @@ export function NovaTarefaDialog({
       if (tarefaParaEditar) {
         // Buscar coordenação a partir do processo (se houver)
         let processoId = normalizeUuid(tarefaParaEditar.processo_id);
-        let coordenacaoId = "";
+        let coordenacaoId = normalizeUuid((tarefaParaEditar as any).coordenacao_id) || "";
         let processoNumero = "";
         if (!processoId) {
           const { data: vinculoProc } = await supabase
@@ -724,7 +724,7 @@ export function NovaTarefaDialog({
         throw new Error("Selecione pelo menos um responsável.");
       }
 
-      if (precisaSelecionar && !values.coordenacao_id) {
+      if (precisaSelecionar && !values.coordenacao_id && !tarefaParaEditar?.id) {
         throw new Error("Selecione a coordenação.");
       }
 

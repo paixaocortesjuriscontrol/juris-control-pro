@@ -1334,8 +1334,8 @@ export default function PainelControle() {
 
   // ===== Classificação de um item (mesma regra do filtro de classificação) =====
   const classificarItem = (item: any): "audiencia" | "prazo" | "parcelamento" | "evento" | "tarefa" | "ata" => {
-    const tipoUpper = (item.tipo_tarefa ?? "").toUpperCase().trim();
-    const tipo = (item.tipo ?? "").toLowerCase();
+    const tipoUpper = (item?.tipo_tarefa ?? "").toUpperCase().trim();
+    const tipo = (item?.tipo ?? "").toLowerCase();
     if (tipoUpper === "AUDIÊNCIA" || tipoUpper === "AUDIENCIA" || tipo === "audiencia") return "audiencia";
     if (tipo === "prazo" || tipo === "prazo_parcela") return "prazo";
     if (tipo === "parcelamento") return "parcelamento";
@@ -1840,7 +1840,7 @@ export default function PainelControle() {
     const linhas = rowsFinal.map((r, i) => {
       const { Classificação, Status, ...resto } = r as any;
       return {
-        Tipo: tipoSingular[classificarItem(itensOrdenados[i])] ?? Classificação,
+        Tipo: (itensOrdenados[i] ? tipoSingular[classificarItem(itensOrdenados[i])] : undefined) ?? Classificação,
         Subtipo: itensOrdenados[i]?.tipo_tarefa ?? "",
         Situação: Status ?? "",
         ...resto,
