@@ -1,7 +1,7 @@
 // DJEN Cadernos (experimental): baixa o caderno completo do dia pela API do Comunica.
 // Totalmente separado do DJEN Servidor.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import JSZip from "npm:jszip@3.10.1";
+import { Unzip, UnzipInflate } from "npm:fflate@0.8.2";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -100,40 +100,10 @@ Deno.serve(async (req) => {
   if (!r1) return await falhar("Não foi possível obter o caderno (bloqueio ou falha em todas as tentativas).");
   if ((r1 as any).semCaderno) return await falhar(`O DJEN respondeu (sem bloqueio), mas ainda não há caderno do ${trib} para ${data.split("-").reverse().join("/")}. O caderno costuma sair só depois que o dia termina; tente uma data anterior.`);
   const ct = r1.headers.get("content-type") || "";
-  let buf: Uint8Array;
   let urlArquivo: string | null = null;
-  if (ct.includes("json")) {
-    const meta = await r1.json();
-    urlArquivo = meta?.url || meta?.link || meta?.urlArquivo || null;
-    if (!urlArquivo) {
-      const itens = extrairItens(meta);
-      if (!itens.length) return await falhar(`Resposta sem link do arquivo: ${JSON.stringify(meta).slice(0, 300)}`);
-      buf = new TextEncoder().encode(JSON.stringify(itens));
-    } else {
-      const r2 = await get(urlArquivo, pool, log);
-      if (!r2) return await falhar("Link do caderno obtido, mas o arquivo não pôde ser baixado.");
-      buf = new Uint8Array(await r2.arrayBuffer());
-    }
-  } else {
-    buf = new Uint8Array(await r1.arrayBuffer());
-  }
-
-  let itens: any[] = [];
-  try {
-    if (buf[0] === 0x50 && buf[1] === 0x4b) {
-      const zip = await JSZip.loadAsync(buf);
-      for (const f of Object.values(zip.files)) {
-        if (f.dir || !/\.json$/i.test(f.name)) continue;
-        itens.push(...extrairItens(JSON.parse(await f.async("string"))));
-      }
-    } else {
-      itens = extrairItens(JSON.parse(new TextDecoder().decode(buf)));
-    }
-  } catch (e) {
-    return await falhar(`Arquivo baixado mas não pôde ser lido: ${(e as Error).message}`);
-  }
-
-  const linhas = itens.map((c: any) => {
+  let total = 0;
+  let bytes = 0;
+  const mapear = (c: any) => {
     const num = c.numeroprocessocommascara || c.numero_processo || c.numeroProcesso || "";
     return {
       caderno_id: cad.id,
@@ -144,17 +114,90 @@ Deno.serve(async (req) => {
       advogados: advs(c),
       orgao: c.nomeOrgao || c.orgao || null,
       tipo: c.tipoComunicacao || c.tipoDocumento || null,
-      data_disponibilizacao: (c.data_disponibilizacao || c.datadisponibilizacao || data).slice(0, 10),
-      texto: String(c.texto || "").slice(0, 20000),
+      data_disponibilizacao: String(c.data_disponibilizacao || c.datadisponibilizacao || data).slice(0, 10),
+      texto: String(c.texto || "").slice(0, 8000),
     };
-  });
-  for (let i = 0; i < linhas.length; i += 500) {
-    const { error } = await admin.from("djen_cadernos_comunicacoes").insert(linhas.slice(i, i + 500));
-    if (error) return await falhar(`Falha ao gravar comunicações: ${error.message}`);
+  };
+  const gravar = async (itens: any[]) => {
+    for (let i = 0; i < itens.length; i += 300) {
+      const { error } = await admin.from("djen_cadernos_comunicacoes").insert(itens.slice(i, i + 300).map(mapear));
+      if (error) throw new Error(`Falha ao gravar comunicações: ${error.message}`);
+    }
+    total += itens.length;
+  };
+  const LIMITE = 60 * 1024 * 1024;
+
+  try {
+    let corpo: Response = r1;
+    if (ct.includes("json")) {
+      const meta = await r1.json();
+      urlArquivo = meta?.url || meta?.link || meta?.urlArquivo || null;
+      await log("info", 200, `Resposta: ${JSON.stringify({ ...meta, url: urlArquivo ? "(link)" : undefined }).slice(0, 400)}`, true);
+      if (!urlArquivo) {
+        const itens = extrairItens(meta);
+        if (!itens.length) return await falhar(`Resposta sem link do arquivo: ${JSON.stringify(meta).slice(0, 300)}`);
+        await gravar(itens);
+        corpo = null as any;
+      } else {
+        const r2 = await get(urlArquivo, pool, log);
+        if (!r2 || (r2 as any).semCaderno) return await falhar("Link do caderno obtido, mas o arquivo não pôde ser baixado.");
+        corpo = r2;
+        await log("arquivo", r2.status, `tipo=${r2.headers.get("content-type")} tamanho=${r2.headers.get("content-length")}`, true);
+      }
+    }
+    if (corpo) {
+      // Leitura em fluxo: descompacta e grava arquivo por arquivo, sem carregar o zip inteiro.
+      const pendentes: Promise<void>[] = [];
+      let erroEntrada: string | null = null;
+      const unzip = new Unzip((f) => {
+        if (!/\.json$/i.test(f.name)) return;
+        const partes: Uint8Array[] = [];
+        let tam = 0;
+        f.ondata = (err, chunk, final) => {
+          if (err) { erroEntrada = String(err); return; }
+          tam += chunk.length;
+          if (tam > LIMITE) { erroEntrada = `Arquivo interno ${f.name} grande demais (${(tam / 1048576).toFixed(0)} MB).`; f.terminate(); return; }
+          partes.push(chunk);
+          if (final) {
+            const junto = new Uint8Array(tam);
+            let o = 0; for (const p of partes) { junto.set(p, o); o += p.length; }
+            partes.length = 0;
+            const itens = extrairItens(JSON.parse(new TextDecoder().decode(junto)));
+            pendentes.push(gravar(itens));
+          }
+        };
+        f.start();
+      });
+      unzip.register(UnzipInflate);
+      const reader = corpo.body!.getReader();
+      let primeiro = true, ehZip = true;
+      const crus: Uint8Array[] = [];
+      while (true) {
+        const { value, done } = await reader.read();
+        if (value) {
+          bytes += value.length;
+          if (primeiro) { ehZip = value[0] === 0x50 && value[1] === 0x4b; primeiro = false; }
+          if (ehZip) unzip.push(value, false); else { crus.push(value); if (bytes > LIMITE) throw new Error("Resposta grande demais para ler sem compactação."); }
+          if (erroEntrada) throw new Error(erroEntrada);
+          if (pendentes.length > 2) { await Promise.all(pendentes.splice(0)); }
+        }
+        if (done) break;
+      }
+      if (ehZip) unzip.push(new Uint8Array(0), true);
+      else {
+        const junto = new Uint8Array(bytes); let o = 0; for (const p of crus) { junto.set(p, o); o += p.length; }
+        await gravar(extrairItens(JSON.parse(new TextDecoder().decode(junto))));
+      }
+      await Promise.all(pendentes);
+      if (erroEntrada) throw new Error(erroEntrada);
+    }
+  } catch (e) {
+    return await falhar(`Arquivo baixado mas não pôde ser lido: ${(e as Error).message}`);
   }
+
   await admin.from("djen_cadernos").update({
-    status: "ok", tamanho_bytes: buf.byteLength, total_comunicacoes: linhas.length,
+    status: "ok", tamanho_bytes: bytes, total_comunicacoes: total,
     tentativas, duracao_ms: Date.now() - inicio, url_arquivo: urlArquivo,
   }).eq("id", cad.id);
-  return j({ ok: true, total: linhas.length, tamanho: buf.byteLength, tentativas });
+  return j({ ok: true, total, tamanho: bytes, tentativas });
 });
