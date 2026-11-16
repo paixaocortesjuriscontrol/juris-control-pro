@@ -7,20 +7,20 @@ A primeira coluna ("Atividade") acumula tudo: número do processo, tipo, título
 
 ```text
 ┌───┬──────────────────────────────┬──────────────┬──────────┬──────────┬──────────┬───────────┬────────┬───────┐
-│ ☐ │ TÍTULO DA ATIVIDADE  [Prazo] │ Observação   │ Respons. │ Limite   │ Fatal    │ Prioridade│ Status │ Ações │
-│   │ 💬 📎 🔔                      │ (1ª linha)   │          │ 20/11    │ 25/11    │           │        │       │
+│ ☐ │ PROCESSO 0001234-56... [Prazo]│ Observação   │ Respons. │ Limite   │ Fatal    │ Prioridade│ Status │ Ações │
+│   │ TÍTULO DA ATIVIDADE  💬 📎 🔔 │ (1ª linha)   │          │ 20/11    │ 25/11    │           │        │       │
 ├───┴──────────────────────────────┴──────────────┴──────────┴──────────┴──────────┴───────────┴────────┴───────┤
-│   Processo 0001234-56.2026.5.02.0001 · Assunto · Reclamante: Fulano x Reclamada: Banco · Local/Órgão · Etiquetas │
+│   Assunto · Reclamante: Fulano x Reclamada: Banco · Local/Órgão · Etiquetas │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 **Linha 1 (principal), o que precisa ser feito:**
-- Título em destaque, com o tipo (Tarefa, Prazo, Ata, Audiência) ao lado e os ícones logo abaixo.
+- No topo da primeira coluna, o **número do processo** (clicável) com o tipo (Tarefa, Prazo, Ata, Audiência) ao lado; logo abaixo, o título em destaque com os ícones.
 - Observação (1ª linha), Responsável, Prioridade, Status e Ações, como hoje.
 - Datas em colunas próprias e mais estreitas: **Limite** e **Fatal**. Base e Publicação passam para a linha 2.
 
 **Linha 2 (detalhes do processo), em fundo levemente acinzentado e letra menor, ocupando toda a largura:**
-- Número do processo (clicável), assunto, "Reclamante x Reclamada", local/órgão (ou os detalhes da audiência), data base, publicação e etiquetas.
+- Assunto, "Reclamante x Reclamada", local/órgão (ou os detalhes da audiência), data base, publicação e etiquetas.
 - Se a atividade não tiver processo, a linha 2 mostra só o que existir (ou some).
 
 ## Ganhos
