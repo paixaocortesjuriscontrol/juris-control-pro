@@ -512,6 +512,7 @@ export function useIniciarWorkflow() {
           status: "em_andamento",
           data_inicio: dataInicio,
           observacoes: input.observacoes || null,
+          responsaveis_etapas: input.responsaveis_etapas || {},
           publicacao_origem_tipo: input.publicacao_origem_tipo || null,
           publicacao_origem_id: input.publicacao_origem_id || null,
         })

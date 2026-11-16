@@ -101,6 +101,8 @@ export interface IniciarWorkflowInput {
   processo_numero?: string;
   coordenacao_id?: string;
   responsavel_inicial?: string;
+  /** Responsáveis escolhidos por etapa ao iniciar ({ etapa_id: [usuario_id] }) */
+  responsaveis_etapas?: Record<string, string[]>;
   observacoes?: string;
   /** Data de início da execução (yyyy-MM-dd). Se vazia, assume o dia atual. */
   data_inicio?: string;
@@ -191,7 +193,10 @@ export async function criarItemWorkflow(
       /* mantém a lista original */
     }
   }
-  const responsavelPrincipal = responsavelId || responsaveisEtapa[0] || null;
+  // Responsáveis escolhidos para esta etapa ao iniciar o fluxo têm prioridade
+  const escolhidos: string[] = (((execucao as any)?.responsaveis_etapas || {})[etapa.id] || []).filter(Boolean);
+  if (escolhidos.length > 0) responsaveisEtapa = escolhidos;
+  const responsavelPrincipal = escolhidos[0] || responsavelId || responsaveisEtapa[0] || null;
   const todosResponsaveis = Array.from(
     new Set([...(responsavelPrincipal ? [responsavelPrincipal] : []), ...responsaveisEtapa])
   );

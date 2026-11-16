@@ -71,6 +71,16 @@ export function IniciarWorkflowDialog({
   const [responsavelInicial, setResponsavelInicial] = useState("");
   
   const [observacoes, setObservacoes] = useState("");
+  const [respEtapas, setRespEtapas] = useState<Record<string, string>>({});
+  const [etapasWf, setEtapasWf] = useState<{ id: string; titulo: string; ordem: number; tipo_item?: string }[]>([]);
+  useEffect(() => {
+    setRespEtapas({});
+    if (!selectedWorkflowId) { setEtapasWf([]); return; }
+    let ativo = true;
+    supabase.from("workflow_etapas").select("id, titulo, ordem, tipo_item").eq("workflow_id", selectedWorkflowId).order("ordem")
+      .then(({ data }) => { if (ativo) setEtapasWf((data as any[]) || []); });
+    return () => { ativo = false; };
+  }, [selectedWorkflowId]);
   const [dataInicio, setDataInicio] = useState(dataBaseInicial);
 
   useEffect(() => {
@@ -128,6 +138,7 @@ export function IniciarWorkflowDialog({
       processo_numero: selectedProcesso?.numero,
       coordenacao_id: coordenacaoId,
       responsavel_inicial: responsavelInicial || undefined,
+      responsaveis_etapas: Object.fromEntries(Object.entries(respEtapas).filter(([, v]) => v).map(([k, v]) => [k, [v]])),
       observacoes: observacoes || undefined,
       data_inicio: dataInicio || undefined,
       publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
@@ -156,6 +167,7 @@ export function IniciarWorkflowDialog({
     setSearch("");
     setSelectedProcesso(preSelectedProcesso || null);
     setResponsavelInicial("");
+    setRespEtapas({});
 
 
     setObservacoes("");
@@ -309,6 +321,31 @@ export function IniciarWorkflowDialog({
               </SelectContent>
             </Select>
           </div>
+          {etapasWf.length > 0 && (
+            <div className="space-y-2 rounded-md border p-3">
+              <Label>Responsáveis por etapa</Label>
+              <p className="text-xs text-muted-foreground">Deixe em "Padrão do modelo" para usar a configuração do workflow.</p>
+              {etapasWf.map((et, i) => (
+                <div key={et.id} className="grid grid-cols-[1fr_1.2fr] items-center gap-2">
+                  <span className="text-sm truncate" title={et.titulo}>{i + 1}. {et.titulo}</span>
+                  <Select
+                    value={respEtapas[et.id] || "__padrao"}
+                    onValueChange={(v) => setRespEtapas((a) => ({ ...a, [et.id]: v === "__padrao" ? "" : v }))}
+                    disabled={!coordenacaoId}
+                  >
+                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__padrao">Padrão do modelo</SelectItem>
+                      {usuarios.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>{u.nome} {u.cargo ? `(${u.cargo})` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="data-inicio">
               {publicacaoOrigem ? "Data-base da publicação" : "Data de início da execução"}
@@ -385,7 +422,7 @@ export function IniciarWorkflowDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}

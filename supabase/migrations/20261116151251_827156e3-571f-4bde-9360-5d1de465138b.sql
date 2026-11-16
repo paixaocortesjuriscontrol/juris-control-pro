@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_execucoes ADD COLUMN IF NOT EXISTS responsaveis_etapas jsonb NOT NULL DEFAULT '{}'::jsonb;
