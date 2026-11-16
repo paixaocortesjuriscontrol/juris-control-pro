@@ -1,0 +1,11 @@
+create temp table _rest_t as select b.id, p.coordenacao_id from backup_limpeza_santander.tarefas b join public.processos p on p.id=b.processo_id where p.coordenacao_id<>'968631d0-6659-46f1-b45d-899892cb0121' and not exists(select 1 from public.tarefas x where x.id=b.id);
+create temp table _rest_a as select b.id, p.coordenacao_id from backup_limpeza_santander.audiencias_detectadas b join public.processos p on p.id=b.processo_id where p.coordenacao_id<>'968631d0-6659-46f1-b45d-899892cb0121' and not exists(select 1 from public.audiencias_detectadas x where x.id=b.id);
+
+insert into public.tarefas select (jsonb_populate_record(null::public.tarefas, to_jsonb(b) || jsonb_build_object('coordenacao_id', r.coordenacao_id))).* from backup_limpeza_santander.tarefas b join _rest_t r on r.id=b.id on conflict do nothing;
+insert into public.tarefa_responsaveis select (jsonb_populate_record(null::public.tarefa_responsaveis, to_jsonb(b))).* from backup_limpeza_santander.tarefa_responsaveis b where b.tarefa_id in (select id from _rest_t) on conflict do nothing;
+insert into public.tarefa_envolvidos select (jsonb_populate_record(null::public.tarefa_envolvidos, to_jsonb(b))).* from backup_limpeza_santander.tarefa_envolvidos b where b.tarefa_id in (select id from _rest_t) on conflict do nothing;
+insert into public.comentarios_tarefas select (jsonb_populate_record(null::public.comentarios_tarefas, to_jsonb(b))).* from backup_limpeza_santander.comentarios_tarefas b where b.tarefa_id in (select id from _rest_t) on conflict do nothing;
+
+insert into public.audiencias_detectadas select (jsonb_populate_record(null::public.audiencias_detectadas, to_jsonb(b) || jsonb_build_object('coordenacao_id', r.coordenacao_id))).* from backup_limpeza_santander.audiencias_detectadas b join _rest_a r on r.id=b.id on conflict do nothing;
+insert into public.audiencia_envolvidos select (jsonb_populate_record(null::public.audiencia_envolvidos, to_jsonb(b))).* from backup_limpeza_santander.audiencia_envolvidos b where b.audiencia_id in (select id from _rest_a) on conflict do nothing;
+insert into public.comentarios_audiencias select (jsonb_populate_record(null::public.comentarios_audiencias, to_jsonb(b))).* from backup_limpeza_santander.comentarios_audiencias b where b.audiencia_id in (select id from _rest_a) on conflict do nothing;
