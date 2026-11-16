@@ -51,11 +51,20 @@ interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
     VariantProps<typeof sheetVariants> {}
 
+// Clicar em um aviso (toast), como "Confirmar e salvar", não pode fechar a janela aberta.
+const ignorarCliqueEmAviso = (e: Event, original?: (e: any) => void) => {
+  const alvo = e.target as HTMLElement | null;
+  if (alvo?.closest?.("[data-sonner-toaster], [data-sonner-toast]")) e.preventDefault();
+  original?.(e);
+};
+
 const SheetContent = React.forwardRef<React.ElementRef<typeof SheetPrimitive.Content>, SheetContentProps>(
   ({ side = "right", className, children, ...props }, ref) => (
     <SheetPortal>
       <SheetOverlay />
-      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}>
+      <SheetPrimitive.Content ref={ref} className={cn(sheetVariants({ side }), className)} {...props}
+      onInteractOutside={(e) => ignorarCliqueEmAviso(e as any, props.onInteractOutside as any)}
+      onPointerDownOutside={(e) => ignorarCliqueEmAviso(e as any, props.onPointerDownOutside as any)}>
         {children}
         <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-secondary hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
           <X className="h-4 w-4" />

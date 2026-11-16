@@ -27,6 +27,13 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+// Clicar em um aviso (toast), como "Confirmar e salvar", não pode fechar a janela aberta.
+const ignorarCliqueEmAviso = (e: Event, original?: (e: any) => void) => {
+  const alvo = e.target as HTMLElement | null;
+  if (alvo?.closest?.("[data-sonner-toaster], [data-sonner-toast]")) e.preventDefault();
+  original?.(e);
+};
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
@@ -40,6 +47,8 @@ const DialogContent = React.forwardRef<
         className,
       )}
       {...props}
+      onInteractOutside={(e) => ignorarCliqueEmAviso(e as any, props.onInteractOutside as any)}
+      onPointerDownOutside={(e) => ignorarCliqueEmAviso(e as any, props.onPointerDownOutside as any)}
     >
       {children}
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
