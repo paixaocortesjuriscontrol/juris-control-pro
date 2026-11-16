@@ -58,3 +58,4 @@
 - Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
 - Scheduling permissions: `permissoes_agendamento_coordenacao` (no row = allowed) enforced by trigger `bloquear_configuracao_agendamento`, so every screen/import obeys it.
 - Client coordinations: explicit `clientes_coordenacoes` merged with process-derived ones.
+- DJEN Cadernos (`/djen-cadernos`, function `djen-cadernos-baixar`, tables `djen_cadernos*`) is an admin-only experiment fully isolated from DJEN Servidor: it never writes to publicacoes_djen, so tests cannot affect coordinations.

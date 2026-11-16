@@ -42,6 +42,7 @@ import MonitoramentoDistribuicao from "./pages/MonitoramentoDistribuicao";
 import Monitoramento360 from "./pages/Monitoramento360";
 import MonitoramentoDjen from "./pages/MonitoramentoDjen";
 import DjenServidor from "./pages/DjenServidor";
+import DjenCadernos from "./pages/DjenCadernos";
 import MonitoracaoHub from "./pages/MonitoracaoHub";
 import MinhaCarteira from "./pages/MinhaCarteira";
 import AnaliseDjen from "./pages/AnaliseDjen";
@@ -212,6 +213,7 @@ function App() {
               <Route path="/monitoramento-360" element={<ProtectedRoute><Monitoramento360 /></ProtectedRoute>} />
               <Route path="/monitoramento-djen" element={<ProtectedRoute><MonitoramentoDjen /></ProtectedRoute>} />
               <Route path="/djen-servidor" element={<AdminRoute><DjenServidor /></AdminRoute>} />
+              <Route path="/djen-cadernos" element={<AdminRoute><DjenCadernos /></AdminRoute>} />
               <Route path="/djen-local" element={<AdminRoute><DjenLocal /></AdminRoute>} />
               <Route path="/monitoracao" element={<AdminRoute><MonitoracaoHub /></AdminRoute>} />
               <Route path="/pastas" element={<ProtectedRoute><Pastas /></ProtectedRoute>} />

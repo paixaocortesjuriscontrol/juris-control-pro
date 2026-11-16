@@ -81,6 +81,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Server, label: "DJEN Servidor", path: "/djen-servidor", color: "text-emerald-400", adminOnly: true },
   { icon: FileText, label: "Análise DJEN Servidor", path: "/analise-djen-servidor", color: "text-emerald-400", adminOnly: true },
   { icon: Server, label: "DJEN Local", path: "/djen-local", color: "text-emerald-400", adminOnly: true },
+  { icon: FileText, label: "DJEN Cadernos", path: "/djen-cadernos", color: "text-emerald-400", adminOnly: true },
 ];
 
 // Itens visíveis apenas para administradores/coordenadores (na seção inferior)

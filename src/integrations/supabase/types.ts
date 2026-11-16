@@ -4232,6 +4232,148 @@ export type Database = {
           },
         ]
       }
+      djen_cadernos: {
+        Row: {
+          created_at: string
+          data: string
+          duracao_ms: number | null
+          erro: string | null
+          id: string
+          meio: string
+          solicitado_por: string | null
+          status: string
+          tamanho_bytes: number | null
+          tentativas: number
+          total_comunicacoes: number | null
+          tribunal: string
+          updated_at: string
+          url_arquivo: string | null
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          duracao_ms?: number | null
+          erro?: string | null
+          id?: string
+          meio?: string
+          solicitado_por?: string | null
+          status?: string
+          tamanho_bytes?: number | null
+          tentativas?: number
+          total_comunicacoes?: number | null
+          tribunal: string
+          updated_at?: string
+          url_arquivo?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          duracao_ms?: number | null
+          erro?: string | null
+          id?: string
+          meio?: string
+          solicitado_por?: string | null
+          status?: string
+          tamanho_bytes?: number | null
+          tentativas?: number
+          total_comunicacoes?: number | null
+          tribunal?: string
+          updated_at?: string
+          url_arquivo?: string | null
+        }
+        Relationships: []
+      }
+      djen_cadernos_comunicacoes: {
+        Row: {
+          advogados: string | null
+          caderno_id: string
+          comunicacao_id: string | null
+          created_at: string
+          data_disponibilizacao: string | null
+          id: string
+          numero_digitos: string | null
+          numero_processo: string | null
+          orgao: string | null
+          partes: string | null
+          texto: string | null
+          tipo: string | null
+        }
+        Insert: {
+          advogados?: string | null
+          caderno_id: string
+          comunicacao_id?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          id?: string
+          numero_digitos?: string | null
+          numero_processo?: string | null
+          orgao?: string | null
+          partes?: string | null
+          texto?: string | null
+          tipo?: string | null
+        }
+        Update: {
+          advogados?: string | null
+          caderno_id?: string
+          comunicacao_id?: string | null
+          created_at?: string
+          data_disponibilizacao?: string | null
+          id?: string
+          numero_digitos?: string | null
+          numero_processo?: string | null
+          orgao?: string | null
+          partes?: string | null
+          texto?: string | null
+          tipo?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "djen_cadernos_comunicacoes_caderno_id_fkey"
+            columns: ["caderno_id"]
+            isOneToOne: false
+            referencedRelation: "djen_cadernos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      djen_cadernos_tentativas: {
+        Row: {
+          caderno_id: string
+          created_at: string
+          http_status: number | null
+          id: string
+          mensagem: string | null
+          sucesso: boolean
+          via: string | null
+        }
+        Insert: {
+          caderno_id: string
+          created_at?: string
+          http_status?: number | null
+          id?: string
+          mensagem?: string | null
+          sucesso?: boolean
+          via?: string | null
+        }
+        Update: {
+          caderno_id?: string
+          created_at?: string
+          http_status?: number | null
+          id?: string
+          mensagem?: string | null
+          sucesso?: boolean
+          via?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "djen_cadernos_tentativas_caderno_id_fkey"
+            columns: ["caderno_id"]
+            isOneToOne: false
+            referencedRelation: "djen_cadernos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       djen_diario_index: {
         Row: {
           atualizado_em: string | null

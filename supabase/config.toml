@@ -222,3 +222,6 @@ verify_jwt = true
 
 [functions.alertar-servidor-travado]
 verify_jwt = true
+
+[functions.djen-cadernos-baixar]
+verify_jwt = true
