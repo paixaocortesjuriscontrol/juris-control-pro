@@ -7,7 +7,7 @@
 - As rodadas das 06h00 e 07h30 foram rápidas e não repetiram o TST.
 
 ## O que fazer
-1. Rodar agora uma repescagem só do TST para o dia 16/11/2026, sem esperar a rodada das 10h00.
+1. Às 08h08, o site do Comunica PJe não respondeu e a consulta das publicações foi recusada (bloqueio 403). Assim que ele voltar, rodar uma repescagem só do TST para o dia 16/11/2026, sem esperar a rodada das 10h00.
 2. Depois que ela terminar, conferir quantas publicações entraram em cada coordenação, comparando com sexta (13/11).
 3. Se os bloqueios 403 continuarem, distribuir os termos do TST entre as outras VPS e aumentar a espera entre as tentativas, que já está prevista.
 4. Corrigir a regra que considera a busca "concluída" quando todas as tentativas do TST falham, para que esse tipo de falha conte como pendente e entre automaticamente na próxima repescagem.
