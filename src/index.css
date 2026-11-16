@@ -543,3 +543,9 @@
   /* Cabeçalhos de filtros quebram linha em vez de estourar */
   main .flex.items-center.gap-2:not([role="tablist"]), main .flex.items-center.gap-3:not([role="tablist"]) { flex-wrap: wrap; }
 }
+
+/* Janelas abertas bloqueiam cliques fora delas (pointer-events: none no body).
+   O aviso do canto ("Confirmar e salvar") precisa continuar clicável. */
+[data-sonner-toaster] [data-sonner-toast][data-visible="true"] {
+  pointer-events: auto !important;
+}
