@@ -71,9 +71,20 @@ export default function DjenCadernos() {
   const baixar = async () => {
     for (const t of selecionados) {
       setBaixando(t);
-      const { data: r, error } = await supabase.functions.invoke("djen-cadernos-baixar", { body: { tribunal: t, data } });
-      if (error || !r?.ok) toast.error(`${t}: ${r?.erro || error?.message || "falha"}`);
-      else toast.success(`${t}: ${r.total} comunicações`);
+      let offset: number | null = 0;
+      while (offset != null) {
+        const { data: r, error } = await supabase.functions.invoke("djen-cadernos-baixar", { body: { tribunal: t, data, offset } });
+        if (error || !r?.ok) {
+          let det = r?.erro || error?.message || "falha";
+          try { const c = (error as any)?.context; if (c?.text) det = (await c.text()) || det; } catch { /* ignora */ }
+          toast.error(`${t}: ${det}`);
+          break;
+        }
+        setBaixando(`${t} (${r.gravadas.toLocaleString("pt-BR")} de ${r.total.toLocaleString("pt-BR")})`);
+        await qc.invalidateQueries({ queryKey: ["djen-cadernos"] });
+        if (r.proximo == null) toast.success(`${t}: ${r.total.toLocaleString("pt-BR")} comunicações`);
+        offset = r.proximo;
+      }
       await qc.invalidateQueries({ queryKey: ["djen-cadernos"] });
     }
     setBaixando(null);
