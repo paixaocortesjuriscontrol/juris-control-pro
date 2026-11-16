@@ -31,3 +31,9 @@ test("advogados, assistentes e demais perfis não podem remanejar", () => {
 test("controladoria pode remanejar", () => {
   assert.equal(podeRemanejarNoPainel("controladoria"), true);
 });
+
+test("cargo Controladoria dentro da coordenação libera Remanejar mesmo com perfil advogado", () => {
+  assert.equal(podeRemanejarNoPainel("advogado", ["controladoria"]), true);
+  assert.equal(podeRemanejarNoPainel("advogado", ["Controladoria"]), true);
+  assert.equal(podeRemanejarNoPainel("advogado", ["advogado"]), false);
+});

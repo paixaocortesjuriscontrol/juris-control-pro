@@ -263,7 +263,20 @@ const textoBuscavelItem = (item: any): string => {
 export default function PainelControle() {
   const { user } = useAuth();
   const { role, isAdmin: isAdminReal, isAssistenteGeral, podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
-  const podeRemanejar = podeRemanejarNoPainel(role);
+  const { data: cargosCoordenacao = [] } = useQuery({
+    queryKey: ["cargos-coordenacao-usuario", user?.id],
+    enabled: !!user?.id,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("membros_coordenacao")
+        .select("cargo")
+        .eq("usuario_id", user!.id);
+      if (error) throw error;
+      return (data ?? []).map((m: any) => String(m.cargo ?? ""));
+    },
+  });
+  const podeRemanejar = podeRemanejarNoPainel(role, cargosCoordenacao);
   // Assistente Jurídico Geral enxerga o escritório como admin (só leitura; edição é barrada no banco).
   const isAdmin = isAdminReal || isAssistenteGeral;
   const navigate = useNavigate();
