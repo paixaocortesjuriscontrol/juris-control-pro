@@ -53,14 +53,18 @@ export function useUserRole() {
               ? "assistente_juridico_geral"
               : roles[0] ?? null;
 
-      if (error) {
-        console.error("Error fetching user role:", error);
+      // Resposta vazia sem erro costuma ser sessão ainda não anexada (RLS devolve 0 linhas).
+      // Não guardar "sem perfil" nesse caso: tentar de novo.
+      const vazioSuspeito = !error && roles.length === 0 && attempt < 6;
+
+      if (error || vazioSuspeito) {
+        if (error) console.error("Error fetching user role:", error);
         // Do NOT cache or null-out on error. Keep `loading=true` and retry with
         // backoff so AdminRoute keeps showing the spinner instead of falsely
         // redirecting to "/" on transient network/auth blips.
         if (cancelled) return;
-        if (attempt < 4) {
-          const delay = Math.min(500 * 2 ** attempt, 4000);
+        if (attempt < 8) {
+          const delay = Math.min(500 * 2 ** attempt, 8000);
           setTimeout(() => { if (!cancelled) void fetchRole(attempt + 1); }, delay);
           return;
         }
@@ -69,6 +73,13 @@ export function useUserRole() {
         setLoading(false);
         return;
       } else {
+        if (cancelled) return;
+        if (roles.length === 0) {
+          // Não fixa "sem perfil" no cache: próxima tela tenta de novo.
+          setRole(null);
+          setLoading(false);
+          return;
+        }
         if (cancelled) return;
         roleCache.set(user.id, resolvedRole);
         setRole(resolvedRole);
