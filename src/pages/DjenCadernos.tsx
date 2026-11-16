@@ -13,7 +13,7 @@ import { toast } from "sonner";
 const TRIBUNAIS = ["TST", ...Array.from({ length: 24 }, (_, i) => `TRT${i + 1}`), "STJ", "TJSP", "TJMG", "TJRJ", "TJDFT", "TJGO", "TRF1"];
 const db = supabase as any;
 const brt = (s: string) => new Date(s).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
-const hojeBrt = () => new Date(Date.now() - 3 * 3600_000).toISOString().slice(0, 10);
+const hojeBrt = () => new Date(Date.now() - 27 * 3600_000).toISOString().slice(0, 10);
 
 export default function DjenCadernos() {
   const qc = useQueryClient();

@@ -30,6 +30,7 @@ async function get(url: string, pool: Slot[], log: (v: string, s: number | null,
         if (r.ok) { await log(v.nome, r.status, "ok", true); return r; }
         const t = (await r.text()).slice(0, 200);
         await log(v.nome, r.status, t, false);
+        if (r.status === 404 && t.includes("Nenhum caderno")) return { semCaderno: true } as any;
       } catch (e) {
         await log(v.nome, null, String((e as Error)?.message || e).slice(0, 200), false);
       }
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
   const { data: isAdm } = await admin.rpc("has_role", { _user_id: u.user.id, _role: "admin" });
   if (!isAdm) return j({ error: "somente_admin" }, 403);
 
-  const { tribunal, data, meio = "E" } = await req.json().catch(() => ({}));
+  const { tribunal, data, meio = "D" } = await req.json().catch(() => ({}));
   if (!tribunal || !/^\d{4}-\d{2}-\d{2}$/.test(String(data))) return j({ error: "parametros_invalidos" }, 400);
   const trib = String(tribunal).toUpperCase().trim();
   const inicio = Date.now();
@@ -97,6 +98,7 @@ Deno.serve(async (req) => {
 
   const r1 = await get(`${API}/${trib}/${data}/${meio}`, pool, log);
   if (!r1) return await falhar("Não foi possível obter o caderno (bloqueio ou falha em todas as tentativas).");
+  if ((r1 as any).semCaderno) return await falhar(`O DJEN respondeu (sem bloqueio), mas ainda não há caderno do ${trib} para ${data.split("-").reverse().join("/")}. O caderno costuma sair só depois que o dia termina; tente uma data anterior.`);
   const ct = r1.headers.get("content-type") || "";
   let buf: Uint8Array;
   let urlArquivo: string | null = null;
