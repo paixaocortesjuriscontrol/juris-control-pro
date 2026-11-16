@@ -27,3 +27,7 @@ test("advogados, assistentes e demais perfis não podem remanejar", () => {
     assert.equal(podeRemanejarNoPainel(role), false, `perfil liberado indevidamente: ${role}`);
   }
 });
+
+test("controladoria pode remanejar", () => {
+  assert.equal(podeRemanejarNoPainel("controladoria"), true);
+});
