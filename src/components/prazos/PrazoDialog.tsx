@@ -510,6 +510,7 @@ export function PrazoDialog({
   }, [prazo, prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
 
   const datasConfirmadasRef = useRef<string | null>(null);
+  const [confirmacaoDatas, setConfirmacaoDatas] = useState<{ chave: string; texto: string; reenviar: () => void } | null>(null);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const submitter = (e.nativeEvent as SubmitEvent | undefined)?.submitter as HTMLElement | null | undefined;
@@ -537,6 +538,7 @@ export function PrazoDialog({
       toast.error("Selecione ao menos um responsável");
       return;
     }
+    setConfirmacaoDatas(null);
     {
       const r = resumoDatas(dataBase, dataLimite, dataFatal);
       const original = prazo ? resumoDatas(dataBase, prazo.data_vencimento, (prazo as any).data_fatal).chave : null;
@@ -544,11 +546,7 @@ export function PrazoDialog({
       if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
         const formEl = e.currentTarget as HTMLFormElement;
         const sub = submitter;
-        toast("Confirme as datas", {
-          description: <span className="whitespace-pre-line">{r.texto}</span>,
-          duration: 20000,
-          action: { label: "Confirmar e salvar", onClick: () => { datasConfirmadasRef.current = r.chave; formEl.requestSubmit(sub instanceof HTMLButtonElement ? sub : undefined); } },
-        });
+        setConfirmacaoDatas({ chave: r.chave, texto: r.texto, reenviar: () => formEl.requestSubmit(sub instanceof HTMLButtonElement ? sub : undefined) });
         return;
       }
     }
@@ -1359,7 +1357,19 @@ export function PrazoDialog({
 
       </div>
 
-       {!ocultarSituacao && (
+         {confirmacaoDatas && (
+          <div role="alert" className="mx-4 my-2 shrink-0 rounded-md border border-primary/40 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 text-sm">
+              <p className="font-semibold">Confirme as datas</p>
+              <p className="whitespace-pre-line text-muted-foreground">{confirmacaoDatas.texto}</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmacaoDatas(null)}>Voltar e corrigir</Button>
+              <Button type="button" size="sm" onClick={() => { const c = confirmacaoDatas!; datasConfirmadasRef.current = c.chave; setConfirmacaoDatas(null); c.reenviar(); }}>Confirmar e salvar</Button>
+            </div>
+          </div>
+        )}
+      {!ocultarSituacao && (
        <div className="flex justify-end gap-2 px-5 py-3 border-t bg-muted/30">
          <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
            Cancelar

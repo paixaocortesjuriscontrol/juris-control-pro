@@ -670,6 +670,7 @@ export function NovaTarefaDialog({
   };
 
   const datasConfirmadasRef = useRef<string | null>(null);
+  const [confirmacaoDatas, setConfirmacaoDatas] = useState<{ chave: string; texto: string; values: FormValues } | null>(null);
   const datasOriginaisRef = useRef<string | null>(null);
   async function onSubmit(values: FormValues) {
     logTentativa("inicio", { editar: !!tarefaParaEditar?.id, recorrenciaTipo, recorrenciaFim, situacao, responsaveisIds, values });
@@ -681,16 +682,13 @@ export function NovaTarefaDialog({
       toastSonner.error(MSG_DATA_PASSADA);
       return;
     }
+    setConfirmacaoDatas(null);
     {
       const r = resumoDatas(values.data_base, values.data_vencimento, values.data_fatal);
       const original = tarefaParaEditar?.id ? (datasOriginaisRef.current ?? resumoDatas(tarefaParaEditar.data_base, tarefaParaEditar.data_vencimento, tarefaParaEditar.data_fatal).chave) : null;
       // Só pede confirmação quando as datas foram de fato alteradas (ou ao criar).
       if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
-        toastSonner("Confirme as datas", {
-          description: <span className="whitespace-pre-line">{r.texto}</span>,
-          duration: 20000,
-          action: { label: "Confirmar e salvar", onClick: () => { datasConfirmadasRef.current = r.chave; void onSubmit(values); } },
-        });
+        setConfirmacaoDatas({ chave: r.chave, texto: r.texto, values });
         return;
       }
     }
@@ -1815,6 +1813,18 @@ export function NovaTarefaDialog({
             Em ocorrência recorrente, a situação é gerenciada pela barra
             "Somente esta / Toda a série" (BaixaOcorrenciaBar); o botão Salvar
             da tarefa-pai é omitido para não confundir. */}
+        {confirmacaoDatas && (
+          <div role="alert" className="mx-4 my-2 shrink-0 rounded-md border border-primary/40 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex-1 text-sm">
+              <p className="font-semibold">Confirme as datas</p>
+              <p className="whitespace-pre-line text-muted-foreground">{confirmacaoDatas.texto}</p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setConfirmacaoDatas(null)}>Voltar e corrigir</Button>
+              <Button type="button" size="sm" onClick={() => { const c = confirmacaoDatas!; datasConfirmadasRef.current = c.chave; setConfirmacaoDatas(null); void onSubmit(c.values); }}>Confirmar e salvar</Button>
+            </div>
+          </div>
+        )}
         {!ocultarSituacao && (
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t px-6 pb-6 shrink-0">
           <Button
