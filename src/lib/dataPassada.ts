@@ -15,3 +15,15 @@ export function ehDataPassada(valor: string | Date | null | undefined, hoje = ho
 }
 
 export const MSG_DATA_PASSADA = "Não é permitido criar atividade com data anterior a hoje. Confira a data escolhida.";
+
+const fmtBr = (v: string | Date | null | undefined) => {
+  if (!v) return "—";
+  const d = v instanceof Date ? format(v, "yyyy-MM-dd") : String(v).slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d.split("-").reverse().join("/") : "—";
+};
+
+/** Resumo exibido na mensagem "Confirme as datas" antes de salvar. */
+export function resumoDatas(base: string | Date | null | undefined, prevista: string | Date | null | undefined, fatal: string | Date | null | undefined) {
+  const linhas = [`Data base: ${fmtBr(base)}`, `Data prevista: ${fmtBr(prevista)}`, `Data fatal: ${fmtBr(fatal)}`];
+  return { chave: linhas.join("|"), texto: linhas.join("\n") };
+}

@@ -1,5 +1,5 @@
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
-import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
+import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { decidirPassoPosSalvacaoPrazo } from "@/lib/prazoFluxoPosSalvacao";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -509,6 +509,7 @@ export function PrazoDialog({
     setDataLimite(calc);
   }, [prazo, prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
 
+  const datasConfirmadasRef = useRef<string | null>(null);
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const submitter = (e.nativeEvent as SubmitEvent | undefined)?.submitter as HTMLElement | null | undefined;
@@ -535,6 +536,19 @@ export function PrazoDialog({
     if (responsaveisIds.length === 0) {
       toast.error("Selecione ao menos um responsável");
       return;
+    }
+    {
+      const r = resumoDatas(dataBase, dataLimite, dataFatal);
+      if (datasConfirmadasRef.current !== r.chave) {
+        const formEl = e.currentTarget as HTMLFormElement;
+        const sub = submitter;
+        toast("Confirme as datas", {
+          description: <span className="whitespace-pre-line">{r.texto}</span>,
+          duration: 20000,
+          action: { label: "Confirmar e salvar", onClick: () => { datasConfirmadasRef.current = r.chave; formEl.requestSubmit(sub instanceof HTMLButtonElement ? sub : undefined); } },
+        });
+        return;
+      }
     }
     if (precisaSelecionar && !coordenacaoId) {
       toast.error("Selecione a coordenação");

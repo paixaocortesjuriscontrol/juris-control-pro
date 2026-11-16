@@ -3,7 +3,7 @@ import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
-import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
+import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
@@ -668,6 +668,7 @@ export function NovaTarefaDialog({
     return categorias[value] || value;
   };
 
+  const datasConfirmadasRef = useRef<string | null>(null);
   async function onSubmit(values: FormValues) {
     logTentativa("inicio", { editar: !!tarefaParaEditar?.id, recorrenciaTipo, recorrenciaFim, situacao, responsaveisIds, values });
     if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim) {
@@ -677,6 +678,17 @@ export function NovaTarefaDialog({
     if (!tarefaParaEditar?.id && (ehDataPassada(values.data_vencimento) || ehDataPassada(values.data_fatal))) {
       toastSonner.error(MSG_DATA_PASSADA);
       return;
+    }
+    {
+      const r = resumoDatas(values.data_base, values.data_vencimento, values.data_fatal);
+      if (datasConfirmadasRef.current !== r.chave) {
+        toastSonner("Confirme as datas", {
+          description: <span className="whitespace-pre-line">{r.texto}</span>,
+          duration: 20000,
+          action: { label: "Confirmar e salvar", onClick: () => { datasConfirmadasRef.current = r.chave; void onSubmit(values); } },
+        });
+        return;
+      }
     }
     let comentarioSituacaoTxt = "";
     const situacaoAnterior = (tarefaParaEditar?.status as string) || null;
