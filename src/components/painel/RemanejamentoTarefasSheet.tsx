@@ -233,8 +233,9 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
         }
         if (Object.keys(patch).length) {
           patch.updated_at = agora;
-          const { error } = await (supabase as any).from(tabela).update(patch).eq("id", item.id);
+          const { data: gravadas, error } = await (supabase as any).from(tabela).update(patch).eq("id", item.id).select("id");
           if (error) throw error;
+          if (!gravadas?.length) throw new Error("sem permissão para alterar este item");
         }
         if (modoResp !== "manter" && novosResp.length) {
           const [tab, col] = item.fonte === "tarefa" ? ["tarefa_responsaveis", "tarefa_id"] : ["evento_responsaveis", "evento_id"];
