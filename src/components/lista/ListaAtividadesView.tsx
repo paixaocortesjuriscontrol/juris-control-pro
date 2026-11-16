@@ -1,5 +1,5 @@
 import { useSessionState } from "@/hooks/useSessionState";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1079,14 +1079,13 @@ export default function ListaAtividadesView({
               <Table className="text-xs w-full table-fixed">
                 <colgroup>
                   <col className="w-9" />
-                  <col className="w-[280px]" />
-                  <col className="w-[240px]" />
-                  <col className="w-[150px]" />
+                  <col />
                   <col className="w-[160px]" />
-                  <col className="w-[140px]" />
+                  <col className="w-[130px]" />
                   <col className="w-[120px]" />
                   <col className="w-[100px]" />
-                  <col className="w-[80px]" />
+                  <col className="w-[120px]" />
+                  <col className="w-[70px]" />
                 </colgroup>
                 <TableHeader className="bg-muted/60 sticky top-0 z-10">
                   <TableRow className="h-9">
@@ -1103,8 +1102,7 @@ export default function ListaAtividadesView({
                         aria-label="Selecionar todos"
                       />
                     </TableHead>
-                    <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
-                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Observação</TableHead>
+                    <TableHead className="h-9 font-semibold text-left">Processo / Atividade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">
                       <button
@@ -1122,14 +1120,14 @@ export default function ListaAtividadesView({
                         }}
                         className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
                       >
-                        Datas
+                        Limite
                         <span className="text-[10px] font-normal text-muted-foreground">
                           ({sortData.field === "publicacao" ? "Pub." : sortData.field === "limite" ? "Limite" : "Fatal"}
                           {sortData.dir === "asc" ? " ↑" : " ↓"})
                         </span>
                       </button>
                     </TableHead>
-                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Local / Parte</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Fatal</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Prioridade</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Status</TableHead>
                     <TableHead className="h-9 font-semibold whitespace-nowrap text-right pr-3">Ações</TableHead>
@@ -1139,7 +1137,7 @@ export default function ListaAtividadesView({
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={9}>
+                        <TableCell colSpan={8}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -1147,7 +1145,7 @@ export default function ListaAtividadesView({
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={9}
+                        colSpan={8}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -1172,35 +1170,40 @@ export default function ListaAtividadesView({
                         ["Preposto", audiencia?.preposto],
                         ["Testemunhas", audiencia?.testemunhas],
                       ].filter(([, valor]) => typeof valor === "string" && valor.trim()) : [];
+                      const abrir = (e: ReactMouseEvent) => {
+                        const tgt = e.target as HTMLElement;
+                        if (tgt.closest("[data-stop]")) return;
+                        setDetalhesPrazo(item);
+                      };
+                      const rowCls = cn("cursor-pointer align-top border-0", isSel && "bg-muted/50");
+                      const partesAtivo = (r as any).processo_id ? ((r as any).partes_ativas || partesPorProcesso[(r as any).processo_id]?.ativo) : null;
+                      const partesPassivo = (r as any).processo_id ? ((r as any).partes_passivas || partesPorProcesso[(r as any).processo_id]?.passivo) : null;
+                      const pub = formatDataPublicacao((r as any).data_publicacao_origem);
                       return (
+                        <Fragment key={r.id}>
                         <TableRow
-                          key={r.id}
                           data-state={isSel ? "selected" : undefined}
-                          className="hover:bg-muted/40 cursor-pointer align-top"
-                          onClick={(e) => {
-                            const tgt = e.target as HTMLElement;
-                            if (tgt.closest("[data-stop]")) return;
-                            setDetalhesPrazo(item);
-                          }}
+                          className={rowCls}
+                          onClick={abrir}
                         >
-                          <TableCell className="px-2 py-3 align-top" data-stop>
+                          <TableCell className="px-2 pt-3 pb-1 align-top" data-stop>
                             <Checkbox
                               checked={isSel}
                               disabled={!podeSelecionarItemLista(item)}
                               onCheckedChange={() => toggleOne(r.id)}
                             />
                           </TableCell>
-                          <TableCell className="py-3 align-top">
+                          <TableCell className="pt-3 pb-1 align-top">
                             <div className="flex flex-col gap-0.5 min-w-0">
                               <div className="flex items-center gap-1.5 flex-wrap">
-                                <span className="font-mono text-[10px] text-primary font-semibold">
-                                  {r.identificador_projuris || r.processo?.numero || "—"}
+                                <span className="font-mono text-[11px] text-primary font-semibold">
+                                  {r.identificador_projuris || r.processo?.numero || "Sem processo"}
                                 </span>
                                 <Badge variant="outline" className={cn("font-normal text-[9px] px-1 py-0", isItemAta(item) && "border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300")}>
                                   {rotuloTipoItem(item, TIPO_LABELS)}
                                 </Badge>
                               </div>
-                              <div className="font-medium text-xs text-foreground break-words leading-snug flex items-center gap-1">
+                              <div className="font-semibold text-[13px] text-foreground break-words leading-snug flex items-center gap-1">
                                 <TratadoCheck tratado={isItemTratado({ ...item, ...r })} />
                                 <span className={cn((isItemTratado({ ...item, ...r }) || isItemRiscado({ ...item, ...r })) && "line-through")}>
                                   {r.titulo || "(sem título)"}
@@ -1217,102 +1220,18 @@ export default function ListaAtividadesView({
                                   />
                                 </span>
                               </div>
-
-                              <div data-stop>
-                                <EtiquetaPicker
-                                  entidade="tarefa"
-                                  entidadeId={r.id}
-                                  coordenacaoId={(r as any).processo?.coordenacao_id ?? undefined}
-                                  etiquetaIds={etiquetasPorItem?.get(r.id) || []}
-                                  compact
-                                />
-                              </div>
-                              {r.processo?.assunto && (
-                                <div className="text-[10px] text-muted-foreground break-words">
-                                  {r.processo.assunto}
-                                </div>
-                              )}
-                              {(r as any).processo_id && (
-                                <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
-                                  <span className="font-medium text-foreground/70">Reclamante:</span>{" "}
-                                  {(r as any).partes_ativas || partesPorProcesso[(r as any).processo_id]?.ativo || "—"}
-                                </div>
-                              )}
-                              {(r as any).processo_id && (
-                                <div className="text-[10px] text-muted-foreground break-words line-clamp-1">
-                                  <span className="font-medium text-foreground/70">Reclamada:</span>{" "}
-                                  {(r as any).partes_passivas || partesPorProcesso[(r as any).processo_id]?.passivo || "—"}
-                                </div>
-                              )}
                             </div>
                           </TableCell>
-                          <TableCell className="py-3 align-top">
-                            {observacao ? (
-                              <div
-                                className="text-[11px] text-foreground truncate"
-                                title={(r as any).observacoes}
-                              >
-                                {observacao}
-                              </div>
-                            ) : (
-                              <span className="text-muted-foreground text-[11px]">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="py-3 align-top">
+                          <TableCell className="pt-3 pb-1 align-top">
                             {renderResponsavel(r)}
                           </TableCell>
-                          <TableCell className="py-3 align-top text-[11px]">
-                            <div className="flex flex-col gap-0.5">
-                              <div className="flex items-center gap-1 font-medium text-foreground">
-                                <CalendarIcon className="h-3 w-3 text-destructive shrink-0" />
-                                <span className="text-muted-foreground shrink-0">Limite:</span>
-                                <span>{fmtDateTime(item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}</span>
-                              </div>
-                              {item.data_fatal && (
-                                <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Fatal:</span>
-                                  <span>{fmtDateTime(item.data_fatal, (r as any).hora_fatal)}</span>
-                                </div>
-                              )}
-                              <div className="text-muted-foreground">
-                                Base: {fmtDateTime((r as Prazo).data_base)}
-                              </div>
-                              {formatDataPublicacao((r as any).data_publicacao_origem) && (
-                                <div className="flex items-center gap-1 text-foreground">
-                                  <span className="text-muted-foreground shrink-0">Publicação:</span>
-                                  <span>{formatDataPublicacao((r as any).data_publicacao_origem)}</span>
-                                </div>
-                              )}
-                            </div>
+                          <TableCell className="pt-3 pb-1 align-top text-[11px] font-medium whitespace-nowrap">
+                            {fmtDateTime(item.data_vencimento || item.data_inicio, (r as any).hora_fatal)}
                           </TableCell>
-                          <TableCell className="py-3 align-top text-[11px]">
-                            <div className="flex flex-col gap-0.5 min-w-0">
-                              {item.tipo === "audiencia" && detalhesAudiencia.map(([rotulo, valor]) => (
-                                <div key={rotulo} className="text-foreground whitespace-normal break-words leading-relaxed">
-                                  <span className="text-muted-foreground">{rotulo}:</span> {valor}
-                                </div>
-                              ))}
-                              {item.tipo !== "audiencia" && (r as any).local && (
-                                <div className="text-foreground break-words line-clamp-1">
-                                  <span className="text-muted-foreground">Local:</span> {(r as any).local}
-                                </div>
-                              )}
-                              {(r as any).orgao && (
-                                <div className="text-foreground break-words line-clamp-1">
-                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao}
-                                </div>
-                              )}
-                              {(r as any).orgao_julgador && (
-                                <div className="text-foreground break-words line-clamp-1">
-                                  <span className="text-muted-foreground">Órgão:</span> {(r as any).orgao_julgador}
-                                </div>
-                              )}
-                              {!detalhesAudiencia.length && !(r as any).local && !(r as any).orgao && !(r as any).orgao_julgador && (
-                                <span className="text-muted-foreground">—</span>
-                              )}
-                            </div>
+                          <TableCell className="pt-3 pb-1 align-top text-[11px] whitespace-nowrap">
+                            {item.data_fatal ? fmtDateTime(item.data_fatal, (r as any).hora_fatal) : <span className="text-muted-foreground">—</span>}
                           </TableCell>
-                          <TableCell className="py-3 align-top">
+                          <TableCell className="pt-3 pb-1 align-top">
                             <Badge
                               variant="outline"
                               className={cn(
@@ -1323,7 +1242,7 @@ export default function ListaAtividadesView({
                               {PRIO_LABEL[r.prioridade] || r.prioridade || "—"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="py-3 align-top">
+                          <TableCell className="pt-3 pb-1 align-top">
                             <div className="flex items-center gap-1.5">
                               <span
                                 className={cn(
@@ -1334,7 +1253,7 @@ export default function ListaAtividadesView({
                               <span className="capitalize text-[11px]">{r.status}</span>
                             </div>
                           </TableCell>
-                          <TableCell className="py-3 align-top text-right pr-3" data-stop>
+                          <TableCell className="pt-3 pb-1 align-top text-right pr-3" data-stop>
                             <div className="flex items-center justify-end gap-0.5">
                               <Button
                                 variant="ghost"
@@ -1351,6 +1270,44 @@ export default function ListaAtividadesView({
                             </div>
                           </TableCell>
                         </TableRow>
+                        <TableRow data-state={isSel ? "selected" : undefined} className={cn(rowCls, !observacao && "border-b")} onClick={abrir}>
+                          <TableCell />
+                          <TableCell colSpan={7} className="pt-0 pb-2 text-[11px] text-muted-foreground">
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                              {r.processo?.assunto && <span className="text-foreground/80">{r.processo.assunto}</span>}
+                              {(r as any).processo_id && (
+                                <span><span className="font-medium text-foreground/70">Reclamante:</span> {partesAtivo || "—"} <span className="mx-1">x</span><span className="font-medium text-foreground/70">Reclamada:</span> {partesPassivo || "—"}</span>
+                              )}
+                              {item.tipo === "audiencia" && detalhesAudiencia.map(([rotulo, valor]) => (
+                                <span key={rotulo}><span className="font-medium text-foreground/70">{rotulo}:</span> {valor}</span>
+                              ))}
+                              {item.tipo !== "audiencia" && (r as any).local && <span><span className="font-medium text-foreground/70">Local:</span> {(r as any).local}</span>}
+                              {((r as any).orgao || (r as any).orgao_julgador) && <span><span className="font-medium text-foreground/70">Órgão:</span> {(r as any).orgao || (r as any).orgao_julgador}</span>}
+                              {(r as Prazo).data_base && <span><span className="font-medium text-foreground/70">Base:</span> {fmtDateTime((r as Prazo).data_base)}</span>}
+                              {pub && <span><span className="font-medium text-foreground/70">Publicação:</span> {pub}</span>}
+                              <div data-stop className="inline-flex">
+                                <EtiquetaPicker
+                                  entidade="tarefa"
+                                  entidadeId={r.id}
+                                  coordenacaoId={(r as any).processo?.coordenacao_id ?? undefined}
+                                  etiquetaIds={etiquetasPorItem?.get(r.id) || []}
+                                  compact
+                                />
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                        {observacao && (
+                          <TableRow data-state={isSel ? "selected" : undefined} className={cn(rowCls, "border-b")} onClick={abrir}>
+                            <TableCell />
+                            <TableCell colSpan={7} className="pt-0 pb-3 text-[11px]">
+                              <div className="truncate" title={(r as any).observacoes}>
+                                <span className="font-medium text-muted-foreground">Observação:</span> {observacao}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                        </Fragment>
                       );
                     })
                   )}
