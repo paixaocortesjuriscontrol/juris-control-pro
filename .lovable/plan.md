@@ -1,17 +1,17 @@
-# Liberar alteração de datas para o Dr. Jhonatan (Santander Cível)
+# Responsável de cada etapa do workflow: qualquer pessoa da coordenação
 
-## O que foi verificado
-- A reclamação procede. Na Coordenação Santander Cível, em "Quem pode reagendar", Prazo está limitado a uma lista de 25 pessoas. Tarefa (24 pessoas) e Audiência (23 pessoas) também têm listas.
-- O Dr. Jhonatan Gonçalves é coordenador da Santander Cível, mas não está em nenhuma dessas listas. Por isso o sistema trava as datas para ele.
-- Hoje, a única pessoa que passa por cima dessa regra é o administrador. Coordenador não passa.
+## Situação atual
+Na janela da etapa, o campo **Responsável** mostra só regras ("Quem iniciou o fluxo", "Responsável da etapa anterior", "Responsáveis predefinidos"). A lista de pessoas só aparece quando se escolhe "Responsáveis predefinidos" — por isso parece que não dá para escolher alguém.
 
-## O que será feito
-1. **Coordenador sempre pode alterar datas na própria coordenação**, como o Dr. Jhonatan pediu ("perfil gerencial"). Isso vale para Prazo, Tarefa, Audiência, Evento e Parcelamento, em todas as telas que já usam essa regra (painel lateral, prazo, evento e audiência). Coordenadores de outras coordenações continuam sujeitos às regras daquela equipe.
-2. Na tela "Quem pode reagendar" da coordenação, aparece o aviso: "Coordenadores e administradores sempre podem alterar datas".
-3. A lista configurada pela equipe continua igual para os demais cargos. Ninguém é retirado dela.
+## O que muda
+1. O campo **Responsável** passa a listar, no mesmo menu:
+   - Quem iniciou o fluxo
+   - Responsável da etapa anterior
+   - Todas as pessoas da coordenação do workflow (coordenador e membros), em ordem alfabética, com cargo, e com busca por nome.
+2. Escolhendo uma pessoa, ela vira o responsável da etapa. Logo abaixo aparece "+ Adicionar outro responsável" para incluir mais pessoas da coordenação, se quiser.
+3. Quem já tem acesso a mais de uma coordenação continua podendo trocar a coordenação da lista.
+4. No resumo das etapas, aparece o nome da pessoa escolhida (em vez de só "Responsáveis predefinidos").
+5. Etapas já criadas continuam iguais: as de "Quem iniciou" seguem assim; as predefinidas mostram as pessoas já salvas.
 
 ## Detalhes técnicos
-- `src/hooks/usePodeReagendar.ts`: além de `role === "admin"`, liberar quando o usuário tem cargo `coordenador` em `membros_coordenacao` na coordenação do item, usando os dados já carregados por `useCoordenacoesDoUsuario`, sem consulta nova.
-- `PermissoesReagendamentoDialog.tsx`: incluir o aviso.
-- Teste unitário: coordenador da própria coordenação pode alterar; coordenador de outra coordenação fora da lista não pode; perfil comum fora da lista não pode.
-- Sem mudança no banco de dados.
+- Só `src/components/workflow/WorkflowEditor.tsx`. Escolher pessoa grava `regra_responsavel = "predefinido"` + `responsaveis = [id]`; reaproveita `useUsuariosCoordenacao` e a gravação existente em responsáveis da etapa. Sem mudança de banco ou permissões.
