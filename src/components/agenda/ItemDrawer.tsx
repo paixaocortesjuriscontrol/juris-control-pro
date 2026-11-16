@@ -16,6 +16,12 @@ interface ItemDrawerProps {
  * Painel sobreposto que desliza da direita, mantendo a lista/calendário
  * visíveis ao fundo. Fecha por X, Esc ou clique fora.
  */
+// Clicar no aviso do canto ("Confirmar e salvar") não pode fechar o painel.
+const ignorarCliqueEmAviso = (e: Event) => {
+  const alvo = e.target as HTMLElement | null;
+  if (alvo?.closest?.("[data-sonner-toaster], [data-sonner-toast]")) e.preventDefault();
+};
+
 export function ItemDrawer({
   open,
   onOpenChange,
@@ -30,6 +36,8 @@ export function ItemDrawer({
       <SheetPrimitive.Portal>
         <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/40 backdrop-blur-[1px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
         <SheetPrimitive.Content
+          onInteractOutside={ignorarCliqueEmAviso}
+          onPointerDownOutside={ignorarCliqueEmAviso}
           className={cn(
             "fixed inset-y-0 right-0 z-50 flex h-full w-full flex-col bg-background shadow-2xl outline-none",
             "sm:w-[min(720px,94vw)] lg:w-[720px]",
