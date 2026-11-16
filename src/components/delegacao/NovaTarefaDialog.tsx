@@ -514,6 +514,7 @@ export function NovaTarefaDialog({
         setPrazoDias(prazoDiasEdit);
         setPrazoUnidade(prazoUnidadeEdit);
         if (dataBaseEdit) form.setValue("data_base", dataBaseEdit);
+        datasOriginaisRef.current = resumoDatas(form.getValues("data_base"), form.getValues("data_vencimento"), form.getValues("data_fatal")).chave;
         setRecorrenciaTipo((tarefaParaEditar as any).recorrencia_tipo || "nenhuma");
         setRecorrenciaIntervalo((tarefaParaEditar as any).recorrencia_intervalo || 1);
         setRecorrenciaFim(((tarefaParaEditar as any).recorrencia_fim || "").slice(0, 10));
@@ -669,6 +670,7 @@ export function NovaTarefaDialog({
   };
 
   const datasConfirmadasRef = useRef<string | null>(null);
+  const datasOriginaisRef = useRef<string | null>(null);
   async function onSubmit(values: FormValues) {
     logTentativa("inicio", { editar: !!tarefaParaEditar?.id, recorrenciaTipo, recorrenciaFim, situacao, responsaveisIds, values });
     if (recorrenciaTipo !== "nenhuma" && !recorrenciaFim) {
@@ -681,7 +683,7 @@ export function NovaTarefaDialog({
     }
     {
       const r = resumoDatas(values.data_base, values.data_vencimento, values.data_fatal);
-      const original = tarefaParaEditar?.id ? resumoDatas(tarefaParaEditar.data_base, tarefaParaEditar.data_vencimento, tarefaParaEditar.data_fatal).chave : null;
+      const original = tarefaParaEditar?.id ? (datasOriginaisRef.current ?? resumoDatas(tarefaParaEditar.data_base, tarefaParaEditar.data_vencimento, tarefaParaEditar.data_fatal).chave) : null;
       // Só pede confirmação quando as datas foram de fato alteradas (ou ao criar).
       if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
         toastSonner("Confirme as datas", {
