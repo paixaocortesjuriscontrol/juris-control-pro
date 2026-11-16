@@ -21,7 +21,22 @@ import { useIniciarWorkflow, useWorkflows } from "@/hooks/useWorkflows";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useUsuariosCoordenacao } from "@/hooks/useUsuariosCoordenacao";
 import { useProcessosPaginados } from "@/hooks/useProcessosPaginados";
-import { Play, Search } from "lucide-react";
+import { Play, Search, ChevronsUpDown } from "lucide-react";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import type { ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
@@ -71,7 +86,7 @@ export function IniciarWorkflowDialog({
   const [responsavelInicial, setResponsavelInicial] = useState("");
   
   const [observacoes, setObservacoes] = useState("");
-  const [respEtapas, setRespEtapas] = useState<Record<string, string>>({});
+  const [respEtapas, setRespEtapas] = useState<Record<string, string[]>>({});
   const [etapasWf, setEtapasWf] = useState<{ id: string; titulo: string; ordem: number; tipo_item?: string }[]>([]);
   useEffect(() => {
     setRespEtapas({});
@@ -138,7 +153,9 @@ export function IniciarWorkflowDialog({
       processo_numero: selectedProcesso?.numero,
       coordenacao_id: coordenacaoId,
       responsavel_inicial: responsavelInicial || undefined,
-      responsaveis_etapas: Object.fromEntries(Object.entries(respEtapas).filter(([, v]) => v).map(([k, v]) => [k, [v]])),
+      responsaveis_etapas: Object.fromEntries(
+        Object.entries(respEtapas).filter(([, v]) => Array.isArray(v) && v.length > 0)
+      ),
       observacoes: observacoes || undefined,
       data_inicio: dataInicio || undefined,
       publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
@@ -324,23 +341,17 @@ export function IniciarWorkflowDialog({
           {etapasWf.length > 0 && (
             <div className="space-y-2 rounded-md border p-3">
               <Label>Responsáveis por etapa</Label>
-              <p className="text-xs text-muted-foreground">Deixe em "Padrão do modelo" para usar a configuração do workflow.</p>
+              <p className="text-xs text-muted-foreground">Deixe em "Padrão do modelo" para usar a configuração do workflow. Você pode escolher mais de uma pessoa por etapa.</p>
               {etapasWf.map((et, i) => (
                 <div key={et.id} className="grid grid-cols-[1fr_1.2fr] items-center gap-2">
                   <span className="text-sm truncate" title={et.titulo}>{i + 1}. {et.titulo}</span>
-                  <Select
-                    value={respEtapas[et.id] || "__padrao"}
-                    onValueChange={(v) => setRespEtapas((a) => ({ ...a, [et.id]: v === "__padrao" ? "" : v }))}
+                  <MultiSelecaoPessoas
+                    pessoas={usuarios}
+                    valores={respEtapas[et.id] || []}
+                    onChange={(ids) => setRespEtapas((a) => ({ ...a, [et.id]: ids }))}
                     disabled={!coordenacaoId}
-                  >
-                    <SelectTrigger className="h-8"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__padrao">Padrão do modelo</SelectItem>
-                      {usuarios.map((u) => (
-                        <SelectItem key={u.id} value={u.id}>{u.nome} {u.cargo ? `(${u.cargo})` : ""}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder="Padrão do modelo"
+                  />
                 </div>
               ))}
             </div>
@@ -431,5 +442,107 @@ export function IniciarWorkflowDialog({
         {body}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Seletor de várias pessoas da coordenação para uma etapa do workflow.
+ * Lista vazia significa "Padrão do modelo": a etapa segue a configuração do fluxo.
+ */
+function MultiSelecaoPessoas({
+  pessoas,
+  valores,
+  onChange,
+  disabled,
+  placeholder,
+}: {
+  pessoas: { id: string; nome: string; cargo?: string | null }[];
+  valores: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+  placeholder: string;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
+  const selecionados = pessoas.filter((p) => valores.includes(p.id));
+  const filtro = busca.trim().toLowerCase();
+  const visiveis = filtro
+    ? pessoas.filter(
+        (p) =>
+          p.nome.toLowerCase().includes(filtro) ||
+          String(p.cargo || "").toLowerCase().includes(filtro)
+      )
+    : pessoas;
+
+  const alternar = (id: string) =>
+    onChange(valores.includes(id) ? valores.filter((v) => v !== id) : [...valores, id]);
+
+  return (
+    <Popover
+      open={aberto}
+      onOpenChange={(o) => {
+        setAberto(o);
+        if (!o) setBusca("");
+      }}
+    >
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={disabled}
+          className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-1 text-left text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span className={cn("truncate", selecionados.length === 0 && "text-muted-foreground")}>
+            {selecionados.length === 0
+              ? placeholder
+              : selecionados.map((p) => p.nome).join(", ")}
+          </span>
+          {selecionados.length > 0 && (
+            <span className="shrink-0 rounded-full bg-muted px-1.5 text-xs text-muted-foreground">
+              {selecionados.length}
+            </span>
+          )}
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[320px] p-0">
+        <Command filter={null}>
+          <CommandInput placeholder="Buscar pessoa..." value={busca} onValueChange={setBusca} />
+          <CommandList className="max-h-56">
+            <CommandEmpty>Nenhuma pessoa encontrada.</CommandEmpty>
+            <CommandGroup>
+              {visiveis.map((p) => (
+                <CommandItem
+                  key={p.id}
+                  value={p.id}
+                  onSelect={() => alternar(p.id)}
+                  className="gap-2"
+                >
+                  <Checkbox checked={valores.includes(p.id)} className="pointer-events-none" />
+                  <span className="truncate">{p.nome}</span>
+                  {p.cargo && (
+                    <span className="ml-auto shrink-0 text-xs text-muted-foreground">{p.cargo}</span>
+                  )}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+        <div className="flex items-center justify-between border-t p-2">
+          <span className="text-xs text-muted-foreground">
+            {valores.length === 0 ? "Padrão do modelo" : `${valores.length} pessoa(s) selecionada(s)`}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-6 px-2 text-xs"
+            onClick={() => onChange([])}
+            disabled={valores.length === 0}
+          >
+            Limpar
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
