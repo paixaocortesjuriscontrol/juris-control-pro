@@ -596,8 +596,20 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
               <div className="space-y-2">
                 <Label htmlFor="regra">Responsável</Label>
                 <Select
-                  value={form.regra_responsavel || "predefinido"}
-                  onValueChange={(v) => setForm({ ...form, regra_responsavel: v })}
+                  value={
+                    (form.regra_responsavel || "predefinido") === "predefinido" && (form.responsaveis || []).length > 0
+                      ? `user:${(form.responsaveis || [])[0]}`
+                      : form.regra_responsavel || "predefinido"
+                  }
+                  onValueChange={(v) => {
+                    if (v.startsWith("user:")) {
+                      const id = v.slice(5);
+                      const atuais: string[] = form.responsaveis || [];
+                      setForm({ ...form, regra_responsavel: "predefinido", responsaveis: [id, ...atuais.filter((x) => x !== id)] });
+                    } else {
+                      setForm({ ...form, regra_responsavel: v });
+                    }
+                  }}
                 >
                   <SelectTrigger id="regra">
                     <SelectValue />
@@ -606,6 +618,14 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                     {REGRAS_RESPONSAVEL.map((t) => (
                       <SelectItem key={t.value} value={t.value}>
                         {t.label}
+                      </SelectItem>
+                    ))}
+                    {usuarios.length > 0 && (
+                      <div className="px-2 pt-2 pb-1 text-xs font-medium text-muted-foreground">Pessoas da coordenação</div>
+                    )}
+                    {usuarios.map((u) => (
+                      <SelectItem key={u.id} value={`user:${u.id}`}>
+                        {u.nome} {u.cargo ? `(${u.cargo})` : ""}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -636,7 +656,7 @@ export function WorkflowEditor({ workflowId, onBack }: WorkflowEditorProps) {
                       </Select>
                     </div>
                   )}
-                  <Label>Responsáveis da etapa</Label>
+                  <Label>Responsáveis da etapa (marque para adicionar outros)</Label>
                   <div className="max-h-48 overflow-y-auto rounded-md border p-2 space-y-1">
                     {!coordEfetiva && (
                       <p className="text-sm text-muted-foreground">
