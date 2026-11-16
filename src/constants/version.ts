@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.1.0";
+export const APP_VERSION = "10.2.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.2.0", date: "2026-11-16", notes: "Confirmação 'Confirme as datas' agora aparece dentro da própria janela da tarefa, ata ou prazo, com os botões Confirmar e salvar e Voltar e corrigir; o aviso não aparece mais ao abrir tarefas pelo Painel sem mudar datas; recuperadas as tarefas e audiências de outras equipes apagadas na limpeza do Santander Cível" },
   { version: "10.1.0", date: "2026-11-16", notes: "Modo Lista reorganizado em até três linhas (processo no topo, detalhes, reclamante x reclamada e observação em linhas próprias, com marcações <destaque> em negrito); aviso 'Confirme as datas' só aparece quando uma data muda e o botão Confirmar e salvar agora grava a data; coordenadores da própria coordenação podem salvar alertas e Acompanhamento Especial; corrigido bloqueio indevido ao mudar só a situação do prazo" },
   { version: "10.0.8", date: "2026-11-16", notes: "Situação 'A confirmar' em azul; não é permitido criar tarefa, ata, prazo, evento ou audiência com data anterior a hoje; ao salvar tarefa, ata ou prazo aparece o aviso 'Confirme as datas' com data base, prevista e fatal; corrigido o erro 'tipo_tarefa' ao gerar o Excel do Painel; editar tarefa sem processo já abre com a coordenação gravada" },
   { version: "10.0.7", date: "2026-11-16", notes: "Workflows: ao iniciar um fluxo pelo botão Adicionar (Painel de Controle, Processos e Casos, Análise DJEN e outras telas), a seção 'Responsáveis por etapa' lista todas as etapas e permite marcar várias pessoas por etapa, com busca por nome ou cargo; quem não for escolhido continua seguindo o 'Padrão do modelo', e todas as pessoas marcadas entram como responsáveis quando a etapa for criada, mesmo dias depois" },
