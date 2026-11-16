@@ -1,0 +1,1 @@
+UPDATE public.membros_coordenacao SET cargo='Advogado' WHERE usuario_id='c8caa9ac-ebf5-4491-bfbe-19ad8cee8733' AND coordenacao_id='968631d0-6659-46f1-b45d-899892cb0121' AND cargo='advogado';
