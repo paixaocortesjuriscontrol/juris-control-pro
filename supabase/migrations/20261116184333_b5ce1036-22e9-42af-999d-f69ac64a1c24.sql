@@ -1,0 +1,3 @@
+CREATE POLICY "Controladoria remaneja audiencias acessiveis" ON public.audiencias_detectadas FOR UPDATE TO authenticated
+USING (public.has_role(auth.uid(),'controladoria') AND ((processo_id IS NOT NULL AND public.can_access_processo(auth.uid(), processo_id)) OR coordenacao_id IN (SELECT mc.coordenacao_id FROM public.membros_coordenacao mc WHERE mc.usuario_id = auth.uid())))
+WITH CHECK (public.has_role(auth.uid(),'controladoria'));
