@@ -21,6 +21,7 @@ export interface ItemAgendaUnificado {
   id: string;
   titulo: string;
   descricao: string | null;
+  observacoes?: string | null;
   tipo: string;
   origem: "evento" | "tarefa"; // Para identificar a origem
   /** Origem do cadastro da tarefa (projuris, analise_djen...). */
@@ -1011,6 +1012,7 @@ export async function fetchAgendaPage(
                   id: occId,
                   titulo: tarefa.titulo,
                   descricao: tarefa.descricao,
+                  observacoes: tarefa.observacoes,
                   tipo: tipoTarefa,
                   origem: "tarefa",
                   origem_registro: (tarefa as any).origem ?? null,

@@ -66,6 +66,7 @@ import type { Prazo } from "@/hooks/usePrazos";
 import { concluirItensEmLote } from "@/lib/concluirItensEmLote";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { podeSelecionarItemLista } from "@/lib/selecaoItensLista";
+import { primeiraLinhaObservacao } from "@/lib/primeiraLinhaObservacao";
 
 const PAGE_SIZE = 50;
 
@@ -1079,6 +1080,7 @@ export default function ListaAtividadesView({
                 <colgroup>
                   <col className="w-9" />
                   <col className="w-[280px]" />
+                  <col className="w-[240px]" />
                   <col className="w-[150px]" />
                   <col className="w-[160px]" />
                   <col className="w-[140px]" />
@@ -1102,6 +1104,7 @@ export default function ListaAtividadesView({
                       />
                     </TableHead>
                     <TableHead className="h-9 font-semibold text-left">Atividade</TableHead>
+                    <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Observação</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">Responsável</TableHead>
                     <TableHead className="h-9 font-semibold text-left whitespace-nowrap">
                       <button
@@ -1136,7 +1139,7 @@ export default function ListaAtividadesView({
                   {isLoading ? (
                     Array.from({ length: 10 }).map((_, i) => (
                       <TableRow key={i}>
-                        <TableCell colSpan={8}>
+                        <TableCell colSpan={9}>
                           <Skeleton className="h-4 w-full" />
                         </TableCell>
                       </TableRow>
@@ -1144,7 +1147,7 @@ export default function ListaAtividadesView({
                   ) : rows.length === 0 ? (
                     <TableRow>
                       <TableCell
-                        colSpan={8}
+                        colSpan={9}
                         className="h-32 text-center text-muted-foreground"
                       >
                         Nenhuma atividade encontrada.
@@ -1157,6 +1160,7 @@ export default function ListaAtividadesView({
                       const audiencia = item.tipo === "audiencia"
                         ? audienciaDetalhesLookup?.[getItemRawId(r.id)]
                         : undefined;
+                      const observacao = primeiraLinhaObservacao((r as any).observacoes);
                       const detalhesAudiencia = item.tipo === "audiencia" ? [
                         ["Tipo", audiencia?.tipo_audiencia],
                         ["Modalidade", audiencia?.modalidade],
@@ -1240,12 +1244,19 @@ export default function ListaAtividadesView({
                                   {(r as any).partes_passivas || partesPorProcesso[(r as any).processo_id]?.passivo || "—"}
                                 </div>
                               )}
-                              {(r as any).observacoes && (
-                                <div className="text-[10px] text-muted-foreground break-words line-clamp-2">
-                                  {(r as any).observacoes}
-                                </div>
-                              )}
                             </div>
+                          </TableCell>
+                          <TableCell className="py-3 align-top">
+                            {observacao ? (
+                              <div
+                                className="text-[11px] text-foreground truncate"
+                                title={(r as any).observacoes}
+                              >
+                                {observacao}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px]">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="py-3 align-top">
                             {renderResponsavel(r)}
