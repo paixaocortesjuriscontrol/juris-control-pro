@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import { strict as assert } from "node:assert";
-import { compararExportacao, chaveItemExportado, type FiltrosConferencia, type ItemConferencia } from "./conferenciaExportacao";
+import { soFatalNoPeriodo, motivoFaltante, limiteDepoisDaFatal, compararExportacao, chaveItemExportado, type FiltrosConferencia, type ItemConferencia } from "./conferenciaExportacao";
 
 const base: FiltrosConferencia = {
   inicio: "2026-11-01", fim: "2026-11-30", tipos: ["prazo"], situacoes: ["pendente"], coordIds: [],
@@ -46,5 +46,18 @@ describe("conferência da exportação", () => {
     const r = compararExportacao([ev, ev], [chaveItemExportado({ id: "5::2026-11-12", origem: "evento" })!], f);
     assert.equal(r.totalBanco, 1);
     assert.equal(r.faltantes.length, 0);
+  });
+});
+
+describe("prazo com data limite fora e fatal dentro do período", () => {
+  const f: any = { inicio: "2023-07-01", fim: "2026-11-16", tipos: [], situacoes: [], coordIds: [], pessoaIds: [], papeis: { responsavel: true, envolvido: true }, referencia: "vencimento" };
+  const t: any = { chave: "t:1", tipo: "prazo", data_vencimento: "2027-01-28", data_fatal: "2026-11-09", responsaveis: [], envolvidos: [] };
+  it("é detectado e explicado", () => {
+    assert.equal(soFatalNoPeriodo(t, f), true);
+    assert.ok(motivoFaltante(t, f).includes("só a data fatal"));
+    assert.equal(limiteDepoisDaFatal(t.data_vencimento, t.data_fatal), true);
+  });
+  it("limite dentro não conta como só fatal", () => {
+    assert.equal(soFatalNoPeriodo({ ...t, data_vencimento: "2026-11-08" }, f), false);
   });
 });

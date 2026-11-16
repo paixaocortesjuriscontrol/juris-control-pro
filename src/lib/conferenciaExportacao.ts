@@ -19,6 +19,7 @@ export interface ItemConferencia {
   data_fatal?: string | null;
   created_at?: string | null;
   coordenacao_id?: string | null;
+  processo_id?: string | null;
   responsaveis: string[];
   envolvidos: string[];
 }
@@ -87,6 +88,23 @@ export function itemCasaFiltros(t: ItemConferencia, f: FiltrosConferencia): bool
   }
   return true;
 }
+
+/** Só a data fatal cai no período (limite fora): a agenda não traz o item. */
+export function soFatalNoPeriodo(t: ItemConferencia, f: FiltrosConferencia): boolean {
+  if (f.referencia === "cadastro" || (!f.inicio && !f.fim)) return false;
+  const dentro = (d: string) => !!d && (!f.inicio || d >= f.inicio) && (!f.fim || d <= f.fim);
+  return !dentro(diaBrt(t.data_vencimento)) && dentro(diaBrt(t.data_fatal));
+}
+
+export function motivoFaltante(t: ItemConferencia, f: FiltrosConferencia): string {
+  return soFatalNoPeriodo(t, f)
+    ? "Data limite fora do período; só a data fatal está dentro"
+    : "Removido por filtro do Painel (etiquetas, origem, busca, cliente, processo etc.)";
+}
+
+/** Data limite posterior à data fatal. */
+export const limiteDepoisDaFatal = (lim?: string | null, fat?: string | null) =>
+  !!lim && !!fat && diaBrt(lim) > diaBrt(fat);
 
 /** Chave de um item exportado (agenda), sem sufixos de ocorrência. */
 export function chaveItemExportado(it: { id: any; origem?: string }): string | null {
@@ -201,7 +219,7 @@ export async function buscarItensConferencia(
 
   // Tarefas (prazos, tarefas, atas e as audiências/eventos antigos guardados como tarefa)
   const tarefas = (await lerPorCampos(
-    "tarefas", "id, titulo, tipo_tarefa, status, data_vencimento, data_fatal, created_at, coordenacao_id",
+    "tarefas", "id, titulo, tipo_tarefa, status, data_vencimento, data_fatal, created_at, coordenacao_id, processo_id",
     cad ? ["created_at"] : ["data_vencimento", "data_fatal"], true,
   )).filter((r) => tipos.includes(classificarTarefa(r.tipo_tarefa) as TipoConferido));
   const tIds = tarefas.map((r) => String(r.id));
@@ -214,7 +232,7 @@ export async function buscarItensConferencia(
   tarefas.forEach((r) => out.push({
     chave: `t:${r.id}`, tipo: classificarTarefa(r.tipo_tarefa), titulo: r.titulo, status: r.status,
     data_vencimento: r.data_vencimento, data_fatal: r.data_fatal, created_at: r.created_at,
-    coordenacao_id: r.coordenacao_id,
+    coordenacao_id: r.coordenacao_id, processo_id: r.processo_id ?? null,
     responsaveis: tResp.get(String(r.id)) ?? [], envolvidos: tEnv.get(String(r.id)) ?? [],
   }));
 

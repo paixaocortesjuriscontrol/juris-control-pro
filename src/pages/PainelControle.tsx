@@ -36,7 +36,7 @@ import {
 import { NovaTarefaDialog } from "@/components/delegacao/NovaTarefaDialog";
 import { PainelFiltros, PainelFiltrosState, PAINEL_FILTROS_DEFAULT } from "@/components/painel/PainelFiltros";
 import { ExportarAtividadesDialog } from "@/components/painel/ExportarAtividadesDialog";
-import { buscarItensConferencia, compararExportacao, tiposConferidos, chaveItemExportado, NOMES_TIPO_CONFERIDO } from "@/lib/conferenciaExportacao";
+import { buscarItensConferencia, compararExportacao, tiposConferidos, chaveItemExportado, NOMES_TIPO_CONFERIDO, soFatalNoPeriodo, motivoFaltante, limiteDepoisDaFatal } from "@/lib/conferenciaExportacao";
 import { ExportarAudienciasSheet } from "@/components/painel/ExportarAudienciasSheet";
 import { BaixaRapidaDialog } from "@/components/agenda/BaixaRapidaDialog";
 import { Download, UsersRound, Bell, ArrowRightLeft } from "lucide-react";
@@ -1713,6 +1713,7 @@ export default function PainelControle() {
         Horário: horario,
         "Hora término": (aud?.hora_fim ?? "").slice(0, 5),
         "Data fatal": fmtDate(it.data_fatal),
+        "Aviso de datas": it.origem === "tarefa" && limiteDepoisDaFatal(it.data_vencimento, it.data_fatal) ? "Data limite depois da fatal" : "",
         Responsáveis: responsaveisArr.join(", "),
         Envolvidos: envolvidosArr.join(", "),
         Processo: it.processo?.numero ?? "",
@@ -1749,12 +1750,40 @@ export default function PainelControle() {
       papeis: papeisPessoas, referencia,
     } as const;
     const fmtD = (s?: string | null) => { const d = s ? s.slice(0, 10) : ""; return d ? d.split("-").reverse().join("/") : ""; };
+    const nomesConfAll: Record<string, string> = NOMES_TIPO_CONFERIDO;
+    const nomesConf = nomesConfAll;
     if (tiposConferidos(tipos).length > 0) {
       try {
         const doBanco = await buscarItensConferencia(supabase, inChunks as any, fConf as any);
         const idsExp = itensOrdenados.map((it: any) => chaveItemExportado(it)).filter(Boolean) as string[];
-        const r = compararExportacao(doBanco, idsExp, fConf as any);
-        const nomesConf: Record<string, string> = NOMES_TIPO_CONFERIDO;
+        const r0 = compararExportacao(doBanco, idsExp, fConf as any);
+        // Prazos cuja data fatal está no período mas a limite não: entram na planilha.
+        const incluir = r0.faltantes.filter((t) => t.chave.startsWith("t:") && soFatalNoPeriodo(t, fConf as any));
+        const procFalt = Array.from(new Set(r0.faltantes.map((t) => t.processo_id).filter(Boolean) as string[]));
+        const procInfo = new Map<string, { numero: string; ativo: string; passivo: string; cliente: string }>();
+        if (procFalt.length > 0) {
+          const ps = await inChunks((l: string[]) => supabase.from("processos").select("id, numero, polo_ativo, polo_passivo, cliente_id").in("id", l), procFalt);
+          const cIds = Array.from(new Set((ps || []).map((p: any) => p.cliente_id).filter(Boolean)));
+          const cs = cIds.length ? await inChunks((l: string[]) => supabase.from("clientes").select("id, nome").in("id", l), cIds as string[]) : [];
+          const cNome = new Map<string, string>((cs || []).map((c: any) => [String(c.id), c.nome ?? ""]));
+          (ps || []).forEach((p: any) => procInfo.set(String(p.id), { numero: p.numero ?? "", ativo: p.polo_ativo ?? "", passivo: p.polo_passivo ?? "", cliente: cNome.get(String(p.cliente_id)) ?? "" }));
+        }
+        const nomeR = (ids: string[]) => ids.map((id) => nomeById.get(id) ?? "").filter(Boolean).join(", ");
+        incluir.forEach((t) => {
+          const pi = t.processo_id ? procInfo.get(t.processo_id) : undefined;
+          const base: any = Object.fromEntries(Object.keys(rowsFinal[0] ?? {}).map((k) => [k, ""]));
+          rowsFinal.push({
+            ...base,
+            Classificação: nomesConfAll[t.tipo] ?? "",
+            Título: t.titulo ?? "", Status: t.status ?? "",
+            "Data prevista": fmtD(t.data_vencimento), "Data fatal": fmtD(t.data_fatal),
+            "Aviso de datas": limiteDepoisDaFatal(t.data_vencimento, t.data_fatal) ? "Data limite depois da fatal" : "",
+            Responsáveis: nomeR(t.responsaveis), Envolvidos: nomeR(t.envolvidos),
+            Processo: pi?.numero ?? "", Reclamante: pi?.ativo ?? "", Reclamada: pi?.passivo ?? "", Cliente: pi?.cliente ?? "",
+            Coordenação: coordNomeById.get(t.coordenacao_id ?? "") ?? "",
+          });
+        });
+        const r = compararExportacao(doBanco, [...idsExp, ...incluir.map((t) => t.chave)], fConf as any);
         const profFalt = new Set<string>();
         r.faltantes.forEach((t) => t.responsaveis.forEach((id) => profFalt.add(id)));
         const nomeFalt = new Map<string, string>(nomeById);
@@ -1770,15 +1799,18 @@ export default function PainelControle() {
           porTipo: r.porTipo.map((p) => ({ tipo: nomesConf[p.tipo], banco: p.banco, exportado: p.exportado, faltando: p.faltando })),
           tiposCobertos: r.tiposCobertos.map((t) => nomesConf[t]).join(", "),
           observacao: r.faltantes.length > 0
-            ? "Motivo provável: algum filtro do Painel ligado na tela (etiquetas, origem, busca, cliente, processo etc.) também é aplicado à exportação. Limpe os filtros do Painel e exporte de novo."
+            ? "O motivo de cada item está na coluna Motivo. Quando for filtro do Painel, limpe os filtros da tela e exporte de novo."
             : undefined,
           faltantes: r.faltantes.map((t) => ({
             Título: t.titulo ?? "",
+            Processo: (t.processo_id && procInfo.get(t.processo_id)?.numero) || "",
+            Cliente: (t.processo_id && procInfo.get(t.processo_id)?.cliente) || "",
             Tipo: nomesConf[t.tipo] ?? "",
             Situação: t.status ?? "",
             "Data (limite/audiência/início)": fmtD(t.data_vencimento),
             "Data fatal": fmtD(t.data_fatal),
             Responsáveis: t.responsaveis.map((id) => nomeFalt.get(id) ?? "").filter(Boolean).join(", "),
+            Motivo: motivoFaltante(t, fConf as any),
           })),
         };
         avisoConferencia = r.faltantes.length === 0
