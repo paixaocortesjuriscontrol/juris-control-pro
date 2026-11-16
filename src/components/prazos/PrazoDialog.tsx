@@ -539,7 +539,9 @@ export function PrazoDialog({
     }
     {
       const r = resumoDatas(dataBase, dataLimite, dataFatal);
-      if (datasConfirmadasRef.current !== r.chave) {
+      const original = prazo ? resumoDatas(dataBase, prazo.data_vencimento, (prazo as any).data_fatal).chave : null;
+      // Só pede confirmação quando as datas foram de fato alteradas (ou ao criar).
+      if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
         const formEl = e.currentTarget as HTMLFormElement;
         const sub = submitter;
         toast("Confirme as datas", {

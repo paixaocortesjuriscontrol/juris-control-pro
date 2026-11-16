@@ -681,7 +681,9 @@ export function NovaTarefaDialog({
     }
     {
       const r = resumoDatas(values.data_base, values.data_vencimento, values.data_fatal);
-      if (datasConfirmadasRef.current !== r.chave) {
+      const original = tarefaParaEditar?.id ? resumoDatas(tarefaParaEditar.data_base, tarefaParaEditar.data_vencimento, tarefaParaEditar.data_fatal).chave : null;
+      // Só pede confirmação quando as datas foram de fato alteradas (ou ao criar).
+      if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
         toastSonner("Confirme as datas", {
           description: <span className="whitespace-pre-line">{r.texto}</span>,
           duration: 20000,
