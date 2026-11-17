@@ -502,13 +502,20 @@ export default function MinhasResponsabilidades() {
             onChange={setPf}
             ocultarResponsaveis
             atividadesOpcoes={atividadesOpcoes}
-            escopoPessoa={isAdmin ? { coordenacoes: coordenacoes.data ?? [], usuarios: (usuarios.data ?? []).filter((u) => u.id !== user?.id) } : undefined}
+            
           />
-          <span className="text-[11px] text-muted-foreground ml-auto">
-            {isAdmin && usuarioSel
-              ? `Vendo as responsabilidades de ${(usuarios.data ?? []).find((u) => u.id === usuarioSel)?.nome ?? "outra pessoa"}`
-              : "Mostrando as suas responsabilidades"}
-          </span>
+          {isAdmin ? (
+            <div className="ml-auto flex flex-wrap items-end gap-2">
+              <FiltroSelect rotulo="Coordenação" valor={coordSel}
+                onChange={(v: string) => setPf((st) => ({ ...st, verDeCoordenacao: v, verDeUsuario: "" }))}
+                opcoes={[{ v: "todas", l: "Todas" }, ...(coordenacoes.data ?? []).map((c: any) => ({ v: c.id, l: c.nome }))]} />
+              <FiltroSelect rotulo="Ver como" valor={usuarioSel || "__eu"}
+                onChange={(v: string) => setPf((st) => ({ ...st, verDeUsuario: v === "__eu" ? "" : v }))}
+                opcoes={[{ v: "__eu", l: "Eu mesmo" }, ...(usuarios.data ?? []).filter((u: any) => u.id !== user?.id).map((u: any) => ({ v: u.id, l: u.nome }))]} />
+            </div>
+          ) : (
+            <span className="text-[11px] text-muted-foreground ml-auto">Mostrando as suas responsabilidades</span>
+          )}
         </div>
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList>
