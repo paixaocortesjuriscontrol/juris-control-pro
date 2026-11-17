@@ -2,6 +2,7 @@ import { useSessionState } from "@/hooks/useSessionState";
 import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
+import { corHeaderItem } from "@/lib/tipoItemAgenda";
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Badge } from "@/components/ui/badge";
@@ -3838,6 +3839,7 @@ export default function PainelControle() {
         titulo={selectedItem?.titulo || "Detalhe do item"}
         subtitulo={selectedItem?.processo?.numero ?? null}
         partes={partesItemSelecionado}
+        corHeader={selectedItem ? corHeaderItem(selectedItem) : undefined}
       >
         {selectedItem && (
           <EdicaoItemPanel

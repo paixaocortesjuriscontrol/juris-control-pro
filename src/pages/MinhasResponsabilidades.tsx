@@ -81,6 +81,7 @@ import { useCobrancasItens, infoCobrancaItem } from "@/hooks/useCobrancasItens";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
+import { corHeaderItem } from "@/lib/tipoItemAgenda";
 
 type Periodo = "mes" | "trimestre" | "ano";
 const PERIODOS: { v: Periodo; l: string }[] = [
@@ -694,7 +695,7 @@ export default function MinhasResponsabilidades() {
         </Tabs>
       </div>
 
-      <ItemDrawer open={!!itemSel} onOpenChange={(o) => !o && setItemSel(null)} titulo={itemSel?.titulo || "Detalhe do item"} subtitulo={itemSel?.processo?.numero ?? null}>
+      <ItemDrawer open={!!itemSel} onOpenChange={(o) => !o && setItemSel(null)} titulo={itemSel?.titulo || "Detalhe do item"} subtitulo={itemSel?.processo?.numero ?? null} corHeader={itemSel ? corHeaderItem(itemSel) : undefined}>
         {itemSel && (
           <div className="flex flex-col h-full">
             {itemSel.processo_id && (
