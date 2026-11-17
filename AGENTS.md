@@ -50,7 +50,7 @@
 - Task SELECT RLS also allows users listed in tarefa_responsaveis/tarefa_envolvidos (via `sou_participante_tarefa`, auth.uid() only), so people assigned across coordinations see their items even without process access.
 - DJEN Servidor run completion stays light: TST Pautas/Distribuições generation runs in the 15-min pos-djen-servidor-gerar-tst cron, not the status trigger (it hit statement timeout).
 - Menu access: permissoes_menu_coordenacao (member>cargo>open), UI only.
-- Scheduling permissions: `permissoes_agendamento_coordenacao` (no row = allowed) enforced by trigger `bloquear_configuracao_agendamento`, so every screen/import obeys it.
+- Scheduling permissions: `permissoes_agendamento_coordenacao` (no row = allowed) enforced by trigger `bloquear_configuracao_agendamento`, so every screen/import obeys it; inserts with `origem = workflow` are exempt because the next step is created in the session of whoever finished the previous one.
 - Client coordinations: explicit `clientes_coordenacoes` merged with process-derived ones.
 - DJEN Cadernos is an admin-only experiment isolated from DJEN Servidor; never writes publicacoes_djen.
 - Distribuição TST spreadsheet downloads pass through `padronizarXlsxTst`/`baixarXlsxTst` (`src/lib/estiloPlanilhaTst.ts`), which rewrites the final styles.xml, so one place enforces the screen-wide font/alignment standard regardless of the library used.
