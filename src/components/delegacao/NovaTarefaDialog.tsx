@@ -1,3 +1,4 @@
+import { coordenacaoDoUsuarioNoProcesso } from "@/lib/coordenacaoDoUsuarioNoProcesso";
 import { WorkflowEtapasDoItem } from "@/components/workflows/WorkflowEtapasDoItem";
 import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
@@ -473,7 +474,7 @@ export function NovaTarefaDialog({
             .select("coordenacao_id, numero")
             .eq("id", processoId)
             .maybeSingle();
-          coordenacaoId = coordenacaoDaTarefa || proc?.coordenacao_id || coordenacaoId;
+          coordenacaoId = coordenacaoDaTarefa || (await coordenacaoDoUsuarioNoProcesso(processoId, proc?.coordenacao_id || null)) || coordenacaoId;
           processoNumero = proc?.numero || processoNumero;
         }
         const { data: resps } = await supabase

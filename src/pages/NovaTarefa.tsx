@@ -1,3 +1,4 @@
+import { coordenacaoDoUsuarioNoProcesso } from "@/lib/coordenacaoDoUsuarioNoProcesso";
 import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -102,6 +103,9 @@ export default function NovaTarefa() {
         .single();
       
       if (error) throw error;
+      if (data && !(data as any).coordenacao_id && data.processo_id) {
+        (data as any).coordenacao_id = await coordenacaoDoUsuarioNoProcesso(data.processo_id, (data as any).processo?.coordenacao_id || null);
+      }
       return data;
     },
     enabled: !!editarId,
