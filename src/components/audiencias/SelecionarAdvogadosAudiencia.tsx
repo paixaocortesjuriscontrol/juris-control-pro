@@ -88,16 +88,26 @@ export function SelecionarAdvogadosAudiencia({ selectedAdvogados, onSelectionCha
 
   // Buscar todos os advogados ativos
   const { data: todosAdvogados = [] } = useQuery({
-    queryKey: ["advogados-ativos"],
+    queryKey: ["advogados-ativos-audiencia"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, nome, email, oab")
-        .eq("ativo", true)
-        .order("nome");
-
-      if (error) throw error;
-      return data as Advogado[];
+      // profiles completo só é visível para admin/coordenador; os demais perfis
+      // (ex.: assistente) veem apenas o próprio. Completa com profiles_basic.
+      const [full, basic] = await Promise.all([
+        supabase.from("profiles").select("id, nome, email, oab, ativo").order("nome"),
+        supabase.from("profiles_basic").select("id, nome").order("nome"),
+      ]);
+      if (full.error && basic.error) throw full.error;
+      const map = new Map<string, Advogado>();
+      const inativos = new Set<string>();
+      for (const p of (full.data || []) as any[]) {
+        if (p.ativo === false) { inativos.add(p.id); continue; }
+        map.set(p.id, { id: p.id, nome: p.nome, email: p.email || "", oab: p.oab });
+      }
+      for (const p of (basic.data || []) as any[]) {
+        if (!p?.id || map.has(p.id) || inativos.has(p.id)) continue;
+        map.set(p.id, { id: p.id, nome: p.nome || "", email: "", oab: null });
+      }
+      return Array.from(map.values()).sort((a, b) => (a.nome || "").localeCompare(b.nome || ""));
     },
   });
 
