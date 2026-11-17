@@ -230,20 +230,30 @@ export default function MinhasResponsabilidades() {
         let offset = 0;
         for (let i = 0; i < 20; i++) {
           const r = await lerFonteAgendaPorTipo({ modo: "pessoal", usuario: uid }, fonte, { dataInicio, dataFim }, offset, 500);
-          let advogadoDe = new Set<string>();
-          if (fonte === "audiencias" && r.linhas.length) {
-            // A busca pessoal de audiências não traz a lista de advogados/envolvidos:
-            // ela já vem filtrada pela pessoa; aqui só separamos responsável x envolvido.
+          const advogadoDe = new Set<string>();
+          const envolvidoDe = new Set<string>();
+          if ((fonte === "audiencias" || fonte === "eventos") && r.linhas.length) {
+            // Confere nas listas de pessoas: só entra quem é responsável ou envolvido de fato.
             const ids = r.linhas.map((l: any) => l.id);
+            const [tResp, cResp, tEnv, cEnv] = fonte === "audiencias"
+              ? ["audiencias_advogados", "advogado_id", "audiencia_envolvidos", "audiencia_id"]
+              : ["evento_responsaveis", "evento_id", "evento_envolvidos", "evento_id"];
+            const colItem = fonte === "audiencias" ? "audiencia_id" : "evento_id";
             for (let k = 0; k < ids.length; k += 200) {
-              const { data } = await supabase.from("audiencias_advogados").select("audiencia_id").eq("advogado_id", uid).in("audiencia_id", ids.slice(k, k + 200));
-              (data ?? []).forEach((x: any) => advogadoDe.add(x.audiencia_id));
+              const lote = ids.slice(k, k + 200);
+              const [a, b] = await Promise.all([
+                (supabase as any).from(tResp).select(colItem).eq(fonte === "audiencias" ? cResp : "usuario_id", uid).in(colItem, lote),
+                (supabase as any).from(tEnv).select(cEnv).eq("usuario_id", uid).in(cEnv, lote),
+              ]);
+              (a.data ?? []).forEach((x: any) => advogadoDe.add(x[colItem]));
+              (b.data ?? []).forEach((x: any) => envolvidoDe.add(x[cEnv]));
             }
           }
           for (const l of r.linhas) {
             let papel = papelDoUsuario(l, uid);
-            if (!papel && fonte === "audiencias") papel = advogadoDe.has(l.id) ? "responsavel" : "envolvido";
-            if (!papel && fonte === "eventos") papel = l.criado_por === uid ? "responsavel" : "envolvido";
+            if (!papel && (fonte === "audiencias" || fonte === "eventos")) {
+              papel = advogadoDe.has(l.id) || (fonte === "eventos" && l.criado_por === uid) ? "responsavel" : envolvidoDe.has(l.id) ? "envolvido" : null;
+            }
             if (!papel) continue;
             const extra = fonte === "audiencias"
               ? {
