@@ -462,25 +462,7 @@ export default function MinhasResponsabilidades() {
 
   return (
     <MainLayout title="Minhas responsabilidades" subtitle="Tudo que está com você: atividades, processos e workflows">
-      <div className="space-y-4">
-        <div className="flex flex-wrap gap-2 items-center justify-between rounded-md border p-2 bg-muted/30">
-          <PainelFiltros
-            filtros={pf}
-            onChange={setPf}
-            ocultarResponsaveis
-            atividadesOpcoes={atividadesOpcoes}
-            escopoPessoa={isAdmin ? { coordenacoes: coordenacoes.data ?? [], usuarios: (usuarios.data ?? []).filter((u) => u.id !== user?.id) } : undefined}
-          />
-          <span className="text-xs text-muted-foreground">
-            {isAdmin && usuarioSel
-              ? `Vendo as responsabilidades de ${(usuarios.data ?? []).find((u) => u.id === usuarioSel)?.nome ?? "outra pessoa"}`
-              : "Mostrando as suas responsabilidades"}
-          </span>
-        </div>
-        <div className="rounded-md border p-2">
-          <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
-          <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
-        </div>
+      <div className="space-y-3">
         <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
           {resumo.map((r) => (
             <button key={r.l} type="button" onClick={r.onClick} className="text-left">
@@ -492,6 +474,24 @@ export default function MinhasResponsabilidades() {
           ))}
         </div>
 
+        <div className="flex flex-wrap gap-2 items-center">
+          <PainelFiltros
+            filtros={pf}
+            onChange={setPf}
+            ocultarResponsaveis
+            atividadesOpcoes={atividadesOpcoes}
+            escopoPessoa={isAdmin ? { coordenacoes: coordenacoes.data ?? [], usuarios: (usuarios.data ?? []).filter((u) => u.id !== user?.id) } : undefined}
+          />
+          <span className="text-[11px] text-muted-foreground ml-auto">
+            {isAdmin && usuarioSel
+              ? `Vendo as responsabilidades de ${(usuarios.data ?? []).find((u) => u.id === usuarioSel)?.nome ?? "outra pessoa"}`
+              : "Mostrando as suas responsabilidades"}
+          </span>
+        </div>
+        {(atividadesOpcoes?.length ?? 0) > 0 && <div className="flex items-start gap-2">
+          <span className="text-[11px] font-semibold text-muted-foreground pt-1 whitespace-nowrap">Atividades:</span>
+          <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
+        </div>}
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList>
             <TabsTrigger value="agenda">Agenda</TabsTrigger>
