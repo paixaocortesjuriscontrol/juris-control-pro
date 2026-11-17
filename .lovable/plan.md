@@ -1,28 +1,27 @@
-# Códigos Projuris repetidos entre Santander Cível e Santander Trabalhista
+# Padrão das planilhas da Distribuição TST (pedido da Dra. Lienne)
 
-## O que foi conferido
-- A planilha enviada pela Trabalhista tem 179 atividades, com códigos de TAR.0002762 a TAR.0007630.
-- Conferi uma amostra no sistema. Cada código está na Santander Trabalhista, no **mesmo processo** e com o título certo (ex.: TAR.0007625 → 0000125-77.2026.5.18.0018, Embargos de Declaração).
-- Nenhum dos 33 códigos que se repetem entre as duas equipes está nessa planilha.
+Vale só para as planilhas geradas na tela Distribuição TST, mas todas elas, sem exceção (inclusive a Carga Benner).
 
-## Conferência da planilha da Trabalhista
-- Os códigos da sua planilha estão gravados na Santander Trabalhista exatamente como vieram, no mesmo processo e com o mesmo título.
-- Exemplos: TAR.0002762 → 0000919-51.2025.5.10.0020 (Audiência de instrução) e TAR.0006372 → 0001000-60.2026.5.10.0021 (Contestação).
-- A Trabalhista recebeu duas importações: 6.666 atividades em 01/10 e 104 em 04/11.
-- Nenhum código da Cível foi parar na Trabalhista, nem o contrário.
+## Padrão em todas as células, inclusive os cabeçalhos
+1. Fonte Calibri
+2. Texto alinhado no meio (vertical)
+3. Texto centralizado (horizontal)
+4. Quebra de texto automática
 
-## Por que os códigos se repetem
-As duas equipes vieram de **bases Projuris separadas**, e cada base começa a contar do TAR.0000001:
-- **Trabalhista:** 6.770 atividades, de TAR.0000440 a TAR.0007630. Quase todas são de processos trabalhistas (6.375) e foram importadas em 01/10.
-- **Cível:** 2.986 atividades, de TAR.0000768 a TAR.0105048. São processos da justiça estadual (2.847).
+As cores, os negritos, as larguras de coluna e a ordem das colunas que já existem não mudam.
 
-O mesmo número aparece nas duas equipes, mas em processos e atividades diferentes. Por exemplo, TAR.0000768 é "Acompanhamento" num processo cível e "Audiência inicial" num processo trabalhista. Por isso a importação está certa e nada precisa ser apagado ou corrigido.
-
-## Proposta (só prevenção, sem mexer nos dados)
-1. Toda busca ou correção pelo código Projuris passa a usar **código + equipe**, nunca só o código. Assim, uma correção numa equipe não altera a outra. A correção de tipo/subtipo da Cível já foi feita assim.
-2. Mostrar a equipe junto do código no detalhe da tarefa, para ninguém achar que é a mesma atividade.
-3. Opcional: fazer a conferência completa das 179 linhas e entregar um relatório Excel.
+## Planilhas que mudam
+- Pendências e Dossiês
+- Dossiês não localizados
+- Duplicados e rejeitados da Certidão (importações)
+- Relatório de Distribuição, Relatório Iara e Presidência-Admissibilidade
+- Relatório por situação
+- Carga Benner: Layout Carga TST, Conferência e Rejeições
 
 ## Detalhes técnicos
-- Revisar os importadores Projuris e os casamentos por `tarefas.identificador_projuris`, para que sempre filtrem por `coordenacao_id`.
-- Não há alteração de banco nem de dados.
+- Criar um helper único, `src/lib/estiloPlanilhaTst.ts`, para cada biblioteca:
+  - **xlsx / xlsx-js-style:** usar `xlsx-js-style` nesses exports e aplicar `s.font.name = "Calibri"` e `alignment {horizontal: center, vertical: center, wrapText: true}` em todas as células, preservando o estilo que já existe.
+  - **exceljs:** aplicar o mesmo em todas as células usadas.
+  - **Modelo JSZip (Carga Benner):** reescrever `styles.xml` para trocar as fontes por Calibri e colocar o mesmo alinhamento em todos os `cellXfs`. Isso também resolve a regra pendente de centralizar todas as colunas.
+- Fora da Distribuição TST, nenhuma planilha muda.
+- Teste: gerar uma planilha de amostra e confirmar fonte, alinhamento e quebra em todas as células.
