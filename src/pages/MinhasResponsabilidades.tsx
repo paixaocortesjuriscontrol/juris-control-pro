@@ -18,6 +18,25 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink, LayoutList, Columns3, ListChecks, Rows3, FileSpreadsheet, CalendarDays, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { TratadoCheck, isItemRiscado, isItemConcluidoComSucesso } from "@/components/shared/TratadoCheck";
+import { AnexoBadge } from "@/components/comum/AnexoBadge";
+import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
+import { CobrancaBadge } from "@/components/comum/CobrancaBadge";
+import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
+import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
+import { tituloCobranca } from "@/hooks/useCobrancasItens";
+import { autoriaComentarioItem } from "@/hooks/useItensComComentarios";
+import { FileText } from "lucide-react";
+
+const CAL_CORES: Record<string, string> = {
+  evento: "bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-300",
+  tarefa: "bg-blue-50 dark:bg-blue-950/40 border border-blue-300 dark:border-blue-800 text-blue-700 dark:text-blue-300",
+  prazo: "bg-red-50 dark:bg-red-950/40 border border-red-300 dark:border-red-800 text-red-700 dark:text-red-300",
+  audiencia: "bg-yellow-50 dark:bg-yellow-950/40 border border-yellow-300 dark:border-yellow-800 text-yellow-700 dark:text-yellow-300",
+  ata: "bg-violet-50 dark:bg-violet-950/40 border border-violet-300 dark:border-violet-800 text-violet-700 dark:text-violet-300",
+};
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 function FiltroSelect({ rotulo, opcoes, valor, onChange }: { rotulo: string; opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
@@ -329,6 +348,7 @@ export default function MinhasResponsabilidades() {
   const { data: mapaComentarios } = useItensComComentarios(itensAgendaFmt as any);
   const { data: itensDePub, isPending: pubCarregando } = useItensDePublicacao(itensAgendaFmt as any, true);
   const { data: mapaCobrancas } = useCobrancasItens(itensAgendaFmt as any, "minhas");
+  const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgendaFmt as any);
   const itens = useMemo(() => brutos.filter((raw, idx) => {
     const item: any = itensAgendaFmt[idx];
     if (pf.classificacoes.length > 0) {
@@ -593,18 +613,30 @@ export default function MinhasResponsabilidades() {
                       <div key={chave} className={cn("bg-background min-h-[90px] p-1", !isSameMonth(dia, mesCal) && "opacity-40")}>
                         <div className={cn("text-[11px] mb-0.5", isToday(dia) && "font-bold text-primary")}>{format(dia, "d")}</div>
                         <div className="space-y-0.5">
-                          {doDia.slice(0, 4).map((i: any) => {
-                            const st = classificarStatus(i);
+                          {doDia.slice(0, 5).map((raw: any) => {
+                            const item: any = paraItemAgenda(raw);
+                            const rid = getItemRawId(item.id);
+                            const cancelado = ["cancelado", "cancelado_oculto"].includes(String(item.status ?? ""));
+                            const sucesso = isItemConcluidoComSucesso(item);
+                            const cob = infoCobrancaItem(mapaCobrancas as any, item);
+                            const corKey = String(item.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item.tipo;
                             return (
-                              <button key={`${i._fonte}:${i.id}`} type="button" title={i.titulo} onClick={() => setItemSel(paraItemAgenda(i))}
-                                className={cn("block w-full truncate rounded px-1 text-left text-[11px] border",
-                                  st === "atrasada" ? "border-destructive/40 bg-destructive/10" : st === "cumprida" ? "border-primary/40 bg-primary/10" : "bg-muted/60",
-                                  ["cancelado", "protocolado", "baixado"].includes(String(i.status ?? "")) && "line-through")}>
-                                <b>{ROT_TIPO[i._tipo]?.charAt(0)}</b> {i.titulo || "(sem título)"}
+                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemSel(item)}
+                                className={cn("w-full text-[10px] leading-tight px-1 py-0.5 rounded truncate font-medium flex items-center gap-0.5 text-left",
+                                  cancelado ? "bg-muted border border-foreground/60 text-foreground"
+                                    : sucesso ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
+                                    : CAL_CORES[corKey] || "bg-muted border border-border text-muted-foreground")}>
+                                {isItemTratado(item) ? <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" /> : <FileText className="w-2.5 h-2.5 flex-shrink-0 opacity-90" />}
+                                <span className={cn("truncate", (isItemRiscado(item) || cancelado) && "line-through")}>{item.titulo || "(sem título)"}</span>
+                                {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5 ml-0.5" />}
+                                {itensDeWorkflow.has(rid) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
+                                {!!itensDePub?.has(rid) && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
+                                {temComentarioItem(mapaComentarios as any, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(mapaComentarios as any, item)} />}
+                                {cob && <CobrancaBadge simbolo={cob.simbolo} hoje={cob.hoje} title={tituloCobranca(cob)} className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
                               </button>
                             );
                           })}
-                          {doDia.length > 4 && <div className="text-[10px] text-muted-foreground">+{doDia.length - 4} mais</div>}
+                          {doDia.length > 5 && <div className="text-[10px] text-muted-foreground">+{doDia.length - 5} mais</div>}
                         </div>
                       </div>
                     );
