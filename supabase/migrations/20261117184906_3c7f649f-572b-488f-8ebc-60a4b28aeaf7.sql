@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.trg_pautas_tst_padrao() FROM PUBLIC, anon, authenticated;
