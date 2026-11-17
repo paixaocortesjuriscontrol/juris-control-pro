@@ -13,6 +13,7 @@ type Resultado = {
   titulo: string;
   subtitulo?: string;
   to: string;
+  numeroProcesso?: string;
 };
 
 const TIPO_META: Record<Resultado["tipo"], { label: string; icon: any; color: string }> = {
@@ -215,6 +216,7 @@ export function BuscaGlobalPainel() {
               .join(" • "),
 
             to: `/painel-audiencias`,
+            numeroProcesso: a.processo_numero || undefined,
           })
         );
         (pub.data || []).forEach((p: any) =>
@@ -237,8 +239,15 @@ export function BuscaGlobalPainel() {
       }
   };
 
-  const go = (r: Resultado) => {
+  const go = async (r: Resultado) => {
     setOpen(false);
+    if (r.tipo === "audiencia" && r.numeroProcesso) {
+      const dig = r.numeroProcesso.replace(/\D/g, "");
+      const fmt = dig.length === 20 ? `${dig.slice(0,7)}-${dig.slice(7,9)}.${dig.slice(9,13)}.${dig.slice(13,14)}.${dig.slice(14,16)}.${dig.slice(16)}` : r.numeroProcesso;
+      const { data } = await supabase.from("processos").select("id")
+        .in("numero", Array.from(new Set([r.numeroProcesso, dig, fmt]))).limit(1);
+      if (data?.[0]?.id) { navigate(`/processos/${data[0].id}`); return; }
+    }
     navigate(r.to);
   };
 
