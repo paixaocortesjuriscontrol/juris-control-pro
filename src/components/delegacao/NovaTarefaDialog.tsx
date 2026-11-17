@@ -466,7 +466,7 @@ export function NovaTarefaDialog({
             .select("coordenacao_id, numero")
             .eq("id", processoId)
             .maybeSingle();
-          coordenacaoId = proc?.coordenacao_id || coordenacaoId;
+          coordenacaoId = normalizeUuid((tarefaParaEditar as any).coordenacao_id) || proc?.coordenacao_id || coordenacaoId;
           processoNumero = proc?.numero || processoNumero;
         }
         const { data: resps } = await supabase
