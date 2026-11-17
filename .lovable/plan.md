@@ -5,6 +5,12 @@
 - Conferi uma amostra no sistema. Cada código está na Santander Trabalhista, no **mesmo processo** e com o título certo (ex.: TAR.0007625 → 0000125-77.2026.5.18.0018, Embargos de Declaração).
 - Nenhum dos 33 códigos que se repetem entre as duas equipes está nessa planilha.
 
+## Conferência da planilha da Trabalhista
+- Os códigos da sua planilha estão gravados na Santander Trabalhista exatamente como vieram, no mesmo processo e com o mesmo título.
+- Exemplos: TAR.0002762 → 0000919-51.2025.5.10.0020 (Audiência de instrução) e TAR.0006372 → 0001000-60.2026.5.10.0021 (Contestação).
+- A Trabalhista recebeu duas importações: 6.666 atividades em 01/10 e 104 em 04/11.
+- Nenhum código da Cível foi parar na Trabalhista, nem o contrário.
+
 ## Por que os códigos se repetem
 As duas equipes vieram de **bases Projuris separadas**, e cada base começa a contar do TAR.0000001:
 - **Trabalhista:** 6.770 atividades, de TAR.0000440 a TAR.0007630. Quase todas são de processos trabalhistas (6.375) e foram importadas em 01/10.
