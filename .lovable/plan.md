@@ -28,10 +28,28 @@
 - Entra toda pauta sem dossiê, equipe ou advogado interno. O centralizador vem da Distribuição TST, quando houver.
 - Mesmo padrão visual das planilhas da Distribuição TST: Calibri, centralizado, alinhado no meio e com quebra de texto.
 
-## Fora deste pedido
-O texto dela tem outras sugestões de padronização: reclamada com opções fixas, horário 00:00, relator só com o nome, modalidade e decisão em maiúsculas, e o layout do modelo. Não entram agora. Posso fazer numa próxima etapa se quiser.
+### 5. Excel da Pauta de Julgamento igual ao modelo enviado
+Mesmas colunas e na mesma ordem do modelo. A coluna de modalidade passa a se chamar "MODALIDADE". Todo o texto fica centralizado, alinhado no meio e com quebra automática. Regras por campo:
+- **Equipe e advogado interno:** como nos itens 1 e 2.
+- **Dossiê:** vem da Distribuição TST. Se não houver, vai para o relatório de faltantes.
+- **Número do processo, reclamante e data do julgamento:** vêm da publicação do DJEN.
+- **Reclamada:** uma das opções SANTANDER, AYMORÉ, F1RST ou SANTANDER CORRETORA. O sistema reconhece o nome da publicação, por exemplo "BANCO SANTANDER (BRASIL) S.A." vira SANTANDER.
+- **Parte recorrente e tipo de recurso:** vêm do DJEN ou da Distribuição TST. Se não houver, ficam "a preencher".
+- **Horário:** o da publicação. Se não houver, 00:00.
+- **Modalidade:** VIRTUAL, PRESENCIAL ou TELEPRESENCIAL, em maiúsculas.
+- **Link de acesso:** em branco, para preencher.
+- **Relator:** só o nome do ministro, em MAIÚSCULAS, sem "MINISTRO" e sem ponto final.
+- **Matérias, aparelhamentos e honra (itens 14 a 18):** vêm da Distribuição TST. Se não houver, ficam "a preencher".
+- **Decisão, Sustentação oral e Desistência do recurso:** em branco. Ao preencher na tela, só aceitam as opções dela, em maiúsculas:
+  - Decisão: PROSSEGUIR, RECURSO DA UNIÃO, RECURSO DO RECLAMANTE, RECURSO DEMAIS RECLAMADAS.
+  - Sustentação oral: SIM, NÃO, NÃO CABE.
+  - Desistência do recurso: SIM, NÃO, -------.
+- **Mídia negativa:** vem da Distribuição TST. Se não houver, fica em branco. Opções: SIM, NÃO, A PREENCHER.
+- **Itens 23 a 28:** ficam em branco, a preencher. Não são buscados na Distribuição TST. Entra a coluna nova "COMENTÁRIOS ADVOGADO INTERNO RESPONSÁVEL DO BANCO".
+- Os mesmos padrões valem na tela de Pautas: modalidade, relator e advogado em maiúsculas, e as opções fixas nas listas.
 
 ## Detalhes técnicos
 - `DistribuicaoTstForm.tsx`: `EQUIPE_OPTIONS` com os 9 nomes completos. `EquipeUpdateImport` e o import do Admin TST param de remover o prefixo e passam a normalizar para o nome completo. Função compartilhada `normalizarEquipeTst` em `src/lib`, com teste.
 - Migração: UPDATE em `dados_benner.equipe` e `pautas_tst.equipe` adicionando o prefixo aos 8 nomes curtos conhecidos. `pauta_preencher_de_benner` normaliza a equipe e aplica `upper()` ao advogado interno. `pautas_reverificar_benner` deixa de filtrar `origem = 'djen_auto'`. Nova RPC `pautas_completar_periodo(de, ate)`.
-- `pautasSemanaExport.ts`: advogado em maiúsculas. Novo `exportarPautasFaltantes`, que lê o centralizador de `dados_benner` por `dados_benner_id`/processo, com estilo padronizado.
+- `pautasSemanaExport.ts`: cabeçalhos e ordem do modelo, estilo com a mesma rotina das planilhas TST (centralizar, alinhar no meio, quebrar texto) e funções puras de normalização (`normalizarReclamada`, `relatorSoNome`, `horarioPadrao`), com testes. `PautasTstForm`: selects com as opções fixas. Nova coluna `comentarios_advogado_banco` em `pautas_tst`.
+- Advogado em maiúsculas. Novo `exportarPautasFaltantes`, que lê o centralizador de `dados_benner` por `dados_benner_id`/processo, com estilo padronizado.
