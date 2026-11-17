@@ -15,7 +15,22 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, ExternalLink, LayoutList, Columns3, ListChecks, Rows3, FileSpreadsheet } from "lucide-react";
+import { Loader2, ExternalLink, LayoutList, Columns3, ListChecks, Rows3, FileSpreadsheet, CalendarDays, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
+
+function Segmento({ opcoes, valor, onChange }: { opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
+  return (
+    <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5">
+      {opcoes.map((o) => (
+        <button key={o.v} type="button" onClick={() => onChange(o.v)}
+          className={cn("h-6 px-2 rounded text-xs whitespace-nowrap transition-colors", valor === o.v ? "bg-background text-foreground shadow-sm font-medium" : "text-muted-foreground hover:text-foreground")}>
+          {o.l}
+        </button>
+      ))}
+    </div>
+  );
+}
 import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
 import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
 import { ListaAtividadesProjuris } from "@/components/painel/ListaAtividadesProjuris";
@@ -142,10 +157,11 @@ export default function MinhasResponsabilidades() {
   useEffect(() => {
     try { localStorage.setItem(chaveFiltros, JSON.stringify(pf)); } catch { /* sem espaço */ }
   }, [chaveFiltros, JSON.stringify(pf)]);
-  const [modoVista, setModoVista] = useState<"lista" | "simples" | "kanban" | "projuris">(
+  const [modoVista, setModoVista] = useState<"lista" | "simples" | "kanban" | "projuris" | "calendario">(
     () => (localStorage.getItem("minhas-resp:vista") as any) || "lista",
   );
   useEffect(() => { localStorage.setItem("minhas-resp:vista", modoVista); }, [modoVista]);
+  const [mesCal, setMesCal] = useState(() => startOfMonth(new Date()));
   const coordSel = pf.verDeCoordenacao ?? "todas";
   const usuarioSel = isAdmin ? pf.verDeUsuario ?? "" : "";
   const uid = (isAdmin && usuarioSel) || user?.id || "";
@@ -465,12 +481,12 @@ export default function MinhasResponsabilidades() {
           <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
           <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
           {resumo.map((r) => (
             <button key={r.l} type="button" onClick={r.onClick} className="text-left">
-              <Card className={cn("transition-colors hover:border-primary/60", r.ativo && "border-primary ring-1 ring-primary")}><CardContent className="p-4">
-                <div className="text-xs text-muted-foreground uppercase tracking-wide">{r.l}</div>
-                <div className={cn("text-2xl font-semibold", r.destaque && r.v > 0 && "text-destructive")}>{r.v}</div>
+              <Card className={cn("transition-colors hover:border-primary/60", r.ativo && "border-primary ring-1 ring-primary")}><CardContent className="px-3 py-2 flex items-center justify-between gap-2">
+                <div className="text-[11px] text-muted-foreground uppercase tracking-wide truncate">{r.l}</div>
+                <div className={cn("text-lg font-semibold", r.destaque && r.v > 0 && "text-destructive")}>{r.v}</div>
               </CardContent></Card>
             </button>
           ))}
@@ -485,13 +501,7 @@ export default function MinhasResponsabilidades() {
           </TabsList>
 
           <TabsContent value="agenda" className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {GRUPOS_AGENDA.map((grupo) => (
-                <Button key={grupo.v} size="sm" variant={grupoAgenda === grupo.v ? "default" : "outline"} onClick={() => setGrupoAgenda(grupo.v)}>
-                  {grupo.l} ({agenda[grupo.v].length})
-                </Button>
-              ))}
-            </div>
+            <Segmento valor={grupoAgenda} onChange={setGrupoAgenda} opcoes={GRUPOS_AGENDA.map((g) => ({ v: g.v, l: `${g.l} (${agenda[g.v].length})` }))} />
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
             <Card><CardContent className="p-0 divide-y">
@@ -503,29 +513,23 @@ export default function MinhasResponsabilidades() {
           </TabsContent>
 
           <TabsContent value="atividades" className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {FILTROS.map((f) => (
-                <Button key={f.v} size="sm" variant={filtro === f.v ? "default" : "outline"} onClick={() => setFiltro(f.v)}>
-                  {f.l} ({contagem[f.v]})
-                </Button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
+              <Segmento valor={filtro} onChange={setFiltro} opcoes={FILTROS.map((f) => ({ v: f.v, l: `${f.l} (${contagem[f.v]})` }))} />
+              <Segmento valor={tipo} onChange={setTipo} opcoes={TIPOS.map((t) => ({ v: t, l: ROT_TIPO[t] }))} />
+              <Segmento valor={periodo} onChange={setPeriodo} opcoes={PERIODOS.map((p) => ({ v: p.v, l: p.l }))} />
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input className="h-7 pl-7 text-xs" placeholder="Buscar título, processo, parte ou observação..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              {TIPOS.map((t) => (
-                <Button key={t} size="sm" variant={tipo === t ? "default" : "outline"} onClick={() => setTipo(t)}>{ROT_TIPO[t]}</Button>
-              ))}
-              {PERIODOS.map((p) => (
-                <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
-              ))}
-              <Input className="max-w-xs" placeholder="Buscar por título, processo, parte ou observação..." value={busca} onChange={(e) => setBusca(e.target.value)} />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-2 py-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
               <span className="text-xs text-muted-foreground"><b className="text-foreground">{filtrados.length}</b> de {brutos.length} itens filtrados</span>
               <div className="flex flex-wrap items-center gap-1">
                 {([
                   ["lista", "Lista", LayoutList],
                   ["simples", "Compacta", Rows3],
                   ["kanban", "Kanban", Columns3],
+                  ["calendario", "Calendário", CalendarDays],
                   ["projuris", "Atividades", ListChecks],
                 ] as const).map(([v, l, Icon]) => (
                   <Button key={v} size="sm" variant={modoVista === v ? "default" : "ghost"} className="h-7 px-2 text-xs gap-1" onClick={() => setModoVista(v)}>
@@ -543,6 +547,40 @@ export default function MinhasResponsabilidades() {
               <ListaAtividadesView embedded externalItems={filtrados.map(paraItemAgenda) as any} externalLoading={atividades.isLoading} />
             ) : modoVista === "kanban" ? (
               <KanbanItensAgenda itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
+            ) : modoVista === "calendario" ? (
+              <Card><CardContent className="p-2">
+                <div className="flex items-center justify-between mb-2">
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setMesCal((m) => subMonths(m, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+                  <span className="text-sm font-semibold capitalize">{format(mesCal, "MMMM 'de' yyyy", { locale: ptBR })}</span>
+                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setMesCal((m) => addMonths(m, 1))}><ChevronRight className="h-4 w-4" /></Button>
+                </div>
+                <div className="grid grid-cols-7 gap-px bg-border rounded overflow-hidden text-xs">
+                  {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((d) => <div key={d} className="bg-muted p-1 text-center font-medium">{d}</div>)}
+                  {eachDayOfInterval({ start: startOfWeek(startOfMonth(mesCal)), end: endOfWeek(endOfMonth(mesCal)) }).map((dia) => {
+                    const chave = format(dia, "yyyy-MM-dd");
+                    const doDia = filtrados.filter((i: any) => String(i.data_fatal ?? i.data_vencimento ?? i.data_inicio ?? "").slice(0, 10) === chave);
+                    return (
+                      <div key={chave} className={cn("bg-background min-h-[90px] p-1", !isSameMonth(dia, mesCal) && "opacity-40")}>
+                        <div className={cn("text-[11px] mb-0.5", isToday(dia) && "font-bold text-primary")}>{format(dia, "d")}</div>
+                        <div className="space-y-0.5">
+                          {doDia.slice(0, 4).map((i: any) => {
+                            const st = classificarStatus(i);
+                            return (
+                              <button key={`${i._fonte}:${i.id}`} type="button" title={i.titulo} onClick={() => setItemSel(paraItemAgenda(i))}
+                                className={cn("block w-full truncate rounded px-1 text-left text-[11px] border",
+                                  st === "atrasada" ? "border-destructive/40 bg-destructive/10" : st === "cumprida" ? "border-primary/40 bg-primary/10" : "bg-muted/60",
+                                  ["cancelado", "protocolado", "baixado"].includes(String(i.status ?? "")) && "line-through")}>
+                                <b>{ROT_TIPO[i._tipo]?.charAt(0)}</b> {i.titulo || "(sem título)"}
+                              </button>
+                            );
+                          })}
+                          {doDia.length > 4 && <div className="text-[10px] text-muted-foreground">+{doDia.length - 4} mais</div>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent></Card>
             ) : modoVista === "projuris" ? (
               <ListaAtividadesProjuris itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
             ) : (
