@@ -1191,6 +1191,108 @@ export function NovaTarefaDialog({
           )}
           <Form {...form}>
             <form id="nova-tarefa-form" onInvalidCapture={(e) => logTentativa("campo_invalido_navegador", { campo: (e.target as any)?.name || (e.target as any)?.id || (e.target as any)?.tagName })} onSubmit={form.handleSubmit(onSubmit, (errs) => { logTentativa("invalido", Object.fromEntries(Object.entries(errs).map(([k, e]: any) => [k, e?.message || String(e?.type || "")]))); const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
+              <FormField
+                control={form.control}
+                name="titulo"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel>Título</FormLabel>
+                      <div className="flex items-center gap-1.5">
+                        {tarefaParaEditar?.id && (
+                          <EtiquetaPicker
+                            entidade="tarefa"
+                            entidadeId={tarefaParaEditar.id}
+                            coordenacaoId={coordenacaoId}
+                            compact
+                          />
+                        )}
+                        <ModeloTituloPicker
+                        tipo="tarefa"
+                        coordenacaoId={coordenacaoId}
+                        onSelect={(m) => {
+                          const anterior = modeloPadroesRef.current || {};
+                          {
+                            const pd = ((m as any).padroes ?? {}) as Record<string, any>;
+                            const resp: string[] = Array.isArray(pd.responsaveis_ids) ? pd.responsaveis_ids : [];
+                            const env: string[] = Array.isArray(pd.envolvidos_ids) ? pd.envolvidos_ids : [];
+                            if (resp.length) {
+                              const novos = Array.from(new Set([...responsaveisIds, ...resp]));
+                              setResponsaveisIds(novos);
+                              form.setValue("responsavel_id", novos[0] || "");
+                            }
+                            if (env.length) setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...env])));
+                          }
+                          // Datas relativas do modelo (inclusive a data fatal) contam
+                          // da mesma base da data prevista: data base do formulário ou
+                          // data da publicação vinculada.
+                          const baseModelo =
+                            form.getValues("data_base") ||
+                            publicacao?.data_publicacao ||
+                            publicacao?.data_disponibilizacao ||
+                            null;
+                          const p = resolverPadroes(m, baseModelo ? String(baseModelo).slice(0, 10) : null);
+                          form.setValue("titulo", m.titulo, { shouldDirty: true });
+                          // Limpa o que o modelo anterior preencheu e o novo não define
+                          for (const [k, v] of Object.entries(anterior)) {
+                            if (k === "titulo" || p[k] !== undefined) continue;
+                            if (String(form.getValues(k as any) ?? "") === v) {
+                              form.setValue(k as any, "" as any, { shouldDirty: true });
+                            }
+                          }
+                          for (const [k, v] of Object.entries(p)) {
+                            if (k === "titulo") continue;
+                            form.setValue(k as any, v, { shouldDirty: true });
+                          }
+                          if (m.descricao && !form.getValues("descricao")) {
+                            form.setValue("descricao", m.descricao, { shouldDirty: true });
+                          }
+                          // Prazo pré-programado no modelo → preenche o campo
+                          // "Prazo (dias)" e calcula a Data prevista a partir da
+                          // data base do formulário (ou da publicação/hoje).
+                          const diasModelo = Number((m.padroes as any)?.prazo_dias) || 0;
+                          const unidadeModelo =
+                            ((m.padroes as any)?.prazo_unidade as "uteis" | "corridos") || "uteis";
+                          let prazoCalculado = "";
+                          if (diasModelo > 0) {
+                            setPrazoDias(diasModelo);
+                            setPrazoUnidade(unidadeModelo);
+                            const baseForm = form.getValues("data_base");
+                            prazoCalculado =
+                              computeDataPrevista(baseForm, diasModelo, unidadeModelo, form.getValues("coordenacao_id")) ||
+                              resolverPrazoModelo(
+                                m,
+                                publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
+                              );
+                          }
+                          // O modelo é uma escolha explícita: o prazo programado
+                          // sempre substitui a data prevista atual.
+                          if (prazoCalculado) {
+                            form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
+                          }
+                          modeloPadroesRef.current = {
+                            ...p,
+                            ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
+                          };
+                          checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
+                          modeloIdRef.current = (m as any).id || null;
+
+                        }}
+                        />
+                      </div>
+                    </div>
+                    <FormControl>
+                      <AutoResizeTextarea
+                        placeholder="Título da tarefa"
+                        {...field}
+                        autoFocus
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <div className="rounded-md border p-3 space-y-3">
                 <Label className="text-sm font-medium">Processo</Label>
               {/* Tipo de Vínculo — oculto quando vindo de uma publicação (sempre vinculada ao processo da publicação) */}
@@ -1326,108 +1428,6 @@ export function NovaTarefaDialog({
                         <SelectItem value="urgente">Urgente</SelectItem>
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="titulo"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between gap-2">
-                      <FormLabel>Título</FormLabel>
-                      <div className="flex items-center gap-1.5">
-                        {tarefaParaEditar?.id && (
-                          <EtiquetaPicker
-                            entidade="tarefa"
-                            entidadeId={tarefaParaEditar.id}
-                            coordenacaoId={coordenacaoId}
-                            compact
-                          />
-                        )}
-                        <ModeloTituloPicker
-                        tipo="tarefa"
-                        coordenacaoId={coordenacaoId}
-                        onSelect={(m) => {
-                          const anterior = modeloPadroesRef.current || {};
-                          {
-                            const pd = ((m as any).padroes ?? {}) as Record<string, any>;
-                            const resp: string[] = Array.isArray(pd.responsaveis_ids) ? pd.responsaveis_ids : [];
-                            const env: string[] = Array.isArray(pd.envolvidos_ids) ? pd.envolvidos_ids : [];
-                            if (resp.length) {
-                              const novos = Array.from(new Set([...responsaveisIds, ...resp]));
-                              setResponsaveisIds(novos);
-                              form.setValue("responsavel_id", novos[0] || "");
-                            }
-                            if (env.length) setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...env])));
-                          }
-                          // Datas relativas do modelo (inclusive a data fatal) contam
-                          // da mesma base da data prevista: data base do formulário ou
-                          // data da publicação vinculada.
-                          const baseModelo =
-                            form.getValues("data_base") ||
-                            publicacao?.data_publicacao ||
-                            publicacao?.data_disponibilizacao ||
-                            null;
-                          const p = resolverPadroes(m, baseModelo ? String(baseModelo).slice(0, 10) : null);
-                          form.setValue("titulo", m.titulo, { shouldDirty: true });
-                          // Limpa o que o modelo anterior preencheu e o novo não define
-                          for (const [k, v] of Object.entries(anterior)) {
-                            if (k === "titulo" || p[k] !== undefined) continue;
-                            if (String(form.getValues(k as any) ?? "") === v) {
-                              form.setValue(k as any, "" as any, { shouldDirty: true });
-                            }
-                          }
-                          for (const [k, v] of Object.entries(p)) {
-                            if (k === "titulo") continue;
-                            form.setValue(k as any, v, { shouldDirty: true });
-                          }
-                          if (m.descricao && !form.getValues("descricao")) {
-                            form.setValue("descricao", m.descricao, { shouldDirty: true });
-                          }
-                          // Prazo pré-programado no modelo → preenche o campo
-                          // "Prazo (dias)" e calcula a Data prevista a partir da
-                          // data base do formulário (ou da publicação/hoje).
-                          const diasModelo = Number((m.padroes as any)?.prazo_dias) || 0;
-                          const unidadeModelo =
-                            ((m.padroes as any)?.prazo_unidade as "uteis" | "corridos") || "uteis";
-                          let prazoCalculado = "";
-                          if (diasModelo > 0) {
-                            setPrazoDias(diasModelo);
-                            setPrazoUnidade(unidadeModelo);
-                            const baseForm = form.getValues("data_base");
-                            prazoCalculado =
-                              computeDataPrevista(baseForm, diasModelo, unidadeModelo, form.getValues("coordenacao_id")) ||
-                              resolverPrazoModelo(
-                                m,
-                                publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
-                              );
-                          }
-                          // O modelo é uma escolha explícita: o prazo programado
-                          // sempre substitui a data prevista atual.
-                          if (prazoCalculado) {
-                            form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
-                          }
-                          modeloPadroesRef.current = {
-                            ...p,
-                            ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
-                          };
-                          checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
-                          modeloIdRef.current = (m as any).id || null;
-
-                        }}
-                        />
-                      </div>
-                    </div>
-                    <FormControl>
-                      <AutoResizeTextarea
-                        placeholder="Título da tarefa"
-                        {...field}
-                        autoFocus
-                      />
-                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

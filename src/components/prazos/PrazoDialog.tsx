@@ -930,6 +930,76 @@ export function PrazoDialog({
           </div>
         )}
 
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm">
+              Título do prazo<span className="text-destructive">*</span>
+            </Label>
+            <div className="flex items-center gap-1.5">
+              {prazo?.id && (
+                <EtiquetaPicker
+                  entidade="prazo"
+                  entidadeId={prazo.id}
+                  coordenacaoId={coordenacaoId}
+                  compact
+                />
+              )}
+              <ModeloTituloPicker
+              tipo="prazo"
+              coordenacaoId={coordenacaoId}
+              onSelect={(m) => {
+                modeloSelecionadoRef.current = m;
+                aplicarPessoasModelo(m, setResponsaveisIds, setEnvolvidosIds);
+                const anterior = modeloPadroesRef.current;
+                const p = resolverPadroes(m, dataBase);
+                setTitulo(m.titulo);
+                const obsNova = p.observacoes || m.descricao || "";
+                const obsAnterior = anterior?.observacoes || "";
+                setObservacoes((prev) => {
+                  const base = obsAnterior && prev.trim() === obsAnterior.trim() ? "" : prev;
+                  return base.trim() ? base : obsNova;
+                });
+                modeloPadroesRef.current = { ...p, observacoes: obsNova };
+                if (travarDatas) return;
+                // Prazo pré-programado no modelo: aplica sempre a partir da data base
+                // (data da publicação vinculada; senão hoje), inclusive em edição.
+                const dias = p.prazo_dias ? Number(p.prazo_dias) : 0;
+                const unidade = (p.prazo_unidade as Unidade) || prazoUnidade;
+                if (dias > 0) {
+                  setPrazoDias(dias);
+                  setPrazoUnidade(unidade);
+                  const calc = computeDataLimite(dataBase, dias, unidade, coordenacaoId);
+                  if (calc) {
+                    setDataLimite(calc);
+                    setDataLimiteEditadaManualmente(true);
+                  }
+                } else if (p.data_limite) {
+                  setDataLimite(new Date(`${p.data_limite}T12:00:00`));
+                  setDataLimiteEditadaManualmente(true);
+                } else if (anterior && (anterior.prazo_dias || anterior.data_limite)) {
+                  // Modelo novo sem prazo: desfaz o prazo aplicado pelo modelo anterior
+                  setPrazoDias(0);
+                  setDataLimiteEditadaManualmente(false);
+                }
+                if (p.data_fatal) {
+                  setDataFatal(new Date(`${p.data_fatal}T12:00:00`));
+                } else if (anterior?.data_fatal) {
+                  setDataFatal(null);
+                }
+              }}
+              />
+            </div>
+          </div>
+          <Input
+            name="titulo"
+            value={titulo}
+            onChange={(e) => setTitulo(e.target.value)}
+            placeholder="Digite o título do prazo"
+            className="h-10"
+            autoFocus
+          />
+        </div>
+
         {hasPublicacao && !hidePublicacaoCollapsible && (
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
@@ -1027,75 +1097,6 @@ export function PrazoDialog({
           </div>
         )}
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <Label className="text-sm">
-              Título do prazo<span className="text-destructive">*</span>
-            </Label>
-            <div className="flex items-center gap-1.5">
-              {prazo?.id && (
-                <EtiquetaPicker
-                  entidade="prazo"
-                  entidadeId={prazo.id}
-                  coordenacaoId={coordenacaoId}
-                  compact
-                />
-              )}
-              <ModeloTituloPicker
-              tipo="prazo"
-              coordenacaoId={coordenacaoId}
-              onSelect={(m) => {
-                modeloSelecionadoRef.current = m;
-                aplicarPessoasModelo(m, setResponsaveisIds, setEnvolvidosIds);
-                const anterior = modeloPadroesRef.current;
-                const p = resolverPadroes(m, dataBase);
-                setTitulo(m.titulo);
-                const obsNova = p.observacoes || m.descricao || "";
-                const obsAnterior = anterior?.observacoes || "";
-                setObservacoes((prev) => {
-                  const base = obsAnterior && prev.trim() === obsAnterior.trim() ? "" : prev;
-                  return base.trim() ? base : obsNova;
-                });
-                modeloPadroesRef.current = { ...p, observacoes: obsNova };
-                if (travarDatas) return;
-                // Prazo pré-programado no modelo: aplica sempre a partir da data base
-                // (data da publicação vinculada; senão hoje), inclusive em edição.
-                const dias = p.prazo_dias ? Number(p.prazo_dias) : 0;
-                const unidade = (p.prazo_unidade as Unidade) || prazoUnidade;
-                if (dias > 0) {
-                  setPrazoDias(dias);
-                  setPrazoUnidade(unidade);
-                  const calc = computeDataLimite(dataBase, dias, unidade, coordenacaoId);
-                  if (calc) {
-                    setDataLimite(calc);
-                    setDataLimiteEditadaManualmente(true);
-                  }
-                } else if (p.data_limite) {
-                  setDataLimite(new Date(`${p.data_limite}T12:00:00`));
-                  setDataLimiteEditadaManualmente(true);
-                } else if (anterior && (anterior.prazo_dias || anterior.data_limite)) {
-                  // Modelo novo sem prazo: desfaz o prazo aplicado pelo modelo anterior
-                  setPrazoDias(0);
-                  setDataLimiteEditadaManualmente(false);
-                }
-                if (p.data_fatal) {
-                  setDataFatal(new Date(`${p.data_fatal}T12:00:00`));
-                } else if (anterior?.data_fatal) {
-                  setDataFatal(null);
-                }
-              }}
-              />
-            </div>
-          </div>
-          <Input
-            name="titulo"
-            value={titulo}
-            onChange={(e) => setTitulo(e.target.value)}
-            placeholder="Digite o título do prazo"
-            className="h-10"
-            autoFocus
-          />
-        </div>
 
         <div className="space-y-1.5">
           <Label className="text-sm">Data base</Label>
