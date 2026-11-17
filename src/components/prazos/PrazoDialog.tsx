@@ -1203,90 +1203,6 @@ export function PrazoDialog({
           </div>
         </div>
 
-        <AlertasConfigCard />
-
-        {/* Recorrência */}
-        <div className="rounded-md border p-3 space-y-3">
-          <Label className="text-sm font-medium">Recorrência</Label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label className="text-xs text-muted-foreground">Frequência</Label>
-              <Select
-                value={recorrenciaTipo}
-                disabled={travarDatas}
-                onValueChange={(v) => {
-                  setRecorrenciaTipo(v);
-                  setRecorrenciaIntervalo(1);
-                }}
-              >
-                <SelectTrigger className="mt-1 h-10" title={travarDatas ? motivoBloqueio : undefined}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="nenhuma">Não se repete</SelectItem>
-                  <SelectItem value="daily">Dias corridos</SelectItem>
-                  <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
-                  <SelectItem value="weekly">Semanalmente</SelectItem>
-                  <SelectItem value="monthly">Mensalmente</SelectItem>
-                  <SelectItem value="yearly">Anualmente</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {recorrenciaTipo !== "nenhuma" && (
-              <div>
-                <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
-                <Input
-                  type="number"
-                  min={1}
-                  placeholder="Ex.: 9"
-                  value={recorrenciaOcorrencias}
-                  disabled={travarDatas}
-                  title={travarDatas ? motivoBloqueio : undefined}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setRecorrenciaOcorrencias(v);
-                    const n = parseInt(v);
-                    if (n && n > 0 && dataLimite) {
-                      const base = dataLimite;
-                      const offset = n - 1;
-                      let fim = base;
-                      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
-                      else if (recorrenciaTipo === "weekdays") {
-                        let count = 0;
-                        fim = base;
-                        while (count < offset) {
-                          fim = addDays(fim, 1);
-                          const dow = fim.getDay();
-                          if (dow !== 0 && dow !== 6) count++;
-                        }
-                      } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
-                      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
-                      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
-                      setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
-                    }
-                  }}
-                  className="mt-1 h-10"
-                />
-              </div>
-            )}
-          </div>
-          {recorrenciaTipo !== "nenhuma" && (
-            <div>
-              <Label className="text-xs text-muted-foreground">Ou até a data <span className="text-destructive">*</span> (obrigatório com repetição)</Label>
-              <Input
-                type="date"
-                value={recorrenciaFim}
-                onChange={(e) => {
-                  setRecorrenciaFim(e.target.value);
-                  setRecorrenciaOcorrencias("");
-                }}
-                disabled={travarDatas}
-                className="mt-1 h-10"
-              />
-            </div>
-          )}
-        </div>
-
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-sm flex items-center gap-1">
@@ -1410,6 +1326,90 @@ export function PrazoDialog({
           itemId={prazo?.id}
           processoId={processoIdEfetivo}
         />
+        <AlertasConfigCard />
+
+        {/* Recorrência */}
+        <div className="rounded-md border p-3 space-y-3">
+          <Label className="text-sm font-medium">Recorrência</Label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Frequência</Label>
+              <Select
+                value={recorrenciaTipo}
+                disabled={travarDatas}
+                onValueChange={(v) => {
+                  setRecorrenciaTipo(v);
+                  setRecorrenciaIntervalo(1);
+                }}
+              >
+                <SelectTrigger className="mt-1 h-10" title={travarDatas ? motivoBloqueio : undefined}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="nenhuma">Não se repete</SelectItem>
+                  <SelectItem value="daily">Dias corridos</SelectItem>
+                  <SelectItem value="weekdays">Dias úteis (Seg–Sex)</SelectItem>
+                  <SelectItem value="weekly">Semanalmente</SelectItem>
+                  <SelectItem value="monthly">Mensalmente</SelectItem>
+                  <SelectItem value="yearly">Anualmente</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {recorrenciaTipo !== "nenhuma" && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Quantas vezes deve aparecer?</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  placeholder="Ex.: 9"
+                  value={recorrenciaOcorrencias}
+                  disabled={travarDatas}
+                  title={travarDatas ? motivoBloqueio : undefined}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setRecorrenciaOcorrencias(v);
+                    const n = parseInt(v);
+                    if (n && n > 0 && dataLimite) {
+                      const base = dataLimite;
+                      const offset = n - 1;
+                      let fim = base;
+                      if (recorrenciaTipo === "daily") fim = addDays(base, offset);
+                      else if (recorrenciaTipo === "weekdays") {
+                        let count = 0;
+                        fim = base;
+                        while (count < offset) {
+                          fim = addDays(fim, 1);
+                          const dow = fim.getDay();
+                          if (dow !== 0 && dow !== 6) count++;
+                        }
+                      } else if (recorrenciaTipo === "weekly") fim = addWeeks(base, offset);
+                      else if (recorrenciaTipo === "monthly") fim = addMonths(base, offset);
+                      else if (recorrenciaTipo === "yearly") fim = addYears(base, offset);
+                      setRecorrenciaFim(format(fim, "yyyy-MM-dd"));
+                    }
+                  }}
+                  className="mt-1 h-10"
+                />
+              </div>
+            )}
+          </div>
+          {recorrenciaTipo !== "nenhuma" && (
+            <div>
+              <Label className="text-xs text-muted-foreground">Ou até a data <span className="text-destructive">*</span> (obrigatório com repetição)</Label>
+              <Input
+                type="date"
+                value={recorrenciaFim}
+                onChange={(e) => {
+                  setRecorrenciaFim(e.target.value);
+                  setRecorrenciaOcorrencias("");
+                }}
+                disabled={travarDatas}
+                className="mt-1 h-10"
+              />
+            </div>
+          )}
+        </div>
+
 
       </div>
 

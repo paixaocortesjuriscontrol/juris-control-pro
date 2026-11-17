@@ -7,6 +7,7 @@ import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada"
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
+import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { somarDiasUteis, precarregarFeriados } from "@/lib/feriados";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
@@ -1182,108 +1183,8 @@ export function NovaTarefaDialog({
           )}
           <Form {...form}>
             <form id="nova-tarefa-form" onInvalidCapture={(e) => logTentativa("campo_invalido_navegador", { campo: (e.target as any)?.name || (e.target as any)?.id || (e.target as any)?.tagName })} onSubmit={form.handleSubmit(onSubmit, (errs) => { logTentativa("invalido", Object.fromEntries(Object.entries(errs).map(([k, e]: any) => [k, e?.message || String(e?.type || "")]))); const m = Object.values(errs).map((e: any) => e?.message).filter(Boolean); toastSonner.error(m.length ? `Não foi possível salvar: ${m.join(" · ")}` : "Não foi possível salvar: confira os campos do formulário."); })} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="titulo"
-                render={({ field }) => (
-                  <FormItem>
-                    <div className="flex items-center justify-between gap-2">
-                      <FormLabel>Título</FormLabel>
-                      <div className="flex items-center gap-1.5">
-                        {tarefaParaEditar?.id && (
-                          <EtiquetaPicker
-                            entidade="tarefa"
-                            entidadeId={tarefaParaEditar.id}
-                            coordenacaoId={coordenacaoId}
-                            compact
-                          />
-                        )}
-                        <ModeloTituloPicker
-                        tipo="tarefa"
-                        coordenacaoId={coordenacaoId}
-                        onSelect={(m) => {
-                          const anterior = modeloPadroesRef.current || {};
-                          {
-                            const pd = ((m as any).padroes ?? {}) as Record<string, any>;
-                            const resp: string[] = Array.isArray(pd.responsaveis_ids) ? pd.responsaveis_ids : [];
-                            const env: string[] = Array.isArray(pd.envolvidos_ids) ? pd.envolvidos_ids : [];
-                            if (resp.length) {
-                              const novos = Array.from(new Set([...responsaveisIds, ...resp]));
-                              setResponsaveisIds(novos);
-                              form.setValue("responsavel_id", novos[0] || "");
-                            }
-                            if (env.length) setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...env])));
-                          }
-                          // Datas relativas do modelo (inclusive a data fatal) contam
-                          // da mesma base da data prevista: data base do formulário ou
-                          // data da publicação vinculada.
-                          const baseModelo =
-                            form.getValues("data_base") ||
-                            publicacao?.data_publicacao ||
-                            publicacao?.data_disponibilizacao ||
-                            null;
-                          const p = resolverPadroes(m, baseModelo ? String(baseModelo).slice(0, 10) : null);
-                          form.setValue("titulo", m.titulo, { shouldDirty: true });
-                          // Limpa o que o modelo anterior preencheu e o novo não define
-                          for (const [k, v] of Object.entries(anterior)) {
-                            if (k === "titulo" || p[k] !== undefined) continue;
-                            if (String(form.getValues(k as any) ?? "") === v) {
-                              form.setValue(k as any, "" as any, { shouldDirty: true });
-                            }
-                          }
-                          for (const [k, v] of Object.entries(p)) {
-                            if (k === "titulo") continue;
-                            form.setValue(k as any, v, { shouldDirty: true });
-                          }
-                          if (m.descricao && !form.getValues("descricao")) {
-                            form.setValue("descricao", m.descricao, { shouldDirty: true });
-                          }
-                          // Prazo pré-programado no modelo → preenche o campo
-                          // "Prazo (dias)" e calcula a Data prevista a partir da
-                          // data base do formulário (ou da publicação/hoje).
-                          const diasModelo = Number((m.padroes as any)?.prazo_dias) || 0;
-                          const unidadeModelo =
-                            ((m.padroes as any)?.prazo_unidade as "uteis" | "corridos") || "uteis";
-                          let prazoCalculado = "";
-                          if (diasModelo > 0) {
-                            setPrazoDias(diasModelo);
-                            setPrazoUnidade(unidadeModelo);
-                            const baseForm = form.getValues("data_base");
-                            prazoCalculado =
-                              computeDataPrevista(baseForm, diasModelo, unidadeModelo, form.getValues("coordenacao_id")) ||
-                              resolverPrazoModelo(
-                                m,
-                                publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
-                              );
-                          }
-                          // O modelo é uma escolha explícita: o prazo programado
-                          // sempre substitui a data prevista atual.
-                          if (prazoCalculado) {
-                            form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
-                          }
-                          modeloPadroesRef.current = {
-                            ...p,
-                            ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
-                          };
-                          checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
-                          modeloIdRef.current = (m as any).id || null;
-
-                        }}
-                        />
-                      </div>
-                    </div>
-                    <FormControl>
-                      <AutoResizeTextarea
-                        placeholder="Título da tarefa"
-                        {...field}
-                        autoFocus
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+              <div className="rounded-md border p-3 space-y-3">
+                <Label className="text-sm font-medium">Processo</Label>
               {/* Tipo de Vínculo — oculto quando vindo de uma publicação (sempre vinculada ao processo da publicação) */}
               {!forcarVinculoPublicacao && (
               <FormField
@@ -1390,84 +1291,139 @@ export function NovaTarefaDialog({
                 />
               )}
 
-              {/* Responsável */}
+              {form.watch("processo_id") && (
+                <ProcessoResumoInline
+                  processoId={String(form.watch("processo_id"))}
+                />
+              )}
+              </div>
+
+              {/* Prioridade */}
               <FormField
                 control={form.control}
-                name="responsavel_id"
+                name="prioridade"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Responsáveis *</FormLabel>
-                    <FormControl>
-                      <PeoplePicker
-                        coordenacaoId={coordenacaoId || null}
-                        selectedIds={responsaveisIds}
-                        onChange={(ids) => {
-                          setResponsaveisIds(ids);
-                          field.onChange(ids[0] || "");
-                        }}
-                        placeholder="Adicionar responsável"
-                        emptyLabel="Nenhum responsável selecionado"
-                        lockedIds={coordenadoresIds}
-                      />
-                    </FormControl>
-                    {coordenadoresIds.length > 0 && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Responsáveis fixos configurados para Tarefa Equipe não podem ser removidos.
-                      </p>
-                    )}
+                    <FormLabel>Prioridade</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="baixa">Baixa</SelectItem>
+                        <SelectItem value="media">Média</SelectItem>
+                        <SelectItem value="alta">Alta</SelectItem>
+                        <SelectItem value="urgente">Urgente</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
-              {/* Envolvidos (colaboradores) */}
-              <div className="space-y-1.5">
-                {!mostrarEnvolvidos ? (
-                  <button
-                    type="button"
-                    onClick={() => setMostrarEnvolvidos(true)}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    + Envolver mais pessoas
-                  </button>
-                ) : (
-                  <>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-sm">Envolvidos (acompanham)</Label>
-                      {envolvidosFixosIds.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMostrarEnvolvidos(false);
-                          setEnvolvidosIds([]);
+              <FormField
+                control={form.control}
+                name="titulo"
+                render={({ field }) => (
+                  <FormItem>
+                    <div className="flex items-center justify-between gap-2">
+                      <FormLabel>Título</FormLabel>
+                      <div className="flex items-center gap-1.5">
+                        {tarefaParaEditar?.id && (
+                          <EtiquetaPicker
+                            entidade="tarefa"
+                            entidadeId={tarefaParaEditar.id}
+                            coordenacaoId={coordenacaoId}
+                            compact
+                          />
+                        )}
+                        <ModeloTituloPicker
+                        tipo="tarefa"
+                        coordenacaoId={coordenacaoId}
+                        onSelect={(m) => {
+                          const anterior = modeloPadroesRef.current || {};
+                          {
+                            const pd = ((m as any).padroes ?? {}) as Record<string, any>;
+                            const resp: string[] = Array.isArray(pd.responsaveis_ids) ? pd.responsaveis_ids : [];
+                            const env: string[] = Array.isArray(pd.envolvidos_ids) ? pd.envolvidos_ids : [];
+                            if (resp.length) {
+                              const novos = Array.from(new Set([...responsaveisIds, ...resp]));
+                              setResponsaveisIds(novos);
+                              form.setValue("responsavel_id", novos[0] || "");
+                            }
+                            if (env.length) setEnvolvidosIds((prev) => Array.from(new Set([...prev, ...env])));
+                          }
+                          // Datas relativas do modelo (inclusive a data fatal) contam
+                          // da mesma base da data prevista: data base do formulário ou
+                          // data da publicação vinculada.
+                          const baseModelo =
+                            form.getValues("data_base") ||
+                            publicacao?.data_publicacao ||
+                            publicacao?.data_disponibilizacao ||
+                            null;
+                          const p = resolverPadroes(m, baseModelo ? String(baseModelo).slice(0, 10) : null);
+                          form.setValue("titulo", m.titulo, { shouldDirty: true });
+                          // Limpa o que o modelo anterior preencheu e o novo não define
+                          for (const [k, v] of Object.entries(anterior)) {
+                            if (k === "titulo" || p[k] !== undefined) continue;
+                            if (String(form.getValues(k as any) ?? "") === v) {
+                              form.setValue(k as any, "" as any, { shouldDirty: true });
+                            }
+                          }
+                          for (const [k, v] of Object.entries(p)) {
+                            if (k === "titulo") continue;
+                            form.setValue(k as any, v, { shouldDirty: true });
+                          }
+                          if (m.descricao && !form.getValues("descricao")) {
+                            form.setValue("descricao", m.descricao, { shouldDirty: true });
+                          }
+                          // Prazo pré-programado no modelo → preenche o campo
+                          // "Prazo (dias)" e calcula a Data prevista a partir da
+                          // data base do formulário (ou da publicação/hoje).
+                          const diasModelo = Number((m.padroes as any)?.prazo_dias) || 0;
+                          const unidadeModelo =
+                            ((m.padroes as any)?.prazo_unidade as "uteis" | "corridos") || "uteis";
+                          let prazoCalculado = "";
+                          if (diasModelo > 0) {
+                            setPrazoDias(diasModelo);
+                            setPrazoUnidade(unidadeModelo);
+                            const baseForm = form.getValues("data_base");
+                            prazoCalculado =
+                              computeDataPrevista(baseForm, diasModelo, unidadeModelo, form.getValues("coordenacao_id")) ||
+                              resolverPrazoModelo(
+                                m,
+                                publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
+                              );
+                          }
+                          // O modelo é uma escolha explícita: o prazo programado
+                          // sempre substitui a data prevista atual.
+                          if (prazoCalculado) {
+                            form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
+                          }
+                          modeloPadroesRef.current = {
+                            ...p,
+                            ...(prazoCalculado ? { data_vencimento: prazoCalculado } : {}),
+                          };
+                          checklistModeloRef.current = ((m.padroes as any)?.checklist_modelo_id as string) || null;
+                          modeloIdRef.current = (m as any).id || null;
+
                         }}
-                        className="text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Ocultar
-                      </button>
-                      )}
+                        />
+                      </div>
                     </div>
-                    <PeoplePicker
-                      coordenacaoId={coordenacaoId || null}
-                      selectedIds={envolvidosIds}
-                      onChange={(ids) =>
-                        setEnvolvidosIds(
-                          Array.from(new Set([...envolvidosFixosIds, ...ids])),
-                        )
-                      }
-                      placeholder="Adicionar colaborador"
-                      emptyLabel="Apenas para acompanhamento"
-                      icon="users"
-                      lockedIds={envolvidosFixosIds}
-                    />
-                    {envolvidosFixosIds.length > 0 && (
-                      <p className="text-[11px] text-muted-foreground">
-                        Envolvidos fixos configurados para este tipo não podem ser removidos.
-                      </p>
-                    )}
-                  </>
+                    <FormControl>
+                      <AutoResizeTextarea
+                        placeholder="Título da tarefa"
+                        {...field}
+                        autoFocus
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
                 )}
-              </div>
+              />
 
               {/* Data base */}
               <FormField
@@ -1602,31 +1558,6 @@ export function NovaTarefaDialog({
                 />
               </div>
 
-              {/* Prioridade */}
-              <FormField
-                control={form.control}
-                name="prioridade"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Prioridade</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="baixa">Baixa</SelectItem>
-                        <SelectItem value="media">Média</SelectItem>
-                        <SelectItem value="alta">Alta</SelectItem>
-                        <SelectItem value="urgente">Urgente</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               {/* Local */}
               <FormField
                 control={form.control}
@@ -1640,6 +1571,178 @@ export function NovaTarefaDialog({
                     <FormMessage />
                   </FormItem>
                 )}
+              />
+
+              {/* Responsável */}
+              <FormField
+                control={form.control}
+                name="responsavel_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Responsáveis *</FormLabel>
+                    <FormControl>
+                      <PeoplePicker
+                        coordenacaoId={coordenacaoId || null}
+                        selectedIds={responsaveisIds}
+                        onChange={(ids) => {
+                          setResponsaveisIds(ids);
+                          field.onChange(ids[0] || "");
+                        }}
+                        placeholder="Adicionar responsável"
+                        emptyLabel="Nenhum responsável selecionado"
+                        lockedIds={coordenadoresIds}
+                      />
+                    </FormControl>
+                    {coordenadoresIds.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Responsáveis fixos configurados para Tarefa Equipe não podem ser removidos.
+                      </p>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Envolvidos (colaboradores) */}
+              <div className="space-y-1.5">
+                {!mostrarEnvolvidos ? (
+                  <button
+                    type="button"
+                    onClick={() => setMostrarEnvolvidos(true)}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    + Envolver mais pessoas
+                  </button>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm">Envolvidos (acompanham)</Label>
+                      {envolvidosFixosIds.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMostrarEnvolvidos(false);
+                          setEnvolvidosIds([]);
+                        }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Ocultar
+                      </button>
+                      )}
+                    </div>
+                    <PeoplePicker
+                      coordenacaoId={coordenacaoId || null}
+                      selectedIds={envolvidosIds}
+                      onChange={(ids) =>
+                        setEnvolvidosIds(
+                          Array.from(new Set([...envolvidosFixosIds, ...ids])),
+                        )
+                      }
+                      placeholder="Adicionar colaborador"
+                      emptyLabel="Apenas para acompanhamento"
+                      icon="users"
+                      lockedIds={envolvidosFixosIds}
+                    />
+                    {envolvidosFixosIds.length > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Envolvidos fixos configurados para este tipo não podem ser removidos.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              <FormField
+                control={form.control}
+                name="descricao"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Observações</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Detalhes adicionais sobre a tarefa..."
+                        rows={4}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Anexos - Sempre disponível */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">
+                    Documentos
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="anexos-upload"
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      onChange={handleAddAnexo}
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt"
+                    />
+                    <Button type="button" variant="outline" size="sm" className="pointer-events-none">
+                      <Upload className="w-3 h-3 mr-1" />
+                      Adicionar
+                    </Button>
+                  </div>
+                </div>
+                
+                {anexos.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
+                    Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {anexos.map((anexo, index) => (
+                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <FileText className="w-4 h-4 text-primary shrink-0" />
+                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file?.name || anexo.nome}</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-muted-foreground hidden sm:inline">
+                              ({formatFileSize(anexo.file?.size ?? anexo.tamanho_bytes ?? 0)})
+                            </span>
+                          {anexo.uploaded && anexo.url && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Baixar documento"
+                              onClick={() => { void baixarDocumentoArmazenado(anexo.url!, anexo.nome || anexo.file?.name || "documento"); }}
+                            >
+                              <Download className="w-3 h-3" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => handleRemoveAnexo(index)}
+                          >
+                            <Trash2 className="w-3 h-3 text-destructive" />
+                          </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <ItemAbas
+                tipo="tarefa"
+                tipoComentario="tarefa"
+                itemId={tarefaParaEditar?.id}
+                processoId={(tarefaParaEditar as any)?.processo_id ?? null}
               />
 
               <AlertasConfigCard />
@@ -1722,99 +1825,6 @@ export function NovaTarefaDialog({
                   </div>
                 )}
               </div>
-
-              {/* Anexos - Sempre disponível */}
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">
-                    Documentos
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="file"
-                      id="anexos-upload"
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      onChange={handleAddAnexo}
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.txt"
-                    />
-                    <Button type="button" variant="outline" size="sm" className="pointer-events-none">
-                      <Upload className="w-3 h-3 mr-1" />
-                      Adicionar
-                    </Button>
-                  </div>
-                </div>
-                
-                {anexos.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4 border border-dashed rounded-lg">
-                    Nenhum documento anexado. Clique em "Adicionar" para incluir arquivos.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {anexos.map((anexo, index) => (
-                      <div key={index} className="p-3 bg-muted/50 rounded-lg text-sm">
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <FileText className="w-4 h-4 text-primary shrink-0" />
-                            <span className="truncate font-medium max-w-[150px] sm:max-w-none">{anexo.file?.name || anexo.nome}</span>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-xs text-muted-foreground hidden sm:inline">
-                              ({formatFileSize(anexo.file?.size ?? anexo.tamanho_bytes ?? 0)})
-                            </span>
-                          {anexo.uploaded && anexo.url && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6"
-                              title="Baixar documento"
-                              onClick={() => { void baixarDocumentoArmazenado(anexo.url!, anexo.nome || anexo.file?.name || "documento"); }}
-                            >
-                              <Download className="w-3 h-3" />
-                            </Button>
-                          )}
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => handleRemoveAnexo(index)}
-                          >
-                            <Trash2 className="w-3 h-3 text-destructive" />
-                          </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <ItemAbas
-                tipo="tarefa"
-                tipoComentario="tarefa"
-                itemId={tarefaParaEditar?.id}
-                processoId={(tarefaParaEditar as any)?.processo_id ?? null}
-              />
-
-              <FormField
-                control={form.control}
-                name="descricao"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Observações</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Detalhes adicionais sobre a tarefa..."
-                        rows={4}
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
             </form>
           </Form>

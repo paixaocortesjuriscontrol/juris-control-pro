@@ -10,5 +10,11 @@
   - sem prazo cadastrado: prevista e fatal = a própria data base
   - fatal do modelo tem prioridade; as duas continuam editáveis
   - testes em src/lib/datasBase.test.ts (8)
-- [ ] 2b — reorganizar a janela no padrão enviado (quadro do processo, abas, subatividade)
+- [x] 2b — reorganizar a janela no padrão enviado (quadro do processo, abas, subatividade)
+  - tarefa/ata: quadro do processo primeiro (tipo, coordenação, processo + resumo expansível),
+    depois prioridade, título, base, prevista/fatal com hora, local, pessoas, observações,
+    anexos, abas, alertas e recorrência
+  - prazo: processo, título, base, prazo+data limite, fatal, pessoas, observações, abas,
+    alertas e recorrência
+  - subatividade já existe na aba "Atividades" (data, responsável, situação, observação)
 - [ ] 7 — cores das situações (adiado pelo usuário: não mexer agora)
