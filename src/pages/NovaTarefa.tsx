@@ -255,7 +255,7 @@ export default function NovaTarefa() {
     if (tarefaParaEditar) {
       form.reset({
         tipo_vinculo: tarefaParaEditar.processo_id ? "processo" : "sem_vinculo",
-        coordenacao_id: tarefaParaEditar.processo?.coordenacao_id || "",
+        coordenacao_id: (tarefaParaEditar as any).coordenacao_id || tarefaParaEditar.processo?.coordenacao_id || "",
         processo_id: tarefaParaEditar.processo_id || "",
         titulo: tarefaParaEditar.titulo || "",
         descricao: tarefaParaEditar.descricao || "",

@@ -407,6 +407,13 @@ export function NovaTarefaDialog({
         let processoId = normalizeUuid(tarefaParaEditar.processo_id);
         let coordenacaoId = normalizeUuid((tarefaParaEditar as any).coordenacao_id) || "";
         let processoNumero = "";
+        // Coordenação gravada na tarefa sempre vence a do processo
+        let coordenacaoDaTarefa = coordenacaoId;
+        if (!coordenacaoDaTarefa && tarefaParaEditar.id) {
+          const { data: rowCoord } = await supabase.from("tarefas").select("coordenacao_id").eq("id", tarefaParaEditar.id).maybeSingle();
+          coordenacaoDaTarefa = normalizeUuid((rowCoord as any)?.coordenacao_id) || "";
+          coordenacaoId = coordenacaoDaTarefa;
+        }
         if (!processoId) {
           const { data: vinculoProc } = await supabase
             .from("tarefas_publicacoes_processos")
@@ -422,7 +429,7 @@ export function NovaTarefaDialog({
               .maybeSingle();
             processoId = normalizeUuid((pubProc as any)?.processo_id);
             processoNumero = (pubProc as any)?.processo_numero || "";
-            coordenacaoId = normalizeUuid((pubProc as any)?.coordenacao_id) || "";
+            coordenacaoId = coordenacaoDaTarefa || normalizeUuid((pubProc as any)?.coordenacao_id) || "";
           }
         }
 
@@ -440,7 +447,7 @@ export function NovaTarefaDialog({
               .eq("id", vinculoTermo.publicacao_id)
               .maybeSingle();
             processoNumero = (pub as any)?.processo_numero || processoNumero;
-            coordenacaoId = normalizeUuid((pub as any)?.coordenacao_id) || coordenacaoId;
+            coordenacaoId = coordenacaoDaTarefa || normalizeUuid((pub as any)?.coordenacao_id) || coordenacaoId;
           }
         }
 
@@ -456,7 +463,7 @@ export function NovaTarefaDialog({
           const { data: procs } = await procQuery;
           const proc = procs?.[0] as any;
           processoId = normalizeUuid(proc?.id);
-          coordenacaoId = normalizeUuid(proc?.coordenacao_id) || coordenacaoId;
+          coordenacaoId = coordenacaoDaTarefa || normalizeUuid(proc?.coordenacao_id) || coordenacaoId;
           processoNumero = proc?.numero || processoNumero;
         }
 
@@ -466,7 +473,7 @@ export function NovaTarefaDialog({
             .select("coordenacao_id, numero")
             .eq("id", processoId)
             .maybeSingle();
-          coordenacaoId = normalizeUuid((tarefaParaEditar as any).coordenacao_id) || proc?.coordenacao_id || coordenacaoId;
+          coordenacaoId = coordenacaoDaTarefa || proc?.coordenacao_id || coordenacaoId;
           processoNumero = proc?.numero || processoNumero;
         }
         const { data: resps } = await supabase
