@@ -4367,6 +4367,13 @@ const AnaliseDjen = () => {
                 id: info.id,
               });
             };
+          // Salvar o item já registra a leitura — mas só depois do sucesso do
+          // salvamento (onAfterCreate é chamado quando o item foi gravado).
+          const registrarItemCriadoELer = (tipo: ItemCriado["tipo"]) =>
+            (info: { id: string; titulo: string }) => {
+              registrarItemCriado(tipo)(info);
+              void markPubComoLida();
+            };
           const markPubComoLida = async () => {
             if (!selectedPublicacao) return;
             // Mantém a publicação visível na lista mesmo com o filtro "não lidas"
@@ -4538,7 +4545,7 @@ const AnaliseDjen = () => {
                   defaultProcessoId={adicionarProcessoId}
                   onMarkAsRead={markPubComoLida}
                   tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
-                  onAfterCreate={registrarItemCriado("tarefa")}
+                  onAfterCreate={registrarItemCriadoELer("tarefa")}
                 />
               )}
               {novoEventoOpen && (
@@ -4555,7 +4562,7 @@ const AnaliseDjen = () => {
                       hidePublicacaoCollapsible
                       secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
                       tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
-                      onAfterCreate={registrarItemCriado("evento")}
+                      onAfterCreate={registrarItemCriadoELer("evento")}
                     />
                   </div>
                 </div>
@@ -4574,7 +4581,7 @@ const AnaliseDjen = () => {
                       hidePublicacaoCollapsible
                       secondarySave={{ label: "Salvar e ler", onAfterSuccess: markPubComoLida }}
                       tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
-                      onAfterCreate={registrarItemCriado("prazo")}
+                      onAfterCreate={registrarItemCriadoELer("prazo")}
                     />
                   </div>
                 </div>
@@ -4589,7 +4596,7 @@ const AnaliseDjen = () => {
                   defaultProcessoId={adicionarProcessoId}
                   onMarkAsRead={markPubComoLida}
                   tertiarySave={{ label: "Salvar e fechar", onAfterSuccess: fecharTudo }}
-                  onAfterCreate={registrarItemCriado("audiencia")}
+                  onAfterCreate={registrarItemCriadoELer("audiencia")}
                 />
               )}
               {novoWorkflowOpen && selectedPublicacao && adicionarProcessoId && adicionarProcessoNumero && (
@@ -4606,6 +4613,7 @@ const AnaliseDjen = () => {
                       publicacaoOrigem={selectedPublicacao}
                       onStarted={async (item) => {
                         registrarItemCriado(item.tipo)({ id: item.id, titulo: item.titulo });
+                        void markPubComoLida();
                         await queryClient.invalidateQueries({ queryKey: ["itens-existentes-publicacao"] });
                         setNovoWorkflowOpen(false);
                       }}

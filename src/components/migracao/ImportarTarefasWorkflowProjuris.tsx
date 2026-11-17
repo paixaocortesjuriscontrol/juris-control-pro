@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, Download, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lerPlanilha, norm, digitos, formatarCnj, paraData } from "@/lib/migracaoProjuris";
+import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado, dividirPipe } from "./agendaFuturaProjuris";
 import { tipoWorkflow, chaveWorkflow } from "./tarefasWorkflowProjuris";
 
@@ -176,8 +177,10 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
         feito = Math.min(k + LOTE, ok.length); setProg({ etapa: "Gravando prazos e tarefas", feito, total: ok.length });
       }
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
-      setRel({ cont, semUsuario: Array.from(semUsuario), erros, procCriados, pulados: linhas.filter((l) => l.motivo) });
-      toast.success(`Tarefas de workflows: ${cont.prazos} prazos e ${cont.tarefas} tarefas.`);
+      const comDataPassada = itensComDataPassada(ok, (l: any) => l.fatal || l.prevista);
+      setRel({ cont, semUsuario: Array.from(semUsuario), erros, procCriados, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      const aviso = avisoDataPassada(comDataPassada.length);
+      toast.success(`Tarefas de workflows: ${cont.prazos} prazos e ${cont.tarefas} tarefas.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
     } catch (e: any) {
       await db.from("migracoes_projuris").update({ status: "erro", contadores: cont }).eq("id", mid);
@@ -193,6 +196,7 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
     aba(rel.semUsuario.map(([n, q]: any) => ({ "Responsável no Projuris": n, Ocorrências: q })), "Pessoas não encontradas");
     aba(rel.procCriados, "Processos criados");
     aba(rel.pulados.map((l: any) => ({ Processo: l.dig ? formatarCnj(l.dig) : "", Título: l.titulo, "Data fatal": l.fatal ? l.fatal.split("-").reverse().join("/") : "", Motivo: l.motivo })), "Linhas puladas");
+    aba((rel.comDataPassada || []).map((l: any) => ({ Processo: l.dig ? formatarCnj(l.dig) : "", Título: l.titulo, "Data fatal": l.fatal ? l.fatal.split("-").reverse().join("/") : "", "Data prevista": l.prevista ? l.prevista.split("-").reverse().join("/") : "" })), "Com data passada");
     aba(rel.erros, "Erros");
     XLSX.writeFile(wb, "Relatorio_Tarefas_Workflows_Projuris.xlsx");
   };

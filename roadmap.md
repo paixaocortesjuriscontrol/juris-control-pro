@@ -1,6 +1,6 @@
 - [x] 3 relatório tipo/subtipo/título (Agenda Futura TAR.)
-- [ ] 1/4 datas passadas
-- [ ] 5 diário lido após salvar (manter botões)
+- [x] 1/4 datas passadas (criação bloqueia; importações avisam no fim)
+- [x] 5 diário lido após salvar (manter botões)
 - [ ] 2 data base + auto
 - [ ] 6 workflow etapas
 - [ ] 7 cores (adiado pelo usuário)

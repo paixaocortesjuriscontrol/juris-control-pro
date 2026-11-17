@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, Download, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lerPlanilha, norm, digitos, formatarCnj, paraData, paraHora } from "@/lib/migracaoProjuris";
+import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado, dividirPipe } from "./agendaFuturaProjuris";
 import { tipoCompromisso, cnjDoTexto } from "./compromissosProjuris";
 
@@ -129,8 +130,10 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
       }
       if (criados.length) await db.from("migracoes_projuris_itens").insert(criados.map((x) => ({ migracao_id: mid, ...x })));
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
-      setRel({ cont, semUsuario: Array.from(semUsuario), semProc, erros, pulados: linhas.filter((l) => l.motivo) });
-      toast.success(`Compromissos: ${cont.eventos} eventos, ${cont.tarefas} tarefas e ${cont.audiencias} audiências.`);
+      const comDataPassada = itensComDataPassada(ok, (l: any) => l.inicio || l.fatal);
+      setRel({ cont, semUsuario: Array.from(semUsuario), semProc, erros, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      const aviso = avisoDataPassada(comDataPassada.length);
+      toast.success(`Compromissos: ${cont.eventos} eventos, ${cont.tarefas} tarefas e ${cont.audiencias} audiências.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
     } catch (e: any) {
       await db.from("migracoes_projuris").update({ status: "erro", contadores: cont }).eq("id", mid);
@@ -146,6 +149,7 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
     aba(rel.semUsuario.map(([n, q]: any) => ({ "Responsável no Projuris": n, Ocorrências: q })), "Pessoas não encontradas");
     aba(rel.semProc, "Audiências sem processo");
     aba(rel.pulados.map((l: any) => ({ Identificador: l.tar, Título: l.titulo, Motivo: l.motivo })), "Linhas puladas");
+    aba((rel.comDataPassada || []).map((l: any) => ({ Identificador: l.tar, Título: l.titulo, "Data": (l.inicio || l.fatal || "").split("-").reverse().join("/"), "Agendar como": l.tipo })), "Com data passada");
     aba(rel.erros, "Erros");
     XLSX.writeFile(wb, "Relatorio_Compromissos_Projuris.xlsx");
   };

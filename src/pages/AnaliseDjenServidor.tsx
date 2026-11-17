@@ -1118,28 +1118,22 @@ const AnaliseDjenServidor = () => {
     toggleExpandPublicacao(pub.id);
   };
 
-  const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
-    if (!pub.lida && !marcarComoLida.isPending) {
-      try {
-        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
-      } catch (error) {
-        console.error("Erro ao marcar publicação como lida ao criar tarefa:", error);
-      }
+  // A publicação só é marcada como lida DEPOIS que o item é salvo com sucesso
+  // (onAfterCreate nos diálogos abaixo). Abrir o formulário não marca mais.
+  const markPubComoLida = async (pub: PublicacaoUnificada | null) => {
+    if (!pub || pub.lida || marcarComoLida.isPending) return;
+    try {
+      await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
+    } catch (error) {
+      console.error("Erro ao marcar publicação como lida após salvar:", error);
     }
-    setSelectedPublicacao({ ...pub, lida: true });
+  };
+
+  const handleCriarTarefa = async (pub: PublicacaoUnificada) => {
+    setSelectedPublicacao(pub);
     setCriarTarefaDialogOpen(true);
     // Resolve/cria processo em paralelo para o vínculo da tarefa
     await resolverProcessoDaPublicacao(pub);
-  };
-
-  const handleAdicionarClick = async (pub: PublicacaoUnificada) => {
-    if (!pub.lida && !marcarComoLida.isPending) {
-      try {
-        await marcarComoLida.mutateAsync([{ id: pub.id, tipo_origem: pub.tipo_origem }]);
-      } catch (error) {
-        console.error("Erro ao marcar publicação como lida:", error);
-      }
-    }
   };
 
 
@@ -4305,7 +4299,6 @@ const AnaliseDjenServidor = () => {
                                             asChild
                                             onClick={(e) => {
                                               e.stopPropagation();
-                                              handleAdicionarClick(pub);
                                             }}
                                           >
                                             <Button
@@ -4322,13 +4315,13 @@ const AnaliseDjenServidor = () => {
                                             <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                               <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                               <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); await resolverProcessoDaPublicacao(pub); setSelectedPublicacao({ ...pub, lida: true }); setNovoPrazoOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                               <Clock className="w-4 h-4 mr-2" /> Prazo
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
+                                            <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                               <Gavel className="w-4 h-4 mr-2" /> Audiência
                                             </DropdownMenuItem>
                                           </DropdownMenuContent>
@@ -4402,7 +4395,6 @@ const AnaliseDjenServidor = () => {
                                            asChild
                                            onClick={(e) => {
                                              e.stopPropagation();
-                                             handleAdicionarClick(pub);
                                            }}
                                          >
                                            <Button
@@ -4419,13 +4411,13 @@ const AnaliseDjenServidor = () => {
                                            <DropdownMenuItem onSelect={() => setTimeout(() => handleCriarTarefa(pub), 0)}>
                                              <ClipboardList className="w-4 h-4 mr-2" /> Tarefa
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoEventoOpen(true); }, 0)}>
                                              <CalendarPlus className="w-4 h-4 mr-2" /> Evento
                                            </DropdownMenuItem>
-                                          <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); await resolverProcessoDaPublicacao(pub); setSelectedPublicacao({ ...pub, lida: true }); setNovoPrazoOpen(true); }, 0)}>
+                                          <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovoPrazoOpen(true); }, 0)}>
                                              <Clock className="w-4 h-4 mr-2" /> Prazo
                                            </DropdownMenuItem>
-                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { await handleAdicionarClick(pub); setSelectedPublicacao({ ...pub, lida: true }); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
+                                           <DropdownMenuItem onSelect={() => setTimeout(async () => { setSelectedPublicacao(pub); await resolverProcessoDaPublicacao(pub); setNovaAudienciaOpen(true); }, 0)}>
                                              <Gavel className="w-4 h-4 mr-2" /> Audiência
                                            </DropdownMenuItem>
                                          </DropdownMenuContent>
@@ -4664,6 +4656,7 @@ const AnaliseDjenServidor = () => {
           onOpenChange={setCriarTarefaDialogOpen}
           publicacao={selectedPublicacao}
           defaultProcessoId={adicionarProcessoId}
+          onAfterCreate={() => { void markPubComoLida(selectedPublicacao); }}
         />
 
         {/* Novo Evento */}
@@ -4673,6 +4666,7 @@ const AnaliseDjenServidor = () => {
           evento={null}
           defaultProcessoId={adicionarProcessoId}
           publicacao={novoEventoOpen ? selectedPublicacao : null}
+          onAfterCreate={() => { void markPubComoLida(selectedPublicacao); }}
         />
 
         {/* Novo Prazo */}
@@ -4682,6 +4676,7 @@ const AnaliseDjenServidor = () => {
           prazo={null}
           defaultProcessoId={adicionarProcessoId}
           publicacao={novoPrazoOpen ? selectedPublicacao : null}
+          onAfterCreate={() => { void markPubComoLida(selectedPublicacao); }}
         />
 
         {/* Nova Audiência */}
@@ -4691,6 +4686,7 @@ const AnaliseDjenServidor = () => {
           publicacao={selectedPublicacao}
           defaultProcessoNumero={adicionarProcessoNumero}
           defaultProcessoId={adicionarProcessoId}
+          onAfterCreate={() => { void markPubComoLida(selectedPublicacao); }}
         />
       </div>
     </MainLayout>

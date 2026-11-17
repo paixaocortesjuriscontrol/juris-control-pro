@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
+import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 
 interface Props {
   open: boolean;
@@ -419,12 +420,14 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
     setIsImporting(false);
     queryClient.invalidateQueries({ queryKey: ['audiencias-detectadas'] });
 
+    const atrasadas = itensComDataPassada(rows, (r) => r.data).length;
+    const aviso = avisoDataPassada(atrasadas);
     if (errorCount === 0) {
-      toast.success(`${successCount} audiências importadas com sucesso!`);
+      toast.success(`${successCount} audiências importadas com sucesso!${aviso ? ` ${aviso}` : ""}`);
       onOpenChange(false);
       setRows([]);
     } else {
-      toast.warning(`${successCount} importadas, ${errorCount} com erro`);
+      toast.warning(`${successCount} importadas, ${errorCount} com erro${aviso ? `. ${aviso}` : ""}`);
     }
   };
 

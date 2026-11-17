@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { Loader2, Upload, Download, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { lerPlanilha, norm, digitos, formatarCnj, paraData, paraHora } from "@/lib/migracaoProjuris";
+import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado } from "./agendaFuturaProjuris";
 import { dividirPipe, statusAudiencia, statusTarefa, tipoItem, semPapel, TITULOS_AUDIENCIA } from "./agendaFuturaProjuris";
 
@@ -273,8 +274,10 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
       }, 3);
       etapa(cancelar.current ? "Cancelado" : "Finalizando", gravadas, ok.length, { criados: cont.audiencias + cont.prazos + cont.tarefas, erros: cont.erros }, true);
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
-      setRelatorio({ cont, cancelado: cancelar.current, semUsuario: Array.from(semUsuario.keys()).map((n) => [n, ok.filter((l) => l.responsaveis.includes(n)).length]), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo) });
-      toast.success(`Agenda futura: ${cont.audiencias} audiências, ${cont.prazos} prazos e ${cont.tarefas} tarefas importados.`);
+      const comDataPassada = itensComDataPassada(ok, (l: any) => l.prevista || l.fatal);
+      setRelatorio({ cont, cancelado: cancelar.current, semUsuario: Array.from(semUsuario.keys()).map((n) => [n, ok.filter((l) => l.responsaveis.includes(n)).length]), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      const aviso = avisoDataPassada(comDataPassada.length);
+      toast.success(`Agenda futura: ${cont.audiencias} audiências, ${cont.prazos} prazos e ${cont.tarefas} tarefas importados.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
     } catch (e: any) {
       await db.from("migracoes_projuris").update({ status: "erro", contadores: cont }).eq("id", mid);
@@ -292,6 +295,7 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
     aba(relatorio.semUsuario.map(([n, q]: any) => ({ "Responsável no Projuris": n, Ocorrências: q })), "Pessoas não encontradas");
     aba(relatorio.semModelo.map(([n, q]: any) => ({ "Título sem modelo": n, Ocorrências: q })), "Títulos sem modelo");
     aba(relatorio.pulados.map((l: any) => ({ Atividade: l.tar, Título: l.titulo, Motivo: l.motivo })), "Linhas puladas");
+    aba((relatorio.comDataPassada || []).map((l: any) => ({ Atividade: l.tar, Título: l.titulo, "Data prevista": (l.prevista || l.fatal || "").split("-").reverse().join("/"), Processo: l.dig && l.dig.length === 20 ? formatarCnj(l.dig) : "", Responsável: l.responsaveis.join(", ") })), "Com data passada");
     aba(relatorio.erros, "Erros");
     XLSX.writeFile(wb, `Relatorio_Agenda_Futura_Projuris.xlsx`);
   };
@@ -338,7 +342,7 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
         )}
         {relatorio && (
           <div className="flex flex-wrap items-center gap-2 rounded-md border p-3 text-sm">
-            <span>{relatorio.cont.audiencias} audiências · {relatorio.cont.prazos} prazos · {relatorio.cont.tarefas} tarefas · {relatorio.cont.processosCriados} processos criados · {relatorio.cont.erros} erros</span>
+            <span>{relatorio.cont.audiencias} audiências · {relatorio.cont.prazos} prazos · {relatorio.cont.tarefas} tarefas · {relatorio.cont.processosCriados} processos criados · {relatorio.cont.erros} erros{relatorio.comDataPassada?.length ? ` · ${relatorio.comDataPassada.length} com data passada` : ""}</span>
             <Button size="sm" variant="outline" className="ml-auto" onClick={baixar}><Download className="mr-1 h-4 w-4" />Relatório Excel</Button>
           </div>
         )}

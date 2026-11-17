@@ -2225,6 +2225,7 @@ export default function ProcessoDetalhes() {
             }
           }}
           publicacao={publicacaoParaTarefa}
+          markAsReadOnCreate
         />
       </MainLayout>
     );
@@ -2337,6 +2338,7 @@ export default function ProcessoDetalhes() {
           }
         }}
         publicacao={publicacaoParaTarefa}
+        markAsReadOnCreate
       />
     </MainLayout>
   );

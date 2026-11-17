@@ -16,6 +16,25 @@ export function ehDataPassada(valor: string | Date | null | undefined, hoje = ho
 
 export const MSG_DATA_PASSADA = "Não é permitido criar atividade com data anterior a hoje. Confira a data escolhida.";
 
+/**
+ * Itens cuja data é anterior a hoje (BRT). Usado no fim das importações: a
+ * importação não bloqueia, mas quem importou precisa saber o que chegou atrasado.
+ */
+export function itensComDataPassada<T>(
+  itens: T[],
+  dataDe: (item: T) => string | Date | null | undefined,
+  hoje = hojeBRT(),
+): T[] {
+  return itens.filter((i) => ehDataPassada(dataDe(i), hoje));
+}
+
+/** Frase de aviso para o fim de uma importação. Vazia quando nada chegou atrasado. */
+export function avisoDataPassada(quantos: number): string {
+  if (!quantos) return "";
+  const hoje = fmtBr(hojeBRT());
+  return `${quantos} ${quantos === 1 ? "item importado ficou" : "itens importados ficaram"} com data anterior a hoje (${hoje}).`;
+}
+
 const fmtBr = (v: string | Date | null | undefined) => {
   if (!v) return "—";
   const d = v instanceof Date ? format(v, "yyyy-MM-dd") : String(v).slice(0, 10);
