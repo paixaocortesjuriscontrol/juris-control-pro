@@ -53,3 +53,4 @@
 - Scheduling permissions: `permissoes_agendamento_coordenacao` (no row = allowed) enforced by trigger `bloquear_configuracao_agendamento`, so every screen/import obeys it.
 - Client coordinations: explicit `clientes_coordenacoes` merged with process-derived ones.
 - DJEN Cadernos is an admin-only experiment isolated from DJEN Servidor; never writes publicacoes_djen.
+- Distribuição TST spreadsheet downloads pass through `padronizarXlsxTst`/`baixarXlsxTst` (`src/lib/estiloPlanilhaTst.ts`), which rewrites the final styles.xml, so one place enforces the screen-wide font/alignment standard regardless of the library used.

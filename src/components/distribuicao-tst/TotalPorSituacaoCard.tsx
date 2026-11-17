@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DistribuicaoTstFilters, fetchAllDistribuicaoTstIds } from "@/hooks/useDistribuicoesTst";
@@ -175,7 +176,7 @@ export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(filters)]);
 
-  const handleExportarExcel = () => {
+  const handleExportarExcel = async () => {
     if (!resultado) return;
     try {
       const { blob, filename } = gerarRelatorioSituacaoExcel({
@@ -185,7 +186,7 @@ export function TotalPorSituacaoCard({ filters, filtrosResumo, onClose }: Props)
         periodoFim: resultado.periodoFim,
         filtrosResumo,
       });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await padronizarXlsxTst(blob));
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;

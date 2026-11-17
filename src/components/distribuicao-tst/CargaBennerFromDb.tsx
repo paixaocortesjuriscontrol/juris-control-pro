@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -1104,7 +1105,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
       );
 
       const suffix = fullMode === "full" ? "" : fullMode === "ag" ? "_ate_analise" : "_ate_recurso";
-      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = await padronizarXlsxTst(await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       return { blob, filename: `Layout_Carga_TST_Supabase${suffix}_${getTimestamp()}.xlsx` };
     } catch (err: any) {
       pushAlert("error", "Erro ao gerar planilha: " + (err?.message || String(err)));
@@ -1160,7 +1161,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
     const ws = XLSX.utils.json_to_sheet(rows);
     ws["!cols"] = [{ wch: 28 }, { wch: 24 }, { wch: 18 }, { wch: 16 }, { wch: 28 }, { wch: 36 }, { wch: 40 }];
     XLSX.utils.book_append_sheet(wb, ws, "Rejeições");
-    XLSX.writeFile(wb, `Rejeicoes_Carga_Supabase_${getTimestamp()}.xlsx`);
+    void baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), `Rejeicoes_Carga_Supabase_${getTimestamp()}.xlsx`);
     toast.success("Rejeições baixadas!");
   };
 
@@ -1330,7 +1331,7 @@ export function CargaBennerFromDb({ onClose, filters = {}, selectedRecordIds, di
         `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${newStrings.length}" uniqueCount="${newStrings.length}">${newStrings.map(s => `<si><t xml:space="preserve">${escXml(s)}</t></si>`).join("")}</sst>`
       );
 
-      const blob = await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+      const blob = await padronizarXlsxTst(await zip.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = `Conferencia_Carga_Supabase_${getTimestamp()}.xlsx`;

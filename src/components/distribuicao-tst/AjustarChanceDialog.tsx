@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,7 +77,7 @@ export function AjustarChanceDialog() {
 
       if (atualizados.length > 0) {
         const { blob, filename } = gerarRelatorioAjusteChance(atualizados);
-        const url = URL.createObjectURL(blob);
+        const url = URL.createObjectURL(await padronizarXlsxTst(blob));
         const a = document.createElement("a");
         a.href = url;
         a.download = filename;

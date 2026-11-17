@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import * as XLSX from "xlsx";
 
 export type LinhaDjenAuto = {
@@ -51,7 +52,7 @@ export function baixarRelatorioIara(linhas: LinhaDjenAuto[], nome: string) {
   ws["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 30 }, { wch: 18 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Distribuição TST");
-  XLSX.writeFile(wb, nome);
+  void baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), nome);
 }
 
 export const RE_PRESIDENCIA_ADMISSIBILIDADE = /Presid[eê]ncia\s*-\s*Admissibilidade/i;
@@ -99,5 +100,5 @@ export function baixarRelatorioPresidencia(linhas: (LinhaDjenAuto & { data_publi
   ws["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }, { wch: 20 }, { wch: 30 }, { wch: 18 }, { wch: 18 }];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, "Presidência");
-  XLSX.writeFile(wb, nome);
+  void baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), nome);
 }

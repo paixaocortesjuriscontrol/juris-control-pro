@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useEffect, useState } from "react";
 import { Download, FileSpreadsheet, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +14,8 @@ const inicioMesBrt = () => `${hojeBrt().slice(0, 8)}01`;
 
 type Preparado = { blob: Blob; filename: string; total: number };
 
-async function entregarArquivo(blob: Blob, filename: string) {
+async function entregarArquivo(blobOriginal: Blob, filename: string) {
+  const blob = await padronizarXlsxTst(blobOriginal);
   const arquivo = new File([blob], filename, { type: blob.type });
   const toque = matchMedia("(pointer: coarse)").matches;
   if (toque && navigator.canShare?.({ files: [arquivo] })) {

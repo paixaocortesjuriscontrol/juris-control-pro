@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -77,7 +78,7 @@ function baixarRelatorio(arquivo: string, rejeitados: Rejeitado[], duplicados: D
   );
 
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-  XLSX.writeFile(wb, `Certidao_TST_Rejeitados_Duplicados_${stamp}.xlsx`);
+  void baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), `Certidao_TST_Rejeitados_Duplicados_${stamp}.xlsx`);
 }
 
 export function CertidaoPdfImport({ onImported }: Props) {

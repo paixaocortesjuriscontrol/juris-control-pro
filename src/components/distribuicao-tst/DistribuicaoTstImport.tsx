@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -178,7 +179,7 @@ export function DistribuicaoTstImport({ onImported }: Props) {
     ];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
     XLSX.utils.book_append_sheet(wb, ws, "Duplicados");
-    XLSX.writeFile(wb, `duplicados-tst-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    void baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), `duplicados-tst-${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {

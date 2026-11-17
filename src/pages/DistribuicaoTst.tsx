@@ -1,4 +1,5 @@
 
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
@@ -1364,7 +1365,7 @@ export default function DistribuicaoTst() {
         toast.info("Nenhum processo para gerar a planilha.");
         return;
       }
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await padronizarXlsxTst(blob));
       const a = document.createElement("a");
       a.href = url;
       a.download = filename;
@@ -1474,7 +1475,7 @@ export default function DistribuicaoTst() {
       const blob = new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await padronizarXlsxTst(blob));
       const a = document.createElement("a");
       const ts = new Date()
         .toISOString()
@@ -1667,7 +1668,7 @@ export default function DistribuicaoTst() {
       const blob = new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await padronizarXlsxTst(blob));
       const a = document.createElement("a");
       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
       a.href = url;

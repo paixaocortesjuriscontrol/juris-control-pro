@@ -1,3 +1,4 @@
+import { padronizarXlsxTst, baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { useState } from "react";
 import * as XLSX from "xlsx";
 import { Button } from "@/components/ui/button";
@@ -249,7 +250,7 @@ export function DossiesNaoLocalizadosButton({
       const blob = new Blob([buf], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
-      const url = URL.createObjectURL(blob);
+      const url = URL.createObjectURL(await padronizarXlsxTst(blob));
       const a = document.createElement("a");
       a.href = url;
       a.download = `Dossies_Nao_Localizados_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`;
