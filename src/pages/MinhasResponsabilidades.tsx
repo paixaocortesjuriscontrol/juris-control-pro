@@ -18,6 +18,19 @@ import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink, LayoutList, Columns3, ListChecks, Rows3, FileSpreadsheet, CalendarDays, ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { eachDayOfInterval, startOfWeek, endOfWeek, isSameMonth, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+function FiltroSelect({ rotulo, opcoes, valor, onChange }: { rotulo: string; opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">{rotulo}</span>
+      <Select value={valor} onValueChange={onChange}>
+        <SelectTrigger className="h-8 w-[180px] text-sm"><SelectValue /></SelectTrigger>
+        <SelectContent>{opcoes.map((o) => <SelectItem key={o.v} value={o.v} className="text-sm">{o.l}</SelectItem>)}</SelectContent>
+      </Select>
+    </div>
+  );
+}
 
 function Segmento({ opcoes, valor, onChange }: { opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
   return (
@@ -408,8 +421,8 @@ export default function MinhasResponsabilidades() {
     { l: "Atrasadas", v: contagem.atrasadas, destaque: true, ativo: aba === "atividades" && filtro === "atrasadas", onClick: () => { setAba("atividades"); setFiltro("atrasadas"); } },
     { l: "Pendentes", v: contagem.pendentes, ativo: aba === "atividades" && filtro === "pendentes", onClick: () => { setAba("atividades"); setFiltro("pendentes"); } },
     { l: "Cumpridas", v: contagem.cumpridas, ativo: aba === "atividades" && filtro === "cumpridas", onClick: () => { setAba("atividades"); setFiltro("cumpridas"); } },
-    { l: "Processos ativos", v: (processos.data ?? []).filter((p) => p.status === "ativo").length, ativo: aba === "processos", onClick: () => setAba("processos") },
-    { l: "Etapas de workflow", v: workflows.data?.length ?? 0, ativo: aba === "workflows", onClick: () => setAba("workflows") },
+    { l: "Processos", v: (processos.data ?? []).filter((p) => p.status === "ativo").length, ativo: aba === "processos", onClick: () => setAba("processos") },
+    { l: "Workflows", v: workflows.data?.length ?? 0, ativo: aba === "workflows", onClick: () => setAba("workflows") },
   ];
 
   const exportarExcel = async () => {
@@ -501,7 +514,7 @@ export default function MinhasResponsabilidades() {
           </TabsList>
 
           <TabsContent value="agenda" className="space-y-3">
-            <Segmento valor={grupoAgenda} onChange={setGrupoAgenda} opcoes={GRUPOS_AGENDA.map((g) => ({ v: g.v, l: `${g.l} (${agenda[g.v].length})` }))} />
+            <FiltroSelect rotulo="Mostrar" valor={grupoAgenda} onChange={setGrupoAgenda} opcoes={GRUPOS_AGENDA.map((g) => ({ v: g.v, l: `${g.l} (${agenda[g.v].length})` }))} />
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
             <Card><CardContent className="p-0 divide-y">
@@ -513,13 +526,13 @@ export default function MinhasResponsabilidades() {
           </TabsContent>
 
           <TabsContent value="atividades" className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
-              <Segmento valor={filtro} onChange={setFiltro} opcoes={FILTROS.map((f) => ({ v: f.v, l: `${f.l} (${contagem[f.v]})` }))} />
-              <Segmento valor={tipo} onChange={setTipo} opcoes={TIPOS.map((t) => ({ v: t, l: ROT_TIPO[t] }))} />
-              <Segmento valor={periodo} onChange={setPeriodo} opcoes={PERIODOS.map((p) => ({ v: p.v, l: p.l }))} />
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                <Input className="h-7 pl-7 text-xs" placeholder="Buscar título, processo, parte ou observação..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+            <div className="flex flex-wrap items-end gap-3 rounded-md border bg-card p-3">
+              <FiltroSelect rotulo="Situação" valor={filtro} onChange={setFiltro} opcoes={FILTROS.map((f) => ({ v: f.v, l: `${f.l} (${contagem[f.v]})` }))} />
+              <FiltroSelect rotulo="Tipo" valor={tipo} onChange={setTipo} opcoes={TIPOS.map((t) => ({ v: t, l: ROT_TIPO[t] }))} />
+              <FiltroSelect rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS.map((p) => ({ v: p.v, l: p.l }))} />
+              <div className="relative flex-1 min-w-[220px]">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input className="h-8 pl-8 text-sm" placeholder="Buscar título, processo, parte ou observação..." value={busca} onChange={(e) => setBusca(e.target.value)} />
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 px-1">
