@@ -95,6 +95,18 @@ export interface WorkflowExecucaoEtapa {
   etapa?: WorkflowEtapa | null;
 }
 
+/** Alterações feitas etapa por etapa ao iniciar o fluxo. O modelo não muda. */
+export interface SobrescritaEtapa {
+  titulo?: string;
+  tipo_item?: WorkflowItemType;
+  prioridade?: "baixa" | "media" | "alta" | "urgente";
+  descricao?: string | null;
+  dias_previsto?: number | null;
+  dias_fatal?: number | null;
+  tipo_prazo?: "dias_corridos" | "dias_uteis";
+  envolvidos?: string[];
+}
+
 export interface IniciarWorkflowInput {
   workflow_id: string;
   processo_id?: string;
@@ -103,6 +115,8 @@ export interface IniciarWorkflowInput {
   responsavel_inicial?: string;
   /** Responsáveis escolhidos por etapa ao iniciar ({ etapa_id: [usuario_id] }) */
   responsaveis_etapas?: Record<string, string[]>;
+  /** Alterações por etapa ({ etapa_id: { titulo, tipo_item, ... } }) */
+  sobrescritas_etapas?: Record<string, SobrescritaEtapa>;
   observacoes?: string;
   /** Data de início da execução (yyyy-MM-dd). Se vazia, assume o dia atual. */
   data_inicio?: string;
@@ -155,14 +169,66 @@ export function resolverResponsavelEtapa(
   }
 }
 
+/**
+ * O que foi alterado ao iniciar o fluxo vale só para esta execução; o modelo
+ * (workflow_etapas) continua igual.
+ */
+export function sobrescritaDaEtapa(
+  execucao: { sobrescritas_etapas?: Record<string, SobrescritaEtapa> | null } | null | undefined,
+  etapaId?: string | null
+): SobrescritaEtapa | null {
+  if (!execucao || !etapaId) return null;
+  const mapa = (execucao as any).sobrescritas_etapas;
+  if (!mapa || typeof mapa !== "object") return null;
+  return (mapa[etapaId] as SobrescritaEtapa) || null;
+}
+
+/** Junta a etapa do modelo com o que foi alterado ao iniciar o fluxo. */
+export function mesclarEtapa(
+  etapa: WorkflowEtapa,
+  sobrescrita?: SobrescritaEtapa | null
+): WorkflowEtapa {
+  if (!sobrescrita) return etapa;
+  const titulo = String(sobrescrita.titulo ?? "").trim();
+  const tipo = String(sobrescrita.tipo_item ?? "").trim().toUpperCase();
+  const dias = (v: number | null | undefined, atual: number) =>
+    v === undefined || v === null || Number.isNaN(Number(v)) ? atual : Number(v);
+  return {
+    ...etapa,
+    titulo: titulo || etapa.titulo,
+    tipo_item: (tipo || etapa.tipo_item) as WorkflowItemType,
+    prioridade: sobrescrita.prioridade || etapa.prioridade,
+    descricao:
+      sobrescrita.descricao === undefined ? etapa.descricao : sobrescrita.descricao || null,
+    dias_previsto: dias(sobrescrita.dias_previsto, etapa.dias_previsto),
+    dias_fatal:
+      sobrescrita.dias_fatal === undefined
+        ? etapa.dias_fatal
+        : sobrescrita.dias_fatal ?? null,
+    tipo_prazo: sobrescrita.tipo_prazo || etapa.tipo_prazo,
+  };
+}
+
+/** Envolvidos da etapa: só os escolhidos ao iniciar, quando houver escolha. */
+export function envolvidosDaEtapa(
+  sobrescrita?: SobrescritaEtapa | null
+): string[] {
+  if (sobrescrita && Array.isArray(sobrescrita.envolvidos)) {
+    return sobrescrita.envolvidos.filter(Boolean);
+  }
+  return [];
+}
+
 export async function criarItemWorkflow(
   execucao: WorkflowExecucao,
-  etapa: WorkflowEtapa,
+  etapaParam: WorkflowEtapa,
   dataReferencia: Date,
   responsavelId?: string | null,
   processoId?: string,
   processoNumero?: string
 ): Promise<{ id: string; tipo: WorkflowItemType } | null> {
+  const sobrescrita = sobrescritaDaEtapa(execucao as any, etapaParam?.id);
+  const etapa = mesclarEtapa(etapaParam, sobrescrita);
   const { data: userData } = await supabase.auth.getUser();
   const userId = userData?.user?.id || execucao.iniciado_por;
 
@@ -291,6 +357,28 @@ export async function criarItemWorkflow(
       }
     } catch (err) {
       console.error("Erro ao criar atividades da etapa do workflow:", err);
+    }
+    try {
+      const envolvidos = envolvidosDaEtapa(sobrescrita).filter(
+        (u) => !todosResponsaveis.includes(u)
+      );
+      if (envolvidos.length) {
+        const { error: envErr } =
+          tipo === "AUDIENCIA"
+            ? await supabase
+                .from("audiencia_envolvidos")
+                .insert(envolvidos.map((u) => ({ audiencia_id: resultado.id, usuario_id: u })))
+            : tipo === "EVENTO" || tipo === "PARCELAMENTO"
+              ? await supabase
+                  .from("evento_envolvidos")
+                  .insert(envolvidos.map((u) => ({ evento_id: resultado.id, usuario_id: u })))
+              : await supabase
+                  .from("tarefa_envolvidos")
+                  .insert(envolvidos.map((u) => ({ tarefa_id: resultado.id, usuario_id: u })));
+        if (envErr) throw envErr;
+      }
+    } catch (err) {
+      console.error("Erro ao criar envolvidos da etapa do workflow:", err);
     }
     try {
       const modeloId = (etapa as any).checklist_modelo_id;
@@ -770,14 +858,18 @@ async function materializarEtapas(
     if (!reservada || reservada.length === 0) continue; // outra tela já criou
 
     try {
-      const responsavel = resolverResponsavelEtapa(proxima.etapa as WorkflowEtapa, {
+      const etapaEfetiva = mesclarEtapa(
+        proxima.etapa as WorkflowEtapa,
+        sobrescritaDaEtapa(execucaoCast, (proxima.etapa as WorkflowEtapa)?.id)
+      );
+      const responsavel = resolverResponsavelEtapa(etapaEfetiva, {
         responsavelAnterior,
         iniciadorId: execucaoCast.iniciado_por,
       });
 
       const item = await criarItemWorkflow(
         execucaoCast as WorkflowExecucao,
-        proxima.etapa as WorkflowEtapa,
+        etapaEfetiva,
         dataReferencia,
         responsavel,
         execucaoCast.processo_id,
@@ -797,19 +889,19 @@ async function materializarEtapas(
         }
       }
 
-      const tp = (proxima.etapa?.tipo_prazo || "dias_corridos") as
+      const tp = (etapaEfetiva?.tipo_prazo || "dias_corridos") as
         | "dias_corridos"
         | "dias_uteis";
       const coordFer2 = (execucaoCast as any)?.coordenacao_id || null;
       try { await precarregarFeriados(coordFer2); } catch { /* sem feriados */ }
-      const dataPrevista = proxima.etapa?.dias_previsto
+      const dataPrevista = etapaEfetiva?.dias_previsto
         ? formatarDataISOBrasilia(
-            calcularDataOffset(dataReferencia, proxima.etapa.dias_previsto, tp, coordFer2)
+            calcularDataOffset(dataReferencia, etapaEfetiva.dias_previsto, tp, coordFer2)
           )
         : formatarDataISOBrasilia(dataReferencia);
-      const dataFatal = proxima.etapa?.dias_fatal
+      const dataFatal = etapaEfetiva?.dias_fatal
         ? formatarDataISOBrasilia(
-            calcularDataOffset(dataReferencia, proxima.etapa.dias_fatal, tp, coordFer2)
+            calcularDataOffset(dataReferencia, etapaEfetiva.dias_fatal, tp, coordFer2)
           )
         : dataPrevista;
 
@@ -818,7 +910,7 @@ async function materializarEtapas(
         .update({
           status: "materializada",
           item_id: item.id,
-          item_tipo: item.tipo || (proxima.etapa as WorkflowEtapa).tipo_item,
+          item_tipo: item.tipo || etapaEfetiva.tipo_item,
           data_prevista_calculada: dataPrevista,
           data_fatal_calculada: dataFatal,
         })

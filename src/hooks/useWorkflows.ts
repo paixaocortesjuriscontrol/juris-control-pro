@@ -12,6 +12,8 @@ import {
   criarItemWorkflow,
   calcularDataOffset,
   resolverResponsavelEtapa,
+  mesclarEtapa,
+  sobrescritaDaEtapa,
   avancarExecucaoWorkflow,
   sincronizarWorkflowsPorItens,
 } from "@/lib/workflowExecutor";
@@ -513,6 +515,7 @@ export function useIniciarWorkflow() {
           data_inicio: dataInicio,
           observacoes: input.observacoes || null,
           responsaveis_etapas: input.responsaveis_etapas || {},
+          sobrescritas_etapas: (input.sobrescritas_etapas || {}) as any,
           publicacao_origem_tipo: input.publicacao_origem_tipo || null,
           publicacao_origem_id: input.publicacao_origem_id || null,
         })
@@ -540,13 +543,17 @@ export function useIniciarWorkflow() {
 
       for (const etapa of etapas) {
         if (!iniciais.has(etapa.id)) continue;
-        const responsavel = resolverResponsavelEtapa(etapa as WorkflowEtapa, {
+        const etapaEfetiva = mesclarEtapa(
+          etapa as WorkflowEtapa,
+          sobrescritaDaEtapa(execucaoCast, (etapa as WorkflowEtapa).id)
+        );
+        const responsavel = resolverResponsavelEtapa(etapaEfetiva, {
           iniciadorId: user.id,
           responsavelInicial: responsavel_inicial,
         });
         const item = await criarItemWorkflow(
           execucaoCast as WorkflowExecucao,
-          etapa as WorkflowEtapa,
+          etapaEfetiva,
           dataReferencia,
           responsavel,
           processo_id,
@@ -557,13 +564,16 @@ export function useIniciarWorkflow() {
           itensCriados.push({
             id: item.id,
             tipo: item.tipo === "PARCELAMENTO" ? "evento" : String(item.tipo).toLowerCase(),
-            titulo: (etapa as WorkflowEtapa).titulo,
+            titulo: etapaEfetiva.titulo,
           });
         }
       }
 
       const etapasExecucao = etapas.map((etapa, idx) => {
-        const e = etapa as WorkflowEtapa;
+        const e = mesclarEtapa(
+          etapa as WorkflowEtapa,
+          sobrescritaDaEtapa(execucaoCast, (etapa as WorkflowEtapa).id)
+        );
         const criado = iniciais.has(etapa.id);
         const item = criados[etapa.id] || null;
         const tp = (e.tipo_prazo || "dias_corridos") as "dias_corridos" | "dias_uteis";

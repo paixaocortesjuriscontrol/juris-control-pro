@@ -11380,6 +11380,7 @@ export type Database = {
           publicacao_origem_id: string | null
           publicacao_origem_tipo: string | null
           responsaveis_etapas: Json
+          sobrescritas_etapas: Json
           status: string
           updated_at: string
           workflow_id: string
@@ -11395,6 +11396,7 @@ export type Database = {
           publicacao_origem_id?: string | null
           publicacao_origem_tipo?: string | null
           responsaveis_etapas?: Json
+          sobrescritas_etapas?: Json
           status?: string
           updated_at?: string
           workflow_id: string
@@ -11410,6 +11412,7 @@ export type Database = {
           publicacao_origem_id?: string | null
           publicacao_origem_tipo?: string | null
           responsaveis_etapas?: Json
+          sobrescritas_etapas?: Json
           status?: string
           updated_at?: string
           workflow_id?: string

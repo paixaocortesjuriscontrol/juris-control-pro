@@ -36,11 +36,36 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import type { ItemCriado } from "@/components/shared/ItensCriadosPublicacaoCard";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  WORKFLOW_ITEM_LABELS,
+  type SobrescritaEtapa,
+  type WorkflowItemType,
+} from "@/lib/workflowExecutor";
+
+type EtapaModelo = {
+  id: string;
+  titulo: string;
+  ordem: number;
+  tipo_item: WorkflowItemType;
+  prioridade: "baixa" | "media" | "alta" | "urgente";
+  descricao?: string | null;
+  dias_previsto: number;
+  dias_fatal?: number | null;
+  tipo_prazo: "dias_corridos" | "dias_uteis";
+};
+
+const PRIORIDADES: { valor: SobrescritaEtapa["prioridade"]; rotulo: string }[] = [
+  { valor: "baixa", rotulo: "Baixa" },
+  { valor: "media", rotulo: "Média" },
+  { valor: "alta", rotulo: "Alta" },
+  { valor: "urgente", rotulo: "Urgente" },
+];
 
 interface IniciarWorkflowDialogProps {
   workflowId?: string;
@@ -87,13 +112,42 @@ export function IniciarWorkflowDialog({
   
   const [observacoes, setObservacoes] = useState("");
   const [respEtapas, setRespEtapas] = useState<Record<string, string[]>>({});
-  const [etapasWf, setEtapasWf] = useState<{ id: string; titulo: string; ordem: number; tipo_item?: string }[]>([]);
+  // O que foi alterado etapa por etapa nesta execução (o modelo não muda).
+  const [edicoesEtapas, setEdicoesEtapas] = useState<Record<string, SobrescritaEtapa>>({});
+  const [envEtapas, setEnvEtapas] = useState<Record<string, string[]>>({});
+  const [envModelo, setEnvModelo] = useState<Record<string, string[]>>({});
+  const [etapasWf, setEtapasWf] = useState<EtapaModelo[]>([]);
   useEffect(() => {
     setRespEtapas({});
+    setEdicoesEtapas({});
+    setEnvEtapas({});
+    setEnvModelo({});
     if (!selectedWorkflowId) { setEtapasWf([]); return; }
     let ativo = true;
-    supabase.from("workflow_etapas").select("id, titulo, ordem, tipo_item").eq("workflow_id", selectedWorkflowId).order("ordem")
-      .then(({ data }) => { if (ativo) setEtapasWf((data as any[]) || []); });
+    (async () => {
+      const { data } = await supabase
+        .from("workflow_etapas")
+        .select("id, titulo, ordem, tipo_item, prioridade, descricao, dias_previsto, dias_fatal, tipo_prazo")
+        .eq("workflow_id", selectedWorkflowId)
+        .order("ordem");
+      if (!ativo) return;
+      const etapas = ((data as any[]) || []) as EtapaModelo[];
+      setEtapasWf(etapas);
+      const ids = etapas.map((e) => e.id);
+      if (!ids.length) return;
+      const { data: ev } = await supabase
+        .from("workflow_etapa_envolvidos")
+        .select("etapa_id, usuario_id")
+        .in("etapa_id", ids);
+      if (!ativo) return;
+      const mapa: Record<string, string[]> = {};
+      ((ev as any[]) || []).forEach((r) => {
+        if (!mapa[r.etapa_id]) mapa[r.etapa_id] = [];
+        mapa[r.etapa_id].push(r.usuario_id);
+      });
+      setEnvModelo(mapa);
+      setEnvEtapas(mapa);
+    })();
     return () => { ativo = false; };
   }, [selectedWorkflowId]);
   const [dataInicio, setDataInicio] = useState(dataBaseInicial);
@@ -122,6 +176,50 @@ export function IniciarWorkflowDialog({
     () => workflows?.find((w: any) => w.id === selectedWorkflowId),
     [workflows, selectedWorkflowId]
   );
+
+  /**
+   * Só envia o que mudou em relação ao modelo; o resto segue o padrão do fluxo.
+   */
+  const sobrescritas = useMemo(() => {
+    const out: Record<string, SobrescritaEtapa> = {};
+    const num = (v: any) =>
+      v === null || v === undefined || v === "" ? null : Number.isNaN(Number(v)) ? null : Number(v);
+    for (const et of etapasWf) {
+      const ed = edicoesEtapas[et.id] || {};
+      const s: SobrescritaEtapa = {};
+      const titulo = String(ed.titulo ?? et.titulo ?? "").trim();
+      if (titulo && titulo !== et.titulo) s.titulo = titulo;
+      const tipo = ed.tipo_item || et.tipo_item;
+      if (tipo && tipo !== et.tipo_item) s.tipo_item = tipo;
+      const prio = ed.prioridade || et.prioridade;
+      if (prio && prio !== et.prioridade) s.prioridade = prio;
+      const prev = num(ed.dias_previsto ?? et.dias_previsto ?? 0) ?? 0;
+      if (prev !== (num(et.dias_previsto) ?? 0)) s.dias_previsto = prev;
+      const fatal = ed.dias_fatal === undefined ? num(et.dias_fatal) : num(ed.dias_fatal);
+      if (fatal !== num(et.dias_fatal)) s.dias_fatal = fatal;
+      const unid = ed.tipo_prazo || et.tipo_prazo;
+      if (unid && unid !== et.tipo_prazo) s.tipo_prazo = unid;
+      const desc = ed.descricao === undefined ? (et.descricao ?? "") : ed.descricao;
+      if (desc !== (et.descricao ?? "")) s.descricao = desc;
+      const env = envEtapas[et.id] || [];
+      const envMod = envModelo[et.id] || [];
+      if (env.slice().sort().join(",") !== envMod.slice().sort().join(",")) s.envolvidos = env;
+      if (Object.keys(s).length) out[et.id] = s;
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    JSON.stringify(etapasWf),
+    JSON.stringify(edicoesEtapas),
+    JSON.stringify(envEtapas),
+    JSON.stringify(envModelo),
+  ]);
+
+  const editarEtapa = (etapaId: string, campo: keyof SobrescritaEtapa, valor: any) =>
+    setEdicoesEtapas((atual) => ({
+      ...atual,
+      [etapaId]: { ...(atual[etapaId] || {}), [campo]: valor },
+    }));
 
   const iniciar = useIniciarWorkflow();
 
@@ -156,6 +254,7 @@ export function IniciarWorkflowDialog({
       responsaveis_etapas: Object.fromEntries(
         Object.entries(respEtapas).filter(([, v]) => Array.isArray(v) && v.length > 0)
       ),
+      sobrescritas_etapas: Object.keys(sobrescritas).length ? sobrescritas : undefined,
       observacoes: observacoes || undefined,
       data_inicio: dataInicio || undefined,
       publicacao_origem_tipo: publicacaoOrigem?.tipo_origem,
@@ -185,6 +284,8 @@ export function IniciarWorkflowDialog({
     setSelectedProcesso(preSelectedProcesso || null);
     setResponsavelInicial("");
     setRespEtapas({});
+    setEdicoesEtapas({});
+    setEnvEtapas({});
 
 
     setObservacoes("");
@@ -339,21 +440,147 @@ export function IniciarWorkflowDialog({
             </Select>
           </div>
           {etapasWf.length > 0 && (
-            <div className="space-y-2 rounded-md border p-3">
-              <Label>Responsáveis por etapa</Label>
-              <p className="text-xs text-muted-foreground">Deixe em "Padrão do modelo" para usar a configuração do workflow. Você pode escolher mais de uma pessoa por etapa.</p>
-              {etapasWf.map((et, i) => (
-                <div key={et.id} className="grid grid-cols-[1fr_1.2fr] items-center gap-2">
-                  <span className="text-sm truncate" title={et.titulo}>{i + 1}. {et.titulo}</span>
-                  <MultiSelecaoPessoas
-                    pessoas={usuarios}
-                    valores={respEtapas[et.id] || []}
-                    onChange={(ids) => setRespEtapas((a) => ({ ...a, [et.id]: ids }))}
-                    disabled={!coordenacaoId}
-                    placeholder="Padrão do modelo"
-                  />
-                </div>
-              ))}
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="space-y-1">
+                <Label>Etapas — revise antes de criar</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cada etapa abre com os dados do modelo. O que você mudar aqui vale só para esta
+                  execução; o modelo continua igual.
+                </p>
+              </div>
+              {etapasWf.map((et, i) => {
+                const ed = edicoesEtapas[et.id] || {};
+                return (
+                  <div key={et.id} className="space-y-2 rounded-md border bg-muted/20 p-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        Etapa {i + 1}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Select
+                          value={String(ed.tipo_item || et.tipo_item)}
+                          onValueChange={(v) => editarEtapa(et.id, "tipo_item", v as WorkflowItemType)}
+                        >
+                          <SelectTrigger className="h-7 w-[120px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Object.entries(WORKFLOW_ITEM_LABELS).map(([valor, rotulo]) => (
+                              <SelectItem key={valor} value={valor} className="text-xs">
+                                {rotulo}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={String(ed.prioridade || et.prioridade || "media")}
+                          onValueChange={(v) => editarEtapa(et.id, "prioridade", v)}
+                        >
+                          <SelectTrigger className="h-7 w-[100px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PRIORIDADES.map((p) => (
+                              <SelectItem key={String(p.valor)} value={String(p.valor)} className="text-xs">
+                                {p.rotulo}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <Input
+                      value={ed.titulo ?? et.titulo}
+                      onChange={(e) => editarEtapa(et.id, "titulo", e.target.value)}
+                      aria-label={`Título da etapa ${i + 1}`}
+                      className="h-8 text-sm"
+                    />
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                        Previsto em
+                        <Input
+                          type="number"
+                          min={0}
+                          value={String(ed.dias_previsto ?? et.dias_previsto ?? 0)}
+                          onChange={(e) => editarEtapa(et.id, "dias_previsto", e.target.value === "" ? 0 : Number(e.target.value))}
+                          className="h-7 w-16 text-xs"
+                          aria-label={`Dias previstos da etapa ${i + 1}`}
+                        />
+                      </label>
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                        fatal em
+                        <Input
+                          type="number"
+                          min={0}
+                          value={
+                            ed.dias_fatal === undefined
+                              ? et.dias_fatal == null
+                                ? ""
+                                : String(et.dias_fatal)
+                              : ed.dias_fatal == null
+                                ? ""
+                                : String(ed.dias_fatal)
+                          }
+                          onChange={(e) =>
+                            editarEtapa(et.id, "dias_fatal", e.target.value === "" ? null : Number(e.target.value))
+                          }
+                          className="h-7 w-16 text-xs"
+                          aria-label={`Dias fatais da etapa ${i + 1}`}
+                        />
+                      </label>
+                      <Select
+                        value={String(ed.tipo_prazo || et.tipo_prazo || "dias_corridos")}
+                        onValueChange={(v) => editarEtapa(et.id, "tipo_prazo", v)}
+                      >
+                        <SelectTrigger className="h-7 w-[112px] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="dias_corridos" className="text-xs">
+                            corridos
+                          </SelectItem>
+                          <SelectItem value="dias_uteis" className="text-xs">
+                            úteis
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Responsáveis</span>
+                        <MultiSelecaoPessoas
+                          pessoas={usuarios}
+                          valores={respEtapas[et.id] || []}
+                          onChange={(ids) => setRespEtapas((a) => ({ ...a, [et.id]: ids }))}
+                          disabled={!coordenacaoId}
+                          placeholder="Padrão do modelo"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground">Envolvidos</span>
+                        <MultiSelecaoPessoas
+                          pessoas={usuarios}
+                          valores={envEtapas[et.id] || []}
+                          onChange={(ids) => setEnvEtapas((a) => ({ ...a, [et.id]: ids }))}
+                          disabled={!coordenacaoId}
+                          placeholder="Nenhum"
+                        />
+                      </div>
+                    </div>
+
+                    <Textarea
+                      value={ed.descricao ?? et.descricao ?? ""}
+                      onChange={(e) => editarEtapa(et.id, "descricao", e.target.value)}
+                      placeholder="Descrição da etapa"
+                      aria-label={`Descrição da etapa ${i + 1}`}
+                      className="min-h-[54px] text-sm"
+                    />
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -433,7 +660,7 @@ export function IniciarWorkflowDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
             Iniciar Workflow{initialWorkflowName ? `: ${initialWorkflowName}` : ""}
