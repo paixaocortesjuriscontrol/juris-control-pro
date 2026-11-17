@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import JSZip from "jszip";
 import type { PautaTst } from "@/hooks/usePautasTst";
 import { baixarXlsxTst } from "@/lib/estiloPlanilhaTst";
 import { normalizarEquipeTst, normalizarReclamada, relatorSoNome, horarioPadrao, MAIUSCULAS, CAMPOS_A_PREENCHER } from "@/lib/pautaPadrao";
@@ -33,7 +34,6 @@ export const COLUNAS_PAUTA: [string, string][] = [
   ["SOLICITAÇÃO DE PROVIDENCIAS BANCO", "solicitacao_providencias_banco"],
   ["SOLICITAÇÃO - ROSA OLIVEIRA", "solicitacao_rosa_oliveira"],
   ["COMENTARIOS ADVOGADO INTERNO RESPONSAVEL", "comentarios_advogado"],
-  ["COMENTARIOS ADVOGADO INTERNO RESPONSAVEL DO BANCO", "comentarios_advogado_banco"],
   ["RETORNO\\ESCLARECIMENTOS CENTRALIZADOS", "retorno_esclarecimentos"],
   ["RESULTADO\\PROXIMA SESSÃO", "resultado_proxima_sessao"],
 ];
@@ -66,13 +66,15 @@ export function valorPadraoPauta(p: any, k: string): string {
   switch (k) {
     case "data_julgamento": return br(v);
     case "equipe": return normalizarEquipeTst(v) ?? "";
-    case "advogado_interno": case "modalidade": case "decisao": case "sustentacao_oral":
+    case "advogado_interno": return MAIUSCULAS(v) || "A PREENCHER";
+    case "modalidade": case "decisao": case "sustentacao_oral":
     case "desistencia_recurso": case "midia_negativa": return MAIUSCULAS(v) ?? "";
     case "reclamada": return normalizarReclamada(v) ?? "";
     case "relator": return relatorSoNome(v) ?? "";
     case "horario": return horarioPadrao(v);
     case "link_acesso": return v ?? "";
   }
+  if ((CAMPOS_A_PREENCHER.includes(k) || k === "comentarios_advogado" || k === "parte_recorrente" || k === "advogado_interno") && !String(v ?? "").trim()) return "A PREENCHER";
   if (CAMPOS_A_PREENCHER.includes(k) && !String(v ?? "").trim()) return "A PREENCHER";
   return v ?? "";
 }
@@ -91,7 +93,42 @@ export async function exportarPautas(
     ws["!cols"] = COLUNAS_PAUTA.map(([h]) => ({ wch: Math.min(Math.max(h.length, 16), 40) }));
     XLSX.utils.book_append_sheet(wb, ws, g.aba);
   }
-  await baixarXlsxTst(XLSX.write(wb, { type: "array", bookType: "xlsx" }), arquivo);
+  await baixarXlsxTst(await colorirCabecalhoModelo(XLSX.write(wb, { type: "array", bookType: "xlsx" })), arquivo);
+}
+
+/** Cor do cabeçalho por coluna, igual ao modelo PAUTA DE JULGAMENTO (A-V cinza, W-Z laranja, AA-AC vermelho, AD-AE cinza-rosado). */
+export function corCabecalhoModelo(indice: number): string {
+  if (indice <= 21) return "FFD9D9D9";
+  if (indice <= 25) return "FFF9CB9C";
+  if (indice <= 28) return "FFC00000";
+  return "FFD0CECE";
+}
+
+const colIndex = (l: string) => [...l].reduce((n, c) => n * 26 + c.charCodeAt(0) - 64, 0) - 1;
+
+export async function colorirCabecalhoModelo(buf: ArrayBuffer): Promise<Uint8Array> {
+  const zip = await JSZip.loadAsync(buf);
+  let styles = await zip.file("xl/styles.xml")!.async("string");
+  const cores = ["FFD9D9D9", "FFF9CB9C", "FFC00000", "FFD0CECE"];
+  const nFills = Number(styles.match(/<fills count="(\d+)"/)?.[1] ?? 0);
+  styles = styles.replace(/<fills count="\d+">([\s\S]*?)<\/fills>/, (_m, corpo) =>
+    `<fills count="${nFills + 4}">${corpo}${cores.map((c) => `<fill><patternFill patternType="solid"><fgColor rgb="${c}"/><bgColor indexed="64"/></patternFill></fill>`).join("")}</fills>`);
+  const nFonts = Number(styles.match(/<fonts count="(\d+)"/)?.[1] ?? 0);
+  styles = styles.replace(/<fonts count="\d+">([\s\S]*?)<\/fonts>/, (_m, corpo) =>
+    `<fonts count="${nFonts + 1}">${corpo}<font><b/><sz val="11"/><color rgb="FF000000"/><name val="Calibri"/></font></fonts>`);
+  const nXfs = Number(styles.match(/<cellXfs count="(\d+)"/)?.[1] ?? 0);
+  styles = styles.replace(/<cellXfs count="\d+">([\s\S]*?)<\/cellXfs>/, (_m, corpo) =>
+    `<cellXfs count="${nXfs + 4}">${corpo}${cores.map((_, i) => `<xf numFmtId="0" fontId="${nFonts}" fillId="${nFills + i}" borderId="0" xfId="0" applyFont="1" applyFill="1"/>`).join("")}</cellXfs>`);
+  zip.file("xl/styles.xml", styles);
+  for (const nome of Object.keys(zip.files).filter((n) => /^xl\/worksheets\/sheet\d+\.xml$/.test(n))) {
+    const xml = await zip.file(nome)!.async("string");
+    zip.file(nome, xml.replace(/<c r="([A-Z]+)1"(?![0-9])([^>]*?)(\/?)>/g, (_m, col, attrs, fecha) => {
+      const cor = corCabecalhoModelo(colIndex(col));
+      const s = nXfs + cores.indexOf(cor);
+      return `<c r="${col}1"${attrs.replace(/\ss="\d+"/, "")} s="${s}"${fecha}>`;
+    }));
+  }
+  return zip.generateAsync({ type: "uint8array" });
 }
 
 /** Relatório "PAUTA DE JULGAMENTO - dados faltantes" (sem dossiê, equipe ou advogado interno). */

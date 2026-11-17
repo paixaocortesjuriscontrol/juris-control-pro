@@ -83,7 +83,6 @@ const SECOES: { titulo: string; campos: Campo[] }[] = [
     { k: "solicitacao_providencias_banco", l: "Solicitação de providências ao banco", area: true, span: "md:col-span-2" },
     { k: "solicitacao_rosa_oliveira", l: "Solicitação – Rosa Oliveira", area: true, span: "md:col-span-2" },
     { k: "comentarios_advogado", l: "Comentários do advogado interno", area: true, span: "md:col-span-2" },
-    { k: "comentarios_advogado_banco" as any, l: "Comentários do advogado interno responsável do banco", area: true, span: "md:col-span-2" },
     { k: "retorno_esclarecimentos", l: "Retorno / esclarecimentos", area: true, span: "md:col-span-2" },
     { k: "resultado_proxima_sessao", l: "Resultado / próxima sessão", area: true, span: "md:col-span-4" },
   ]},

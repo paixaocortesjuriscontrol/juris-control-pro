@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PautaTst, PautaTstInsert } from "@/hooks/usePautasTst";
 import { PautasTstForm } from "@/components/pautas-tst/PautasTstForm";
+import { PautasFaltantesDialog } from "@/components/pautas-tst/PautasFaltantesDialog";
 import { PautasTstImport } from "@/components/pautas-tst/PautasTstImport";
 import { exportarPautasFaltantes, exportarPautas, nomeAbaSemana, segundaDaSemana } from "@/lib/pautasSemanaExport";
 import { cn } from "@/lib/utils";
@@ -487,7 +488,7 @@ export default function PautasTstPage() {
             <Button variant="outline" onClick={exportarSemana}><Download className="w-4 h-4 mr-2" /> Exportar semana</Button>
             <Button variant="outline" onClick={() => setExportOpen(true)}><Download className="w-4 h-4 mr-2" /> Exportar período</Button>
             <Button variant="outline" onClick={completarSemana} disabled={completando}>{completando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Completar pela Distribuição TST</Button>
-            <Button variant="outline" onClick={exportarFaltantes}><Download className="w-4 h-4 mr-2" /> Dados faltantes</Button>
+            <PautasFaltantesDialog onImported={() => { carregarSemana(); }} />
             <Button variant="outline" onClick={buscarAgora} disabled={buscandoAuto}>
               {buscandoAuto ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Buscar pautas agora
             </Button>

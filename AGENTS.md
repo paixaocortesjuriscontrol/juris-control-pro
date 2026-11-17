@@ -54,3 +54,4 @@
 - Client coordinations: explicit `clientes_coordenacoes` merged with process-derived ones.
 - DJEN Cadernos is an admin-only experiment isolated from DJEN Servidor; never writes publicacoes_djen.
 - Distribuição TST spreadsheet downloads pass through `padronizarXlsxTst`/`baixarXlsxTst` (`src/lib/estiloPlanilhaTst.ts`), which rewrites the final styles.xml, so one place enforces the screen-wide font/alignment standard regardless of the library used.
+- `pautas_tst` normalization (relator format, clearing office-staff names from advogado_interno, parte_recorrente from the DJEN publication) lives in trigger `trg_pautas_tst_padrao`, so every import/auto-fill path obeys it.
