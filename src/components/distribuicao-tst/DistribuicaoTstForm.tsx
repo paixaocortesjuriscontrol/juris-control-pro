@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
+import { EQUIPES_TST } from "@/lib/pautaPadrao";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,17 +144,7 @@ const emptyForm: DistribuicaoTstInsert = {
   observacao_advogado: null,
 };
 
-const EQUIPE_OPTIONS = [
-  "Acordo Extrajudicial",
-  "Ações Corporativas",
-  "Ações Especiais",
-  "Adm e Coligadas",
-  "Núcleo Complementação de Aposentadoria",
-  "Núcleo de Terceiros",
-  "Núcleo Execução",
-  "Núcleo Noroeste Sul",
-  "Núcleo Sudeste",
-];
+const EQUIPE_OPTIONS = EQUIPES_TST;
 
 const getEquipeOptions = (current?: string | null) => {
   const currentValue = String(current || "").trim();

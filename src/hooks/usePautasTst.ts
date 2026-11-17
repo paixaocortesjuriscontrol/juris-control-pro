@@ -35,6 +35,7 @@ export interface PautaTst {
   solicitacao_providencias_banco: string | null;
   solicitacao_rosa_oliveira: string | null;
   comentarios_advogado: string | null;
+  comentarios_advogado_banco?: string | null;
   retorno_esclarecimentos: string | null;
   resultado_proxima_sessao: string | null;
   semana_inicio?: string | null;

@@ -314,7 +314,7 @@ export function gerarManualDistribuicaoTst() {
       ["C - Equipe", "Nome da equipe/advogado responsável"],
     ]
   );
-  tip("O prefixo 'Jurídico Trabalhista - ' é removido automaticamente do nome da equipe.");
+  tip("A equipe é gravada com o nome padrão 'Jurídico Trabalhista - ...' (o prefixo é incluído se faltar).");
 
   subTitle("9.4 Benner SIM (conferência)");
   table(
@@ -449,7 +449,7 @@ export function gerarManualDistribuicaoTst() {
     ]
   );
   bullets([
-    "O prefixo 'Jurídico Trabalhista - ' é removido automaticamente do nome da equipe.",
+    "A equipe é gravada com o nome padrão 'Jurídico Trabalhista - ...' (o prefixo é incluído se faltar).",
     "Linhas em branco (sem Dossiê OU sem Equipe) são ignoradas.",
     "Faz UPDATE em lotes de 500 por dossiê.",
   ]);

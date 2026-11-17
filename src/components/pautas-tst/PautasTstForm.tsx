@@ -1,4 +1,5 @@
 import { GrupoPautaBadge } from "./GrupoPautaBadge";
+import { OPCOES_PAUTA } from "@/lib/pautaPadrao";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,7 @@ const emptyForm: PautaTstInsert = {
   honra: null, decisao: null, sustentacao_oral: null,
   desistencia_recurso: null, midia_negativa: null,
   entrega_memoriais: null, solicitacao_providencias_banco: null,
-  solicitacao_rosa_oliveira: null, comentarios_advogado: null,
+  solicitacao_rosa_oliveira: null, comentarios_advogado: null, comentarios_advogado_banco: null,
   retorno_esclarecimentos: null, resultado_proxima_sessao: null,
 };
 
@@ -82,6 +83,7 @@ const SECOES: { titulo: string; campos: Campo[] }[] = [
     { k: "solicitacao_providencias_banco", l: "Solicitação de providências ao banco", area: true, span: "md:col-span-2" },
     { k: "solicitacao_rosa_oliveira", l: "Solicitação – Rosa Oliveira", area: true, span: "md:col-span-2" },
     { k: "comentarios_advogado", l: "Comentários do advogado interno", area: true, span: "md:col-span-2" },
+    { k: "comentarios_advogado_banco" as any, l: "Comentários do advogado interno responsável do banco", area: true, span: "md:col-span-2" },
     { k: "retorno_esclarecimentos", l: "Retorno / esclarecimentos", area: true, span: "md:col-span-2" },
     { k: "resultado_proxima_sessao", l: "Resultado / próxima sessão", area: true, span: "md:col-span-4" },
   ]},
@@ -271,13 +273,28 @@ export function PautasTstForm({ dado, onSave, onCancel, onSaveField, subtitulo }
             {s.campos.map((c) => (
               <div key={c.k as string} className={c.span}>
                 <Label className="text-xs uppercase text-muted-foreground">{c.l}</Label>
-                {c.area ? (
+                {OPCOES_PAUTA[c.k as string] ? (
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={(form as any)[c.k] || ""}
+                    onChange={async (e) => {
+                      const v = e.target.value || null;
+                      setForm((prev) => ({ ...prev, [c.k]: v }));
+                      if (existente && dado) {
+                        if (onSaveField) await onSaveField(dado.id, c.k as string, v); else await onSave({ ...form, [c.k]: v }, dado.id);
+                        (dado as any)[c.k] = v;
+                      }
+                    }}>
+                    <option value="">A preencher</option>
+                    {(form as any)[c.k] && !OPCOES_PAUTA[c.k as string].includes((form as any)[c.k]) && <option value={(form as any)[c.k]}>{(form as any)[c.k]}</option>}
+                    {OPCOES_PAUTA[c.k as string].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : c.area ? (
                   <Textarea rows={c.k === "resultado_proxima_sessao" ? 10 : 2} className={c.k === "resultado_proxima_sessao" ? "min-h-[220px]" : undefined} value={(form as any)[c.k] || ""} onChange={(e) => set(c.k, e.target.value)} onBlur={() => salvarCampo(c.k)} />
                 ) : (
                   <Input
                     type={c.type || "text"}
                     value={(form as any)[c.k] || ""}
-                    onChange={(e) => set(c.k, e.target.value)}
+                    onChange={(e) => set(c.k, ["advogado_interno", "relator"].includes(c.k as string) ? e.target.value.toUpperCase() : e.target.value)}
                     onBlur={() => { if (c.k === "processo_numero") preencherDaDistribuicao(); salvarCampo(c.k); }}
                   />
                 )}

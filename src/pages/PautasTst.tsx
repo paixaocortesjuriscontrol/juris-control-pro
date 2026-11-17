@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { PautaTst, PautaTstInsert } from "@/hooks/usePautasTst";
 import { PautasTstForm } from "@/components/pautas-tst/PautasTstForm";
 import { PautasTstImport } from "@/components/pautas-tst/PautasTstImport";
-import { exportarPautas, nomeAbaSemana, segundaDaSemana } from "@/lib/pautasSemanaExport";
+import { exportarPautasFaltantes, exportarPautas, nomeAbaSemana, segundaDaSemana } from "@/lib/pautasSemanaExport";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -367,6 +367,27 @@ export default function PautasTstPage() {
     await carregarSemana();
   };
 
+  const [completando, setCompletando] = useState(false);
+  const completarSemana = async () => {
+    setCompletando(true);
+    const { data, error } = await (supabase as any).rpc("pautas_completar_periodo", { _de: semana, _ate: addDias(semana, 6) });
+    setCompletando(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${data ?? 0} pauta(s) conferida(s) com a Distribuição TST`);
+    await carregarSemana();
+  };
+  const exportarFaltantes = async () => {
+    const ids = [...new Set(dados.map((p: any) => p.dados_benner_id).filter(Boolean))] as string[];
+    const cent: Record<string, string> = {};
+    for (let i = 0; i < ids.length; i += 300) {
+      const { data } = await supabase.from("dados_benner" as any).select("id, centralizador").in("id", ids.slice(i, i + 300));
+      ((data as any[]) || []).forEach((b) => { if (b.centralizador) cent[b.id] = b.centralizador; });
+    }
+    const n = await exportarPautasFaltantes(dados.map((p: any) => ({ ...p, centralizador: cent[p.dados_benner_id] ?? null })),
+      `PAUTA_DE_JULGAMENTO_dados_faltantes_${abaAtual.replace(/[^\w.-]+/g, "_")}.xlsx`);
+    if (!n) toast.success("Nenhuma pauta da semana com dossiê, equipe ou advogado interno faltando");
+  };
+
   const exportarSemana = () => {
     if (!dados.length) return toast.error("Nenhuma pauta nesta semana");
     exportarPautas([{ aba: abaAtual.slice(0, 31), pautas: dados }], `Pautas_de_julgamento_${abaAtual.replace(/[^\w.-]+/g, "_")}.xlsx`);
@@ -465,6 +486,8 @@ export default function PautasTstPage() {
             <Button variant="outline" size="icon" disabled={idx <= 0} onClick={() => setSemana(semanas[idx - 1].ini)}><ChevronRight className="w-4 h-4" /></Button>
             <Button variant="outline" onClick={exportarSemana}><Download className="w-4 h-4 mr-2" /> Exportar semana</Button>
             <Button variant="outline" onClick={() => setExportOpen(true)}><Download className="w-4 h-4 mr-2" /> Exportar período</Button>
+            <Button variant="outline" onClick={completarSemana} disabled={completando}>{completando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Completar pela Distribuição TST</Button>
+            <Button variant="outline" onClick={exportarFaltantes}><Download className="w-4 h-4 mr-2" /> Dados faltantes</Button>
             <Button variant="outline" onClick={buscarAgora} disabled={buscandoAuto}>
               {buscandoAuto ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCw className="w-4 h-4 mr-2" />} Buscar pautas agora
             </Button>

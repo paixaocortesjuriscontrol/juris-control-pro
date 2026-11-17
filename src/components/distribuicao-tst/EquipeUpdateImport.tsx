@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { normalizarEquipeTst } from "@/lib/pautaPadrao";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Users, Loader2 } from "lucide-react";
@@ -13,13 +14,6 @@ function norm(val: unknown): string {
   return String(val ?? "").trim();
 }
 
-function stripPrefix(equipe: string): string {
-  const n = equipe.normalize("NFC").trim();
-  if (n.toLowerCase().startsWith(PREFIX.toLowerCase())) {
-    return n.slice(PREFIX.length).trim();
-  }
-  return n;
-}
 
 interface Props {
   onUpdated: () => void;
@@ -68,7 +62,7 @@ export function EquipeUpdateImport({ onUpdated }: Props) {
           const dossie = norm(r[1]);
           const equipeRaw = norm(r[2]);
           if (!dossie || !equipeRaw) continue;
-          const equipe = stripPrefix(equipeRaw);
+          const equipe = normalizarEquipeTst(equipeRaw) ?? "";
           if (equipe) equipePorDossie.set(dossie, equipe);
         }
       }
