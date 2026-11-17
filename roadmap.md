@@ -1,4 +1,4 @@
-- [ ] 3 relatório tipo/subtipo/título (Agenda Futura TAR.)
+- [x] 3 relatório tipo/subtipo/título (Agenda Futura TAR.)
 - [ ] 1/4 datas passadas
 - [ ] 5 diário lido após salvar (manter botões)
 - [ ] 2 data base + auto
