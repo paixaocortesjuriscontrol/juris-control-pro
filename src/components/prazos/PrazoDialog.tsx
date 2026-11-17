@@ -61,19 +61,10 @@ import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
+import { somarDiasUteis } from "@/lib/feriados";
+import { calcularDataFatal } from "@/lib/datasBase";
 
 type Unidade = "uteis" | "corridos";
-
-function addBusinessDays(start: Date, days: number): Date {
-  let remaining = days;
-  const d = new Date(start);
-  while (remaining > 0) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) remaining--;
-  }
-  return d;
-}
 
 function subBusinessDays(start: Date, days: number): Date {
   let remaining = days;
@@ -86,9 +77,14 @@ function subBusinessDays(start: Date, days: number): Date {
   return d;
 }
 
-function computeDataLimite(base: Date | undefined, dias: number, unidade: Unidade): Date | undefined {
+function computeDataLimite(
+  base: Date | undefined,
+  dias: number,
+  unidade: Unidade,
+  coordenacaoId?: string | null,
+): Date | undefined {
   if (!base || !dias || dias <= 0) return undefined;
-  return unidade === "uteis" ? addBusinessDays(base, dias) : addDays(base, dias);
+  return unidade === "uteis" ? somarDiasUteis(base, dias, coordenacaoId) : addDays(base, dias);
 }
 
 type PrazoDialogProps = {
@@ -267,6 +263,10 @@ export function PrazoDialog({
   const [mostrarEnvolvidos, setMostrarEnvolvidos] = useState(false);
   const [observacoes, setObservacoes] = useState("");
   const [dataFatal, setDataFatal] = useState<Date | undefined>(undefined);
+  // Data base editável: vazia = usar a data da publicação (ou hoje).
+  const [dataBaseManual, setDataBaseManual] = useState<string>("");
+  // Último modelo escolhido, para recalcular as datas quando a base muda.
+  const modeloSelecionadoRef = useRef<any>(null);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("");
   // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
   const { data: coordPadraoNovo } = useCoordenacaoPadrao();
@@ -392,14 +392,19 @@ export function PrazoDialog({
     },
   });
 
-  // data base = data da PUBLICAÇÃO (data_publicacao); fallback: disponibilização; ou hoje
+  // data base = a escolhida na tela; na falta dela, a data da PUBLICAÇÃO
+  // (data_publicacao); fallback: disponibilização; ou hoje.
   const dataBase = useMemo<Date>(() => {
+    if (dataBaseManual) {
+      const [y, m, d] = dataBaseManual.split("-").map(Number);
+      if (y && m && d) return new Date(y, m - 1, d, 12, 0, 0);
+    }
     const pub = parseDataPublicacaoLocal(publicacaoEfetiva?.data_publicacao);
     if (pub) return pub;
     const disp = parseDataPublicacaoLocal(publicacaoEfetiva?.data_disponibilizacao);
     if (disp) return disp;
     return new Date();
-  }, [publicacaoEfetiva?.data_publicacao, publicacaoEfetiva?.data_disponibilizacao]);
+  }, [dataBaseManual, publicacaoEfetiva?.data_publicacao, publicacaoEfetiva?.data_disponibilizacao]);
 
   // Reset do formulário para "novo prazo". Reutilizado pelo useEffect de abertura
   // e pelo pós-Save quando o wrapper deve permanecer aberto para cadastrar outro item.
@@ -407,6 +412,8 @@ export function PrazoDialog({
     setTitulo("");
     setPrazoDias(0);
     setPrazoUnidade("uteis");
+    setDataBaseManual("");
+    modeloSelecionadoRef.current = null;
     setDataLimite(dataPadrao ? new Date(`${dataPadrao}T12:00:00`) : undefined);
     setDataLimiteEditadaManualmente(false);
     setResponsaveisIds([]);
@@ -435,6 +442,7 @@ export function PrazoDialog({
       setDataLimiteEditadaManualmente(true);
       setObservacoes(prazo.observacoes || "");
       setDataFatal((prazo as any).data_fatal ? parseISO((prazo as any).data_fatal) : undefined);
+      setDataBaseManual((prazo as any).data_base ? String((prazo as any).data_base).slice(0, 10) : "");
       setCoordenacaoId(((prazo as any).coordenacao_id as string) || "");
       setSituacao(((prazo as any).status as any) || "pendente");
       setSituacaoInicial(((prazo as any).status as any) || "pendente");
@@ -463,9 +471,16 @@ export function PrazoDialog({
         setEnvolvidosIds(envIds);
         setMostrarEnvolvidos(envIds.length > 0);
         // Nunca herdar a coordenação do processo: usar a gravada no item.
-        if (!(prazo as any).coordenacao_id) {
-          const { data: row } = await supabase.from("tarefas").select("coordenacao_id").eq("id", prazo.id).maybeSingle();
+        if (!(prazo as any).coordenacao_id || !(prazo as any).data_base) {
+          const { data: row } = await supabase
+            .from("tarefas")
+            .select("coordenacao_id, data_base")
+            .eq("id", prazo.id)
+            .maybeSingle();
           setCoordenacaoId((prev) => prev || (row as any)?.coordenacao_id || unicaCoordenacaoId || "");
+          if (!(prazo as any).data_base && (row as any)?.data_base) {
+            setDataBaseManual(String((row as any).data_base).slice(0, 10));
+          }
         }
       })();
     } else {
@@ -505,9 +520,14 @@ export function PrazoDialog({
   useEffect(() => {
     if (prazo) return;
     if (dataLimiteEditadaManualmente) return;
-    const calc = computeDataLimite(dataBase, prazoDias, prazoUnidade);
-    setDataLimite(calc);
-  }, [prazo, prazoDias, prazoUnidade, dataBase, dataLimiteEditadaManualmente]);
+    const calc = computeDataLimite(dataBase, prazoDias, prazoUnidade, coordenacaoId);
+    if (calc) {
+      setDataLimite(calc);
+      return;
+    }
+    // Sem prazo cadastrado: a data base é a própria data prevista.
+    if (dataBaseManual) setDataLimite(dataBase);
+  }, [prazo, prazoDias, prazoUnidade, dataBase, dataBaseManual, dataLimiteEditadaManualmente]);
 
   const datasConfirmadasRef = useRef<string | null>(null);
   const [confirmacaoDatas, setConfirmacaoDatas] = useState<{ chave: string; texto: string; reenviar: () => void } | null>(null);
@@ -541,7 +561,9 @@ export function PrazoDialog({
     setConfirmacaoDatas(null);
     {
       const r = resumoDatas(dataBase, dataLimite, dataFatal);
-      const original = prazo ? resumoDatas(dataBase, prazo.data_vencimento, (prazo as any).data_fatal).chave : null;
+      const original = prazo
+        ? resumoDatas((prazo as any).data_base || dataBase, prazo.data_vencimento, (prazo as any).data_fatal).chave
+        : null;
       // Só pede confirmação quando as datas foram de fato alteradas (ou ao criar).
       if (r.chave !== original && datasConfirmadasRef.current !== r.chave) {
         const formEl = e.currentTarget as HTMLFormElement;
@@ -643,7 +665,9 @@ export function PrazoDialog({
         // na regra da coordenação que só libera mudar a situação.
         const original = prazo as any;
         const { prioridade: _p, alerta_dias: _ad, alerta_unidade: _au, ...resto } = payload as any;
-        if (original.data_base) delete resto.data_base;
+        const baseOriginal = original.data_base ? String(original.data_base).slice(0, 10) : null;
+        const baseNova = resto.data_base ? String(resto.data_base).slice(0, 10) : null;
+        if (baseOriginal === baseNova) delete resto.data_base;
         // Sem repetição antes e depois: campos de recorrência não mudam (o banco guarda intervalo 1 por padrão).
         if (!resto.recorrente && !original.recorrente) {
           delete resto.recorrencia_tipo; delete resto.recorrencia_intervalo; delete resto.recorrencia_fim; delete resto.recorrencia_rrule;
@@ -1021,6 +1045,7 @@ export function PrazoDialog({
               tipo="prazo"
               coordenacaoId={coordenacaoId}
               onSelect={(m) => {
+                modeloSelecionadoRef.current = m;
                 aplicarPessoasModelo(m, setResponsaveisIds, setEnvolvidosIds);
                 const anterior = modeloPadroesRef.current;
                 const p = resolverPadroes(m, dataBase);
@@ -1040,7 +1065,7 @@ export function PrazoDialog({
                 if (dias > 0) {
                   setPrazoDias(dias);
                   setPrazoUnidade(unidade);
-                  const calc = computeDataLimite(dataBase, dias, unidade);
+                  const calc = computeDataLimite(dataBase, dias, unidade, coordenacaoId);
                   if (calc) {
                     setDataLimite(calc);
                     setDataLimiteEditadaManualmente(true);
@@ -1072,6 +1097,37 @@ export function PrazoDialog({
           />
         </div>
 
+        <div className="space-y-1.5">
+          <Label className="text-sm">Data base</Label>
+          <Input
+            type="date"
+            value={dataBaseManual || format(dataBase, "yyyy-MM-dd")}
+            disabled={travarDatas}
+            title={travarDatas ? motivoBloqueio : undefined}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              setDataBaseManual(v);
+              const [y, m, d] = v.split("-").map(Number);
+              const base = new Date(y, m - 1, d, 12, 0, 0);
+              const calc = computeDataLimite(base, prazoDias, prazoUnidade, coordenacaoId);
+              const prevista = calc || base;
+              setDataLimite(prevista);
+              setDataLimiteEditadaManualmente(false);
+              // Fatal: a do modelo quando ele definiu uma; senão, o próprio previsto.
+              const p = modeloSelecionadoRef.current
+                ? resolverPadroes(modeloSelecionadoRef.current, base)
+                : null;
+              const fatalModelo = p?.data_fatal || modeloPadroesRef.current?.data_fatal;
+              setDataFatal(calcularDataFatal(base, prazoDias, prazoUnidade, coordenacaoId, fatalModelo));
+            }}
+            className="h-10"
+          />
+          <p className="text-xs text-muted-foreground">
+            A data base calcula a data prevista e a fatal. Você ainda pode editar as duas.
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1.5">
             <Label className="text-sm">Prazo</Label>
@@ -1085,7 +1141,7 @@ export function PrazoDialog({
                 onChange={(e) => {
                   const dias = parseInt(e.target.value || "0", 10);
                   setPrazoDias(dias);
-                  if (prazo) setDataLimite(computeDataLimite(dataBase, dias, prazoUnidade));
+                  if (prazo) setDataLimite(computeDataLimite(dataBase, dias, prazoUnidade, coordenacaoId));
                   setDataLimiteEditadaManualmente(false);
                 }}
                 className="h-10 w-20"
@@ -1096,7 +1152,7 @@ export function PrazoDialog({
                 onValueChange={(v) => {
                   const unidade = v as Unidade;
                   setPrazoUnidade(unidade);
-                  if (prazo) setDataLimite(computeDataLimite(dataBase, prazoDias, unidade));
+                  if (prazo) setDataLimite(computeDataLimite(dataBase, prazoDias, unidade, coordenacaoId));
                   setDataLimiteEditadaManualmente(false);
                 }}
               >

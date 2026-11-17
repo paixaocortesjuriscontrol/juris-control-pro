@@ -61,6 +61,7 @@ import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
+import { calcularDataFatalISO, calcularDataPrevistaISO } from "@/lib/datasBase";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
 
@@ -79,13 +80,13 @@ function addBusinessDays(start: Date, days: number): Date {
 }
 let coordFeriadosAtual: string | null = null;
 
-function computeDataPrevista(base: string | undefined, dias: number, unidade: "uteis" | "corridos"): string {
-  if (!base || !dias || dias <= 0) return "";
-  const [y, m, d] = base.split("-").map(Number);
-  if (!y || !m || !d) return "";
-  const baseDate = new Date(y, m - 1, d, 12, 0, 0);
-  const result = unidade === "uteis" ? addBusinessDays(baseDate, dias) : addDays(baseDate, dias);
-  return format(result, "yyyy-MM-dd");
+function computeDataPrevista(
+  base: string | undefined,
+  dias: number,
+  unidade: "uteis" | "corridos",
+  coordenacaoId?: string | null,
+): string {
+  return calcularDataPrevistaISO(base, dias, unidade, coordenacaoId);
 }
 
 
@@ -1249,7 +1250,7 @@ export function NovaTarefaDialog({
                             setPrazoUnidade(unidadeModelo);
                             const baseForm = form.getValues("data_base");
                             prazoCalculado =
-                              computeDataPrevista(baseForm, diasModelo, unidadeModelo) ||
+                              computeDataPrevista(baseForm, diasModelo, unidadeModelo, form.getValues("coordenacao_id")) ||
                               resolverPrazoModelo(
                                 m,
                                 publicacao?.data_publicacao || publicacao?.data_disponibilizacao || null,
@@ -1481,10 +1482,20 @@ export function NovaTarefaDialog({
                         {...field}
                         onChange={(e) => {
                           field.onChange(e);
+                          const coord = form.getValues("coordenacao_id");
                           if (prazoDias > 0) {
-                            const calc = computeDataPrevista(e.target.value, prazoDias, prazoUnidade);
+                            const calc = computeDataPrevista(e.target.value, prazoDias, prazoUnidade, coord);
                             if (calc) form.setValue("data_vencimento", calc);
+                          } else {
+                            // Sem prazo cadastrado: a data base é a própria data prevista.
+                            form.setValue("data_vencimento", e.target.value);
                           }
+                          // Fatal: a do modelo quando ele define uma; senão, o previsto.
+                          const fatalModelo = modeloPadroesRef.current?.data_fatal;
+                          form.setValue(
+                            "data_fatal",
+                            calcularDataFatalISO(e.target.value, prazoDias, prazoUnidade, coord, fatalModelo),
+                          );
                         }}
                       />
                     </FormControl>
@@ -1504,7 +1515,7 @@ export function NovaTarefaDialog({
                     onChange={(e) => {
                       const dias = parseInt(e.target.value || "0", 10) || 0;
                       setPrazoDias(dias);
-                      const calc = computeDataPrevista(form.getValues("data_base"), dias, prazoUnidade);
+                      const calc = computeDataPrevista(form.getValues("data_base"), dias, prazoUnidade, form.getValues("coordenacao_id"));
                       if (calc) form.setValue("data_vencimento", calc);
                     }}
                     className="w-20"
@@ -1514,7 +1525,7 @@ export function NovaTarefaDialog({
                     onValueChange={(v) => {
                       const unidade = v as "uteis" | "corridos";
                       setPrazoUnidade(unidade);
-                      const calc = computeDataPrevista(form.getValues("data_base"), prazoDias, unidade);
+                      const calc = computeDataPrevista(form.getValues("data_base"), prazoDias, unidade, form.getValues("coordenacao_id"));
                       if (calc) form.setValue("data_vencimento", calc);
                     }}
                   >
