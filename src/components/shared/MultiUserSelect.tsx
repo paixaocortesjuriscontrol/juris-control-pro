@@ -66,9 +66,8 @@ export function MultiUserSelect({
     queryKey: ["multi-user-select-usuarios"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
+        .from("profiles_basic")
         .select("id, nome")
-        .eq("ativo", true)
         .order("nome");
       if (error) throw error;
       return (data || []) as UserOpt[];

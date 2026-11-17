@@ -166,10 +166,10 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
   const { data: usuarios } = useQuery({
     queryKey: ["usuarios-parcelas", coordenacaoFiltro],
     queryFn: async () => {
+      // profiles_basic: lista a equipe mesmo para perfis sem acesso ao cadastro completo
       let query = supabase
-        .from("profiles")
+        .from("profiles_basic")
         .select("id, nome")
-        .eq("ativo", true)
         .order("nome");
       
       if (coordenacaoFiltro && coordenacaoFiltro !== "todas") {
