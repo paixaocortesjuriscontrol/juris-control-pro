@@ -558,6 +558,7 @@ export async function criarItemWorkflow(
             titulo: etapa.titulo,
             descricao: txt("observacoes") || etapa.descricao || null,
             tipo: "evento",
+            origem: "workflow",
             data_inicio: dataInicio,
             data_fim:
               dataFimEvStr || horaFimEv
@@ -611,6 +612,7 @@ export async function criarItemWorkflow(
             titulo: etapa.titulo,
             descricao: etapa.descricao || `Parcelamento com ${totalParcelas} parcelas`,
             tipo: "parcelamento",
+            origem: "workflow",
             data_inicio: dataInicio,
             dia_inteiro: true,
             total_parcelas: totalParcelas,
