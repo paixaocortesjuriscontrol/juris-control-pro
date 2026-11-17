@@ -35,6 +35,10 @@ interface Props {
   onImported: () => void;
 }
 
+// Ministro/órgão do tribunal nunca são partes (mesma regra de pauta_nome_autoridade no banco)
+const AUTORIDADE_RE = /^\s*(ministr[oa]\b|presidente\b|tribunal pleno|tribunal superior do trabalho|[oó]rg[aã]o especial|corregedor|subse[cç][aã]o|sbdi|sdc\b|sdi\b|se[cç][aã]o especializada|\d+[ªaº]?\s*turma|turma\b)/i;
+const semAutoridade = (v: any) => (typeof v === "string" && AUTORIDADE_RE.test(v) ? null : v);
+
 export function PautasTstImport({ onImported }: Props) {
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -96,8 +100,8 @@ export function PautasTstImport({ onImported }: Props) {
             equipe: cleanVal(r[0]),
             advogado_interno: cleanVal(r[1]),
             dossie: cleanVal(r[2]),
-            reclamante: cleanVal(r[4]),
-            reclamada: cleanVal(r[5]),
+            reclamante: semAutoridade(cleanVal(r[4])),
+            reclamada: semAutoridade(cleanVal(r[5])),
             parte_recorrente: cleanVal(r[6]),
             tipo_recurso: cleanVal(r[7]),
             data_julgamento: parseDateBR(r[8]),
