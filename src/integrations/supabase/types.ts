@@ -7434,6 +7434,7 @@ export type Database = {
           chance_exito_banco: string | null
           chance_exito_reclamante: string | null
           comentarios_advogado: string | null
+          comentarios_advogado_banco: string | null
           coordenacao_id: string | null
           created_at: string
           dados_benner_id: string | null
@@ -7479,6 +7480,7 @@ export type Database = {
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
           comentarios_advogado?: string | null
+          comentarios_advogado_banco?: string | null
           coordenacao_id?: string | null
           created_at?: string
           dados_benner_id?: string | null
@@ -7524,6 +7526,7 @@ export type Database = {
           chance_exito_banco?: string | null
           chance_exito_reclamante?: string | null
           comentarios_advogado?: string | null
+          comentarios_advogado_banco?: string | null
           coordenacao_id?: string | null
           created_at?: string
           dados_benner_id?: string | null
@@ -12732,12 +12735,17 @@ export type Database = {
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       merge_processos_duplicados: { Args: never; Returns: Json }
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
+      normalizar_equipe_tst: { Args: { _e: string }; Returns: string }
       pauta_advogado_interno: { Args: { _benner: string }; Returns: string }
       pauta_nome_autoridade: { Args: { _n: string }; Returns: boolean }
       pauta_partes_polo: { Args: { _pj: Json; _polo: string }; Returns: string }
       pauta_preencher_de_benner: {
         Args: { _pauta: string }
         Returns: undefined
+      }
+      pautas_completar_periodo: {
+        Args: { _ate: string; _de: string }
+        Returns: number
       }
       pautas_reverificar_benner: {
         Args: { _dias_atras?: number }
