@@ -11557,6 +11557,7 @@ export type Database = {
         Returns: number
       }
       apply_data_planilha_fix: { Args: { items: Json }; Returns: number }
+      arquivado_tst_data_distribuicao: { Args: { _s: Json }; Returns: string }
       arquivar_dados_benner: {
         Args: { _id: string; _motivo?: string }
         Returns: boolean
@@ -12699,6 +12700,22 @@ export type Database = {
       }
       limpar_auditoria_distribuicao_tst_antiga: { Args: never; Returns: number }
       limpar_execucoes_antigas: { Args: never; Returns: undefined }
+      listar_arquivados_tst_por_periodo: {
+        Args: {
+          _ate?: string
+          _de?: string
+          _origem?: string
+          _so_dossie?: boolean
+        }
+        Returns: {
+          aba_origem: string
+          arquivado_em: string
+          data_distribuicao: string
+          dossie: string
+          id: string
+          processo: string
+        }[]
+      }
       marcar_acomp_especial_lidas: {
         Args: { _ids?: string[] }
         Returns: number
@@ -12716,6 +12733,7 @@ export type Database = {
       merge_processos_duplicados: { Args: never; Returns: Json }
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
       pauta_advogado_interno: { Args: { _benner: string }; Returns: string }
+      pauta_nome_autoridade: { Args: { _n: string }; Returns: boolean }
       pauta_partes_polo: { Args: { _pj: Json; _polo: string }; Returns: string }
       pauta_preencher_de_benner: {
         Args: { _pauta: string }

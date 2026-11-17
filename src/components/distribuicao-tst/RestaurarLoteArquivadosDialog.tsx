@@ -12,7 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useProcessoTagsCatalogo, useCriarTag } from "@/hooks/useProcessoTags";
 
 interface Props { open: boolean; onOpenChange: (v: boolean) => void; onDone: () => void }
-type Arq = { id: string; processo: string | null; dossie: string | null };
+type Arq = { id: string; processo: string | null; dossie: string | null; data?: string | null };
+let cancelado = false;
 
 const dig = (s: string) => s.replace(/\D/g, "");
 const normDos = (s: string) => s.trim().replace(/^'+/, "").toUpperCase();
@@ -29,6 +30,27 @@ export function RestaurarLoteArquivadosDialog({ open, onOpenChange, onDone }: Pr
   const [novaTag, setNovaTag] = useState("");
   const [rodando, setRodando] = useState(false);
   const [prog, setProg] = useState(0);
+
+  const [modo, setModo] = useState<"planilha" | "periodo">("planilha");
+  const [de, setDe] = useState("2026-01-01");
+  const [ate, setAte] = useState("2026-10-31");
+  const [soDossie, setSoDossie] = useState(true);
+  const [origem, setOrigem] = useState("pca");
+  const [cancelar, setCancelar] = useState(false);
+
+  const buscarPeriodo = async () => {
+    setAnalisando(true); setArquivo(""); setNaoEncontrados([]);
+    try {
+      const { data, error } = await (supabase as any).rpc("listar_arquivados_tst_por_periodo", {
+        _de: de || null, _ate: ate || null, _so_dossie: soDossie,
+        _origem: origem === "pca" ? "%pca%" : null,
+      });
+      if (error) throw error;
+      setEncontrados((data ?? []).map((r: any) => ({ id: r.id, processo: r.processo, dossie: r.dossie, data: r.data_distribuicao })));
+      setArquivo("periodo");
+    } catch (e: any) { toast.error("Erro ao buscar: " + (e?.message || e)); }
+    finally { setAnalisando(false); }
+  };
 
   const reset = () => { setArquivo(""); setEncontrados([]); setNaoEncontrados([]); setProg(0); setModoTag("nenhuma"); setTagId(""); setNovaTag(""); };
 
@@ -75,7 +97,9 @@ export function RestaurarLoteArquivadosDialog({ open, onOpenChange, onDone }: Pr
       if (modoTag === "nova") { if (!novaTag.trim()) throw new Error("Informe o nome da tag"); tid = (await criarTag.mutateAsync(novaTag)).id; }
       const { data: u } = await supabase.auth.getUser();
       let ok = 0; const erros: string[] = [];
+      cancelado = false; setCancelar(false);
       for (let i = 0; i < encontrados.length; i += 4) {
+        if (cancelado) { toast.info("Restauração cancelada."); break; }
         await Promise.all(encontrados.slice(i, i + 4).map(async (a) => {
           const { data: novoId, error } = await supabase.rpc("restaurar_dados_benner_arquivado" as any, { _id: a.id });
           if (error) { erros.push(`${a.processo ?? a.dossie}: ${error.message}`); return; }
@@ -99,22 +123,71 @@ export function RestaurarLoteArquivadosDialog({ open, onOpenChange, onDone }: Pr
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Restaurar em lote</DialogTitle>
-          <DialogDescription>Envie uma planilha com os dossiês ou números de processo. Todas as abas e colunas são lidas.</DialogDescription>
+          <DialogDescription>Restaure por planilha de dossiês/processos ou por período de distribuição.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div>
+          <Select value={modo} onValueChange={(v: any) => { setModo(v); setEncontrados([]); setArquivo(""); setNaoEncontrados([]); }}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="planilha">Por planilha</SelectItem>
+              <SelectItem value="periodo">Por período de distribuição</SelectItem>
+            </SelectContent>
+          </Select>
+          {modo === "periodo" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div><Label>Distribuído de</Label><Input type="date" value={de} onChange={(e) => setDe(e.target.value)} /></div>
+                <div><Label>até</Label><Input type="date" value={ate} onChange={(e) => setAte(e.target.value)} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 items-end">
+                <div>
+                  <Label>Origem</Label>
+                  <Select value={origem} onValueChange={setOrigem}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pca">Base PCA</SelectItem>
+                      <SelectItem value="todas">Todas</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <label className="flex items-center gap-2 text-sm h-10">
+                  <input type="checkbox" checked={soDossie} onChange={(e) => setSoDossie(e.target.checked)} /> Só com número de dossiê
+                </label>
+              </div>
+              <Button variant="outline" className="w-full" disabled={analisando || rodando} onClick={buscarPeriodo}>
+                {analisando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null} Ver quantos serão restaurados
+              </Button>
+              {arquivo === "periodo" && !analisando && (
+                <div className="text-sm">
+                  <p><strong>{encontrados.length}</strong> ficha(s) arquivada(s) no período.</p>
+                  {encontrados.length > 0 && (
+                    <div className="max-h-32 overflow-auto border border-border rounded mt-1 text-xs">
+                      {encontrados.slice(0, 50).map((a) => (
+                        <div key={a.id} className="px-2 py-0.5 flex justify-between gap-2">
+                          <span className="font-mono">{a.processo ?? "—"}</span><span>{a.dossie ?? "—"}</span>
+                          <span>{a.data ? a.data.split("-").reverse().join("/") : "sem data"}</span>
+                        </div>
+                      ))}
+                      {encontrados.length > 50 && <div className="px-2 py-0.5 text-muted-foreground">… e mais {encontrados.length - 50}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {modo === "planilha" && <div>
             <Label>Planilha</Label>
             <Input type="file" accept=".xlsx,.xls,.csv" disabled={analisando || rodando}
               onChange={(e) => { const f = e.target.files?.[0]; if (f) lerPlanilha(f); }} />
             {analisando && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Conferindo com os arquivados...</p>}
-            {arquivo && !analisando && (
+            {arquivo && arquivo !== "periodo" && !analisando && (
               <p className="text-sm mt-2">
                 <strong>{encontrados.length}</strong> ficha(s) arquivada(s) encontrada(s)
                 {naoEncontrados.length > 0 && <span className="text-muted-foreground"> · {naoEncontrados.length} valor(es) da planilha sem ficha arquivada</span>}
               </p>
             )}
-          </div>
+          </div>}
 
           <div className="space-y-2">
             <Label>Tag</Label>
@@ -145,7 +218,9 @@ export function RestaurarLoteArquivadosDialog({ open, onOpenChange, onDone }: Pr
         </div>
 
         <DialogFooter>
-          <Button variant="outline" disabled={rodando} onClick={() => onOpenChange(false)}>Cancelar</Button>
+          {rodando
+            ? <Button variant="outline" disabled={cancelar} onClick={() => { cancelado = true; setCancelar(true); }}>Cancelar restauração</Button>
+            : <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>}
           <Button disabled={rodando || analisando || encontrados.length === 0 || (modoTag === "existente" && !tagId) || (modoTag === "nova" && !novaTag.trim())} onClick={executar}>
             {rodando ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
             Restaurar {encontrados.length || ""}

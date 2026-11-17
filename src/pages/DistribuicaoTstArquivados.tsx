@@ -33,25 +33,39 @@ export default function DistribuicaoTstArquivados() {
   const [acao, setAcao] = useState<{ tipo: "restaurar" | "excluir"; id: string } | null>(null);
   const [processing, setProcessing] = useState(false);
   const [loteOpen, setLoteOpen] = useState(false);
+  const [pagina, setPagina] = useState(0);
+  const [total, setTotal] = useState(0);
+  const [arqDe, setArqDe] = useState("");
+  const [arqAte, setArqAte] = useState("");
+  const [soDossie, setSoDossie] = useState(false);
+  const [origem, setOrigem] = useState("");
+  const POR_PAGINA = 200;
 
-  const fetchDados = async () => {
+  const fetchDados = async (pg = pagina) => {
     setLoading(true);
-    let query = supabase
-      .from("dados_benner_arquivados" as any)
-      .select("*")
+    let query = (supabase as any)
+      .from("dados_benner_arquivados")
+      .select("*", { count: "exact" })
       .order("arquivado_em", { ascending: false })
-      .limit(500);
+      .range(pg * POR_PAGINA, pg * POR_PAGINA + POR_PAGINA - 1);
     if (busca.trim()) {
       const b = busca.trim();
       query = query.or(`processo.ilike.%${b}%,dossie.ilike.%${b}%`);
     }
-    const { data, error } = await query;
+    if (arqDe) query = query.gte("arquivado_em", `${arqDe}T00:00:00-03:00`);
+    if (arqAte) query = query.lte("arquivado_em", `${arqAte}T23:59:59-03:00`);
+    if (soDossie) query = query.not("dossie", "is", null).neq("dossie", "");
+    if (origem.trim()) query = query.ilike("aba_origem", `%${origem.trim()}%`);
+    const { data, error, count } = await query;
     if (error) toast.error("Erro ao carregar: " + error.message);
-    else setDados((data as any[]) || []);
+    else { setDados((data as any[]) || []); setTotal(count ?? 0); }
     setLoading(false);
   };
+  const buscar = () => { setPagina(0); fetchDados(0); };
+  const irPara = (pg: number) => { setPagina(pg); fetchDados(pg); };
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
 
-  useEffect(() => { fetchDados(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => { fetchDados(0); /* eslint-disable-next-line */ }, []);
 
   const handleRestaurar = async (id: string) => {
     setProcessing(true);
@@ -60,7 +74,7 @@ export default function DistribuicaoTstArquivados() {
     setAcao(null);
     if (error) { toast.error("Erro ao restaurar: " + error.message); return; }
     toast.success("Registro restaurado para a Distribuição TST!");
-    fetchDados();
+    fetchDados(pagina);
   };
 
   const handleExcluirDef = async (id: string) => {
@@ -70,7 +84,7 @@ export default function DistribuicaoTstArquivados() {
     setAcao(null);
     if (error) { toast.error("Erro ao excluir definitivamente: " + error.message); return; }
     toast.success("Registro excluído definitivamente.");
-    fetchDados();
+    fetchDados(pagina);
   };
 
   const fmt = (d: string) => { try { return new Date(d).toLocaleString("pt-BR"); } catch { return d; } };
@@ -89,21 +103,39 @@ export default function DistribuicaoTstArquivados() {
               <Button variant="outline"><ArrowLeft className="w-4 h-4 mr-2" /> Voltar</Button>
             </Link>
           </div>
-          <RestaurarLoteArquivadosDialog open={loteOpen} onOpenChange={setLoteOpen} onDone={fetchDados} />
+          <RestaurarLoteArquivadosDialog open={loteOpen} onOpenChange={setLoteOpen} onDone={() => fetchDados(pagina)} />
         </div>
 
-        <div className="flex gap-2">
-          <div className="relative flex-1 max-w-md">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
             <Search className="w-4 h-4 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Buscar por processo ou dossiê..."
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && fetchDados()}
+              onKeyDown={(e) => e.key === "Enter" && buscar()}
               className="pl-8"
             />
           </div>
-          <Button variant="outline" onClick={fetchDados}>Buscar</Button>
+          <div className="flex items-center gap-1 text-sm">
+            <span className="text-muted-foreground">Arquivado de</span>
+            <Input type="date" value={arqDe} onChange={(e) => setArqDe(e.target.value)} className="w-36" />
+            <span className="text-muted-foreground">até</span>
+            <Input type="date" value={arqAte} onChange={(e) => setArqAte(e.target.value)} className="w-36" />
+          </div>
+          <Input placeholder="Origem (ex.: Base PCA)" value={origem} onChange={(e) => setOrigem(e.target.value)} className="w-44" onKeyDown={(e) => e.key === "Enter" && buscar()} />
+          <label className="flex items-center gap-1 text-sm whitespace-nowrap">
+            <input type="checkbox" checked={soDossie} onChange={(e) => setSoDossie(e.target.checked)} /> Só com dossiê
+          </label>
+          <Button variant="outline" onClick={buscar}>Buscar</Button>
+        </div>
+
+        <div className="flex items-center justify-between text-sm text-muted-foreground">
+          <span>{total.toLocaleString("pt-BR")} arquivado(s) · página {pagina + 1} de {totalPaginas}</span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" disabled={loading || pagina === 0} onClick={() => irPara(pagina - 1)}>Anterior</Button>
+            <Button size="sm" variant="outline" disabled={loading || pagina + 1 >= totalPaginas} onClick={() => irPara(pagina + 1)}>Próxima</Button>
+          </div>
         </div>
 
         <div className="border border-border rounded-lg overflow-auto">
