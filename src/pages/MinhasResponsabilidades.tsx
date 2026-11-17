@@ -54,7 +54,6 @@ import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
 import { agruparAtividadesDaAgenda, chaveAtividade } from "@/lib/atividadesDaAgenda";
-import { AtividadesDaAgendaChips } from "@/components/painel/AtividadesDaAgendaChips";
 import { PainelFiltros, PAINEL_FILTROS_DEFAULT, type PainelFiltrosState } from "@/components/painel/PainelFiltros";
 import { statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { useItensComComentarios, temComentarioItem } from "@/hooks/useItensComComentarios";
@@ -501,10 +500,6 @@ export default function MinhasResponsabilidades() {
               : "Mostrando as suas responsabilidades"}
           </span>
         </div>
-        {(atividadesOpcoes?.length ?? 0) > 0 && <div className="flex items-start gap-2">
-          <span className="text-[11px] font-semibold text-muted-foreground pt-1 whitespace-nowrap">Atividades:</span>
-          <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
-        </div>}
         <Tabs value={aba} onValueChange={setAba}>
           <TabsList>
             <TabsTrigger value="agenda">Agenda</TabsTrigger>
@@ -529,6 +524,11 @@ export default function MinhasResponsabilidades() {
             <div className="flex flex-wrap items-end gap-3 rounded-md border bg-card p-3">
               <FiltroSelect rotulo="Situação" valor={filtro} onChange={setFiltro} opcoes={FILTROS.map((f) => ({ v: f.v, l: `${f.l} (${contagem[f.v]})` }))} />
               <FiltroSelect rotulo="Tipo" valor={tipo} onChange={setTipo} opcoes={TIPOS.map((t) => ({ v: t, l: ROT_TIPO[t] }))} />
+              {atividadesOpcoes.length > 0 && (
+                <FiltroSelect rotulo="Atividade" valor={(pf.atividadesSelecionadas ?? [])[0] ?? "__todas"}
+                  onChange={(v: string) => setPf((st) => ({ ...st, atividadesSelecionadas: v === "__todas" ? [] : [v] }))}
+                  opcoes={[{ v: "__todas", l: "Todas" }, ...atividadesOpcoes.map((o) => ({ v: o.chave, l: `${o.nome} (${o.quantidade})` }))]} />
+              )}
               <FiltroSelect rotulo="Período" valor={periodo} onChange={setPeriodo} opcoes={PERIODOS.map((p) => ({ v: p.v, l: p.l }))} />
               <div className="relative flex-1 min-w-[220px]">
                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
