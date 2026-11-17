@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { addMonths, endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
@@ -15,7 +15,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, ExternalLink } from "lucide-react";
+import { Loader2, ExternalLink, LayoutList, Columns3, ListChecks, Rows3, FileSpreadsheet } from "lucide-react";
+import ListaAtividadesView from "@/components/lista/ListaAtividadesView";
+import { KanbanItensAgenda } from "@/components/painel/KanbanItensAgenda";
+import { ListaAtividadesProjuris } from "@/components/painel/ListaAtividadesProjuris";
 import { useQueryClient } from "@tanstack/react-query";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
@@ -77,7 +80,7 @@ function paraItemAgenda(i: any): any {
     origem_registro: i.origem ?? null,
     responsaveis_ids: Array.isArray(i.responsaveis) ? i.responsaveis : [],
     participantes: (Array.isArray(i.envolvidos) ? i.envolvidos : []).map((u: string) => ({ usuario_id: u })),
-    data_inicio: i.data_inicio ?? i.data_vencimento ?? i.data_fatal ?? i.data ?? null,
+    data_inicio: i.data_inicio ?? i.data_audiencia ?? i.data_vencimento ?? i.data_fatal ?? i.data ?? null,
   };
 }
 
@@ -129,7 +132,20 @@ const fmt = (raw?: string | null) => {
 export default function MinhasResponsabilidades() {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
-  const [pf, setPf] = useState<PainelFiltrosState>(PAINEL_FILTROS_DEFAULT);
+  const chaveFiltros = `minhas-resp:filtros:${user?.id ?? ""}`;
+  const [pf, setPf] = useState<PainelFiltrosState>(() => {
+    try {
+      const salvo = localStorage.getItem(`minhas-resp:filtros:${user?.id ?? ""}`);
+      return salvo ? { ...PAINEL_FILTROS_DEFAULT, ...JSON.parse(salvo) } : PAINEL_FILTROS_DEFAULT;
+    } catch { return PAINEL_FILTROS_DEFAULT; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem(chaveFiltros, JSON.stringify(pf)); } catch { /* sem espaço */ }
+  }, [chaveFiltros, JSON.stringify(pf)]);
+  const [modoVista, setModoVista] = useState<"lista" | "simples" | "kanban" | "projuris">(
+    () => (localStorage.getItem("minhas-resp:vista") as any) || "lista",
+  );
+  useEffect(() => { localStorage.setItem("minhas-resp:vista", modoVista); }, [modoVista]);
   const coordSel = pf.verDeCoordenacao ?? "todas";
   const usuarioSel = isAdmin ? pf.verDeUsuario ?? "" : "";
   const uid = (isAdmin && usuarioSel) || user?.id || "";
@@ -186,9 +202,29 @@ export default function MinhasResponsabilidades() {
         let offset = 0;
         for (let i = 0; i < 20; i++) {
           const r = await lerFonteAgendaPorTipo({ modo: "pessoal", usuario: uid }, fonte, { dataInicio, dataFim }, offset, 500);
+          let advogadoDe = new Set<string>();
+          if (fonte === "audiencias" && r.linhas.length) {
+            // A busca pessoal de audiências não traz a lista de advogados/envolvidos:
+            // ela já vem filtrada pela pessoa; aqui só separamos responsável x envolvido.
+            const ids = r.linhas.map((l: any) => l.id);
+            for (let k = 0; k < ids.length; k += 200) {
+              const { data } = await supabase.from("audiencias_advogados").select("audiencia_id").eq("advogado_id", uid).in("audiencia_id", ids.slice(k, k + 200));
+              (data ?? []).forEach((x: any) => advogadoDe.add(x.audiencia_id));
+            }
+          }
           for (const l of r.linhas) {
-            const papel = papelDoUsuario(l, uid);
-            if (papel) saida.push({ ...l, _fonte: fonte, _papel: papel, _tipo: tipoDoItem(fonte, l) });
+            let papel = papelDoUsuario(l, uid);
+            if (!papel && fonte === "audiencias") papel = advogadoDe.has(l.id) ? "responsavel" : "envolvido";
+            if (!papel && fonte === "eventos") papel = l.criado_por === uid ? "responsavel" : "envolvido";
+            if (!papel) continue;
+            const extra = fonte === "audiencias"
+              ? {
+                  titulo: l.titulo || l.tipo_audiencia || "Audiência",
+                  data_inicio: l.data_audiencia,
+                  processo: l.processo ?? (l.processo_numero ? { id: l.processo_id, numero: l.processo_numero } : null),
+                }
+              : {};
+            saida.push({ ...l, ...extra, _fonte: fonte, _papel: papel, _tipo: tipoDoItem(fonte, l) });
           }
           if (!r.temMais) break;
           offset += 500;
@@ -323,7 +359,7 @@ export default function MinhasResponsabilidades() {
       .filter((i: any) => { if (sel.length === 0) return true; const a = chaveAtividade({ ...i, tipo: i._tipo }); return !!a && sel.includes(a.chave); })
       .filter((i) => tipo === "todos" || i._tipo === tipo)
       .filter((i) => filtro === "todos" || STATUS_PARA_FILTRO[classificarStatus(i)] === filtro)
-      .filter((i) => !q || [i.titulo, i.processo?.numero, i.processo?.assunto].some((v) => String(v ?? "").toLowerCase().includes(q)))
+      .filter((i) => !q || [i.titulo, i.processo?.numero, i.processo_numero, i.processo?.assunto, i.observacoes, i.descricao, i.partes_ativas, i.partes_passivas].some((v) => String(v ?? "").toLowerCase().includes(q)))
       .sort((a, b) => String(a.data_fatal ?? a.data_vencimento ?? a.data_inicio ?? "").localeCompare(String(b.data_fatal ?? b.data_vencimento ?? b.data_inicio ?? "")));
   }, [itens, tipo, filtro, busca, pf.atividadesSelecionadas]);
 
@@ -348,12 +384,43 @@ export default function MinhasResponsabilidades() {
     [processos.data],
   );
 
-  const resumo = [
-    { l: "Pendentes", v: contagem.pendentes },
-    { l: "Atrasadas", v: contagem.atrasadas, destaque: true },
-    { l: "Processos ativos", v: (processos.data ?? []).filter((p) => p.status === "ativo").length },
-    { l: "Etapas de workflow", v: workflows.data?.length ?? 0 },
+  const [aba, setAba] = useState("atividades");
+  const hojeStr = format(new Date(), "yyyy-MM-dd");
+  const qtdHoje = itens.filter((i) => grupoAgendaResponsabilidade(i, hojeStr) === "hoje").length;
+  const resumo: { l: string; v: number; destaque?: boolean; ativo?: boolean; onClick: () => void }[] = [
+    { l: "Hoje", v: qtdHoje, ativo: aba === "agenda" && grupoAgenda === "hoje", onClick: () => { setAba("agenda"); setGrupoAgenda("hoje"); } },
+    { l: "Atrasadas", v: contagem.atrasadas, destaque: true, ativo: aba === "atividades" && filtro === "atrasadas", onClick: () => { setAba("atividades"); setFiltro("atrasadas"); } },
+    { l: "Pendentes", v: contagem.pendentes, ativo: aba === "atividades" && filtro === "pendentes", onClick: () => { setAba("atividades"); setFiltro("pendentes"); } },
+    { l: "Cumpridas", v: contagem.cumpridas, ativo: aba === "atividades" && filtro === "cumpridas", onClick: () => { setAba("atividades"); setFiltro("cumpridas"); } },
+    { l: "Processos ativos", v: (processos.data ?? []).filter((p) => p.status === "ativo").length, ativo: aba === "processos", onClick: () => setAba("processos") },
+    { l: "Etapas de workflow", v: workflows.data?.length ?? 0, ativo: aba === "workflows", onClick: () => setAba("workflows") },
   ];
+
+  const exportarExcel = async () => {
+    const ExcelJS = (await import("exceljs")).default;
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Minhas responsabilidades");
+    ws.columns = [
+      { header: "TIPO", width: 12 }, { header: "TÍTULO", width: 50 }, { header: "PROCESSO", width: 28 },
+      { header: "DATA PREVISTA", width: 15 }, { header: "DATA FATAL", width: 15 }, { header: "SITUAÇÃO", width: 16 },
+      { header: "MEU PAPEL", width: 14 }, { header: "OBSERVAÇÃO", width: 60 },
+    ];
+    filtrados.forEach((i: any) => ws.addRow([
+      ROT_TIPO[i._tipo] ?? i._tipo, i.titulo ?? "", i.processo?.numero ?? i.processo_numero ?? "",
+      fmt(i.data_vencimento ?? i.data_inicio), fmt(i.data_fatal), String(i.status ?? "").replace(/_/g, " "),
+      i._papel === "responsavel" ? "Responsável" : "Envolvido", String(i.observacoes ?? i.descricao ?? "").replace(/<[^>]+>/g, ""),
+    ]));
+    ws.eachRow((row, n) => row.eachCell((c) => {
+      c.font = { name: "Calibri", size: 11, bold: n === 1 };
+      c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+    }));
+    ws.autoFilter = { from: "A1", to: "H1" };
+    const buf = await wb.xlsx.writeBuffer();
+    const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `Minhas_responsabilidades_${format(new Date(), "dd-MM-yyyy")}.xlsx`; a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const carregando = (q: { isLoading: boolean }) =>
     q.isLoading ? <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando...</div> : null;
@@ -398,16 +465,18 @@ export default function MinhasResponsabilidades() {
           <p className="text-[11px] font-semibold text-muted-foreground mb-1">Atividades na agenda</p>
           <AtividadesDaAgendaChips compacto opcoes={atividadesOpcoes} selecionadas={pf.atividadesSelecionadas ?? []} onChange={(v) => setPf((s) => ({ ...s, atividadesSelecionadas: v }))} />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
           {resumo.map((r) => (
-            <Card key={r.l}><CardContent className="p-4">
-              <div className="text-xs text-muted-foreground">{r.l}</div>
-              <div className={cn("text-2xl font-semibold", r.destaque && r.v > 0 && "text-destructive")}>{r.v}</div>
-            </CardContent></Card>
+            <button key={r.l} type="button" onClick={r.onClick} className="text-left">
+              <Card className={cn("transition-colors hover:border-primary/60", r.ativo && "border-primary ring-1 ring-primary")}><CardContent className="p-4">
+                <div className="text-xs text-muted-foreground uppercase tracking-wide">{r.l}</div>
+                <div className={cn("text-2xl font-semibold", r.destaque && r.v > 0 && "text-destructive")}>{r.v}</div>
+              </CardContent></Card>
+            </button>
           ))}
         </div>
 
-        <Tabs defaultValue="atividades">
+        <Tabs value={aba} onValueChange={setAba}>
           <TabsList>
             <TabsTrigger value="agenda">Agenda</TabsTrigger>
             <TabsTrigger value="atividades">Atividades ({itens.length})</TabsTrigger>
@@ -448,14 +517,40 @@ export default function MinhasResponsabilidades() {
               {PERIODOS.map((p) => (
                 <Button key={p.v} size="sm" variant={periodo === p.v ? "default" : "outline"} onClick={() => setPeriodo(p.v)}>{p.l}</Button>
               ))}
-              <Input className="max-w-xs" placeholder="Buscar por título ou processo..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+              <Input className="max-w-xs" placeholder="Buscar por título, processo, parte ou observação..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-2 py-1.5">
+              <span className="text-xs text-muted-foreground"><b className="text-foreground">{filtrados.length}</b> de {brutos.length} itens filtrados</span>
+              <div className="flex flex-wrap items-center gap-1">
+                {([
+                  ["lista", "Lista", LayoutList],
+                  ["simples", "Compacta", Rows3],
+                  ["kanban", "Kanban", Columns3],
+                  ["projuris", "Atividades", ListChecks],
+                ] as const).map(([v, l, Icon]) => (
+                  <Button key={v} size="sm" variant={modoVista === v ? "default" : "ghost"} className="h-7 px-2 text-xs gap-1" onClick={() => setModoVista(v)}>
+                    <Icon className="h-3.5 w-3.5" />{l}
+                  </Button>
+                ))}
+                <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1" onClick={exportarExcel} disabled={!filtrados.length}>
+                  <FileSpreadsheet className="h-3.5 w-3.5" />Excel
+                </Button>
+              </div>
             </div>
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
-            <Card><CardContent className="p-0 divide-y">
-              {!atividades.isLoading && filtrados.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma atividade.</div>}
-              {filtrados.map(renderLinhaItem)}
-            </CardContent></Card>
+            {modoVista === "lista" ? (
+              <ListaAtividadesView embedded externalItems={filtrados.map(paraItemAgenda) as any} externalLoading={atividades.isLoading} />
+            ) : modoVista === "kanban" ? (
+              <KanbanItensAgenda itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
+            ) : modoVista === "projuris" ? (
+              <ListaAtividadesProjuris itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
+            ) : (
+              <Card><CardContent className="p-0 divide-y">
+                {!atividades.isLoading && filtrados.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma atividade.</div>}
+                {filtrados.map(renderLinhaItem)}
+              </CardContent></Card>
+            )}
           </TabsContent>
 
           <TabsContent value="processos" className="space-y-3">
@@ -504,7 +599,7 @@ export default function MinhasResponsabilidades() {
           <div className="flex flex-col h-full">
             {itemSel.processo_id && (
               <div className="p-2 border-b flex justify-end">
-                <Button size="sm" variant="outline" onClick={() => navigate(`/processos/${itemSel.processo_id}`)}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
+                <Button size="sm" variant="outline" onClick={() => window.open(`/processos/${itemSel.processo_id}`, "_blank", "noopener")}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
               </div>
             )}
             <div className="flex-1 min-h-0 overflow-auto">
@@ -528,7 +623,7 @@ export default function MinhasResponsabilidades() {
             processoNumero={procSel.numero || ""}
             hideHeader
             onClose={() => setProcSel(null)}
-            onNavigate={(id) => navigate(`/processos/${id}`)}
+            onNavigate={(id) => window.open(`/processos/${id}`, "_blank", "noopener")}
           />
         )}
       </ItemDrawer>
