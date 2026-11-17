@@ -1,3 +1,4 @@
+import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { useState, useEffect, useRef } from "react";
@@ -247,7 +248,7 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
 
       const { error } = await supabase
         .from('audiencias_detectadas')
-        .update(updateData)
+        .update((() => { const d = somenteCamposAlterados(updateData, audiencia as any); return Object.keys(d).length ? d : { status: formData.status }; })())
         .eq('id', audiencia.id);
 
       if (error) throw error;

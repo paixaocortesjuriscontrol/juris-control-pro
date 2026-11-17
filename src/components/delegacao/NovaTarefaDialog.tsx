@@ -1,3 +1,4 @@
+import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { coordenacaoDoUsuarioNoProcesso } from "@/lib/coordenacaoDoUsuarioNoProcesso";
 import { WorkflowEtapasDoItem } from "@/components/workflows/WorkflowEtapasDoItem";
 import { baixarDocumentoArmazenado } from "@/utils/signedUrl";
@@ -787,18 +788,29 @@ export function NovaTarefaDialog({
               : null,
         };
 
+        const { data: original } = await supabase
+          .from("tarefas")
+          .select("*")
+          .eq("id", tarefaParaEditar.id)
+          .maybeSingle();
+        const vinculoOriginal = (original as any)?.processo_id ? "processo" : "sem_vinculo";
         if (values.tipo_vinculo === "sem_vinculo") {
-          updatePayload.processo_id = null;
+          // Só retira o processo se a pessoa escolheu "Sem vínculo" de propósito
+          if (vinculoOriginal === "sem_vinculo" || form.formState.dirtyFields.tipo_vinculo) {
+            updatePayload.processo_id = null;
+          }
         } else if (processoId) {
           updatePayload.processo_id = processoId;
         }
         if (values.coordenacao_id) {
           updatePayload.coordenacao_id = values.coordenacao_id;
         }
+        const payloadAlterado = somenteCamposAlterados(updatePayload, original as any);
+        if (Object.keys(payloadAlterado).length === 0) payloadAlterado.updated_at = new Date().toISOString();
 
         const { error: upErr } = await supabase
           .from("tarefas")
-          .update(updatePayload)
+          .update(payloadAlterado)
           .eq("id", tarefaParaEditar.id);
         if (upErr) throw upErr;
         if (comentarioSituacaoTxt) {
