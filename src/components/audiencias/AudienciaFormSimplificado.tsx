@@ -1,3 +1,4 @@
+import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
@@ -493,15 +494,22 @@ export function AudienciaFormSimplificado({
       const hora = payload.hora_brasilia || payload.hora || "12:00";
       const dataAudienciaISO = `${payload.data_audiencia}T${hora}:00-03:00`;
       const { advogados_ids, envolvidos_ids, ...dadosAudiencia } = payload;
+      const { data: original } = await supabase
+        .from("audiencias_detectadas")
+        .select("*")
+        .eq("id", audienciaParaEditar.id)
+        .maybeSingle();
+      const completo: Record<string, any> = {
+        ...dadosAudiencia,
+        processo_id: dadosAudiencia.processo_id || (original as any)?.processo_id || null,
+        data_audiencia: dataAudienciaISO,
+        status: situacao,
+        tipo_audiencia: form.titulo.trim(),
+      };
+      const alterado = somenteCamposAlterados(completo, original as any);
       const { error } = await supabase
         .from("audiencias_detectadas")
-        .update({
-          ...dadosAudiencia,
-          processo_id: dadosAudiencia.processo_id || null,
-          data_audiencia: dataAudienciaISO,
-          status: situacao,
-          tipo_audiencia: form.titulo.trim(),
-        } as any)
+        .update((Object.keys(alterado).length ? alterado : { status: situacao }) as any)
         .eq("id", audienciaParaEditar.id);
       if (error) throw error;
       if (existenteNaNovaData) {

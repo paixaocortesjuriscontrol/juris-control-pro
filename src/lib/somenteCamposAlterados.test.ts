@@ -9,3 +9,6 @@ test("mudança só de situação envia só a situação", () => {
 test("data alterada continua sendo enviada", () => {
   assert.deepEqual(somenteCamposAlterados({ data_fatal: "2026-11-18" }, { data_fatal: "2026-11-17" }), { data_fatal: "2026-11-18" });
 });
+test("mesmo horário em fusos diferentes não conta como mudança", () => {
+  assert.deepEqual(somenteCamposAlterados({ data_audiencia: "2026-11-20T14:00:00-03:00", status: "tratado" }, { data_audiencia: "2026-11-20T17:00:00+00:00", status: "pendente" }), { status: "tratado" });
+});

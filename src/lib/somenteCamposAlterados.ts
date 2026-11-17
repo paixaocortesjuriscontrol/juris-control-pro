@@ -10,6 +10,11 @@ export function somenteCamposAlterados(payload: Record<string, any>, original: R
     if (a && b && /^\d{2}:\d{2}(:\d{2})?$/.test(a) && /^\d{2}:\d{2}(:\d{2})?$/.test(b)) { a = a.slice(0, 5); b = b.slice(0, 5); }
     // datas "2026-11-17" x "2026-11-17T..."
     if (a && b && /^\d{4}-\d{2}-\d{2}/.test(a) && /^\d{4}-\d{2}-\d{2}/.test(b) && (a.length === 10 || b.length === 10)) { a = a.slice(0, 10); b = b.slice(0, 10); }
+    // timestamps em fusos diferentes ("...T14:00:00-03:00" x "...T17:00:00+00:00")
+    if (a && b && a !== b && /^\d{4}-\d{2}-\d{2}T/.test(a) && /^\d{4}-\d{2}-\d{2}T/.test(b)) {
+      const ta = Date.parse(a), tb = Date.parse(b);
+      if (!isNaN(ta) && ta === tb) continue;
+    }
     if (a !== b) out[k] = v;
   }
   return out;
