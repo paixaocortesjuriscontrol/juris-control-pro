@@ -12743,10 +12743,12 @@ export type Database = {
         Args: { _pauta: string }
         Returns: undefined
       }
+      pauta_relator_padrao: { Args: { _v: string }; Returns: string }
       pautas_completar_periodo: {
         Args: { _ate: string; _de: string }
         Returns: number
       }
+      pautas_importar_faltantes: { Args: { _linhas: Json }; Returns: Json }
       pautas_reverificar_benner: {
         Args: { _dias_atras?: number }
         Returns: number
