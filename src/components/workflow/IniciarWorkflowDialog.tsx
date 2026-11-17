@@ -639,7 +639,7 @@ export function IniciarWorkflowDialog({
 
   if (inline) {
     return (
-      <div className="p-4">
+      <div className="h-full min-h-0 overflow-y-auto p-4">
         {initialWorkflowName && (
           <p className="mb-2 text-sm font-semibold">
             Workflow: {initialWorkflowName}
