@@ -1,0 +1,1 @@
+ALTER FUNCTION public.pautas_completar_periodo(date,date) SECURITY INVOKER;
