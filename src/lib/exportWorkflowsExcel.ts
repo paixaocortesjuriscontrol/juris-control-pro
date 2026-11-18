@@ -39,11 +39,17 @@ export async function exportarWorkflowsExcel(
   const ordenadas = [...execucoes].sort((a, b) => a.created_at.localeCompare(b.created_at));
   const procIds = Array.from(new Set(ordenadas.map((e) => e.processo_id).filter(Boolean)));
   const userIds = Array.from(new Set(ordenadas.map((e) => e.iniciado_por).filter(Boolean)));
-  const procs = await emLotes(procIds, async (l) =>
-    (await supabase.from("processos").select("id, numero_processo").in("id", l)).data ?? []);
-  const users = await emLotes(userIds, async (l) =>
-    (await supabase.from("profiles_basic").select("id, nome").in("id", l)).data ?? []);
-  const procMap = new Map(procs.map((p: any) => [p.id, p.numero_processo]));
+  const procs = await emLotes(procIds, async (l) => {
+    const { data, error } = await supabase.from("processos").select("id, numero").in("id", l);
+    if (error) throw error;
+    return data ?? [];
+  });
+  const users = await emLotes(userIds, async (l) => {
+    const { data, error } = await supabase.from("profiles_basic").select("id, nome").in("id", l);
+    if (error) throw error;
+    return data ?? [];
+  });
+  const procMap = new Map(procs.map((p: any) => [p.id, p.numero]));
   const userMap = new Map(users.map((u: any) => [u.id, u.nome]));
 
   const linhas = ordenadas.map((e, i) => [
