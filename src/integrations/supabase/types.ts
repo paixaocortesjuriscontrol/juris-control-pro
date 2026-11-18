@@ -1371,6 +1371,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_responsaveis_devolvidos_20261118: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          papel: string | null
+          tarefa_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          papel?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          papel?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       baixar_autos_jobs: {
         Row: {
           created_at: string
