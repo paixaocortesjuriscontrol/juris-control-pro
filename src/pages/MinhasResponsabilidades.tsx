@@ -695,14 +695,16 @@ export default function MinhasResponsabilidades() {
         </Tabs>
       </div>
 
-      <ItemDrawer open={!!itemSel} onOpenChange={(o) => !o && setItemSel(null)} titulo={itemSel?.titulo || "Detalhe do item"} subtitulo={itemSel?.processo?.numero ?? null} corHeader={itemSel ? corHeaderItem(itemSel) : undefined}>
+      <ItemDrawer
+        open={!!itemSel}
+        onOpenChange={(o) => !o && setItemSel(null)}
+        titulo={itemSel?.titulo || "Detalhe do item"}
+        processoId={itemSel?.processo?.id ?? itemSel?.processo_id ?? null}
+        processoNumero={itemSel?.processo?.numero ?? null}
+        corHeader={itemSel ? corHeaderItem(itemSel) : undefined}
+      >
         {itemSel && (
           <div className="flex flex-col h-full">
-            {itemSel.processo_id && (
-              <div className="p-2 border-b flex justify-end">
-                <Button size="sm" variant="outline" onClick={() => window.open(`/processos/${itemSel.processo_id}`, "_blank", "noopener")}><ExternalLink className="w-4 h-4 mr-1" />Abrir processo</Button>
-              </div>
-            )}
             <div className="flex-1 min-h-0 overflow-auto">
               <EdicaoItemPanel
                 key={itemSel.id}
@@ -716,7 +718,13 @@ export default function MinhasResponsabilidades() {
         )}
       </ItemDrawer>
 
-      <ItemDrawer open={!!procSel} onOpenChange={(o) => !o && setProcSel(null)} titulo={procSel?.clientes?.nome || "Resumo do processo"} subtitulo={procSel?.numero ?? null}>
+      <ItemDrawer
+        open={!!procSel}
+        onOpenChange={(o) => !o && setProcSel(null)}
+        titulo={procSel?.clientes?.nome || "Resumo do processo"}
+        processoId={procSel?.id ?? null}
+        processoNumero={procSel?.numero ?? null}
+      >
         {procSel && (
           <ProcessoItensLateral
             key={procSel.id}

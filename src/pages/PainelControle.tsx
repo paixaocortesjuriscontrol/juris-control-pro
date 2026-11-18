@@ -3837,7 +3837,8 @@ export default function PainelControle() {
         open={!!selectedItem}
         onOpenChange={(o) => { if (!o) setSelectedItem(null); }}
         titulo={selectedItem?.titulo || "Detalhe do item"}
-        subtitulo={selectedItem?.processo?.numero ?? null}
+        processoId={selectedItem?.processo?.id ?? selectedItem?.processo_id ?? null}
+        processoNumero={selectedItem?.processo?.numero ?? null}
         partes={partesItemSelecionado}
         corHeader={selectedItem ? corHeaderItem(selectedItem) : undefined}
       >

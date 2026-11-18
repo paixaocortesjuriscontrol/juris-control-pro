@@ -1367,7 +1367,8 @@ export default function ListaAtividadesView({
           }
         }}
         titulo={detalhesPrazo?.titulo || "Detalhe do item"}
-        subtitulo={detalhesPrazo?.processo?.numero ?? null}
+        processoId={detalhesPrazo?.processo?.id ?? detalhesPrazo?.processo_id ?? null}
+        processoNumero={detalhesPrazo?.processo?.numero ?? null}
         corHeader={detalhesPrazo ? corHeaderItem(detalhesPrazo) : undefined}
       >
         {detalhesPrazo && (
