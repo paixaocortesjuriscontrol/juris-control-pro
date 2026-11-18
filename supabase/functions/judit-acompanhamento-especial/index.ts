@@ -310,6 +310,7 @@ async function notificarUsuarios(
 /**
  * Destinatários do processo: responsáveis ativos + coordenador titular e
  * coordenadores/assistentes membros da(s) coordenação(ões) responsável(is).
+ * Coordenadores desmarcados na configuração da coordenação ficam de fora.
  */
 async function destinatariosDoProcesso(supabase: any, processoId: string) {
   const ids = new Set<string>();
@@ -338,14 +339,17 @@ async function destinatariosDoProcesso(supabase: any, processoId: string) {
     // Coordenações que escolheram destinatários próprios: só essas pessoas recebem.
     const { data: cfgs } = await supabase
       .from("config_acompanhamento_especial")
-      .select("coordenacao_id, destinatarios_ids")
+      .select("coordenacao_id, destinatarios_ids, coordenadores_excluidos_ids")
       .in("coordenacao_id", Array.from(coordIds));
     const escolhidos = (cfgs ?? []).filter((c: any) => Array.isArray(c.destinatarios_ids) && c.destinatarios_ids.length > 0);
     if (escolhidos.length > 0) {
       const escolhidosIds = new Set<string>();
       escolhidos.forEach((c: any) => {
         coordIds.delete(c.coordenacao_id);
-        c.destinatarios_ids.forEach((u: string) => escolhidosIds.add(u));
+        const ex = new Set<string>((c.coordenadores_excluidos_ids ?? []).filter(Boolean));
+        c.destinatarios_ids.forEach((u: string) => {
+          if (!ex.has(u)) escolhidosIds.add(u);
+        });
       });
       // Coordenação com lista definida: substitui responsáveis/coordenadores padrão.
       if (coordIds.size === 0) return Array.from(escolhidosIds);
@@ -356,23 +360,49 @@ async function destinatariosDoProcesso(supabase: any, processoId: string) {
     const lista = Array.from(coordIds);
     const { data: coords } = await supabase
       .from("coordenacoes")
-      .select("coordenador_id")
+      .select("id, coordenador_id")
       .in("id", lista);
-    (coords ?? []).forEach((c: any) => c.coordenador_id && ids.add(c.coordenador_id));
+
+    // Coordenadores desmarcados por cada coordenação: não recebem por ela.
+    const { data: cfgsExcluidos } = await supabase
+      .from("config_acompanhamento_especial")
+      .select("coordenacao_id, coordenadores_excluidos_ids")
+      .in("coordenacao_id", lista);
+    const excluidosPorCoord = new Map<string, Set<string>>();
+    (cfgsExcluidos ?? []).forEach((c: any) =>
+      excluidosPorCoord.set(
+        c.coordenacao_id,
+        new Set<string>((c.coordenadores_excluidos_ids ?? []).filter(Boolean)),
+      ),
+    );
+    const excluido = (coordId: string, uid: string) =>
+      excluidosPorCoord.get(coordId)?.has(uid) === true;
+
+    (coords ?? []).forEach((c: any) => {
+      if (c.coordenador_id && !excluido(c.id, c.coordenador_id)) ids.add(c.coordenador_id);
+    });
 
     const { data: membros } = await supabase
       .from("membros_coordenacao")
-      .select("usuario_id")
+      .select("coordenacao_id, usuario_id")
       .in("coordenacao_id", lista);
-    const membroIds = (membros ?? []).map((m: any) => m.usuario_id).filter(Boolean);
+    const membroIds = Array.from(
+      new Set((membros ?? []).map((m: any) => m.usuario_id).filter(Boolean)),
+    );
+    const coordenadoresComCargo = new Set<string>();
     if (membroIds.length > 0) {
       const { data: roles } = await supabase
         .from("user_roles")
         .select("user_id, role")
         .in("user_id", membroIds)
         .in("role", ["coordenador", "assistente_coordenador"]);
-      (roles ?? []).forEach((r: any) => ids.add(r.user_id));
+      (roles ?? []).forEach((r: any) => coordenadoresComCargo.add(r.user_id));
     }
+    (membros ?? []).forEach((m: any) => {
+      if (coordenadoresComCargo.has(m.usuario_id) && !excluido(m.coordenacao_id, m.usuario_id)) {
+        ids.add(m.usuario_id);
+      }
+    });
   }
 
   return Array.from(ids);

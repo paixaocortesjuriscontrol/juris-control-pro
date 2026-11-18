@@ -2192,6 +2192,7 @@ export type Database = {
       config_acompanhamento_especial: {
         Row: {
           coordenacao_id: string
+          coordenadores_excluidos_ids: string[]
           created_at: string
           destinatarios_ids: string[]
           dias_janela_aviso: number
@@ -2201,6 +2202,7 @@ export type Database = {
         }
         Insert: {
           coordenacao_id: string
+          coordenadores_excluidos_ids?: string[]
           created_at?: string
           destinatarios_ids?: string[]
           dias_janela_aviso?: number
@@ -2210,6 +2212,7 @@ export type Database = {
         }
         Update: {
           coordenacao_id?: string
+          coordenadores_excluidos_ids?: string[]
           created_at?: string
           destinatarios_ids?: string[]
           dias_janela_aviso?: number

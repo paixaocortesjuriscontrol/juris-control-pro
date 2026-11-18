@@ -18,3 +18,7 @@
     alertas e recorrência
   - subatividade já existe na aba "Atividades" (data, responsável, situação, observação)
 - [ ] 7 — cores das situações (adiado pelo usuário: não mexer agora)
+
+## Acompanhamento Especial — avisos (pedido de 18/11/2026)
+- [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas
+- [x] Coordenador pode ser desmarcado para deixar de receber (campo `coordenadores_excluidos_ids`)
