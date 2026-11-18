@@ -2315,8 +2315,7 @@ export default function PainelControle() {
         .gte("data_prevista", rangeAtividadesInicio)
         .lte("data_prevista", rangeAtividadesFim);
       if (atividadesScopeIds && atividadesScopeIds.length > 0) {
-        const lista = atividadesScopeIds.join(",");
-        q = q.or(`responsavel_id.in.(${lista}),criado_por.in.(${lista})`);
+        q = q.in("responsavel_id", atividadesScopeIds);
       }
       const { data, error } = await q;
       if (error) throw error;

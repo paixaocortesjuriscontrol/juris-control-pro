@@ -165,7 +165,7 @@ serve(async (req) => {
       if (t.responsavel_id) resp.add(t.responsavel_id);
       for (const r of t.tarefa_responsaveis ?? []) if (r.usuario_id) resp.add(r.usuario_id);
       for (const r of t.tarefa_envolvidos ?? []) if (r.usuario_id) env.add(r.usuario_id);
-      const ids = new Set([...resp, ...env, ...(t.criado_por ? [t.criado_por] : [])]);
+      const ids = new Set([...resp, ...env]);
       const ePrazo = !!t.data_fatal;
       push(ids, {
         tipo: ePrazo ? "Prazo" : String(t.tipo_tarefa || "Tarefa"),
@@ -202,7 +202,6 @@ serve(async (req) => {
       curCoord = a.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
-      if (a.criado_por) resp.add(a.criado_por);
       for (const r of a.audiencias_advogados ?? []) if (r.advogado_id) resp.add(r.advogado_id);
       for (const r of a.audiencia_envolvidos ?? []) if (r.usuario_id) env.add(r.usuario_id);
       push(new Set([...resp, ...env]), {
@@ -241,7 +240,6 @@ serve(async (req) => {
       curCoord = e.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
-      if (e.criado_por) resp.add(e.criado_por);
       for (const r of e.evento_responsaveis ?? []) if (r.usuario_id) resp.add(r.usuario_id);
       for (const r of e.evento_envolvidos ?? []) if (r.usuario_id) env.add(r.usuario_id);
       for (const r of e.participantes_evento ?? []) if (r.usuario_id) env.add(r.usuario_id);
@@ -277,7 +275,6 @@ serve(async (req) => {
       curCoord = ev.coordenacao_id ?? null;
       const resp = new Set<string>();
       const env = new Set<string>();
-      if (ev.criado_por) resp.add(ev.criado_por);
       for (const r of ev.evento_responsaveis ?? []) if (r.usuario_id) resp.add(r.usuario_id);
       for (const r of ev.evento_envolvidos ?? []) if (r.usuario_id) env.add(r.usuario_id);
       for (const r of ev.participantes_evento ?? []) if (r.usuario_id) env.add(r.usuario_id);
@@ -343,7 +340,6 @@ serve(async (req) => {
       curCoord = paiCoordenacoes.get(a.item_id) ?? null;
       const dest = new Set<string>();
       if (a.responsavel_id) dest.add(a.responsavel_id);
-      if (a.criado_por) dest.add(a.criado_por);
       push(dest, {
         tipo: "Atividade",
         cor: "#2563EB",

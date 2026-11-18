@@ -407,7 +407,7 @@ export default function MinhaAgenda() {
   // Fetch-all mode:
   // - admin/coordinator with "todas" and no member filter
   // OBS: não habilitar fetchAll para usuário comum sem coordenação,
-  // pois isso remove o filtro (responsavel/criado_por) e quebra os totalizadores.
+  // pois isso remove o filtro de responsáveis/envolvidos e quebra os totalizadores.
   const isFetchAllMode =
     isAdminOrCoordinator && coordenacaoFiltro === "todas" && membrosFiltro.length === 0;
 

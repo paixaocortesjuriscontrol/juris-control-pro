@@ -172,6 +172,26 @@ export async function inChunks(build: (ids: string[]) => any, ids: string[], siz
   return (await leiturasAgendaEmParalelo(leituras, 1)).flat();
 }
 
+const ID_VAZIO = "00000000-0000-0000-0000-000000000000";
+
+/** IDs de eventos ligados às pessoas; criar ou importar não é um vínculo pessoal. */
+async function buscarIdsEventosPessoais(usuarioIds: string[]): Promise<string[]> {
+  const ids = new Set<string>();
+  for (const tabela of ["evento_responsaveis", "evento_envolvidos", "participantes_evento"]) {
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await (supabase as any)
+        .from(tabela)
+        .select("evento_id")
+        .in("usuario_id", usuarioIds)
+        .range(from, from + 999);
+      if (error) throw error;
+      (data ?? []).forEach((r: any) => r.evento_id && ids.add(String(r.evento_id)));
+      if (!data || data.length < 1000) break;
+    }
+  }
+  return [...ids];
+}
+
 export async function fetchAgendaPage(
   filters: AgendaUnificadaFilters,
   page: number,
@@ -257,29 +277,10 @@ export async function fetchAgendaPage(
         if (filters.processoIds?.length) queryEventos = queryEventos.in("processo_id", filters.processoIds);
 
         if (!filters.fetchAll && !hasCoordScope) {
-          // Quando há filtro de membros (coordenação/pessoas), precisamos buscar eventos
-          // onde esses usuários são criadores OU participantes (senão o coordenador não enxerga
-          // eventos delegados aos membros, como parcelamentos criados pelo admin).
           const targetUserIds =
             filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
-
-          const { data: participacoesUsuarios } = await supabase
-            .from("participantes_evento")
-            .select("evento_id")
-            .in("usuario_id", targetUserIds);
-
-          const eventosParticipante = participacoesUsuarios?.map((p) => p.evento_id) || [];
-
-          const orParts: string[] = [];
-          if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
-          if (eventosParticipante.length > 0) orParts.push(`id.in.(${eventosParticipante.join(",")})`);
-
-          if (orParts.length > 0) {
-            queryEventos = queryEventos.or(orParts.join(","));
-          } else {
-            // fallback defensivo
-            queryEventos = queryEventos.eq("criado_por", user.id);
-          }
+          const eventosVinculados = await buscarIdsEventosPessoais(targetUserIds);
+          queryEventos = queryEventos.in("id", eventosVinculados.length > 0 ? eventosVinculados : [ID_VAZIO]);
         }
 
         if (filters.tipos && filters.tipos.length > 0) {
@@ -317,23 +318,8 @@ export async function fetchAgendaPage(
           if (!filters.fetchAll && !hasCoordScope) {
             const targetUserIds =
               filters.responsavelIds && filters.responsavelIds.length > 0 ? filters.responsavelIds : [user.id];
-
-            const { data: participacoesUsuarios } = await supabase
-              .from("participantes_evento")
-              .select("evento_id")
-              .in("usuario_id", targetUserIds);
-
-            const eventosParticipante = participacoesUsuarios?.map((p) => p.evento_id) || [];
-
-            const orParts: string[] = [];
-            if (targetUserIds.length > 0) orParts.push(`criado_por.in.(${targetUserIds.join(",")})`);
-            if (eventosParticipante.length > 0) orParts.push(`id.in.(${eventosParticipante.join(",")})`);
-
-            if (orParts.length > 0) {
-              queryEventosFallback = queryEventosFallback.or(orParts.join(","));
-            } else {
-              queryEventosFallback = queryEventosFallback.eq("criado_por", user.id);
-            }
+            const eventosVinculados = await buscarIdsEventosPessoais(targetUserIds);
+            queryEventosFallback = queryEventosFallback.in("id", eventosVinculados.length > 0 ? eventosVinculados : [ID_VAZIO]);
           }
           if (filters.tipos && filters.tipos.length > 0) {
             const tiposEvento = filters.tipos.filter((t) => eventTypeFilters.includes(t));
@@ -375,7 +361,27 @@ export async function fetchAgendaPage(
                 (c) => supabase.from("participantes_evento").select("evento_id, usuario_id").in("evento_id", c),
                 eventIds,
               );
-
+          const envolvidoRows: any[] = usandoRpc
+            ? (eventos as any[]).flatMap((e: any) =>
+                (e.envolvidos ?? []).map((usuario_id: string) => ({ evento_id: e.id, usuario_id })),
+              )
+            : await inChunks(
+                (c) => (supabase as any).from("evento_envolvidos").select("evento_id, usuario_id").in("evento_id", c),
+                eventIds,
+              );
+          const responsavelRows: any[] = usandoRpc
+            ? (eventos as any[]).flatMap((e: any) =>
+                (e.responsaveis ?? []).map((usuario_id: string) => ({ evento_id: e.id, usuario_id })),
+              )
+            : await inChunks(
+                (c) => (supabase as any).from("evento_responsaveis").select("evento_id, usuario_id").in("evento_id", c),
+                eventIds,
+              );
+          const responsaveisPorEvento = new Map<string, string[]>();
+          responsavelRows.forEach((r) => {
+            if (!r.evento_id || !r.usuario_id) return;
+            responsaveisPorEvento.set(r.evento_id, [...(responsaveisPorEvento.get(r.evento_id) ?? []), r.usuario_id]);
+          });
 
           const eventProcessCoordIds = new Map<string, string[]>();
           if (!usandoRpc && hasCoordScope) {
@@ -394,7 +400,7 @@ export async function fetchAgendaPage(
           }
 
           const participantUserIds = Array.from(
-            new Set((participanteRows || []).map((p: any) => p.usuario_id).filter(Boolean))
+            new Set([...(participanteRows || []), ...(envolvidoRows || [])].map((p: any) => p.usuario_id).filter(Boolean))
           );
 
           const profilesById = new Map<string, { id: string; nome: string }>();
@@ -408,10 +414,12 @@ export async function fetchAgendaPage(
             });
           }
 
-          const participantes = (participanteRows || []).map((p: any) => ({
-            ...p,
-            usuario: p.usuario ?? profilesById.get(p.usuario_id),
-          }));
+          const participantes = [...new Map(
+            [...(participanteRows || []), ...(envolvidoRows || [])].map((p: any) => [
+              `${p.evento_id}:${p.usuario_id}`,
+              { ...p, usuario: p.usuario ?? profilesById.get(p.usuario_id) },
+            ]),
+          ).values()];
 
           let eventosFiltered = eventos;
           if (!usandoRpc && !hasCoordScope && filters.responsavelIds && filters.responsavelIds.length > 0) {
@@ -419,7 +427,7 @@ export async function fetchAgendaPage(
               const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
               const participantIds = eventParticipants.map((p) => p.usuario_id);
               return (
-                filters.responsavelIds!.includes(evento.criado_por) ||
+                (responsaveisPorEvento.get(evento.id) ?? []).some((id) => filters.responsavelIds!.includes(id)) ||
                 participantIds.some((id) => filters.responsavelIds!.includes(id))
               );
             });
@@ -439,7 +447,7 @@ export async function fetchAgendaPage(
                 const eventParticipants = participantes?.filter((p) => p.evento_id === evento.id) || [];
                 const participantIds = eventParticipants.map((p) => p.usuario_id);
                 return (
-                  filters.responsavelIds.includes(evento.criado_por) ||
+                  (responsaveisPorEvento.get(evento.id) ?? []).some((id) => filters.responsavelIds!.includes(id)) ||
                   participantIds.some((id) => filters.responsavelIds!.includes(id))
                 );
               }
@@ -550,11 +558,8 @@ export async function fetchAgendaPage(
                 processo_id: evento.processo_id,
                 coordenacao_id: (evento as any).coordenacao_id ?? null,
                 processo: evento.processo,
-                responsaveis_ids: Array.isArray((evento as any).responsaveis) ? (evento as any).responsaveis : [],
-                participantes: [
-                  ...(participantes?.filter((p) => p.evento_id === evento.id) || []),
-                  ...((evento as any).envolvidos ?? []).map((usuario_id: string) => ({ evento_id: evento.id, usuario_id })),
-                ],
+                responsaveis_ids: responsaveisPorEvento.get(evento.id) ?? [],
+                participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
                 enviar_whatsapp: evento.enviar_whatsapp,
                 total_parcelas: evento.total_parcelas,
                 grupo_parcelas: (evento as any).grupo_parcelas ?? null,
@@ -662,7 +667,7 @@ export async function fetchAgendaPage(
         }
         // Os IDs vinculados não entram no `or(...)`: são buscados em lotes na 1ª página,
         // para o endereço da busca nunca passar do tamanho aceito pelo servidor.
-        const buildTarefasOr = (ids: string) => [`responsavel_id.in.(${ids})`, `criado_por.in.(${ids})`].join(",");
+        const buildTarefasOr = (ids: string) => `responsavel_id.in.(${ids})`;
 
         if (coordScopeIds.length > 0) {
           // Coordenação escolhida (inclusive admin no modo Escritório): filtrar no banco.
@@ -673,7 +678,7 @@ export async function fetchAgendaPage(
           // Admin vendo todas - sem filtro
         } else if (filters.responsavelIds && filters.responsavelIds.length > 0) {
           // Tarefas onde o usuário (ou qualquer membro filtrado) é responsável
-          // principal, co-responsável ou criador.
+          // principal; co-responsáveis e envolvidos entram pelos vínculos em lotes.
           queryTarefas = queryTarefas.or(buildTarefasOr(filters.responsavelIds.join(",")));
         } else {
           // Usuário comum vendo apenas suas próprias tarefas
@@ -1086,8 +1091,8 @@ export async function fetchAgendaPage(
         if (filters.processoIds?.length) queryPrazos = queryPrazos.in("id", filters.processoIds);
 
         if (!filters.fetchAll) {
-          // Filter: user is creator OR responsible
-          queryPrazos = queryPrazos.or(`criado_por_tst.eq.${user.id},responsavel_tst_id.eq.${user.id}`);
+          const responsaveisTst = filters.responsavelIds?.length ? filters.responsavelIds : [user.id];
+          queryPrazos = queryPrazos.in("responsavel_tst_id", responsaveisTst);
         }
 
         if (filters.dataInicio) {
@@ -1234,25 +1239,10 @@ export async function fetchAgendaPage(
             ]),
           ];
 
-          const orParts: string[] = [];
-          // Importante: audiências vindas de cargas em massa (planilhas/pauta) têm o
-          // usuário que fez o upload como "criado_por". No modo pessoal isso fazia o
-          // admin ver milhares de audiências que não são dele. Só contam como pessoais
-          // as audiências criadas manualmente (ou por vínculo real de advogado/envolvido).
-          if (targetUserIds.length > 0) {
-            orParts.push(
-              `and(criado_por.in.(${targetUserIds.join(",")}),or(origem.is.null,origem.not.in.(importacao,pauta_excel)))`
-            );
-          }
-          // Os IDs vinculados (advogado/envolvido) não entram no `or(...)`: centenas de
-          // IDs estouravam o tamanho do endereço e a agenda inteira falhava em loop.
+          // Os IDs vinculados (advogado/envolvido) entram em lotes na 1ª página,
+          // sem colocar listas longas no endereço da consulta. Criador/importador não conta.
           audIdsVinculados = audIds;
-
-          if (orParts.length > 0) {
-            queryAud = queryAud.or(orParts.join(","));
-          } else {
-            queryAud = queryAud.eq("criado_por", user.id);
-          }
+          queryAud = queryAud.eq("id", ID_VAZIO);
         }
 
         if (filters.processoNumeroDigits && filters.processoNumeroDigits.length === 20) {
@@ -1382,6 +1372,12 @@ export async function fetchAgendaPage(
           queryParcelas = queryParcelas.lte("data_vencimento", dfStr);
         }
 
+        if (!filters.fetchAll && (coordScopeIds.length === 0 || !!filters.responsavelIds?.length)) {
+          const targetUserIds = filters.responsavelIds?.length ? filters.responsavelIds : [user.id];
+          const eventosVinculados = await buscarIdsEventosPessoais(targetUserIds);
+          queryParcelas = queryParcelas.in("evento_id", eventosVinculados.length > 0 ? eventosVinculados : [ID_VAZIO]);
+        }
+
         const { data: parcelas, error: parcelasError } = await queryParcelas;
         if (parcelasError) throw parcelasError;
         return parcelas;
@@ -1430,13 +1426,21 @@ export async function fetchAgendaPage(
             const parentProcessCoordIds = new Map<string, string[]>();
             const parentParticipantIds = new Map<string, string[]>();
             if (coordScopeIds.length > 0) {
-              const [{ data: parentLinks }, { data: parentParticipants }] = await Promise.all([
+              const [{ data: parentLinks }, { data: parentParticipants }, { data: parentResponsaveis }, { data: parentEnvolvidos }] = await Promise.all([
                 (supabase as any)
                 .from("evento_processos")
                 .select("evento_id, processo:processos(coordenacao_id)")
                   .in("evento_id", missingParentIds),
                 supabase
                   .from("participantes_evento")
+                  .select("evento_id, usuario_id")
+                  .in("evento_id", missingParentIds),
+                (supabase as any)
+                  .from("evento_responsaveis")
+                  .select("evento_id, usuario_id")
+                  .in("evento_id", missingParentIds),
+                (supabase as any)
+                  .from("evento_envolvidos")
                   .select("evento_id, usuario_id")
                   .in("evento_id", missingParentIds),
               ]);
@@ -1447,7 +1451,7 @@ export async function fetchAgendaPage(
                 current.push(coordId);
                 parentProcessCoordIds.set(row.evento_id, current);
               });
-              (parentParticipants || []).forEach((row: any) => {
+              [...(parentParticipants || []), ...(parentResponsaveis || []), ...(parentEnvolvidos || [])].forEach((row: any) => {
                 if (!row?.evento_id || !row?.usuario_id) return;
                 const current = parentParticipantIds.get(row.evento_id) || [];
                 current.push(row.usuario_id);
@@ -1456,7 +1460,7 @@ export async function fetchAgendaPage(
             }
             // Filtro de escopo: se houver coordenação selecionada, prioriza pais dessa
             // coordenação (direto ou via processo). Caso contrário, restringe por
-            // criado_por/responsavelIds quando não é fetchAll.
+            // vínculos de pessoas quando não é fetchAll.
             if (coordScopeIds.length > 0) {
               parents = parents.filter((pe: any) => {
                 const linkedCoords = parentProcessCoordIds.get(pe.id) || [];
@@ -1466,12 +1470,9 @@ export async function fetchAgendaPage(
                   linkedCoords.some((coordId) => coordScopeIds.includes(coordId)) ||
                   (!filters.strictCoordenacaoIsolation &&
                     !!filters.responsavelIds?.length &&
-                    (filters.responsavelIds.includes(pe.criado_por) ||
-                      (parentParticipantIds.get(pe.id) || []).some((uid) => filters.responsavelIds!.includes(uid))))
+                    (parentParticipantIds.get(pe.id) || []).some((uid) => filters.responsavelIds!.includes(uid)))
                 );
               });
-            } else if (!filters.fetchAll && filters.responsavelIds && filters.responsavelIds.length > 0) {
-              parents = parents.filter((pe: any) => filters.responsavelIds!.includes(pe.criado_por));
             }
             for (const pe of parents) {
               parentMap.set(pe.id, {

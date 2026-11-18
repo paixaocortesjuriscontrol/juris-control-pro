@@ -430,7 +430,7 @@ export function DiaAgendaLateral({
             const concluida = atividadeConcluida(a.situacao);
             const situacao = normalize(a.situacao);
             const cancelada = situacao === "cancelada" || situacao === "cancelado";
-            const sou = !!userId && (a.responsavel_id === userId || a.criado_por === userId);
+            const sou = !!userId && a.responsavel_id === userId;
             return (
               <button
                 key={`ativ-${a.id}`}
