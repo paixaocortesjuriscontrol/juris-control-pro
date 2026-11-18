@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Upload } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -36,9 +36,16 @@ export default function EnvioLoteProcessos() {
                 </SelectContent>
               </Select>
             </div> : <p className="text-sm">Coordenação: <strong>{coord?.nome}</strong></p>}
+            <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <a href="/modelos/MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx" download="MODELO_IMPORTACAO_PROCESSO_PADRAO.xlsx">
+                <Download className="mr-2 h-4 w-4" /> Baixar planilha modelo
+              </a>
+            </Button>
             <Button disabled={!coord} onClick={() => setAberto(true)}>
               <Upload className="mr-2 h-4 w-4" /> Abrir envio em lote
             </Button>
+            </div>
           </>
         )}
       </div>
