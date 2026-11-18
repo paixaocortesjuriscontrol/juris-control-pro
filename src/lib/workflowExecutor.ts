@@ -298,6 +298,12 @@ export async function criarItemWorkflow(
     const v = cfg[key];
     return v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim();
   };
+  // Observações digitadas ao iniciar o workflow entram em todas as atividades
+  // criadas por ele, junto com as da etapa (antes ficavam só na execução).
+  const observacoesItem = juntarObservacoesWorkflow(
+    txt("observacoes") || etapa.descricao || null,
+    (execucao as any)?.observacoes
+  );
   const recorrencia = () => {
     const recorrenciaTipo = txt("recorrencia_tipo") || "nenhuma";
     const recorrenciaIntervalo = Math.max(1, Number(cfg.recorrencia_intervalo) || 1);
@@ -429,7 +435,7 @@ export async function criarItemWorkflow(
             data_fatal: dataFatalPrazo,
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
-            observacoes: txt("observacoes") || etapa.descricao || null,
+            observacoes: observacoesItem,
             alerta_dias: Number(cfg.alerta_dias) || null,
             alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto > 0 ? etapa.dias_previsto : null,
@@ -471,7 +477,7 @@ export async function criarItemWorkflow(
 
             prioridade: etapa.prioridade || "media",
             responsavel_id: responsavelPrincipal,
-            observacoes: txt("observacoes") || etapa.descricao || null,
+            observacoes: observacoesItem,
             alerta_dias: Number(cfg.alerta_dias) || null,
             alerta_unidade: txt("alerta_unidade"),
             prazo_dias: etapa.dias_previsto || 0,
@@ -536,7 +542,7 @@ export async function criarItemWorkflow(
           testemunhas: txt("testemunhas"),
           alerta_valor: Number(cfg.alerta_valor) || null,
           alerta_unidade: txt("alerta_unidade"),
-          observacoes: txt("observacoes") || etapa.descricao || null,
+          observacoes: observacoesItem,
           origem: "workflow",
         } as any);
 
@@ -568,7 +574,7 @@ export async function criarItemWorkflow(
           .insert({
             ...itemBase,
             titulo: etapa.titulo,
-            descricao: txt("observacoes") || etapa.descricao || null,
+            descricao: observacoesItem,
             tipo: "evento",
             origem: "workflow",
             data_inicio: dataInicio,
@@ -1128,4 +1134,16 @@ export async function sincronizarWorkflowPorItem(
     console.error("Falha ao sincronizar workflow do item", itemId, err);
     return false;
   }
+}
+
+export function juntarObservacoesWorkflow(
+  daEtapa: string | null | undefined,
+  daExecucao: string | null | undefined
+): string | null {
+  const a = (daEtapa || "").trim();
+  const b = (daExecucao || "").trim();
+  if (!b) return a || null;
+  if (!a) return b;
+  if (a.includes(b)) return a;
+  return `${b}\n\n${a}`;
 }
