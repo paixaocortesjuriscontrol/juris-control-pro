@@ -281,12 +281,17 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
             tipo={tipoEdicao}
             onChange={setTipoEdicao}
             tipos={["tarefa", "prazo", "ata"]}
+            descricao={
+              embedded ? (
+                <>
+                  Selecione <strong className="font-medium text-foreground">Tarefa</strong>,{" "}
+                  <strong className="font-medium text-foreground">Prazo</strong> ou{" "}
+                  <strong className="font-medium text-foreground">Ata</strong> para alterar o tipo
+                  desta atividade.
+                </>
+              ) : undefined
+            }
           />
-          {embedded && (
-            <p className="border-b bg-muted/20 px-6 py-2 text-xs text-muted-foreground">
-              Selecione <strong className="font-medium text-foreground">Tarefa</strong>, <strong className="font-medium text-foreground">Prazo</strong> ou <strong className="font-medium text-foreground">Ata</strong> para alterar o tipo desta atividade.
-            </p>
-          )}
         </>
       )}
       <div key={tipoEdicao} className={embedded ? undefined : "flex-1 min-h-0 overflow-hidden"}>

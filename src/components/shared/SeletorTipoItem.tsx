@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { NovoItemTipo } from "@/components/shared/NovoItemPanel";
 
@@ -15,10 +16,13 @@ export function SeletorTipoItem({
   tipo,
   onChange,
   tipos,
+  descricao,
 }: {
   tipo: NovoItemTipo;
   onChange: (t: NovoItemTipo) => void;
   tipos?: NovoItemTipo[];
+  /** Aviso exibido na mesma linha, à direita dos botões. */
+  descricao?: ReactNode;
 }) {
   const opcoes = tipos ? OPCOES.filter((o) => tipos.includes(o.v)) : OPCOES;
   return (
@@ -37,6 +41,11 @@ export function SeletorTipoItem({
           {o.l}
         </button>
       ))}
+      {descricao && (
+        <span className="ml-auto min-w-0 truncate pl-3 text-right text-xs text-muted-foreground">
+          {descricao}
+        </span>
+      )}
     </div>
   );
 }
