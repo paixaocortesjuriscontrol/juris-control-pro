@@ -440,12 +440,23 @@ export function useUpdateTarefa() {
       recorrencia_fim?: string | null;
       recorrencia_rrule?: string | null;
     }) => {
+      // Nada a gravar: devolve a linha atual em vez de mandar um update vazio
+      // (que não altera linha nenhuma e gerava "Cannot coerce the result...").
+      const camposParaGravar = Object.keys(updates).filter((k) => (updates as any)[k] !== undefined);
+      if (camposParaGravar.length === 0) {
+        const { data: atual, error: errAtual } = await supabase.from("tarefas").select().eq("id", id).maybeSingle();
+        if (errAtual) throw errAtual;
+        return atual as any;
+      }
       const { data, error } = await supabase
         .from("tarefas")
         .update(updates)
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
+      if (!error && !data) {
+        throw new Error("Não foi possível salvar: a atividade não foi encontrada ou você não tem permissão para alterá-la.");
+      }
 
       if (error) {
         await registrarAuditoriaTarefa({
