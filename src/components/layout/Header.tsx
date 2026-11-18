@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { Search, User, LogOut, Bell, Loader2, KeyRound, Sparkles } from "lucide-react";
+import { ArrowLeft, User, LogOut, Bell, Loader2, KeyRound, Sparkles } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -21,7 +20,6 @@ import { NotificacoesDropdown } from "./NotificacoesDropdown";
 import { useAcompanhamentoEspecialNovidades } from "@/hooks/useAcompanhamentoEspecialNovidades";
 import { AlterarSenhaDialog } from "./AlterarSenhaDialog";
 import { MeuPerfilDialog } from "./MeuPerfilDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ConfigNotificacoesUsuarioCard } from "@/components/configuracoes/ConfigNotificacoesUsuarioCard";
 import { Badge } from "@/components/ui/badge";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
@@ -40,10 +38,8 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
   const { role } = useUserRole();
   const { total: novidadesAcomp, temNovidades, marcarComoVistas } = useAcompanhamentoEspecialNovidades();
   const navigate = useNavigate();
-  const [senhaDialogOpen, setSenhaDialogOpen] = useState(false);
-  const [notifDialogOpen, setNotifDialogOpen] = useState(false);
-  const [perfilDialogOpen, setPerfilDialogOpen] = useState(false);
   const [menuUsuarioOpen, setMenuUsuarioOpen] = useState(false);
+  const [secaoConta, setSecaoConta] = useState<"menu" | "perfil" | "senha" | "notificacoes">("menu");
   const [profileNome, setProfileNome] = useState<string | null>(null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
 
@@ -109,10 +105,17 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
     return profileNome || user?.user_metadata?.nome || user?.email?.split("@")[0] || "Usuário";
   };
 
-  const abrirOpcaoUsuario = (abrirDialog: (open: boolean) => void) => {
-    setMenuUsuarioOpen(false);
-    window.setTimeout(() => abrirDialog(true), 150);
-  };
+  const tituloSecao = secaoConta === "perfil"
+    ? "Meu Perfil"
+    : secaoConta === "senha"
+      ? "Alterar Senha"
+      : "Notificações";
+
+  const descricaoSecao = secaoConta === "perfil"
+    ? "Atualize seus dados pessoais."
+    : secaoConta === "senha"
+      ? "Digite sua nova senha abaixo."
+      : "Escolha como e quando você quer receber os avisos.";
 
   return (
     <header className="min-h-16 py-2 bg-card border-b border-border flex flex-wrap items-center justify-between gap-y-2 px-4 lg:px-6 print:hidden">
@@ -182,87 +185,128 @@ export function Header({ title, subtitle, headerActions }: HeaderProps) {
           </div>
         </Button>
 
-        <Sheet open={menuUsuarioOpen} onOpenChange={setMenuUsuarioOpen}>
-          <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-sm">
+        <Sheet
+          open={menuUsuarioOpen}
+          onOpenChange={(open) => {
+            setMenuUsuarioOpen(open);
+            if (!open) setSecaoConta("menu");
+          }}
+        >
+          <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
             <SheetHeader className="border-b px-6 py-5 text-left">
-              <SheetTitle>Minha conta</SheetTitle>
-              <SheetDescription>Gerencie seu perfil e suas preferências.</SheetDescription>
-              <div className="flex items-center gap-3 pt-4">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={profileAvatarUrl ?? user?.user_metadata?.avatar_url} />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {getInitials()}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{getDisplayName()}</p>
-                  <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
-                  <p className="text-xs text-muted-foreground">{getRoleLabel()}</p>
+              {secaoConta === "menu" ? (
+                <>
+                  <SheetTitle>Minha conta</SheetTitle>
+                  <SheetDescription>Gerencie seu perfil e suas preferências.</SheetDescription>
+                  <div className="flex items-center gap-3 pt-4">
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={profileAvatarUrl ?? user?.user_metadata?.avatar_url} />
+                      <AvatarFallback className="bg-primary text-primary-foreground">
+                        {getInitials()}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{getDisplayName()}</p>
+                      <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
+                      <p className="text-xs text-muted-foreground">{getRoleLabel()}</p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-start gap-2 pr-8">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="-ml-2 mt-0.5 h-8 w-8 shrink-0"
+                    aria-label="Voltar às opções da conta"
+                    onClick={() => setSecaoConta("menu")}
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </Button>
+                  <div className="space-y-1">
+                    <SheetTitle>{tituloSecao}</SheetTitle>
+                    <SheetDescription>{descricaoSecao}</SheetDescription>
+                  </div>
                 </div>
-              </div>
+              )}
             </SheetHeader>
 
-            <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Opções da conta">
-              <Button
-                variant="ghost"
-                className="h-11 w-full justify-start px-3"
-                onClick={() => abrirOpcaoUsuario(setPerfilDialogOpen)}
-              >
-                <User className="mr-3 h-4 w-4" />
-                Meu Perfil
-              </Button>
-              <Button
-                variant="ghost"
-                className="h-11 w-full justify-start px-3"
-                onClick={() => abrirOpcaoUsuario(setSenhaDialogOpen)}
-              >
-                <KeyRound className="mr-3 h-4 w-4" />
-                Alterar Senha
-              </Button>
-              <Button
-                variant="ghost"
-                className="h-11 w-full justify-start px-3"
-                onClick={() => abrirOpcaoUsuario(setNotifDialogOpen)}
-              >
-                <Bell className="mr-3 h-4 w-4" />
-                Notificações
-              </Button>
-            </nav>
+            {secaoConta === "menu" && (
+              <>
+                <nav className="flex-1 space-y-1 overflow-y-auto p-4" aria-label="Opções da conta">
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full justify-start px-3"
+                    onClick={() => setSecaoConta("perfil")}
+                  >
+                    <User className="mr-3 h-4 w-4" />
+                    Meu Perfil
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full justify-start px-3"
+                    onClick={() => setSecaoConta("senha")}
+                  >
+                    <KeyRound className="mr-3 h-4 w-4" />
+                    Alterar Senha
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full justify-start px-3"
+                    onClick={() => setSecaoConta("notificacoes")}
+                  >
+                    <Bell className="mr-3 h-4 w-4" />
+                    Notificações
+                  </Button>
+                </nav>
 
-            <SheetFooter className="border-t p-4 sm:justify-start">
-              <Button
-                variant="ghost"
-                className="h-11 w-full justify-start px-3 text-destructive hover:text-destructive"
-                onClick={() => {
-                  setMenuUsuarioOpen(false);
-                  void handleSignOut();
+                <SheetFooter className="border-t p-4 sm:justify-start">
+                  <Button
+                    variant="ghost"
+                    className="h-11 w-full justify-start px-3 text-destructive hover:text-destructive"
+                    onClick={() => {
+                      setMenuUsuarioOpen(false);
+                      void handleSignOut();
+                    }}
+                  >
+                    <LogOut className="mr-3 h-4 w-4" />
+                    Sair
+                  </Button>
+                </SheetFooter>
+              </>
+            )}
+
+            {secaoConta === "perfil" && (
+              <MeuPerfilDialog
+                open
+                embedded
+                onOpenChange={(open) => {
+                  if (!open) setSecaoConta("menu");
                 }}
-              >
-                <LogOut className="mr-3 h-4 w-4" />
-                Sair
-              </Button>
-            </SheetFooter>
+                onSaved={(nome, avatarUrl) => {
+                  if (nome !== undefined) setProfileNome(nome);
+                  if (avatarUrl !== undefined) setProfileAvatarUrl(avatarUrl);
+                }}
+              />
+            )}
+
+            {secaoConta === "senha" && (
+              <AlterarSenhaDialog
+                open
+                embedded
+                onOpenChange={(open) => {
+                  if (!open) setSecaoConta("menu");
+                }}
+              />
+            )}
+
+            {secaoConta === "notificacoes" && (
+              <div className="flex-1 overflow-y-auto p-4">
+                <ConfigNotificacoesUsuarioCard />
+              </div>
+            )}
           </SheetContent>
         </Sheet>
-
-        <AlterarSenhaDialog open={senhaDialogOpen} onOpenChange={setSenhaDialogOpen} />
-        <MeuPerfilDialog
-          open={perfilDialogOpen}
-          onOpenChange={setPerfilDialogOpen}
-          onSaved={(nome, avatarUrl) => {
-            if (nome !== undefined) setProfileNome(nome);
-            if (avatarUrl !== undefined) setProfileAvatarUrl(avatarUrl);
-          }}
-        />
-
-        <Dialog open={notifDialogOpen} onOpenChange={setNotifDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Minhas notificações</DialogTitle>
-            </DialogHeader>
-            <ConfigNotificacoesUsuarioCard />
-          </DialogContent>
-        </Dialog>
       </div>
     </header>
   );

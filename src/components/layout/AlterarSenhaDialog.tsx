@@ -16,9 +16,10 @@ import { Loader2, Eye, EyeOff } from "lucide-react";
 interface AlterarSenhaDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  embedded?: boolean;
 }
 
-export function AlterarSenhaDialog({ open, onOpenChange }: AlterarSenhaDialogProps) {
+export function AlterarSenhaDialog({ open, onOpenChange, embedded = false }: AlterarSenhaDialogProps) {
   const [novaSenha, setNovaSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,14 +54,15 @@ export function AlterarSenhaDialog({ open, onOpenChange }: AlterarSenhaDialogPro
     }
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+  const formulario = (
+    <>
+      {!embedded && (
         <DialogHeader>
           <DialogTitle>Alterar Senha</DialogTitle>
           <DialogDescription>Digite sua nova senha abaixo.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+      )}
+      <form onSubmit={handleSubmit} className={embedded ? "flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-4" : "space-y-4"}>
           <div className="space-y-2">
             <Label htmlFor="nova-senha">Nova Senha</Label>
             <div className="relative">
@@ -101,17 +103,26 @@ export function AlterarSenhaDialog({ open, onOpenChange }: AlterarSenhaDialogPro
               </button>
             </div>
           </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-              Alterar Senha
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
+        <div className={embedded ? "mt-auto flex justify-end gap-2 border-t pt-4" : "flex justify-end gap-2"}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button type="submit" disabled={loading}>
+            {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            Alterar Senha
+          </Button>
+        </div>
+      </form>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-1 flex-col">{formulario}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">{formulario}</DialogContent>
     </Dialog>
   );
 }

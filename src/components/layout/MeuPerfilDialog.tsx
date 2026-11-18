@@ -14,9 +14,10 @@ interface MeuPerfilDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: (nome?: string, avatarUrl?: string | null) => void;
+  embedded?: boolean;
 }
 
-export function MeuPerfilDialog({ open, onOpenChange, onSaved }: MeuPerfilDialogProps) {
+export function MeuPerfilDialog({ open, onOpenChange, onSaved, embedded = false }: MeuPerfilDialogProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -183,14 +184,15 @@ export function MeuPerfilDialog({ open, onOpenChange, onSaved }: MeuPerfilDialog
     }
   }
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+  const conteudo = (
+    <>
+      {!embedded && (
         <DialogHeader>
           <DialogTitle>Meu Perfil</DialogTitle>
           <DialogDescription>Atualize seus dados pessoais</DialogDescription>
         </DialogHeader>
-        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+      )}
+      <div className={embedded ? "flex-1 space-y-4 overflow-y-auto px-6 py-4" : "max-h-[60vh] space-y-4 overflow-y-auto py-4"}>
           <div className="flex items-center gap-4">
             <Avatar className="w-20 h-20">
               <AvatarImage src={avatarUrl ?? undefined} />
@@ -303,26 +305,35 @@ export function MeuPerfilDialog({ open, onOpenChange, onSaved }: MeuPerfilDialog
             />
           </div>
         </div>
-        <div className="flex items-center justify-end gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            className="mr-auto"
-            onClick={handleEnviarTesteWhatsApp}
-            disabled={sendingTest || loading}
-          >
-            {sendingTest && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Enviar teste WhatsApp
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSalvar} disabled={saving || loading}>
-            {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-            Salvar
-          </Button>
-        </div>
-      </DialogContent>
+      <div className={embedded ? "flex flex-wrap items-center justify-end gap-3 border-t px-6 py-4" : "flex items-center justify-end gap-3"}>
+        <Button
+          type="button"
+          variant="outline"
+          className="mr-auto"
+          onClick={handleEnviarTesteWhatsApp}
+          disabled={sendingTest || loading}
+        >
+          {sendingTest && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Enviar teste WhatsApp
+        </Button>
+        <Button variant="outline" onClick={() => onOpenChange(false)}>
+          Cancelar
+        </Button>
+        <Button onClick={handleSalvar} disabled={saving || loading}>
+          {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          Salvar
+        </Button>
+      </div>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="flex h-full min-h-0 flex-1 flex-col">{conteudo}</div>;
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">{conteudo}</DialogContent>
     </Dialog>
   );
 }
