@@ -96,7 +96,7 @@ export function IniciarWorkflowDialog({
     String(publicacaoOrigem?.data_publicacao || publicacaoOrigem?.data_disponibilizacao || "").slice(0, 10) ||
     new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const [open, setOpen] = useState(!!inline);
-  const { coordenacoes, unicaCoordenacaoId, precisaSelecionar } = useCoordenacoesDoUsuario();
+  const { coordenacoes, unicaCoordenacaoId, precisaSelecionar, isAdmin: isAdminCoord } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState(preSelectedProcesso?.coordenacao_id || unicaCoordenacaoId || "");
 
   // Coordenação única chega de forma assíncrona: vincula automaticamente quando carregar
@@ -167,10 +167,16 @@ export function IniciarWorkflowDialog({
   });
   const processos = useMemo(() => processosData?.processos || [], [processosData]);
 
-  const { data: workflows = [], isLoading: carregandoWorkflows } = useWorkflows({
+  const { data: workflowsBrutos = [], isLoading: carregandoWorkflows } = useWorkflows({
     coordenacaoId: listarTodosWorkflows ? undefined : coordenacaoId || undefined,
     ativo: true,
   });
+  // Só admin vê fluxos de todas as coordenações; os demais, apenas das suas.
+  const workflows = useMemo(() => {
+    if (!listarTodosWorkflows || isAdminCoord) return workflowsBrutos;
+    const ids = new Set((coordenacoes || []).map((c: any) => c.id));
+    return (workflowsBrutos as any[]).filter((w: any) => ids.has(w.coordenacao_id));
+  }, [workflowsBrutos, listarTodosWorkflows, isAdminCoord, JSON.stringify((coordenacoes || []).map((c: any) => c.id))]);
 
   const selectedWorkflow = useMemo(
     () => workflows?.find((w: any) => w.id === selectedWorkflowId),
