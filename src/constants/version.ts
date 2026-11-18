@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.2.5";
+export const APP_VERSION = "10.2.6";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.2.6", date: "2026-11-18", notes: "Envio em lote de processos no menu principal (logo abaixo de Coordenações, controlado em Acesso aos menus), disponível para todas as coordenações: admin escolhe qualquer uma, membros escolhem entre as suas; botão Baixar planilha modelo na tela; ficha ampla com aba Processo vinculado, confirmação ao desvincular e polos no cabeçalho" },
   { version: "10.2.5", date: "2026-11-18", notes: "Minhas Responsabilidades: ao clicar em uma atividade (Agenda, Lista, Compacta, Kanban, Calendário ou Atividades) abre a ficha ampla à direita, com Dados da atividade, Atividades, Checklist, Comentários, Anexos, Histórico de alterações e a aba Acomp. Especial quando o processo é monitorado; menu da conta (Meu Perfil, Alterar Senha, Notificações) aberto dentro do mesmo painel lateral, sem janelas soltas; atividades de processos em Acompanhamento Especial marcadas com a bolinha vermelha 'A' em Minhas Responsabilidades e no Painel de Controle (Agenda, Lista, Kanban, Atividades, Equipe e painel do dia)" },
   { version: "10.2.4", date: "2026-11-18", notes: "Workflows: botão Gerar Excel nas Execuções (respeita os filtros; sem filtro sai completo), filtro de Coordenação e coordenadores marcados por padrão nos avisos do Acompanhamento Especial" },
   { version: "10.2.3", date: "2026-11-18", notes: "Coordenações: o coordenador escolhe quem recebe os avisos do Acompanhamento Especial (sem escolha, continuam indo aos responsáveis e coordenadores)" },
