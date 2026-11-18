@@ -11700,12 +11700,6 @@ export type Database = {
           usuario_id: string
         }[]
       }
-      coordenadores_que_recebem_avisos: {
-        Args: { _coordenacao_id: string }
-        Returns: {
-          usuario_id: string
-        }[]
-      }
       corrigir_status_tarefas_projuris: {
         Args: { _coordenacao_id: string; _itens: Json }
         Returns: number
