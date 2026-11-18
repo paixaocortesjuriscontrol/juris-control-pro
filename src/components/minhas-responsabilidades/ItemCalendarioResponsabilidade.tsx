@@ -97,16 +97,16 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItem
           </dl>
 
           <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
-            <div className="flex-shrink-0 border-b px-4 py-3">
+            <div className="flex-shrink-0 border-b px-4 py-2">
               <TabsList className={cn("grid h-auto w-full grid-cols-2 gap-1", acompanhamentoAtivo ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5")}>
-                <TabsTrigger value="atividade" className="gap-2 py-2"><ListChecks className="h-4 w-4" /> Atividade</TabsTrigger>
-                <TabsTrigger value="processo" className="gap-2 py-2"><Briefcase className="h-4 w-4" /> Processo vinculado</TabsTrigger>
+                <TabsTrigger value="atividade" className="gap-2 py-1.5"><ListChecks className="h-4 w-4" /> Atividade</TabsTrigger>
+                <TabsTrigger value="processo" className="gap-2 py-1.5"><Briefcase className="h-4 w-4" /> Processo vinculado</TabsTrigger>
                 {acompanhamentoAtivo && (
-                  <TabsTrigger value="acompanhamento" className="gap-2 py-2" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
+                  <TabsTrigger value="acompanhamento" className="gap-2 py-1.5" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
                 )}
-                <TabsTrigger value="publicacoes" className="gap-2 py-2"><Newspaper className="h-4 w-4" /> Publicações</TabsTrigger>
-                <TabsTrigger value="workflow" className="gap-2 py-2"><GitBranch className="h-4 w-4" /> Workflow</TabsTrigger>
-                <TabsTrigger value="documentos" className="gap-2 py-2"><FileText className="h-4 w-4" /> Documentos</TabsTrigger>
+                <TabsTrigger value="publicacoes" className="gap-2 py-1.5"><Newspaper className="h-4 w-4" /> Publicações</TabsTrigger>
+                <TabsTrigger value="workflow" className="gap-2 py-1.5"><GitBranch className="h-4 w-4" /> Workflow</TabsTrigger>
+                <TabsTrigger value="documentos" className="gap-2 py-1.5"><FileText className="h-4 w-4" /> Documentos</TabsTrigger>
               </TabsList>
             </div>
 

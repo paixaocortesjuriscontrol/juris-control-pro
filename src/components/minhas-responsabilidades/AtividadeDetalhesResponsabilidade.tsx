@@ -8,6 +8,7 @@ import { ItemHistorico } from "@/components/comum/ItemHistorico";
 import { TabErrorBoundary } from "@/components/comum/TabErrorBoundary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useContagemComentarios } from "@/hooks/useItensComComentarios";
+import { FileText, History, ListChecks, ListTodo, MessageSquare, Paperclip } from "lucide-react";
 
 interface Props {
   item: any;
@@ -65,22 +66,22 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
 
   return (
     <Tabs value={secao} onValueChange={setSecao} className="flex h-full min-h-0 flex-col">
-      <div className="flex-shrink-0 border-b bg-muted/10 px-4 py-3">
-        <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
-          <TabsTrigger value="dados" className="py-2">Dados da atividade</TabsTrigger>
-          <TabsTrigger value="atividades" className="py-2">
-            Atividades{atividades.length > 0 ? ` ${concluidas}/${atividades.length}` : ""}
+      <div className="flex-shrink-0 border-b px-4 py-2">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">
+          <TabsTrigger value="dados" className="gap-2 py-1.5"><FileText className="h-4 w-4" /> Dados da atividade</TabsTrigger>
+          <TabsTrigger value="atividades" className="gap-2 py-1.5">
+            <ListTodo className="h-4 w-4" /> Atividades{atividades.length > 0 ? ` ${concluidas}/${atividades.length}` : ""}
           </TabsTrigger>
-          <TabsTrigger value="checklist" className="py-2">
-            Checklist{checklist.length > 0 ? ` ${checklistMarcados}/${checklist.length}` : ""}
+          <TabsTrigger value="checklist" className="gap-2 py-1.5">
+            <ListChecks className="h-4 w-4" /> Checklist{checklist.length > 0 ? ` ${checklistMarcados}/${checklist.length}` : ""}
           </TabsTrigger>
-          <TabsTrigger value="comentarios" className="py-2">
-            Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
+          <TabsTrigger value="comentarios" className="gap-2 py-1.5">
+            <MessageSquare className="h-4 w-4" /> Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
           </TabsTrigger>
-          <TabsTrigger value="anexos" className="py-2">
-            Anexos{contagemAnexos > 0 ? ` ${contagemAnexos}` : ""}
+          <TabsTrigger value="anexos" className="gap-2 py-1.5">
+            <Paperclip className="h-4 w-4" /> Anexos{contagemAnexos > 0 ? ` ${contagemAnexos}` : ""}
           </TabsTrigger>
-          <TabsTrigger value="historico" className="py-2">Histórico de alterações</TabsTrigger>
+          <TabsTrigger value="historico" className="gap-2 py-1.5"><History className="h-4 w-4" /> Histórico de alterações</TabsTrigger>
         </TabsList>
       </div>
 

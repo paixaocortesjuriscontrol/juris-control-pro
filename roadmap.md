@@ -35,6 +35,8 @@
 - [x] Processo vinculado gerenciado na aba superior, fora dos dados da atividade
 - [x] Desvinculação somente após confirmação explícita dentro da aba Processo
 - [x] Polos ativo e passivo do processo vinculado no cabeçalho da ficha
+- [x] Padronizar as duas barras de abas com ícones, mesma distribuição e mesmo fundo
+- [x] Reduzir a altura vertical das barras de abas da ficha
 
 ## Tag de Acompanhamento Especial nas atividades (18/11/2026)
 - [x] Bolinha vermelha com "A" em atividades de processos com Acompanhamento Especial
