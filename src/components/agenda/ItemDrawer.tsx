@@ -95,15 +95,15 @@ export function ItemDrawer({
                     href={`/processos/${encodeURIComponent(processoId)}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex min-w-0 items-center gap-2 rounded-md border border-current/25 bg-background/40 px-2.5 py-1.5 font-mono text-sm font-bold tracking-wide underline-offset-4 transition-colors hover:bg-background/70 hover:underline sm:text-base"
+                    className="inline-flex h-8 min-w-0 items-center gap-1.5 rounded-md border border-current/25 bg-background/40 px-2.5 text-xs font-normal underline-offset-4 transition-colors hover:bg-background/70 hover:underline"
                     title="Abrir processo em uma nova aba"
                     aria-label={`Abrir processo ${processoNumero || ""} em uma nova aba`}
                   >
                     <span className="break-all">{processoNumero || "Abrir processo"}</span>
-                    <ExternalLink className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
+                    <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
                   </a>
                 ) : (
-                  <span className="break-all rounded-md border border-current/25 bg-background/40 px-2.5 py-1.5 font-mono text-sm font-bold tracking-wide sm:text-base">
+                  <span className="inline-flex h-8 items-center break-all rounded-md border border-current/25 bg-background/40 px-2.5 text-xs font-normal">
                     {processoNumero}
                   </span>
                 )}
@@ -111,14 +111,14 @@ export function ItemDrawer({
                   <button
                     type="button"
                     onClick={copiarProcesso}
-                    className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-current/25 bg-background/40 transition-colors hover:bg-background/70"
+                    className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-current/25 bg-background/40 transition-colors hover:bg-background/70"
                     title="Copiar número do processo"
                     aria-label="Copiar número do processo"
                   >
-                    {copiado ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copiado ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 )}
-                {processoId && <span className="text-xs font-medium opacity-80">Abrir processo em nova aba</span>}
+                {processoId && <span className="text-xs font-normal opacity-80">Abrir processo</span>}
               </div>
             )}
             {(partes?.ativo || partes?.passivo) && (
