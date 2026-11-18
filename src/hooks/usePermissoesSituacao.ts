@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { normalizarCargo as normalizarCargoCanonico } from "@/lib/permissoesMenuCoordenacao";
 
 export interface PermissaoSituacaoRow {
   situacao: string;
@@ -21,23 +22,7 @@ export const SITUACAO_TODAS = "__TODAS__";
  * para a chave de perfil usada nas configurações de situação.
  */
 function normalizarCargo(cargo?: string | null): string | null {
-  if (!cargo) return null;
-  const base = cargo
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-  if (!base) return null;
-  if (base.includes("assistente") && base.includes("coordenador")) return "assistente_coordenador";
-  if (base.includes("coordenador")) return "coordenador";
-  if (base.includes("advogado") && (base.includes("temporario") || base.includes("temp")))
-    return "advogado_temporario";
-  if (base.includes("advogado")) return "advogado";
-  if (base.includes("estagiari")) return "estagiario";
-  if (base.includes("secretari")) return "secretaria";
-  if (base.includes("assistente")) return "assistente";
-  if (base.includes("admin")) return "admin";
-  return base.replace(/\s+/g, "_");
+  return normalizarCargoCanonico(cargo) || null;
 }
 
 /**

@@ -21,3 +21,10 @@ test("basta uma coordenação liberar", () => {
 test("regra global do usuário tem prioridade", () => {
   assert.equal(menuPermitido("/workflow", "u", { "/workflow": false }, [{ coordenacao_id: "A", cargo: "advogado" }], []), false);
 });
+
+test("cargo feminino ou com acento obedece a regra do cargo", () => {
+  for (const cargo of ["Advogada", "Advogado", "ADVOGADA "]) {
+    assert.equal(menuPermitido("/workflow", "u", {}, [{ coordenacao_id: "A", cargo }], [r({ cargo: "advogado" })]), false);
+  }
+  assert.equal(menuPermitido("/workflow", "u", {}, [{ coordenacao_id: "A", cargo: "Estagiária" }], [r({ cargo: "estagiario" })]), false);
+});
