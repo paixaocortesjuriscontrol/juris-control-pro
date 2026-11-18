@@ -496,6 +496,18 @@ export async function criarItemWorkflow(
           dataCfg("data_audiencia") || dataBaseStr,
           horaAudiencia
         );
+        // Nas próximas etapas, a execução traz só processo_id; o texto do
+        // número precisa ser lido no cadastro para não criar audiência sem ele.
+        let numeroProcessoVinculado = processoNumero || null;
+        if (processoId && !numeroProcessoVinculado) {
+          const { data: processo, error: erroProcesso } = await supabase
+            .from("processos")
+            .select("numero")
+            .eq("id", processoId)
+            .maybeSingle();
+          if (erroProcesso) throw erroProcesso;
+          numeroProcessoVinculado = processo?.numero || null;
+        }
         const novaAudienciaId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
             ? crypto.randomUUID()
@@ -504,7 +516,7 @@ export async function criarItemWorkflow(
           ...(novaAudienciaId ? { id: novaAudienciaId } : {}),
           ...itemBase,
           processo_id: processoId || null,
-          processo_numero: processoNumero || null,
+          processo_numero: numeroProcessoVinculado,
           titulo: etapa.titulo,
           tipo_audiencia: etapa.titulo,
           data_audiencia: dataAudienciaISO,
