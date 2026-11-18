@@ -26,4 +26,5 @@
 ## Minhas Responsabilidades — ficha ampliada do calendário (18/11/2026)
 - [x] Painel largo exclusivo do clique no calendário, sem alterar o Painel de Controle
 - [x] Abas Atividade, Processo, Publicações, Workflow e Documentos com dados sob demanda
+- [x] Barra superior com Dados, Atividades, Checklist, Comentários, Anexos e Histórico de alterações
 - [x] Testes de datas/mesclagem e verificação da compilação

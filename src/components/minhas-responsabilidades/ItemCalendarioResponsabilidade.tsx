@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Briefcase, CalendarDays, FileText, Flag, GitBranch, ListChecks, MapPin, Newspaper, UserRound } from "lucide-react";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
-import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,6 +10,7 @@ import { formatarDataDetalhe } from "@/lib/detalheItemResponsabilidade";
 import { PublicacoesItemResponsabilidade } from "./PublicacoesItemResponsabilidade";
 import { WorkflowItemResponsabilidade } from "./WorkflowItemResponsabilidade";
 import { DocumentosProcessoResponsabilidade } from "./DocumentosProcessoResponsabilidade";
+import { AtividadeDetalhesResponsabilidade } from "./AtividadeDetalhesResponsabilidade";
 
 function ResumoCampo({ icon: Icon, rotulo, valor }: { icon?: typeof CalendarDays; rotulo: string; valor: string }) {
   return (
@@ -77,7 +77,13 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
             </div>
 
             <TabsContent value="atividade" className="m-0 min-h-0 flex-1 overflow-hidden">
-              <EdicaoItemPanel key={item.id} item={item} hideHeader onClose={onClose} onUpdate={onUpdate} />
+              <AtividadeDetalhesResponsabilidade
+                item={item}
+                itemId={itemId}
+                processoId={processoId}
+                onClose={onClose}
+                onUpdate={onUpdate}
+              />
             </TabsContent>
 
             <TabsContent value="processo" className="m-0 min-h-0 flex-1 overflow-hidden">
