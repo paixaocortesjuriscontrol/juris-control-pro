@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
 import { Search, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +46,18 @@ export function ListaAcompanhamentoEspecial() {
       return { linhas: (data || []) as any[], total: count ?? 0 };
     },
   });
+
+  const qc = useQueryClient();
+  const [alterando, setAlterando] = useState<string | null>(null);
+  const alternar = async (id: string, numero: string, ativo: boolean) => {
+    setAlterando(id);
+    const { data: upd, error } = await supabase.from("processos").update({ acompanhamento_especial: ativo }).eq("id", id).select("id");
+    setAlterando(null);
+    if (error || !upd?.length) { toast.error("Não foi possível alterar: " + (error?.message || "sem permissão")); return; }
+    await qc.invalidateQueries({ queryKey: ["acomp-esp-lista"] });
+    if (!ativo) toast.success(`Acompanhamento especial desabilitado em ${numero}`, { action: { label: "Desfazer", onClick: () => alternar(id, numero, true) } });
+    else toast.success(`Acompanhamento especial habilitado em ${numero}`);
+  };
 
   const total = data?.total ?? 0;
   const paginas = Math.max(1, Math.ceil(total / POR_PAGINA));
@@ -97,6 +110,7 @@ export function ListaAcompanhamentoEspecial() {
               <TableHead>Partes</TableHead>
               <TableHead>Tribunal</TableHead>
               <TableHead>Coordenação</TableHead>
+              <TableHead className="w-28 text-center">Ativo</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -106,10 +120,11 @@ export function ListaAcompanhamentoEspecial() {
                 <TableCell className="text-xs">{[p.polo_ativo, p.polo_passivo].filter(Boolean).join(" × ") || "—"}</TableCell>
                 <TableCell className="text-xs">{p.tribunal || "—"}</TableCell>
                 <TableCell className="text-xs">{p.coordenacao?.nome || "—"}</TableCell>
+                <TableCell className="text-center"><Switch checked disabled={alterando === p.id} onCheckedChange={(v) => alternar(p.id, p.numero, v)} aria-label="Habilitar ou desabilitar acompanhamento especial" /></TableCell>
               </TableRow>
             ))}
             {!data?.linhas.length && (
-              <TableRow><TableCell colSpan={4} className="text-center text-sm text-muted-foreground py-8">Nenhum processo encontrado.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center text-sm text-muted-foreground py-8">Nenhum processo encontrado.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
