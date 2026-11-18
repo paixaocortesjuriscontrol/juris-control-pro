@@ -51,6 +51,19 @@ function FiltroSelect({ rotulo, opcoes, valor, onChange }: { rotulo: string; opc
   );
 }
 
+/** Caixa de escolha compacta: rótulo e seletor na mesma linha, para caber na barra das abas. */
+function FiltroInline({ rotulo, opcoes, valor, onChange }: { rotulo: string; opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
+  return (
+    <label className="flex items-center gap-1.5">
+      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap">{rotulo}</span>
+      <Select value={valor} onValueChange={onChange}>
+        <SelectTrigger className="h-7 w-[170px] text-xs"><SelectValue /></SelectTrigger>
+        <SelectContent>{opcoes.map((o) => <SelectItem key={o.v} value={o.v} className="text-sm">{o.l}</SelectItem>)}</SelectContent>
+      </Select>
+    </label>
+  );
+}
+
 function Segmento({ opcoes, valor, onChange }: { opcoes: { v: string; l: string }[]; valor: string; onChange: (v: any) => void }) {
   return (
     <div className="inline-flex items-center rounded-md border bg-muted/40 p-0.5">
@@ -517,34 +530,35 @@ export default function MinhasResponsabilidades() {
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-2 items-center">
-          <PainelFiltros
-            filtros={pf}
-            onChange={setPf}
-            ocultarResponsaveis
-            atividadesOpcoes={atividadesOpcoes}
-            
-          />
-          {isAdmin ? (
-            <div className="ml-auto flex flex-wrap items-end gap-2">
-              <FiltroSelect rotulo="Coordenação" valor={coordSel}
-                onChange={(v: string) => setPf((st) => ({ ...st, verDeCoordenacao: v, verDeUsuario: "" }))}
-                opcoes={[{ v: "todas", l: "Todas" }, ...(coordenacoes.data ?? []).map((c: any) => ({ v: c.id, l: c.nome }))]} />
-              <FiltroSelect rotulo="Ver como" valor={usuarioSel || "__eu"}
-                onChange={(v: string) => setPf((st) => ({ ...st, verDeUsuario: v === "__eu" ? "" : v }))}
-                opcoes={[{ v: "__eu", l: "Eu mesmo" }, ...(usuarios.data ?? []).filter((u: any) => u.id !== user?.id).map((u: any) => ({ v: u.id, l: u.nome }))]} />
-            </div>
-          ) : (
-            <span className="text-[11px] text-muted-foreground ml-auto">Mostrando as suas responsabilidades</span>
-          )}
-        </div>
         <Tabs value={aba} onValueChange={setAba}>
-          <TabsList>
-            <TabsTrigger value="agenda">Agenda</TabsTrigger>
-            <TabsTrigger value="atividades">Atividades ({itens.length})</TabsTrigger>
-            <TabsTrigger value="processos">Processos ({processos.data?.length ?? 0})</TabsTrigger>
-            <TabsTrigger value="workflows">Workflows ({workflows.data?.length ?? 0})</TabsTrigger>
-          </TabsList>
+          <div className="flex flex-wrap items-center gap-2">
+            <TabsList>
+              <TabsTrigger value="agenda">Agenda</TabsTrigger>
+              <TabsTrigger value="atividades">Atividades ({itens.length})</TabsTrigger>
+              <TabsTrigger value="processos">Processos ({processos.data?.length ?? 0})</TabsTrigger>
+              <TabsTrigger value="workflows">Workflows ({workflows.data?.length ?? 0})</TabsTrigger>
+            </TabsList>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <PainelFiltros
+                filtros={pf}
+                onChange={setPf}
+                ocultarResponsaveis
+                atividadesOpcoes={atividadesOpcoes}
+              />
+              {isAdmin ? (
+                <>
+                  <FiltroInline rotulo="Coordenação" valor={coordSel}
+                    onChange={(v: string) => setPf((st) => ({ ...st, verDeCoordenacao: v, verDeUsuario: "" }))}
+                    opcoes={[{ v: "todas", l: "Todas" }, ...(coordenacoes.data ?? []).map((c: any) => ({ v: c.id, l: c.nome }))]} />
+                  <FiltroInline rotulo="Ver como" valor={usuarioSel || "__eu"}
+                    onChange={(v: string) => setPf((st) => ({ ...st, verDeUsuario: v === "__eu" ? "" : v }))}
+                    opcoes={[{ v: "__eu", l: "Eu mesmo" }, ...(usuarios.data ?? []).filter((u: any) => u.id !== user?.id).map((u: any) => ({ v: u.id, l: u.nome }))]} />
+                </>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">Mostrando as suas responsabilidades</span>
+              )}
+            </div>
+          </div>
 
           <TabsContent value="agenda" className="space-y-3">
             <FiltroSelect rotulo="Mostrar" valor={grupoAgenda} onChange={setGrupoAgenda} opcoes={GRUPOS_AGENDA.map((g) => ({ v: g.v, l: `${g.l} (${agenda[g.v].length})` }))} />
