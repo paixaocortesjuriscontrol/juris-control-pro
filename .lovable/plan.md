@@ -10,8 +10,9 @@
 Ninguém retirou de novo essas pessoas depois da devolução. Por isso o erro continua aparecendo para quem abre ou salva essas atividades.
 
 ## O que será feito
-1. **Retirar de novo as 150 pessoas devolvidas por engano.** Só nas atividades em aberto, e sem mexer no responsável principal nem em quem alguém incluiu à mão depois das 15h19. Antes de apagar, guardo uma cópia para poder voltar atrás.
-2. **Manter as 48 devolvidas da troca de tipo** e conferir os 12 casos restantes, decidindo cada um pelo histórico.
+0. **Planilha para as equipes conferirem** (já enviada): cada pessoa devolvida, com a decisão proposta. Nada muda no sistema antes de você aprovar.
+1. **Retirar de novo as 134 pessoas marcadas "Retirar" na planilha.** Só nas atividades em aberto, e sem mexer no responsável principal nem em quem alguém incluiu à mão depois das 15h19. Antes de apagar, guardo uma cópia para poder voltar atrás.
+2. **Manter as 62 marcadas "Manter"** (as que saíram junto com a troca de tipo ou são o responsável principal). As 14 marcadas "Conferir" só mudam se as equipes responderem.
 3. **Conferir a queixa "volta mesmo editando":** abrir as telas de Prazo, Tarefa e Agenda em modo de edição e ver se o formulário põe de volta quem criou a atividade ou a pessoa pré-cadastrada (responsáveis fixos do tipo ou do modelo) por cima da escolha salva. Se puser, corrigir para que, ao editar, os pré-cadastrados e o criador só entrem em atividade nova.
 4. Mostrar a você a lista do que foi retirado, por coordenação.
 
