@@ -7,15 +7,15 @@ import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProc
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 
 export default function EnvioLoteProcessos() {
-  const { data, isLoading } = useCoordenacoesDoUsuario() as any;
+  const { coordenacoes, isAdmin, isLoading } = useCoordenacoesDoUsuario();
   const opcoes = useMemo(
-    () => ((data?.coordenacoes || []) as { id: string; nome: string }[]),
-    [data],
+    () => (coordenacoes as { id: string; nome: string }[]),
+    [coordenacoes],
   );
   const [coordId, setCoordId] = useState("");
   const [aberto, setAberto] = useState(false);
   useEffect(() => { if (!coordId && opcoes.length === 1) setCoordId(opcoes[0].id); }, [opcoes, coordId]);
-  const mostrarSelecao = !!data?.isAdmin || opcoes.length > 1;
+  const mostrarSelecao = isAdmin || opcoes.length > 1;
   const coord = opcoes.find((c) => c.id === coordId);
 
   return (
