@@ -1133,7 +1133,7 @@ export function TarefaAgendaPanel({
                       <Input
                         type="date"
                         value={editForm.data_vencimento}
-                        onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value }))}
+                        onChange={(e) => setEditForm(f => ({ ...f, data_vencimento: e.target.value, data_fatal: f.data_fatal === f.data_vencimento ? e.target.value : f.data_fatal }))}
                         disabled={datasBloqueadas}
                         title={datasBloqueadas ? motivoBloqueio : undefined}
                         className="h-9"

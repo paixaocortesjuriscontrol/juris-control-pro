@@ -1,3 +1,4 @@
+import { fatalAcompanhando } from "@/lib/datasBase";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -951,6 +952,7 @@ export function TarefaPublicacaoView({
                           form.setValue("titulo", resultado.titulo);
                           form.setValue("descricao", resultado.descricao);
                           form.setValue("prioridade", resultado.prioridade);
+                          form.setValue("data_fatal", fatalAcompanhando(form.getValues("data_vencimento"), form.getValues("data_fatal"), resultado.data_vencimento));
                           form.setValue("data_vencimento", resultado.data_vencimento);
                         }}
                         size="sm"

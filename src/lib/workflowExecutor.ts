@@ -283,7 +283,7 @@ export async function criarItemWorkflow(
     ? formatarDataISOBrasilia(
         calcularDataOffset(dataReferencia, etapa.dias_fatal, etapa.tipo_prazo || "dias_corridos", coordFer)
       )
-    : null;
+    : dataBaseStr;
 
 
   const tipo = String(etapa.tipo_item || "TAREFA").toUpperCase() as WorkflowItemType;
