@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -230,19 +230,21 @@ export function ResponsaveisFixosTipoDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] sm:max-w-5xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-5xl flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="flex items-center gap-2">
             <UserCheck className="w-5 h-5" />
             Pessoas fixas por tipo de tarefa
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Defina, para cada tipo, quem entra automaticamente como <strong>responsável</strong> ou como{" "}
             <strong>envolvido</strong>
             {coordenacaoNome ? ` na ${coordenacaoNome}` : ""}.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
 
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
@@ -250,7 +252,7 @@ export function ResponsaveisFixosTipoDialog({
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-[240px_1fr] gap-4">
-            <ScrollArea className="h-[420px] border rounded-md">
+            <ScrollArea className="h-[70vh] border rounded-md">
               <div className="p-2 space-y-1">
                 {TIPOS_ITEM.map(({ key: tipo, label }) => {
                   const qtd = (mapa[tipo] || []).length + (mapaEnvolvidos[tipo] || []).length;
@@ -274,7 +276,7 @@ export function ResponsaveisFixosTipoDialog({
               </div>
             </ScrollArea>
 
-            <ScrollArea className="h-[420px] border rounded-md min-w-0">
+            <ScrollArea className="h-[70vh] border rounded-md min-w-0">
               <div className="p-3 pr-4 space-y-2">
                 <p className="text-sm font-medium mb-2">
                   {labelTipo(tipoSelecionado)}
@@ -323,7 +325,9 @@ export function ResponsaveisFixosTipoDialog({
           </div>
         )}
 
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
@@ -335,8 +339,8 @@ export function ResponsaveisFixosTipoDialog({
             )}
             Salvar
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

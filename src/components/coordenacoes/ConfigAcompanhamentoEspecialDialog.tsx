@@ -2,13 +2,13 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -83,26 +83,26 @@ export function ConfigAcompanhamentoEspecialDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Radar className="w-4 h-4" />
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-xl flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="flex items-center gap-2 text-base">
+            <Radar className="h-4 w-4" />
             Acompanhamento Especial{coordenacaoNome ? ` — ${coordenacaoNome}` : ""}
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Define quais movimentações encontradas pela Judit geram aviso (e-mail, WhatsApp e
             notificação). Movimentações fora da janela continuam sendo registradas e ficam
             visíveis na tela Monitoramento, marcadas como retroativas.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
 
         {isLoading ? (
-          <div className="flex items-center justify-center py-8">
+          <div className="flex flex-1 items-center justify-center">
             <Loader2 className="w-5 h-5 animate-spin" />
           </div>
         ) : (
-          <div className="space-y-5 py-2">
+          <div className="flex-1 space-y-5 overflow-y-auto px-6 py-4">
             <div className="space-y-2">
               <Label htmlFor="dias">Avisar movimentações dos últimos (dias)</Label>
               <Input
@@ -139,7 +139,7 @@ export function ConfigAcompanhamentoEspecialDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
@@ -151,8 +151,8 @@ export function ConfigAcompanhamentoEspecialDialog({
             )}
             Salvar
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

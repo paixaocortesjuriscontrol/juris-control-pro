@@ -1,6 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -50,12 +56,12 @@ export function FeriadosCoordenacaoDialog({ open, onOpenChange, coordenacaoId, c
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Feriados</DialogTitle>
-          <DialogDescription>{coordenacaoNome} — dias não úteis na contagem de prazos em dias úteis.</DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-lg overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Feriados</SheetTitle>
+          <SheetDescription>{coordenacaoNome} — dias não úteis na contagem de prazos em dias úteis.</SheetDescription>
+        </SheetHeader>
         <div className="flex items-center justify-between rounded-md border p-3">
           <span className="text-sm">Considerar feriados nacionais como dias não úteis</span>
           <Switch checked={usar} onCheckedChange={alternar} />
@@ -78,7 +84,7 @@ export function FeriadosCoordenacaoDialog({ open, onOpenChange, coordenacaoId, c
             </div>
           ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -98,12 +105,14 @@ export function AcessoMenusCoordenacaoDialog({ open, onOpenChange, coordenacaoId
   const membro = data?.membros.find((m) => m.usuario_id === membroSel);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>Acesso aos menus{coordenacaoNome ? ` — ${coordenacaoNome}` : ""}</DialogTitle>
-          <DialogDescription>Tudo começa liberado. Desligue o que cada cargo não deve ver; a regra do membro vale acima do cargo.</DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-4xl flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle>Acesso aos menus{coordenacaoNome ? ` — ${coordenacaoNome}` : ""}</SheetTitle>
+          <SheetDescription>Tudo começa liberado. Desligue o que cada cargo não deve ver; a regra do membro vale acima do cargo.</SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
         {isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : (
@@ -178,13 +187,15 @@ export function AcessoMenusCoordenacaoDialog({ open, onOpenChange, coordenacaoId
             </TabsContent>
           </Tabs>
         )}
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando || isLoading}>
             {salvando ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}Salvar
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

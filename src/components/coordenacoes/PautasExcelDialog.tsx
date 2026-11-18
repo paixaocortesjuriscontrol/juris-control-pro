@@ -1,12 +1,12 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -888,17 +888,19 @@ export function PautasExcelDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : handleClose())}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    <Sheet open={open} onOpenChange={(v) => (v ? onOpenChange(true) : handleClose())}>
+      <SheetContent side="right" className="w-full sm:max-w-4xl flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="flex items-center gap-2">
             <FileSpreadsheet className="h-5 w-5" />
             Importar Pautas Excel
-          </DialogTitle>
-          <DialogDescription>
+          </SheetTitle>
+          <SheetDescription>
             Coordenação: <strong>{coordenacaoNome}</strong>
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
 
         {etapa === "upload" && (
           <div className="space-y-4 py-4">
@@ -1292,7 +1294,9 @@ export function PautasExcelDialog({
           </div>
         )}
 
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           {etapa === "upload" && (
             <Button variant="ghost" onClick={handleClose}>Cancelar</Button>
           )}
@@ -1319,8 +1323,8 @@ export function PautasExcelDialog({
           {etapa === "concluido" && (
             <Button onClick={handleClose}>Fechar</Button>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

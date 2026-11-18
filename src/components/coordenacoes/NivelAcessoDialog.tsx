@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -137,15 +137,17 @@ export function NivelAcessoDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="font-serif">Nível de Acesso</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="font-serif">Nível de Acesso</SheetTitle>
+          <SheetDescription>
             Defina quais opções de menu {usuarioNome ? <strong>{usuarioNome}</strong> : "este usuário"} pode acessar.
             Por padrão, todas ficam marcadas.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
 
         <div className="flex items-center justify-between rounded-lg border p-3">
           <Label htmlFor="marcar-todos" className="cursor-pointer">
@@ -199,15 +201,17 @@ export function NivelAcessoDialog({
           </div>
         </ScrollArea>
 
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancelar
           </Button>
           <Button onClick={handleSalvar} disabled={loading || saving || !usuarioId}>
             {saving ? "Salvando..." : "Salvar"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

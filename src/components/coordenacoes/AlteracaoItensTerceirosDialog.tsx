@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -74,15 +81,17 @@ export function AlteracaoItensTerceirosDialog({ open, onOpenChange, coordenacaoI
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><UserCog className="h-5 w-5" />Alterar itens de outras pessoas</DialogTitle>
-          <DialogDescription>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-lg flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle className="flex items-center gap-2"><UserCog className="h-5 w-5" />Alterar itens de outras pessoas</SheetTitle>
+          <SheetDescription>
             {coordenacaoNome}: quem pode mudar a situação (baixar, cumprir etc.) de itens em que não é responsável nem correspondável.
             Responsáveis, coordenadores e administradores sempre podem.
-          </DialogDescription>
-        </DialogHeader>
+          </SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
         {isLoading ? <Loader2 className="h-5 w-5 animate-spin mx-auto" /> : (
           <div className="space-y-4">
             <div>
@@ -108,11 +117,13 @@ export function AlteracaoItensTerceirosDialog({ open, onOpenChange, coordenacaoI
             </div>
           </div>
         )}
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
           <Button onClick={salvar} disabled={salvando}>{salvando ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}Salvar</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

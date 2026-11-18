@@ -51,7 +51,13 @@ import { exportarCoordenacoesExcel } from "@/lib/exportCoordenacoesExcel";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { BeatrizCostaImportTab } from "@/components/importar/BeatrizCostaImportTab";
 import { COORDENACAO_BEATRIZ_COSTA_ID } from "@/constants/coordenacoesEspeciais";
 import {
@@ -739,14 +745,14 @@ const Coordenacoes = () => {
           />
 
           {selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID && (
-            <Dialog open={importDialog} onOpenChange={setImportDialog}>
-              <DialogContent className="max-w-5xl w-[95vw] max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Importar Processos — {selectedCoord.nome}</DialogTitle>
-                  <DialogDescription>
+            <Sheet open={importDialog} onOpenChange={setImportDialog}>
+              <SheetContent side="right" className="w-full sm:max-w-5xl overflow-y-auto">
+                <SheetHeader>
+                  <SheetTitle>Importar Processos — {selectedCoord.nome}</SheetTitle>
+                  <SheetDescription>
                     Mesma importação da aba "Dra. Beatriz Costa" em Administração, com a coordenação já travada nesta equipe.
-                  </DialogDescription>
-                </DialogHeader>
+                  </SheetDescription>
+                </SheetHeader>
                 <BeatrizCostaImportTab
                   coordenacoes={[selectedCoord]}
                   clientes={clientesImportacao}
@@ -761,8 +767,8 @@ const Coordenacoes = () => {
                     .filter((m: any) => m.id && m.nome)}
                   coordenacaoFixa={selectedCoord.id}
                 />
-              </DialogContent>
-            </Dialog>
+              </SheetContent>
+            </Sheet>
           )}
 
           <ResponsaveisFixosTipoDialog
@@ -858,7 +864,7 @@ const Coordenacoes = () => {
         membroEhCoordenador={String(nivelAcessoMembro?.cargo || "").toLowerCase().includes("coordenador")}
       />
 
-      {/* Confirm Remove Member Dialog */}
+      {/* Confirm Remove Member Sheet */}
       {selectedCoord && (
         <RemoverMembroDialog
           membro={removeMembroId ? (selectedCoord.membros || []).find((m: any) => m.id === removeMembroId) || null : null}
@@ -868,7 +874,7 @@ const Coordenacoes = () => {
         />
       )}
 
-      {/* Confirm Delete Coordination Dialog */}
+      {/* Confirm Delete Coordination Sheet */}
       <AlertDialog open={!!deleteCoordId} onOpenChange={() => setDeleteCoordId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -2,7 +2,14 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -81,12 +88,14 @@ export function RemoverMembroDialog({ membro, coordenacaoId, membros, onClose }:
   );
 
   return (
-    <Dialog open={!!membro} onOpenChange={(o) => !o && !salvando && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Remover {membro?.usuario?.nome || "membro"} da equipe?</DialogTitle>
-          <DialogDescription>Itens em aberto desta coordenação ligados a essa pessoa. Itens concluídos e outras coordenações não mudam.</DialogDescription>
-        </DialogHeader>
+    <Sheet open={!!membro} onOpenChange={(o) => !o && !salvando && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md flex flex-col gap-0 p-0 overflow-hidden">
+        <SheetHeader className="border-b px-6 py-4 text-left">
+          <SheetTitle>Remover {membro?.usuario?.nome || "membro"} da equipe?</SheetTitle>
+          <SheetDescription>Itens em aberto desta coordenação ligados a essa pessoa. Itens concluídos e outras coordenações não mudam.</SheetDescription>
+        </SheetHeader>
+
+        <div className="flex-1 overflow-y-auto px-6 py-4">
         {carregando ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Contando...</div>
         ) : contagem ? (
@@ -123,13 +132,15 @@ export function RemoverMembroDialog({ membro, coordenacaoId, membros, onClose }:
             )}
           </div>
         )}
-        <DialogFooter>
+                </div>
+
+        <SheetFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={onClose} disabled={salvando}>Cancelar</Button>
           <Button variant="destructive" onClick={confirmar} disabled={salvando || carregando}>
             {salvando && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Remover
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </SheetFooter>
+      </SheetContent>
+    </Sheet>
   );
 }

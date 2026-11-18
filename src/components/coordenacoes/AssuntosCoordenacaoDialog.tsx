@@ -2,7 +2,13 @@ import { useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -91,12 +97,12 @@ export function AssuntosCoordenacaoDialog({ open, onOpenChange, coordenacaoId, c
   const filtrados = assuntos.filter((a) => a.nome.toLowerCase().includes(busca.toLowerCase()));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Assuntos (objeto da ação)</DialogTitle>
-          <DialogDescription>{coordenacaoNome} — {assuntos.length} assunto(s)</DialogDescription>
-        </DialogHeader>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="right" className="w-full sm:max-w-2xl overflow-y-auto">
+        <SheetHeader>
+          <SheetTitle>Assuntos (objeto da ação)</SheetTitle>
+          <SheetDescription>{coordenacaoNome} — {assuntos.length} assunto(s)</SheetDescription>
+        </SheetHeader>
         <div className="flex gap-2">
           <Input
             placeholder="Novo assunto e Enter"
@@ -144,7 +150,7 @@ export function AssuntosCoordenacaoDialog({ open, onOpenChange, coordenacaoId, c
             ))
           )}
         </ScrollArea>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 }
