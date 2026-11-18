@@ -31,3 +31,4 @@
 - [x] Testes de datas/mesclagem e verificação da compilação
 - [x] Aviso de que o seletor Tarefa/Prazo/Ata altera o tipo da atividade
 - [x] Ficha completa em Agenda, Lista, Compacta, Kanban, Calendário e Atividades, sem alterar o Painel de Controle
+- [x] Aba Acompanhamento Especial somente em processos monitorados, com configuração, movimentações e divergências já registradas

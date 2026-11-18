@@ -1,3 +1,8 @@
+/** A aba de monitoramento só aparece quando o processo está efetivamente ativo nele. */
+export function processoTemAcompanhamentoEspecial(processo: any): boolean {
+  return processo?.acompanhamento_especial === true;
+}
+
 export type PublicacaoDetalheItem = {
   id: string;
   origem_publicacao: "processo" | "termo";

@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Briefcase, CalendarDays, FileText, Flag, GitBranch, ListChecks, MapPin, Newspaper, UserRound } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Briefcase, CalendarDays, FileText, Flag, GitBranch, ListChecks, MapPin, Newspaper, Sparkles, UserRound } from "lucide-react";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { corHeaderItem } from "@/lib/tipoItemAgenda";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
-import { formatarDataDetalhe } from "@/lib/detalheItemResponsabilidade";
+import { formatarDataDetalhe, processoTemAcompanhamentoEspecial } from "@/lib/detalheItemResponsabilidade";
 import { PublicacoesItemResponsabilidade } from "./PublicacoesItemResponsabilidade";
 import { WorkflowItemResponsabilidade } from "./WorkflowItemResponsabilidade";
 import { DocumentosProcessoResponsabilidade } from "./DocumentosProcessoResponsabilidade";
 import { AtividadeDetalhesResponsabilidade } from "./AtividadeDetalhesResponsabilidade";
+import { AcompanhamentoEspecialItemResponsabilidade } from "./AcompanhamentoEspecialItemResponsabilidade";
 
 function ResumoCampo({ icon: Icon, rotulo, valor }: { icon?: typeof CalendarDays; rotulo: string; valor: string }) {
   return (
@@ -29,7 +32,7 @@ interface Props {
   onUpdate: () => void;
 }
 
-/** Ficha ampla usada somente pelo calendário de Minhas Responsabilidades. */
+/** Ficha ampla usada somente pelos modos de Minhas Responsabilidades. */
 export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Props) {
   const [aba, setAba] = useState("atividade");
   useEffect(() => setAba("atividade"), [item?.id]);
@@ -42,6 +45,21 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
     passivo: item.processo?.polo_passivo ?? item.partes_passivas ?? "",
   } : null;
   const tipo = String(item?.tipo_tarefa || item?.tipo || "Atividade").replace(/_/g, " ");
+  const { data: processoAcompanhamento } = useQuery({
+    queryKey: ["minhas-responsabilidades", "acompanhamento-especial-processo", processoId],
+    enabled: !!processoId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("processos")
+        .select("id, acompanhamento_especial, acompanhamento_ativado_em, acompanhamento_freq_diaria, acompanhamento_com_anexos")
+        .eq("id", processoId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+  const acompanhamentoAtivo = processoTemAcompanhamentoEspecial(processoAcompanhamento ?? item?.processo);
 
   return (
     <ItemDrawer
@@ -67,9 +85,12 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
 
           <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-shrink-0 border-b px-4 py-3">
-              <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-5">
+              <TabsList className={cn("grid h-auto w-full grid-cols-2 gap-1", acompanhamentoAtivo ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5")}>
                 <TabsTrigger value="atividade" className="gap-2 py-2"><ListChecks className="h-4 w-4" /> Atividade</TabsTrigger>
                 <TabsTrigger value="processo" className="gap-2 py-2"><Briefcase className="h-4 w-4" /> Processo</TabsTrigger>
+                {acompanhamentoAtivo && (
+                  <TabsTrigger value="acompanhamento" className="gap-2 py-2" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
+                )}
                 <TabsTrigger value="publicacoes" className="gap-2 py-2"><Newspaper className="h-4 w-4" /> Publicações</TabsTrigger>
                 <TabsTrigger value="workflow" className="gap-2 py-2"><GitBranch className="h-4 w-4" /> Workflow</TabsTrigger>
                 <TabsTrigger value="documentos" className="gap-2 py-2"><FileText className="h-4 w-4" /> Documentos</TabsTrigger>
@@ -103,6 +124,15 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
                 </div>
               )}
             </TabsContent>
+
+            {acompanhamentoAtivo && (
+              <TabsContent value="acompanhamento" className="m-0 min-h-0 flex-1 overflow-y-auto">
+                <AcompanhamentoEspecialItemResponsabilidade
+                  processo={processoAcompanhamento ?? { ...item.processo, id: processoId }}
+                  active={aba === "acompanhamento"}
+                />
+              </TabsContent>
+            )}
 
             <TabsContent value="publicacoes" className="m-0 min-h-0 flex-1 overflow-y-auto">
               <PublicacoesItemResponsabilidade itemId={itemId} processoId={processoId} active={aba === "publicacoes"} />

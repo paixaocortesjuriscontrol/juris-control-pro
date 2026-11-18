@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatarDataDetalhe, mesclarPublicacoesItem } from "../src/lib/detalheItemResponsabilidade";
+import { formatarDataDetalhe, mesclarPublicacoesItem, processoTemAcompanhamentoEspecial } from "../src/lib/detalheItemResponsabilidade";
 
 describe("detalhe ampliado de Minhas Responsabilidades", () => {
   test("mantém datas civis sem mudança de fuso", () => {
@@ -20,5 +20,11 @@ describe("detalhe ampliado de Minhas Responsabilidades", () => {
     expect(resultado.map((pub) => pub.id)).toEqual(["p1", "t1", "p2"]);
     expect(resultado.filter((pub) => pub.vinculada_item)).toHaveLength(2);
     expect(new Set(resultado.map((pub) => `${pub.origem_publicacao}:${pub.id}`)).size).toBe(3);
+  });
+
+  test("acompanhamento especial aparece somente quando está ativo no processo", () => {
+    expect(processoTemAcompanhamentoEspecial({ acompanhamento_especial: true })).toBe(true);
+    expect(processoTemAcompanhamentoEspecial({ acompanhamento_especial: false })).toBe(false);
+    expect(processoTemAcompanhamentoEspecial(null)).toBe(false);
   });
 });
