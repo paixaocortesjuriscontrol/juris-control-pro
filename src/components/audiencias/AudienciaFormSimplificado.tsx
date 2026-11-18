@@ -1,3 +1,4 @@
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
@@ -528,12 +529,7 @@ export function AudienciaFormSimplificado({
         );
       }
 
-      await supabase.from("audiencia_envolvidos").delete().eq("audiencia_id", audienciaParaEditar.id);
-      if (envolvidos_ids && envolvidos_ids.length > 0) {
-        await supabase.from("audiencia_envolvidos").insert(
-          envolvidos_ids.map((usuarioId) => ({ audiencia_id: audienciaParaEditar.id, usuario_id: usuarioId }))
-        );
-      }
+      await sincronizarParticipantesTarefa(audienciaParaEditar.id, "audiencia_envolvidos", envolvidos_ids || []);
 
       await anexosRef.current?.uploadPendentes(audienciaParaEditar.id, dadosAudiencia.processo_id || null);
       if (situacaoMudou && comentarioSituacao.trim() && user?.id) {

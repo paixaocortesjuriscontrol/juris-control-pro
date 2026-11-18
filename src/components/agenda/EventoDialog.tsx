@@ -1,3 +1,4 @@
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -366,18 +367,8 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   const persistirRelacionamentos = async (eventoId: string) => {
     const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
     const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
-    await supabase.from("evento_responsaveis").delete().eq("evento_id", eventoId);
-    if (responsaveisFinal.length > 0) {
-      await supabase.from("evento_responsaveis").insert(
-        responsaveisFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
-      );
-    }
-    await supabase.from("evento_envolvidos").delete().eq("evento_id", eventoId);
-    if (envolvidosFinal.length > 0) {
-      await supabase.from("evento_envolvidos").insert(
-        envolvidosFinal.map((uid) => ({ evento_id: eventoId, usuario_id: uid }))
-      );
-    }
+    await sincronizarParticipantesTarefa(eventoId, "evento_responsaveis", responsaveisFinal);
+    await sincronizarParticipantesTarefa(eventoId, "evento_envolvidos", envolvidosFinal);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
