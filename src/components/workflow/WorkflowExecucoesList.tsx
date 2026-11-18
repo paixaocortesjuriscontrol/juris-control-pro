@@ -25,7 +25,13 @@ import {
   WorkflowExecucaoEtapa,
   WORKFLOW_ITEM_LABELS,
 } from "@/lib/workflowExecutor";
-import { Eye, CheckCircle, ChevronRight, XCircle, Users, CalendarClock, Flag } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
+import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
+import { resolverFiltroCoordenacaoWorkflow } from "@/lib/filtroCoordenacaoWorkflow";
+import { exportarWorkflowsExcel } from "@/lib/exportWorkflowsExcel";
+import { toast } from "sonner";
+import { FileSpreadsheet, Eye, CheckCircle, ChevronRight, XCircle, Users, CalendarClock, Flag } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
 const STATUS_LABELS: Record<string, string> = {
@@ -71,6 +77,16 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const [dataInicio, setDataInicio] = useState<string>("");
   const [dataFim, setDataFim] = useState<string>("");
   const [busca, setBusca] = useState<string>("");
+  const [gerando, setGerando] = useState(false);
+  const { user } = useAuth();
+  const { coordenacoes = [] } = useCoordenacoesDoUsuario();
+  const { data: coordenacaoPadraoId } = useCoordenacaoPadrao();
+  const [escolhaCoord, setEscolhaCoord] = useState<{ userId?: string; valor: string } | null>(null);
+  const filtroCoord = resolverFiltroCoordenacaoWorkflow(
+    escolhaCoord?.userId === user?.id ? escolhaCoord?.valor : undefined,
+    coordenacoes,
+    coordenacaoPadraoId,
+  );
 
   useSincronizarWorkflows();
   const { data: workflows = [] } = useWorkflows();
@@ -81,11 +97,23 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
     dataFim: dataFim || undefined,
   });
   const termo = busca.trim().toLowerCase();
-  const execucoes = termo
-    ? execucoesRaw.filter((e) =>
-        (e.workflow?.nome || "").toLowerCase().includes(termo)
-      )
-    : execucoesRaw;
+  const execucoes = execucoesRaw.filter(
+    (e) =>
+      (filtroCoord === "todas" ||
+        (e.workflow?.coordenacao_id || e.coordenacao_id) === filtroCoord) &&
+      (!termo || (e.workflow?.nome || "").toLowerCase().includes(termo))
+  );
+  const gerarExcel = async () => {
+    setGerando(true);
+    try {
+      const nomes = Object.fromEntries(coordenacoes.map((c: any) => [c.id, c.nome]));
+      await exportarWorkflowsExcel(execucoes, nomes, { inicio: dataInicio, fim: dataFim });
+    } catch (e: any) {
+      toast.error("Erro ao gerar Excel: " + (e?.message || e));
+    } finally {
+      setGerando(false);
+    }
+  };
   const [selected, setSelected] = useState<string | null>(null);
   const { data: etapas = [] } = useWorkflowExecucaoEtapas(selected || undefined);
   const avancar = useAvancarWorkflowEtapa();
@@ -125,9 +153,26 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-semibold">Execuções</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">Execuções</h2>
+        <Button size="sm" variant="outline" onClick={gerarExcel} disabled={gerando || execucoes.length === 0}>
+          <FileSpreadsheet className="h-4 w-4 mr-1" />
+          {gerando ? "Gerando..." : `Gerar Excel (${execucoes.length})`}
+        </Button>
+      </div>
 
-      <div className="grid gap-2 md:grid-cols-5">
+      <div className="grid gap-2 md:grid-cols-6">
+        <Select value={filtroCoord} onValueChange={(v) => setEscolhaCoord({ userId: user?.id, valor: v })}>
+          <SelectTrigger className="h-9">
+            <SelectValue placeholder="Coordenação" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas as coordenações</SelectItem>
+            {coordenacoes.map((c: any) => (
+              <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Input
           placeholder="Buscar fluxo..."
           value={busca}
