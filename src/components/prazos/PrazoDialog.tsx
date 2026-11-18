@@ -271,8 +271,12 @@ export function PrazoDialog({
   // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
   const { data: coordPadraoNovo } = useCoordenacaoPadrao();
   useEffect(() => {
-    if (open !== false && !!!prazo && !coordenacaoId && coordPadraoNovo) setCoordenacaoId(coordPadraoNovo);
-  }, [open, !!prazo, coordenacaoId, coordPadraoNovo]);
+    if (open === false || !!prazo || coordenacaoId) return;
+    // Prazo gerado de publicação: usa a coordenação da publicação.
+    const coordPub = (publicacao as any)?.coordenacao_id as string | undefined;
+    const escolhida = coordPub || unicaCoordenacaoId || coordPadraoNovo;
+    if (escolhida) setCoordenacaoId(escolhida);
+  }, [open, !!prazo, coordenacaoId, coordPadraoNovo, unicaCoordenacaoId, (publicacao as any)?.coordenacao_id]);
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((prazo as any)?.coordenacao_id as string) || coordenacaoId || null, "PRAZO");
   const travarDatas = datasBloqueadas && !!prazo;
   const [situacao, setSituacao] = useState<string>("pendente");
@@ -421,7 +425,8 @@ export function PrazoDialog({
     setMostrarEnvolvidos(false);
     setObservacoes("");
     setDataFatal(undefined);
-    setCoordenacaoId(unicaCoordenacaoId || "");
+    // Mantém a coordenação já escolhida ao cadastrar outro prazo.
+    setCoordenacaoId((prev) => prev || (publicacao as any)?.coordenacao_id || unicaCoordenacaoId || coordPadraoNovo || "");
     setSituacao("pendente");
     setSituacaoInicial("pendente");
     setComentarioSituacao("");
