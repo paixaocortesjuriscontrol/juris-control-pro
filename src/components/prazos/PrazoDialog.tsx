@@ -1,3 +1,4 @@
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
@@ -707,18 +708,8 @@ export function PrazoDialog({
 
         const responsaveisFinal = Array.from(new Set([...coordenadoresIds, ...responsaveisIds]));
         const envolvidosFinal = Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds]));
-        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaId);
-        if (responsaveisFinal.length > 0) {
-          await supabase.from("tarefa_responsaveis").insert(
-            responsaveisFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
-          );
-        }
-        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaId);
-        if (envolvidosFinal.length > 0) {
-          await supabase.from("tarefa_envolvidos").insert(
-            envolvidosFinal.map((uid) => ({ tarefa_id: tarefaId!, usuario_id: uid }))
-          );
-        }
+        await sincronizarParticipantesTarefa(tarefaId, "tarefa_responsaveis", responsaveisFinal);
+        await sincronizarParticipantesTarefa(tarefaId, "tarefa_envolvidos", envolvidosFinal);
 
         if (defaultTarefaRelacionadaId && user?.id && !prazo) {
           await supabase.from("tarefas_relacionadas").insert({

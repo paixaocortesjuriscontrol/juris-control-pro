@@ -1,3 +1,4 @@
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
@@ -895,18 +896,8 @@ export function TarefaAgendaPanel({
           .eq("id", tarefa.id);
         if (error) throw error;
         // Sincronizar responsáveis e envolvidos
-        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefa.id);
-        if (editResponsaveisIds.length > 0) {
-          await supabase.from("tarefa_responsaveis").insert(
-            editResponsaveisIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
-          );
-        }
-        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefa.id);
-        if (editEnvolvidosIds.length > 0) {
-          await supabase.from("tarefa_envolvidos").insert(
-            editEnvolvidosIds.map((uid) => ({ tarefa_id: tarefa.id, usuario_id: uid })),
-          );
-        }
+        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_responsaveis", editResponsaveisIds);
+        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_envolvidos", editEnvolvidosIds);
       } else {
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),

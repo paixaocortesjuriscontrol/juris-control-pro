@@ -1,3 +1,4 @@
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { coordenacaoDoUsuarioNoProcesso } from "@/lib/coordenacaoDoUsuarioNoProcesso";
 import { WorkflowEtapasDoItem } from "@/components/workflows/WorkflowEtapasDoItem";
@@ -829,19 +830,8 @@ export function NovaTarefaDialog({
             if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
           }
         }
-        await supabase.from("tarefa_responsaveis").delete().eq("tarefa_id", tarefaParaEditar.id);
-        if (responsaveisParaSalvar.length > 0) {
-          await supabase.from("tarefa_responsaveis").insert(
-            responsaveisParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
-          );
-        }
-        // Sincronizar envolvidos
-        await supabase.from("tarefa_envolvidos").delete().eq("tarefa_id", tarefaParaEditar.id);
-        if (envolvidosParaSalvar.length > 0) {
-          await supabase.from("tarefa_envolvidos").insert(
-            envolvidosParaSalvar.map((uid) => ({ tarefa_id: tarefaParaEditar.id, usuario_id: uid }))
-          );
-        }
+        await sincronizarParticipantesTarefa(tarefaParaEditar.id, "tarefa_responsaveis", responsaveisParaSalvar);
+        await sincronizarParticipantesTarefa(tarefaParaEditar.id, "tarefa_envolvidos", envolvidosParaSalvar);
         // Upload de novos anexos adicionados durante a edição
         await uploadNovosAnexos(tarefaParaEditar.id, processoId);
         toast({
