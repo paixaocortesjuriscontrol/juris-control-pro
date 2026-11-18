@@ -82,8 +82,9 @@ export function WorkflowExecucoesList({ onView }: WorkflowExecucoesListProps) {
   const { coordenacoes = [] } = useCoordenacoesDoUsuario();
   const { data: coordenacaoPadraoId } = useCoordenacaoPadrao();
   const [escolhaCoord, setEscolhaCoord] = useState<{ userId?: string; valor: string } | null>(null);
+  // Sem escolha explícita: todas as coordenações (Excel completo).
   const filtroCoord = resolverFiltroCoordenacaoWorkflow(
-    escolhaCoord?.userId === user?.id ? escolhaCoord?.valor : undefined,
+    escolhaCoord?.userId === user?.id ? escolhaCoord?.valor : "todas",
     coordenacoes,
     coordenacaoPadraoId,
   );

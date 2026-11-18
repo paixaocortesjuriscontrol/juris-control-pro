@@ -104,16 +104,23 @@ export function useWorkflowExecucoes(
       let query = supabase
         .from("workflow_execucoes")
         .select("*, workflow:workflows(id, nome, coordenacao:coordenacoes(id, nome))")
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true });
       if (filtros.workflowId) {
         query = query.eq("workflow_id", filtros.workflowId);
       }
       if (filtros.status) query = query.eq("status", filtros.status);
       if (filtros.dataInicio) query = query.gte("data_inicio", filtros.dataInicio);
       if (filtros.dataFim) query = query.lte("data_inicio", filtros.dataFim);
-      const { data, error } = await query;
-      if (error) throw error;
-      return ((data as unknown as WorkflowExecucao[]) || []);
+      // Pagina para não parar no limite de 1000 linhas do servidor.
+      const todas: WorkflowExecucao[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data, error } = await query.range(de, de + 999);
+        if (error) throw error;
+        todas.push(...((data as unknown as WorkflowExecucao[]) || []));
+        if (!data || data.length < 1000) break;
+      }
+      return todas;
     },
   });
 }
