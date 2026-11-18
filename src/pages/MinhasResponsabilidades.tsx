@@ -94,6 +94,7 @@ import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
 import { ItemCalendarioResponsabilidade } from "@/components/minhas-responsabilidades/ItemCalendarioResponsabilidade";
+import { ListaDiaResponsabilidade } from "@/components/minhas-responsabilidades/ListaDiaResponsabilidade";
 import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
 import { useProcessosAcompanhamento } from "@/hooks/useProcessosAcompanhamento";
 import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
@@ -243,6 +244,7 @@ export default function MinhasResponsabilidades() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [itemSel, setItemSel] = useState<any | null>(null);
+  const [diaSel, setDiaSel] = useState<Date | null>(null);
   const [procSel, setProcSel] = useState<any | null>(null);
   const [etapaSel, setEtapaSel] = useState<any | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>("mes");
@@ -637,7 +639,7 @@ export default function MinhasResponsabilidades() {
                     const chave = format(dia, "yyyy-MM-dd");
                     const doDia = filtrados.filter((i: any) => String(i.data_fatal ?? i.data_vencimento ?? i.data_inicio ?? "").slice(0, 10) === chave);
                     return (
-                      <div key={chave} className={cn("bg-background min-h-[90px] p-1", !isSameMonth(dia, mesCal) && "opacity-40")}>
+                      <div key={chave} role="button" title="Ver todas as atividades do dia" onClick={() => setDiaSel(dia)} className={cn("bg-background min-h-[90px] p-1 cursor-pointer hover:bg-muted/40", !isSameMonth(dia, mesCal) && "opacity-40")}>
                         <div className={cn("text-[11px] mb-0.5", isToday(dia) && "font-bold text-primary")}>{format(dia, "d")}</div>
                         <div className="space-y-0.5">
                           {doDia.slice(0, 5).map((raw: any) => {
@@ -648,7 +650,7 @@ export default function MinhasResponsabilidades() {
                             const cob = infoCobrancaItem(mapaCobrancas as any, item);
                             const corKey = String(item.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item.tipo;
                             return (
-                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemSel(item)}
+                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={(e) => { e.stopPropagation(); setItemSel(item); }}
                                 className={cn("w-full text-[10px] leading-tight px-1 py-0.5 rounded truncate font-medium flex items-center gap-0.5 text-left",
                                   cancelado ? "bg-muted border border-foreground/60 text-foreground"
                                     : sucesso ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
@@ -664,7 +666,7 @@ export default function MinhasResponsabilidades() {
                               </button>
                             );
                           })}
-                          {doDia.length > 5 && <div className="text-[10px] text-muted-foreground">+{doDia.length - 5} mais</div>}
+                          {doDia.length > 5 && <button type="button" onClick={(e) => { e.stopPropagation(); setDiaSel(dia); }} className="text-[10px] text-primary hover:underline">+{doDia.length - 5} mais</button>}
                         </div>
                       </div>
                     );
@@ -721,6 +723,33 @@ export default function MinhasResponsabilidades() {
           </TabsContent>
         </Tabs>
       </div>
+
+      <ListaDiaResponsabilidade
+        dia={diaSel}
+        itens={diaSel ? filtrados.filter((i: any) => String(i.data_fatal ?? i.data_vencimento ?? i.data_inicio ?? "").slice(0, 10) === format(diaSel, "yyyy-MM-dd")).map(paraItemAgenda) : []}
+        onClose={() => setDiaSel(null)}
+        onAbrirItem={(item) => setItemSel(item)}
+        classeCor={(item: any) => {
+          const cancelado = ["cancelado", "cancelado_oculto"].includes(String(item.status ?? ""));
+          if (cancelado) return "bg-muted border-foreground/60";
+          if (isItemConcluidoComSucesso(item)) return "bg-emerald-700/10 border-emerald-700";
+          const corKey = String(item.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item.tipo;
+          return CAL_CORES[corKey] || "bg-muted border-border";
+        }}
+        renderMarcas={(item: any) => {
+          const rid = getItemRawId(item.id);
+          const cob = infoCobrancaItem(mapaCobrancas as any, item);
+          return (<>
+            {isItemTratado(item) && <TratadoCheck tratado size={12} className="text-green-600 dark:text-green-400" />}
+            {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-4 h-4" />}
+            {itensDeWorkflow.has(rid) && <WorkflowBadge className="w-4 h-4 text-[9px]" />}
+            {!!itensDePub?.has(rid) && <PublicacaoBadge className="w-4 h-4 text-[9px]" />}
+            {temComentarioItem(mapaComentarios as any, item) && <ComentarioBadge className="w-4 h-4 text-[9px]" autoria={autoriaComentarioItem(mapaComentarios as any, item)} />}
+            {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-4 h-4 text-[9px]" />}
+            {cob && <CobrancaBadge simbolo={cob.simbolo} hoje={cob.hoje} title={tituloCobranca(cob)} className="w-4 h-4 text-[9px]" />}
+          </>);
+        }}
+      />
 
       <ItemCalendarioResponsabilidade
         item={itemSel}
