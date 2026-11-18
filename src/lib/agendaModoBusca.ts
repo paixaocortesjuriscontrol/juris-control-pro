@@ -2,7 +2,7 @@
  * Decide como o calendário deve buscar cada tipo de item.
  *
  * - "pessoal": a busca do banco `get_agenda_pessoal` traz só o que diz respeito a
- *   UMA pessoa (responsável, co-responsável, envolvida, criadora, participante).
+ *   UMA pessoa (responsável, co-responsável, envolvida ou participante).
  *   O navegador manda apenas o identificável da pessoa — nunca listas de itens.
  * - "escritorio": a busca `get_agenda_escritorio` traz tudo do período nas
  *   coordenações da pessoa, sem olhar responsável nem envolvido.

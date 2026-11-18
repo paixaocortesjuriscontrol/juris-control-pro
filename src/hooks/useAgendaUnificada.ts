@@ -107,7 +107,7 @@ export interface AgendaUnificadaFilters {
   clienteId?: string;
   origens?: ("evento" | "tarefa")[]; // Filtrar por origem
   fetchAll?: boolean; // Se true, busca todas as tarefas sem filtrar por usuário (para admins)
-  pessoal?: boolean; // Se true, inclui tarefas criadas pelo usuário mesmo que delegadas a outros
+  pessoal?: boolean; // Se true, restringe aos vínculos de responsável, envolvido ou participante
   statusNotIn?: string[]; // Situações excluídas no banco
   statusIn?: string[]; // Situações exatas (filtro aplicado no banco)
   strictCoordenacaoIsolation?: boolean; // Se true, exclui itens sem processo da visão por coordenação
@@ -550,7 +550,11 @@ export async function fetchAgendaPage(
                 processo_id: evento.processo_id,
                 coordenacao_id: (evento as any).coordenacao_id ?? null,
                 processo: evento.processo,
-                participantes: participantes?.filter((p) => p.evento_id === evento.id) || [],
+                responsaveis_ids: Array.isArray((evento as any).responsaveis) ? (evento as any).responsaveis : [],
+                participantes: [
+                  ...(participantes?.filter((p) => p.evento_id === evento.id) || []),
+                  ...((evento as any).envolvidos ?? []).map((usuario_id: string) => ({ evento_id: evento.id, usuario_id })),
+                ],
                 enviar_whatsapp: evento.enviar_whatsapp,
                 total_parcelas: evento.total_parcelas,
                 grupo_parcelas: (evento as any).grupo_parcelas ?? null,

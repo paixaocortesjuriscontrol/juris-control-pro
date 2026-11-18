@@ -1056,8 +1056,7 @@ export default function PainelControle() {
         if (!userId) return false;
         const isResp =
           item.responsavel_id === userId ||
-          (item as any).responsaveis_ids?.includes(userId) ||
-          ((item as any).tipo === "evento" && item.criado_por === userId);
+          (item as any).responsaveis_ids?.includes(userId);
         const isEnvolvido = item.participantes?.some((p) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -1076,7 +1075,6 @@ export default function PainelControle() {
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
           envolvido ||
-          ((item as any).tipo === "evento" && item.criado_por && painelFiltros.responsavelIds.includes(item.criado_por)) ||
           !!vinculosPessoas?.has(getItemRawId(String(item.id))) ||
           (!!item.recorrencia_pai_id && !!vinculosPessoas?.has(String(item.recorrencia_pai_id)));
         if (!isMatch) return false;
@@ -2148,8 +2146,7 @@ export default function PainelControle() {
         if (!userId) return false;
         const isResp =
           item.responsavel_id === userId ||
-          (item as any).responsaveis_ids?.includes(userId) ||
-          ((item as any).tipo === "evento" && item.criado_por === userId);
+          (item as any).responsaveis_ids?.includes(userId);
         const isEnvolvido = item.participantes?.some((p: any) => p.usuario_id === userId);
         if (painelFiltros.souResponsavel && painelFiltros.estouEnvolvido) {
           if (!isResp && !isEnvolvido) return false;
@@ -2166,7 +2163,6 @@ export default function PainelControle() {
           (rid && painelFiltros.responsavelIds.includes(rid)) ||
           (item as any).responsaveis_ids?.some((id: string) => painelFiltros.responsavelIds.includes(id)) ||
           envolvido ||
-          ((item as any).tipo === "evento" && item.criado_por && painelFiltros.responsavelIds.includes(item.criado_por)) ||
           !!vinculosPessoas?.has(getItemRawId(String(item.id))) ||
           (!!item.recorrencia_pai_id && !!vinculosPessoas?.has(String(item.recorrencia_pai_id)));
         if (!isMatch) return false;

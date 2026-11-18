@@ -272,7 +272,7 @@ export default function MinhasResponsabilidades() {
           for (const l of r.linhas) {
             let papel = papelDoUsuario(l, uid);
             if (!papel && (fonte === "audiencias" || fonte === "eventos")) {
-              papel = advogadoDe.has(l.id) || (fonte === "eventos" && l.criado_por === uid) ? "responsavel" : envolvidoDe.has(l.id) ? "envolvido" : null;
+              papel = advogadoDe.has(l.id) ? "responsavel" : envolvidoDe.has(l.id) ? "envolvido" : null;
             }
             if (!papel) continue;
             const extra = fonte === "audiencias"

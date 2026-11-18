@@ -27,6 +27,8 @@ interface ItemComPessoas {
   responsavel_id?: string | null;
   responsaveis?: unknown;
   envolvidos?: unknown;
+  participantes?: unknown;
+  criado_por?: string | null;
 }
 
 const ids = (v: unknown): string[] =>
@@ -34,6 +36,6 @@ const ids = (v: unknown): string[] =>
 
 export function papelDoUsuario(item: ItemComPessoas, usuarioId: string): PapelItem {
   if (item.responsavel_id === usuarioId || ids(item.responsaveis).includes(usuarioId)) return "responsavel";
-  if (ids(item.envolvidos).includes(usuarioId)) return "envolvido";
+  if (ids(item.envolvidos).includes(usuarioId) || ids(item.participantes).includes(usuarioId)) return "envolvido";
   return null;
 }
