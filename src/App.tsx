@@ -19,6 +19,7 @@ import BuscarProcessos from "./pages/BuscarProcessos";
 import Coordenacoes from "./pages/Coordenacoes";
 import ReatribuirProcessos from "./pages/ReatribuirProcessos";
 import ModelosTitulo from "./pages/ModelosTitulo";
+import EnvioLoteProcessos from "./pages/EnvioLoteProcessos";
 import Relatorios from "./pages/Relatorios";
 import Administracao from "./pages/Administracao";
 import PoolProxyDjen from "./pages/PoolProxyDjen";
@@ -184,6 +185,7 @@ function App() {
               <Route path="/buscar" element={<ProtectedRoute><BuscarProcessos /></ProtectedRoute>} />
               <Route path="/coordenacoes" element={<ProtectedRoute><Coordenacoes /></ProtectedRoute>} />
               <Route path="/reatribuir-processos" element={<AdminOrCoordRoute><ReatribuirProcessos /></AdminOrCoordRoute>} />
+              <Route path="/envio-lote-processos" element={<ProtectedRoute><EnvioLoteProcessos /></ProtectedRoute>} />
               <Route path="/modelos-tarefa" element={<ProtectedRoute><ModelosTitulo /></ProtectedRoute>} />
               <Route path="/modelos-titulo" element={<Navigate to="/modelos-tarefa" replace />} />
               <Route path="/painel-equipe" element={<ProtectedRoute><PainelEquipe /></ProtectedRoute>} />

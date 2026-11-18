@@ -26,6 +26,7 @@ import {
   Radar,
   Workflow,
   Gavel,
+  Upload,
 } from "lucide-react";
 
 export type MenuItem = {
@@ -74,6 +75,7 @@ export const menuItemsPublicos: MenuItem[] = [
   { icon: Sparkles, label: "Prompt IA TST", path: "/prompts-ia-tst", color: "text-purple-400", adminOnly: true },
   { icon: Sparkles, label: "Prompt IA (Publicações)", path: "/prompt-ia-publicacoes", color: "text-purple-400", adminOrCoordOnly: true },
   { icon: Library, label: "Repositório IA", path: "/repositorio", color: "text-sky-400", adminOrCoordOnly: true },
+  { icon: Upload, label: "Envio em lote de processos", path: "/envio-lote-processos" },
   { icon: UserCircle, label: "Clientes", path: "/clientes" },
   { icon: FileText, label: "Documentos", path: "/documentos" },
   { icon: BookOpen, label: "Manual Sistema", path: "/manual-sistema", color: "text-sky-400" },

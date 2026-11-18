@@ -1,8 +1,6 @@
 import { BookOpen, CalendarDays } from "lucide-react";
 import { VisaoEscritorioCard } from "@/components/coordenacoes/VisaoEscritorioCard";
 import { RemoverMembroDialog } from "@/components/coordenacoes/RemoverMembroDialog";
-import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
-import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 import { useState, useEffect } from "react";
 import { Plus, Users, Briefcase, MoreVertical, Mail, Phone, Share2, Trash2, ClipboardList, RefreshCw, ListChecks, Pencil, Check, X, Repeat, Globe, FileSpreadsheet, FileType, ShieldCheck, ArrowUpRight, ArrowLeft, Upload } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -103,7 +101,6 @@ const Coordenacoes = () => {
   const [permReagendamentoDialog, setPermReagendamentoDialog] = useState(false);
   const [assuntosDialog, setAssuntosDialog] = useState(false);
   const [feriadosDialog, setFeriadosDialog] = useState(false);
-  const [loteDialog, setLoteDialog] = useState(false);
   const [altTerceirosDialog, setAltTerceirosDialog] = useState(false);
   const [acessoMenusDialog, setAcessoMenusDialog] = useState(false);
   const [permAgendDialog, setPermAgendDialog] = useState(false);
@@ -441,7 +438,6 @@ const Coordenacoes = () => {
                     { label: "Atribuir", icon: Briefcase, desc: "Atribui processos a um membro da equipe.", onClick: () => setAtribuirDialog(true), precisaMembros: true },
                     { label: "Reatribuir", icon: RefreshCw, desc: "Move processos de um membro para outro.", onClick: () => setReatribuirDialog(true), precisaMembros: true },
                     { label: "Importar Processos", icon: Upload, desc: "Importa processos para esta coordenação.", onClick: () => setImportDialog(true), show: selectedCoord.id === COORDENACAO_BEATRIZ_COSTA_ID },
-                    { label: "Envio em lote de processos", icon: Upload, desc: "Cadastra vários processos a partir da planilha modelo.", onClick: () => setLoteDialog(true), show: coordenacaoPermiteLote(selectedCoord.nome) },
                   ],
                 },
                 {
@@ -803,13 +799,6 @@ const Coordenacoes = () => {
           <AlteracaoItensTerceirosDialog
             open={altTerceirosDialog}
             onOpenChange={setAltTerceirosDialog}
-            coordenacaoId={selectedCoord.id}
-            coordenacaoNome={selectedCoord.nome}
-          />
-
-          <EnvioLoteProcessosSheet
-            open={loteDialog}
-            onOpenChange={setLoteDialog}
             coordenacaoId={selectedCoord.id}
             coordenacaoNome={selectedCoord.nome}
           />
