@@ -101,6 +101,8 @@ interface EventoDialogProps {
    * Chamado após criar (não editar) o evento com sucesso.
    */
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
+  /** Oculta o vínculo no formulário quando ele é gerenciado na aba Processo. */
+  processoNaAba?: boolean;
 }
 
 type AlertaUnidade = "minutos" | "horas" | "dias" | "semanas";
@@ -126,7 +128,7 @@ function minutosParaUnidade(min: number): { valor: number; unidade: AlertaUnidad
   return { valor: min, unidade: "minutos" };
 }
 
-export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, dataPadrao, embedded = false, hidePublicacaoCollapsible = false, ocultarSituacao = false, secondarySave, tertiarySave, onAfterCreate }: EventoDialogProps) {
+export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, publicacao, inline = false, dataPadrao, embedded = false, hidePublicacaoCollapsible = false, ocultarSituacao = false, secondarySave, tertiarySave, onAfterCreate, processoNaAba = false }: EventoDialogProps) {
   const createEvento = useCreateEvento();
   const updateEvento = useUpdateEvento();
   const queryClient = useQueryClient();
@@ -927,8 +929,18 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
               />
             )}
 
-            {/* Processo (opcional) — oculto quando vindo de uma publicação */}
-            <div className={cn("border rounded-lg p-3 space-y-2", hasPublicacao && "hidden")}>
+            {processoNaAba && precisaSelecionar && !hasPublicacao && (
+              <CoordenacaoSelect
+                delegacao
+                autoSelect={!evento}
+                value={coordenacaoId}
+                onChange={setCoordenacaoId}
+                required
+              />
+            )}
+
+            {/* Processo (opcional) — oculto quando vindo de uma publicação ou gerenciado na aba própria */}
+            <div className={cn("border rounded-lg p-3 space-y-2", (hasPublicacao || processoNaAba) && "hidden")}>
               {precisaSelecionar && !hasPublicacao && (
                 <div className="pb-2 border-b mb-2">
                   <CoordenacaoSelect

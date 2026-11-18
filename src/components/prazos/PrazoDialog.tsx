@@ -130,6 +130,8 @@ type PrazoDialogProps = {
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
   /** Ao converter um item existente, força a classificação escolhida no painel. */
   tipoTarefa?: string;
+  /** Oculta o vínculo no formulário quando ele é gerenciado na aba Processo. */
+  processoNaAba?: boolean;
 };
 
 export function PrazoDialog({
@@ -148,6 +150,7 @@ export function PrazoDialog({
   tertiarySave,
   onAfterCreate,
   tipoTarefa,
+  processoNaAba = false,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -384,7 +387,7 @@ export function PrazoDialog({
   // Processo vinculado (para exibir no formulário quando não há publicação)
   const { data: processoVinculado } = useQuery({
     queryKey: ["prazo-dialog-processo", processoIdEfetivo],
-    enabled: !!open && !!processoIdEfetivo,
+    enabled: !!open && !!processoIdEfetivo && !processoNaAba,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processos")
@@ -1009,7 +1012,7 @@ export function PrazoDialog({
           <PublicacaoVinculadaCollapsible publicacao={publicacaoEfetiva as any} />
         )}
 
-        {!hasPublicacao && processoVinculado && (
+        {!processoNaAba && !hasPublicacao && processoVinculado && (
           <div className="rounded-md border border-border bg-muted/40 p-3">
             <div className="flex items-start gap-2">
               <FileText className="mt-0.5 h-4 w-4 text-muted-foreground" />
@@ -1067,7 +1070,7 @@ export function PrazoDialog({
           </div>
         )}
 
-        {podeVincularProcessoManual && !processoIdEfetivo && (
+        {!processoNaAba && podeVincularProcessoManual && !processoIdEfetivo && (
           <div className="space-y-1.5">
             <Label className="text-sm">Processo (opcional)</Label>
             <div className="flex gap-2 min-w-0">

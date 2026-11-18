@@ -172,6 +172,8 @@ interface NovaTarefaDialogProps {
   onAfterCreate?: (info: { id: string; titulo: string }) => void;
   /** Tipo gravado ao criar ou ao converter um item existente (ex.: "ATA"). */
   tipoTarefa?: string;
+  /** Oculta o vínculo no formulário quando ele é gerenciado na aba Processo. */
+  processoNaAba?: boolean;
 }
 
 export function NovaTarefaDialog({
@@ -191,6 +193,7 @@ export function NovaTarefaDialog({
   tertiarySave,
   onAfterCreate,
   tipoTarefa,
+  processoNaAba = false,
 }: NovaTarefaDialogProps) {
   const ehAta = (tipoTarefa ?? tarefaParaEditar?.tipo_tarefa ?? "").toUpperCase().trim() === "ATA";
   const [loading, setLoading] = useState(false);
@@ -1363,7 +1366,7 @@ export function NovaTarefaDialog({
               )}
 
               {/* Processo (if tipo_vinculo === "processo") — oculto quando vindo de publicação */}
-              {tipoVinculo === "processo" && !forcarVinculoPublicacao && (
+              {tipoVinculo === "processo" && !forcarVinculoPublicacao && !processoNaAba && (
                 <FormField
                   control={form.control}
                   name="processo_id"
@@ -1415,7 +1418,7 @@ export function NovaTarefaDialog({
                 />
               )}
 
-              {form.watch("processo_id") && (
+              {!processoNaAba && form.watch("processo_id") && (
                 <ProcessoResumoInline
                   processoId={String(form.watch("processo_id"))}
                 />

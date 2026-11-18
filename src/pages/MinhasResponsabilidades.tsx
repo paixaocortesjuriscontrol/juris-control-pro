@@ -725,8 +725,11 @@ export default function MinhasResponsabilidades() {
       <ItemCalendarioResponsabilidade
         item={itemSel}
         onClose={() => setItemSel(null)}
-        onUpdate={() => {
-          void queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] });
+        onUpdate={async () => {
+          await queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] });
+        }}
+        onItemChange={(itemAtualizado) => {
+          setItemSel((atual) => atual?.id === itemAtualizado.id ? itemAtualizado : atual);
         }}
       />
 

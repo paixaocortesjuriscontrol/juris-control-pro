@@ -58,7 +58,7 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
   if (semAbas) {
     return (
       <div className="h-full overflow-y-auto">
-        <EdicaoItemPanel key={item.id} item={item} hideHeader embedded onClose={onClose} onUpdate={onUpdate} />
+        <EdicaoItemPanel key={item.id} item={item} hideHeader embedded processoNaAba onClose={onClose} onUpdate={onUpdate} />
       </div>
     );
   }
@@ -86,7 +86,7 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <TabsContent value="dados" className="m-0">
-          <EdicaoItemPanel key={item.id} item={item} hideHeader embedded onClose={onClose} onUpdate={onUpdate} />
+          <EdicaoItemPanel key={item.id} item={item} hideHeader embedded processoNaAba onClose={onClose} onUpdate={onUpdate} />
         </TabsContent>
 
         <TabsContent value="atividades" className="m-0 p-4">

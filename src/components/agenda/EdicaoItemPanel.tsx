@@ -165,9 +165,11 @@ interface EdicaoItemPanelProps {
   hideHeader?: boolean;
   /** Usa fluxo natural, deixando a rolagem exclusivamente com o painel pai. */
   embedded?: boolean;
+  /** O vínculo é gerenciado na aba Processo da ficha ampliada. */
+  processoNaAba?: boolean;
 }
 
-export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded = false }: EdicaoItemPanelProps) {
+export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded = false, processoNaAba = false }: EdicaoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [tarefa, setTarefa] = useState<any | null>(null);
@@ -338,6 +340,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
                 if (!o) closeAfter();
               }}
               evento={evento}
+              processoNaAba={processoNaAba}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
@@ -352,6 +355,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
               }}
               prazo={tarefa}
               tipoTarefa={tipoMudou ? "PRAZO" : undefined}
+              processoNaAba={processoNaAba}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
@@ -367,6 +371,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
               coordenacoes={coordenacoes}
               tarefaParaEditar={tarefa}
               tipoTarefa={tipoMudou ? (tipoEdicao === "ata" ? "ATA" : "TAREFA") : undefined}
+              processoNaAba={processoNaAba}
               onSuccess={onUpdate}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />

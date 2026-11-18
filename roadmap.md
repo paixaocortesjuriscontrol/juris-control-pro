@@ -32,6 +32,9 @@
 - [x] Aviso de que o seletor Tarefa/Prazo/Ata altera o tipo da atividade
 - [x] Ficha completa em Agenda, Lista, Compacta, Kanban, Calendário e Atividades, sem alterar o Painel de Controle
 - [x] Aba Acompanhamento Especial somente em processos monitorados, com configuração, movimentações e divergências já registradas
+- [x] Processo vinculado gerenciado na aba superior, fora dos dados da atividade
+- [x] Desvinculação somente após confirmação explícita dentro da aba Processo
+- [x] Polos ativo e passivo do processo vinculado no cabeçalho da ficha
 
 ## Tag de Acompanhamento Especial nas atividades (18/11/2026)
 - [x] Bolinha vermelha com "A" em atividades de processos com Acompanhamento Especial

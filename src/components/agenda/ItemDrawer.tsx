@@ -13,6 +13,7 @@ interface ItemDrawerProps {
   processoId?: string | null;
   processoNumero?: string | null;
   partes?: { ativo: string; passivo: string } | null;
+  rotulosPartes?: { ativo: string; passivo: string };
   /** Fundo do cabeçalho na cor do tipo (prazo vermelho, audiência amarelo...). */
   corHeader?: string;
   children: React.ReactNode;
@@ -37,6 +38,7 @@ export function ItemDrawer({
   processoId,
   processoNumero,
   partes,
+  rotulosPartes = { ativo: "Reclamante", passivo: "Reclamada" },
   corHeader,
   children,
   className,
@@ -145,10 +147,10 @@ export function ItemDrawer({
             {(partes?.ativo || partes?.passivo) && (
               <div className={cn("mt-1 space-y-0.5 text-[11px] leading-snug", colorido ? "opacity-80" : "text-primary-foreground/80")}>
                 {partes.ativo && (
-                  <p className="break-words"><strong>Reclamante:</strong> {partes.ativo}</p>
+                  <p className="break-words"><strong>{rotulosPartes.ativo}:</strong> {partes.ativo}</p>
                 )}
                 {partes.passivo && (
-                  <p className="break-words"><strong>Reclamada:</strong> {partes.passivo}</p>
+                  <p className="break-words"><strong>{rotulosPartes.passivo}:</strong> {partes.passivo}</p>
                 )}
               </div>
             )}

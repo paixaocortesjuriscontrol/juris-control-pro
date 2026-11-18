@@ -14,6 +14,7 @@ import { WorkflowItemResponsabilidade } from "./WorkflowItemResponsabilidade";
 import { DocumentosProcessoResponsabilidade } from "./DocumentosProcessoResponsabilidade";
 import { AtividadeDetalhesResponsabilidade } from "./AtividadeDetalhesResponsabilidade";
 import { AcompanhamentoEspecialItemResponsabilidade } from "./AcompanhamentoEspecialItemResponsabilidade";
+import { ProcessoVinculadoItemResponsabilidade, type ProcessoVinculoResumo } from "./ProcessoVinculadoItemResponsabilidade";
 
 function ResumoCampo({ icon: Icon, rotulo, valor }: { icon?: typeof CalendarDays; rotulo: string; valor: string }) {
   return (
@@ -29,37 +30,48 @@ function ResumoCampo({ icon: Icon, rotulo, valor }: { icon?: typeof CalendarDays
 interface Props {
   item: any | null;
   onClose: () => void;
-  onUpdate: () => void;
+  onUpdate: () => void | Promise<void>;
+  onItemChange: (item: any) => void;
 }
 
 /** Ficha ampla usada somente pelos modos de Minhas Responsabilidades. */
-export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Props) {
+export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItemChange }: Props) {
   const [aba, setAba] = useState("atividade");
   useEffect(() => setAba("atividade"), [item?.id]);
 
   const itemId = item?.id ? getItemRawId(String(item.id)) : "";
   const processoId = item?.processo?.id ?? item?.processo_id ?? null;
-  const processoNumero = item?.processo?.numero ?? item?.processo_numero ?? null;
-  const partes = item ? {
-    ativo: item.processo?.polo_ativo ?? item.partes_ativas ?? "",
-    passivo: item.processo?.polo_passivo ?? item.partes_passivas ?? "",
-  } : null;
-  const tipo = String(item?.tipo_tarefa || item?.tipo || "Atividade").replace(/_/g, " ");
-  const { data: processoAcompanhamento } = useQuery({
+  const { data: processoDetalhe } = useQuery({
     queryKey: ["minhas-responsabilidades", "acompanhamento-especial-processo", processoId],
     enabled: !!processoId,
     staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("processos")
-        .select("id, acompanhamento_especial, acompanhamento_ativado_em, acompanhamento_freq_diaria, acompanhamento_com_anexos")
+        .select("id, numero, polo_ativo, polo_passivo, reclamante, reclamados, autor, requerido, acompanhamento_especial, acompanhamento_ativado_em, acompanhamento_freq_diaria, acompanhamento_com_anexos")
         .eq("id", processoId)
         .maybeSingle();
       if (error) throw error;
       return data;
     },
   });
-  const acompanhamentoAtivo = processoTemAcompanhamentoEspecial(processoAcompanhamento ?? item?.processo);
+  const processoNumero = processoDetalhe?.numero ?? item?.processo?.numero ?? item?.processo_numero ?? null;
+  const partes = item && processoId ? {
+    ativo: processoDetalhe?.polo_ativo ?? processoDetalhe?.reclamante ?? processoDetalhe?.autor ?? item.processo?.polo_ativo ?? item.partes_ativas ?? "",
+    passivo: processoDetalhe?.polo_passivo ?? processoDetalhe?.reclamados ?? processoDetalhe?.requerido ?? item.processo?.polo_passivo ?? item.partes_passivas ?? "",
+  } : null;
+  const tipo = String(item?.tipo_tarefa || item?.tipo || "Atividade").replace(/_/g, " ");
+  const acompanhamentoAtivo = processoTemAcompanhamentoEspecial(processoDetalhe ?? item?.processo);
+
+  const aoMudarVinculo = (processo: ProcessoVinculoResumo | null) => {
+    if (!item) return;
+    onItemChange({
+      ...item,
+      processo_id: processo?.id ?? null,
+      processo: processo ? { ...item.processo, ...processo } : null,
+      ...(String(item.tipo ?? "") === "audiencia" ? {} : { processo_numero: processo?.numero ?? null }),
+    });
+  };
 
   return (
     <ItemDrawer
@@ -69,6 +81,7 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
       processoId={processoId}
       processoNumero={processoNumero}
       partes={partes}
+      rotulosPartes={{ ativo: "Polo ativo", passivo: "Polo passivo" }}
       corHeader={item ? corHeaderItem(item) : undefined}
       className="max-w-none sm:w-[min(1180px,96vw)] lg:w-[min(1180px,96vw)]"
     >
@@ -87,7 +100,7 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
             <div className="flex-shrink-0 border-b px-4 py-3">
               <TabsList className={cn("grid h-auto w-full grid-cols-2 gap-1", acompanhamentoAtivo ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5")}>
                 <TabsTrigger value="atividade" className="gap-2 py-2"><ListChecks className="h-4 w-4" /> Atividade</TabsTrigger>
-                <TabsTrigger value="processo" className="gap-2 py-2"><Briefcase className="h-4 w-4" /> Processo</TabsTrigger>
+                <TabsTrigger value="processo" className="gap-2 py-2"><Briefcase className="h-4 w-4" /> Processo vinculado</TabsTrigger>
                 {acompanhamentoAtivo && (
                   <TabsTrigger value="acompanhamento" className="gap-2 py-2" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
                 )}
@@ -108,27 +121,32 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate }: Prop
             </TabsContent>
 
             <TabsContent value="processo" className="m-0 min-h-0 flex-1 overflow-hidden">
-              {processoId ? (
-                <ProcessoItensLateral
+              <div className="flex h-full min-h-0 flex-col">
+                <ProcessoVinculadoItemResponsabilidade
+                  item={item}
                   processoId={processoId}
-                  processoNumero={processoNumero ?? ""}
-                  hideHeader
-                  onClose={onClose}
-                  onNavigate={(id) => window.open(`/processos/${id}`, "_blank", "noopener,noreferrer")}
+                  processoNumero={processoNumero}
+                  onVinculoChange={aoMudarVinculo}
+                  onUpdate={onUpdate}
                 />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                  <Briefcase className="mb-3 h-10 w-10 text-muted-foreground" />
-                  <h3 className="font-medium">Nenhum processo cadastrado</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">Esta atividade não está vinculada a um processo do sistema.</p>
-                </div>
-              )}
+                {processoId && (
+                  <div className="min-h-0 flex-1">
+                    <ProcessoItensLateral
+                      processoId={processoId}
+                      processoNumero={processoNumero ?? ""}
+                      hideHeader
+                      onClose={onClose}
+                      onNavigate={(id) => window.open(`/processos/${id}`, "_blank", "noopener,noreferrer")}
+                    />
+                  </div>
+                )}
+              </div>
             </TabsContent>
 
             {acompanhamentoAtivo && (
               <TabsContent value="acompanhamento" className="m-0 min-h-0 flex-1 overflow-y-auto">
                 <AcompanhamentoEspecialItemResponsabilidade
-                  processo={processoAcompanhamento ?? { ...item.processo, id: processoId }}
+                  processo={processoDetalhe ?? { ...item.processo, id: processoId }}
                   active={aba === "acompanhamento"}
                 />
               </TabsContent>
