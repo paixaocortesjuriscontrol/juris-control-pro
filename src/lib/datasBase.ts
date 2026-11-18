@@ -83,3 +83,21 @@ export function calcularDataFatalISO(
   if (!base) return "";
   return paraISO(calcularDataFatal(base, dias, unidade, coordenacaoId, fatalDoModelo));
 }
+
+/**
+ * Ao recalcular a data limite (prevista), a fatal acompanha: se estava vazia,
+ * igual à limite anterior ou ficaria antes da nova limite, vira a nova limite;
+ * se era uma data diferente escolhida (equipes com margem), é mantida.
+ */
+export function fatalAcompanhando(
+  limiteAnteriorISO: string | null | undefined,
+  fatalAtualISO: string | null | undefined,
+  limiteNovoISO: string | null | undefined,
+): string {
+  const novo = (limiteNovoISO || "").slice(0, 10);
+  const fatal = (fatalAtualISO || "").slice(0, 10);
+  const anterior = (limiteAnteriorISO || "").slice(0, 10);
+  if (!novo) return fatal;
+  if (!fatal || fatal === anterior || fatal < novo) return novo;
+  return fatal;
+}

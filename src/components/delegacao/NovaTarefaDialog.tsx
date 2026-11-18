@@ -65,7 +65,7 @@ import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import type { PublicacaoUnificada } from "@/hooks/usePublicacoesDjenUnificadas";
 import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
-import { calcularDataFatalISO, calcularDataPrevistaISO } from "@/lib/datasBase";
+import { calcularDataFatalISO, calcularDataPrevistaISO, fatalAcompanhando } from "@/lib/datasBase";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
 
@@ -1276,6 +1276,7 @@ export function NovaTarefaDialog({
                           // sempre substitui a data prevista atual.
                           if (prazoCalculado) {
                             form.setValue("data_vencimento" as any, prazoCalculado, { shouldDirty: true });
+                            form.setValue("data_fatal", fatalAcompanhando(form.getValues("data_vencimento"), form.getValues("data_fatal"), prazoCalculado), { shouldDirty: true });
                           }
                           modeloPadroesRef.current = {
                             ...p,
@@ -1454,6 +1455,9 @@ export function NovaTarefaDialog({
                         onChange={(e) => {
                           field.onChange(e);
                           const coord = form.getValues("coordenacao_id");
+                          const limiteAntes = form.getValues("data_vencimento");
+                          const fatalAntes = form.getValues("data_fatal");
+                          const fatalSegue = !fatalAntes || fatalAntes === limiteAntes;
                           if (prazoDias > 0) {
                             const calc = computeDataPrevista(e.target.value, prazoDias, prazoUnidade, coord);
                             if (calc) form.setValue("data_vencimento", calc);
@@ -1465,7 +1469,9 @@ export function NovaTarefaDialog({
                           const fatalModelo = modeloPadroesRef.current?.data_fatal;
                           form.setValue(
                             "data_fatal",
-                            calcularDataFatalISO(e.target.value, prazoDias, prazoUnidade, coord, fatalModelo),
+                            fatalSegue
+                              ? form.getValues("data_vencimento")
+                              : calcularDataFatalISO(e.target.value, prazoDias, prazoUnidade, coord, fatalModelo),
                           );
                         }}
                       />
@@ -1487,7 +1493,10 @@ export function NovaTarefaDialog({
                       const dias = parseInt(e.target.value || "0", 10) || 0;
                       setPrazoDias(dias);
                       const calc = computeDataPrevista(form.getValues("data_base"), dias, prazoUnidade, form.getValues("coordenacao_id"));
-                      if (calc) form.setValue("data_vencimento", calc);
+                      if (calc) {
+                        form.setValue("data_fatal", fatalAcompanhando(form.getValues("data_vencimento"), form.getValues("data_fatal"), calc));
+                        form.setValue("data_vencimento", calc);
+                      }
                     }}
                     className="w-20"
                   />
@@ -1497,7 +1506,10 @@ export function NovaTarefaDialog({
                       const unidade = v as "uteis" | "corridos";
                       setPrazoUnidade(unidade);
                       const calc = computeDataPrevista(form.getValues("data_base"), prazoDias, unidade, form.getValues("coordenacao_id"));
-                      if (calc) form.setValue("data_vencimento", calc);
+                      if (calc) {
+                        form.setValue("data_fatal", fatalAcompanhando(form.getValues("data_vencimento"), form.getValues("data_fatal"), calc));
+                        form.setValue("data_vencimento", calc);
+                      }
                     }}
                   >
                     <SelectTrigger className="flex-1">

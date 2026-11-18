@@ -9,6 +9,7 @@ import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { aplicarPessoasModelo } from "@/lib/pessoasModelo";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
+import { fatalAcompanhando } from "@/lib/datasBase";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
@@ -532,11 +533,20 @@ export function PrazoDialog({
     const calc = computeDataLimite(dataBase, prazoDias, prazoUnidade, coordenacaoId);
     if (calc) {
       setDataLimite(calc);
+      acompanharFatal(calc);
       return;
     }
     // Sem prazo cadastrado: a data base é a própria data prevista.
     if (dataBaseManual) setDataLimite(dataBase);
   }, [prazo, prazoDias, prazoUnidade, dataBase, dataBaseManual, dataLimiteEditadaManualmente]);
+
+  // A data fatal acompanha a limite quando estava igual a ela (ou vazia).
+  const acompanharFatal = (novaLimite?: Date | null) => {
+    if (!novaLimite) return;
+    const iso = (d?: Date | null) => (d ? format(d, "yyyy-MM-dd") : "");
+    const r = fatalAcompanhando(iso(dataLimite), iso(dataFatal), iso(novaLimite));
+    if (r && r !== iso(dataFatal)) setDataFatal(new Date(`${r}T12:00:00`));
+  };
 
   const datasConfirmadasRef = useRef<string | null>(null);
   const [confirmacaoDatas, setConfirmacaoDatas] = useState<{ chave: string; texto: string; reenviar: () => void } | null>(null);
@@ -1141,7 +1151,7 @@ export function PrazoDialog({
                 onChange={(e) => {
                   const dias = parseInt(e.target.value || "0", 10);
                   setPrazoDias(dias);
-                  if (prazo) setDataLimite(computeDataLimite(dataBase, dias, prazoUnidade, coordenacaoId));
+                  { const c = computeDataLimite(dataBase, dias, prazoUnidade, coordenacaoId); if (prazo) setDataLimite(c); acompanharFatal(c); }
                   setDataLimiteEditadaManualmente(false);
                 }}
                 className="h-10 w-20"
@@ -1152,7 +1162,7 @@ export function PrazoDialog({
                 onValueChange={(v) => {
                   const unidade = v as Unidade;
                   setPrazoUnidade(unidade);
-                  if (prazo) setDataLimite(computeDataLimite(dataBase, prazoDias, unidade, coordenacaoId));
+                  { const c = computeDataLimite(dataBase, prazoDias, unidade, coordenacaoId); if (prazo) setDataLimite(c); acompanharFatal(c); }
                   setDataLimiteEditadaManualmente(false);
                 }}
               >
