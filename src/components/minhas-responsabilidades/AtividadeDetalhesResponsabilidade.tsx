@@ -36,7 +36,7 @@ function tiposDoItem(item: any): { atividade: TipoItemAtividade; comentario: Ite
   return { atividade: "tarefa", comentario: "tarefa" };
 }
 
-/** Dados e registros da atividade, com a mesma barra de opções das demais fichas. */
+/** Dados e registros da atividade, com uma única área de rolagem. */
 export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, onClose, onUpdate }: Props) {
   const [secao, setSecao] = useState("dados");
   const [contagemAnexos, setContagemAnexos] = useState(0);
@@ -56,7 +56,11 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
   const semAbas = String(item?.id ?? "").startsWith("prazo-tst-");
 
   if (semAbas) {
-    return <EdicaoItemPanel key={item.id} item={item} hideHeader onClose={onClose} onUpdate={onUpdate} />;
+    return (
+      <div className="h-full overflow-y-auto">
+        <EdicaoItemPanel key={item.id} item={item} hideHeader embedded onClose={onClose} onUpdate={onUpdate} />
+      </div>
+    );
   }
 
   return (
@@ -80,44 +84,46 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
         </TabsList>
       </div>
 
-      <TabsContent value="dados" forceMount className="m-0 min-h-0 flex-1 overflow-hidden">
-        <EdicaoItemPanel key={item.id} item={item} hideHeader onClose={onClose} onUpdate={onUpdate} />
-      </TabsContent>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <TabsContent value="dados" className="m-0">
+          <EdicaoItemPanel key={item.id} item={item} hideHeader embedded onClose={onClose} onUpdate={onUpdate} />
+        </TabsContent>
 
-      <TabsContent value="atividades" className="m-0 min-h-0 flex-1 overflow-y-auto p-4">
-        <TabErrorBoundary area="as atividades">
-          <ItemAtividades tipo={tipoAtividade} itemId={itemId} />
-        </TabErrorBoundary>
-      </TabsContent>
+        <TabsContent value="atividades" className="m-0 p-4">
+          <TabErrorBoundary area="as atividades">
+            <ItemAtividades tipo={tipoAtividade} itemId={itemId} />
+          </TabErrorBoundary>
+        </TabsContent>
 
-      <TabsContent value="checklist" className="m-0 min-h-0 flex-1 overflow-y-auto p-4">
-        <TabErrorBoundary area="o checklist">
-          <ItemChecklist tipo={tipoAtividade} itemId={itemId} />
-        </TabErrorBoundary>
-      </TabsContent>
+        <TabsContent value="checklist" className="m-0 p-4">
+          <TabErrorBoundary area="o checklist">
+            <ItemChecklist tipo={tipoAtividade} itemId={itemId} />
+          </TabErrorBoundary>
+        </TabsContent>
 
-      <TabsContent value="comentarios" className="m-0 min-h-0 flex-1 overflow-y-auto p-4">
-        <TabErrorBoundary area="os comentários">
-          <ItemComentarios tipo={tipoComentario} itemId={itemId} />
-        </TabErrorBoundary>
-      </TabsContent>
+        <TabsContent value="comentarios" className="m-0 p-4">
+          <TabErrorBoundary area="os comentários">
+            <ItemComentarios tipo={tipoComentario} itemId={itemId} semRolagemInterna />
+          </TabErrorBoundary>
+        </TabsContent>
 
-      <TabsContent value="anexos" forceMount className="m-0 min-h-0 flex-1 overflow-y-auto p-4">
-        <TabErrorBoundary area="os anexos">
-          <ItemAnexos
-            tipo={tipoComentario}
-            itemId={itemId}
-            processoId={processoId}
-            onContagemMudou={aoMudarAnexos}
-          />
-        </TabErrorBoundary>
-      </TabsContent>
+        <TabsContent value="anexos" className="m-0 p-4">
+          <TabErrorBoundary area="os anexos">
+            <ItemAnexos
+              tipo={tipoComentario}
+              itemId={itemId}
+              processoId={processoId}
+              onContagemMudou={aoMudarAnexos}
+            />
+          </TabErrorBoundary>
+        </TabsContent>
 
-      <TabsContent value="historico" className="m-0 min-h-0 flex-1 overflow-y-auto p-4">
-        <TabErrorBoundary area="o histórico">
-          <ItemHistorico tipo={tipoAtividade} tipoComentario={tipoComentario} itemId={itemId} />
-        </TabErrorBoundary>
-      </TabsContent>
+        <TabsContent value="historico" className="m-0 p-4">
+          <TabErrorBoundary area="o histórico">
+            <ItemHistorico tipo={tipoAtividade} tipoComentario={tipoComentario} itemId={itemId} />
+          </TabErrorBoundary>
+        </TabsContent>
+      </div>
     </Tabs>
   );
 }

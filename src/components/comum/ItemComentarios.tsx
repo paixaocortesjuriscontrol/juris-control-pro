@@ -35,6 +35,8 @@ interface Props {
   tipo: Tipo;
   itemId: string | null | undefined;
   className?: string;
+  /** Em painéis com rolagem própria, a lista cresce sem criar outra barra interna. */
+  semRolagemInterna?: boolean;
 }
 
 interface Comentario {
@@ -46,7 +48,7 @@ interface Comentario {
   autor?: { id: string; nome: string } | null;
 }
 
-export function ItemComentarios({ tipo, itemId, className }: Props) {
+export function ItemComentarios({ tipo, itemId, className, semRolagemInterna = false }: Props) {
   const [novo, setNovo] = useState("");
   const [mencionados, setMencionados] = useState<string[]>([]);
   const [isCobranca, setIsCobranca] = useState(false);
@@ -164,7 +166,7 @@ export function ItemComentarios({ tipo, itemId, className }: Props) {
 
       </div>
 
-      <div className="pr-3 mb-3 max-h-56 overflow-y-auto overscroll-contain">
+      <div className={semRolagemInterna ? "mb-3" : "pr-3 mb-3 max-h-56 overflow-y-auto overscroll-contain"}>
         {isLoading ? (
           <div className="flex items-center justify-center py-6">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

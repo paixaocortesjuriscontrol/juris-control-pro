@@ -27,4 +27,5 @@
 - [x] Painel largo exclusivo do clique no calendário, sem alterar o Painel de Controle
 - [x] Abas Atividade, Processo, Publicações, Workflow e Documentos com dados sob demanda
 - [x] Barra superior com Dados, Atividades, Checklist, Comentários, Anexos e Histórico de alterações
+- [x] Somente a seção escolhida visível e uma única rolagem na ficha
 - [x] Testes de datas/mesclagem e verificação da compilação

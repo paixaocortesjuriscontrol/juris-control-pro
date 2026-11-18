@@ -26,10 +26,12 @@ function PrazoFatalReadOnlyPanel({
   processo,
   diasRestantes,
   onConferido,
+  embedded = false,
 }: {
   processo: any;
   diasRestantes?: number;
   onConferido?: () => void;
+  embedded?: boolean;
 }) {
   if (!processo) return null;
   const { user } = useAuth();
@@ -61,7 +63,7 @@ function PrazoFatalReadOnlyPanel({
   };
 
   return (
-    <div className="h-full overflow-y-auto p-6 space-y-5">
+    <div className={embedded ? "space-y-5 p-6" : "h-full space-y-5 overflow-y-auto p-6"}>
       <div className="flex items-start gap-3">
         <div className={`rounded-full p-2 ${conferido ? "bg-green-500/10" : "bg-destructive/10"}`}>
           {conferido ? (
@@ -161,9 +163,11 @@ interface EdicaoItemPanelProps {
   onUpdate?: () => void;
   /** Oculta a barra de fechar interna (quando exibido dentro do drawer). */
   hideHeader?: boolean;
+  /** Usa fluxo natural, deixando a rolagem exclusivamente com o painel pai. */
+  embedded?: boolean;
 }
 
-export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoItemPanelProps) {
+export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded = false }: EdicaoItemPanelProps) {
   const { user } = useAuth();
   const { isAdmin } = useUserRole();
   const [tarefa, setTarefa] = useState<any | null>(null);
@@ -263,7 +267,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
     isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento;
 
   return (
-    <div className="h-full flex flex-col bg-background">
+    <div className={embedded ? "flex flex-col bg-background" : "h-full flex flex-col bg-background"}>
       {!hideHeader && (
         <div className="flex items-center justify-end px-2 py-1.5 border-b bg-card flex-shrink-0">
           <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose} title="Fechar">
@@ -278,13 +282,14 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           tipos={["tarefa", "prazo", "ata"]}
         />
       )}
-      <div key={tipoEdicao} className="flex-1 min-h-0 overflow-hidden">
+      <div key={tipoEdicao} className={embedded ? undefined : "flex-1 min-h-0 overflow-hidden"}>
         {isPrazoFatalTst ? (
           evento && (
             <PrazoFatalReadOnlyPanel
               processo={evento}
               diasRestantes={item.dias_restantes}
               onConferido={closeAfter}
+              embedded={embedded}
             />
           )
         ) : isAudiencia ? (
@@ -293,6 +298,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
               audiencia={evento as any}
               open
               inline
+              embedded={embedded}
               onOpenChange={(o) => {
                 if (!o) closeAfter();
               }}
@@ -302,6 +308,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           evento && (
             <GerarParcelasDialog
               inline
+              embedded={embedded}
               open
               onOpenChange={(o) => {
                 if (!o) closeAfter();
@@ -313,6 +320,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           evento && (
             <EventoDialog
               inline
+              embedded={embedded}
               open
               onOpenChange={(o) => {
                 if (!o) closeAfter();
@@ -325,6 +333,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           tarefa && (
             <PrazoDialog
               inline
+              embedded={embedded}
               open
               onOpenChange={(o) => {
                 if (!o) closeAfter();
@@ -338,6 +347,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader }: EdicaoI
           tarefa && (
             <NovaTarefaDialog
               inline
+              embedded={embedded}
               open
               onOpenChange={(o) => {
                 if (!o) closeAfter();
