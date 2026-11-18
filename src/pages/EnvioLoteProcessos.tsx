@@ -5,17 +5,17 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EnvioLoteProcessosSheet } from "@/components/coordenacoes/EnvioLoteProcessosSheet";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
-import { coordenacaoPermiteLote } from "@/lib/loteProcessosSantander";
 
 export default function EnvioLoteProcessos() {
   const { data, isLoading } = useCoordenacoesDoUsuario() as any;
   const opcoes = useMemo(
-    () => ((data?.coordenacoes || []) as { id: string; nome: string }[]).filter((c) => coordenacaoPermiteLote(c.nome)),
+    () => ((data?.coordenacoes || []) as { id: string; nome: string }[]),
     [data],
   );
   const [coordId, setCoordId] = useState("");
   const [aberto, setAberto] = useState(false);
   useEffect(() => { if (!coordId && opcoes.length === 1) setCoordId(opcoes[0].id); }, [opcoes, coordId]);
+  const mostrarSelecao = !!data?.isAdmin || opcoes.length > 1;
   const coord = opcoes.find((c) => c.id === coordId);
 
   return (
@@ -24,10 +24,10 @@ export default function EnvioLoteProcessos() {
         {isLoading ? (
           <p className="text-sm text-muted-foreground">Carregando coordenações...</p>
         ) : opcoes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma das suas coordenações aceita envio em lote (disponível para Santander Cível e Santander Trabalhista).</p>
+          <p className="text-sm text-muted-foreground">Você não está vinculado a nenhuma coordenação.</p>
         ) : (
           <>
-            <div className="space-y-1">
+            {mostrarSelecao ? <div className="space-y-1">
               <label className="text-sm font-medium">Coordenação</label>
               <Select value={coordId} onValueChange={setCoordId}>
                 <SelectTrigger><SelectValue placeholder="Escolha a coordenação" /></SelectTrigger>
@@ -35,7 +35,7 @@ export default function EnvioLoteProcessos() {
                   {opcoes.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}
                 </SelectContent>
               </Select>
-            </div>
+            </div> : <p className="text-sm">Coordenação: <strong>{coord?.nome}</strong></p>}
             <Button disabled={!coord} onClick={() => setAberto(true)}>
               <Upload className="mr-2 h-4 w-4" /> Abrir envio em lote
             </Button>
