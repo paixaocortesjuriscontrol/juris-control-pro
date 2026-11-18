@@ -32,6 +32,10 @@ interface Props {
   helperText?: string;
   selectedIds: string[];
   onChange: (ids: string[]) => void;
+  /** IDs sempre marcados: aparecem checados e não podem ser desmarcados */
+  fixedIds?: string[];
+  /** Texto da etiqueta mostrada ao lado dos sempre marcados */
+  fixedLabel?: string;
   /** Altura da lista. Default 180px */
   height?: number;
 }
@@ -45,10 +49,14 @@ export function MultiUserSelect({
   helperText,
   selectedIds,
   onChange,
+  fixedIds = [],
+  fixedLabel = "Padrão",
   height = 180,
 }: Props) {
   const [coordFiltro, setCoordFiltro] = useState<string>("todas");
   const [search, setSearch] = useState("");
+
+  const fixedSet = useMemo(() => new Set(fixedIds), [JSON.stringify(fixedIds)]);
 
   const { data: coordenacoes = [] } = useQuery({
     queryKey: ["multi-user-select-coords"],
@@ -89,6 +97,7 @@ export function MultiUserSelect({
   }, [usuarios, coordenacoes, coordFiltro, search]);
 
   const toggle = (id: string, on: boolean) => {
+    if (fixedSet.has(id)) return;
     if (on) {
       if (!selectedIds.includes(id)) onChange([...selectedIds, id]);
     } else {
@@ -98,7 +107,7 @@ export function MultiUserSelect({
 
   const remover = (id: string) => onChange(selectedIds.filter((x) => x !== id));
 
-  const selecionados = usuarios.filter((u) => selectedIds.includes(u.id));
+  const selecionados = usuarios.filter((u) => selectedIds.includes(u.id) || fixedSet.has(u.id));
 
   return (
     <div className="space-y-2">
@@ -115,15 +124,19 @@ export function MultiUserSelect({
           {selecionados.map((u) => (
             <Badge key={u.id} variant="secondary" className="flex items-center gap-1">
               {u.nome}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-4 w-4 p-0 hover:bg-transparent"
-                onClick={() => remover(u.id)}
-              >
-                <X className="h-3 w-3" />
-              </Button>
+              {fixedSet.has(u.id) ? (
+                <span className="text-[10px] text-muted-foreground">{fixedLabel}</span>
+              ) : (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-4 w-4 p-0 hover:bg-transparent"
+                  onClick={() => remover(u.id)}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              )}
             </Badge>
           ))}
         </div>
@@ -164,18 +177,27 @@ export function MultiUserSelect({
               Nenhum usuário encontrado
             </p>
           ) : (
-            filtrados.map((u) => (
-              <label
-                key={u.id}
-                className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
-              >
-                <Checkbox
-                  checked={selectedIds.includes(u.id)}
-                  onCheckedChange={(c) => toggle(u.id, c === true)}
-                />
-                <span className="flex-1 truncate">{u.nome}</span>
-              </label>
-            ))
+            filtrados.map((u) => {
+              const fixo = fixedSet.has(u.id);
+              return (
+                <label
+                  key={u.id}
+                  className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm"
+                >
+                  <Checkbox
+                    checked={fixo || selectedIds.includes(u.id)}
+                    disabled={fixo}
+                    onCheckedChange={(c) => toggle(u.id, c === true)}
+                  />
+                  <span className="flex-1 truncate">{u.nome}</span>
+                  {fixo && (
+                    <Badge variant="outline" className="text-[10px] font-normal shrink-0">
+                      {fixedLabel}
+                    </Badge>
+                  )}
+                </label>
+              );
+            })
           )}
         </div>
       </ScrollArea>

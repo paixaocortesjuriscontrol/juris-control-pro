@@ -16,6 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Radar } from "lucide-react";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
+import {
+  destinatariosExtras,
+  destinatariosParaSalvar,
+} from "@/lib/destinatariosAcompanhamento";
 
 interface Props {
   open: boolean;
@@ -49,12 +53,25 @@ export function ConfigAcompanhamentoEspecialDialog({
     },
   });
 
+  const { data: coordenadores = [] } = useQuery({
+    queryKey: ["coordenadores-acompanhamento-especial", coordenacaoId],
+    enabled: open && !!coordenacaoId,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("coordenadores_da_coordenacao", {
+        _coordenacao_id: coordenacaoId,
+      });
+      if (error) throw error;
+      return (data ?? []).map((r: any) => r.usuario_id).filter(Boolean) as string[];
+    },
+  });
+
   useEffect(() => {
     if (!open) return;
     setDias((config as any)?.dias_janela_aviso ?? 7);
     setNotificarRetro(!!(config as any)?.notificar_retroativos);
-    setDestinatarios(((config as any)?.destinatarios_ids as string[]) ?? []);
-  }, [open, config]);
+    const salvos = ((config as any)?.destinatarios_ids as string[]) ?? [];
+    setDestinatarios(destinatariosExtras(salvos, coordenadores));
+  }, [open, config, JSON.stringify(coordenadores)]);
 
   const salvar = useMutation({
     mutationFn: async () => {
@@ -65,7 +82,7 @@ export function ConfigAcompanhamentoEspecialDialog({
             coordenacao_id: coordenacaoId,
             dias_janela_aviso: Math.max(1, Math.min(365, Number(dias) || 7)),
             notificar_retroativos: notificarRetro,
-            destinatarios_ids: destinatarios,
+            destinatarios_ids: destinatariosParaSalvar(destinatarios, coordenadores),
           },
           { onConflict: "coordenacao_id" }
         );
@@ -131,9 +148,11 @@ export function ConfigAcompanhamentoEspecialDialog({
 
             <MultiUserSelect
               label="Quem recebe os avisos"
-              helperText="Se ninguém for escolhido, recebem os responsáveis do processo e os coordenadores, como antes. Com pessoas escolhidas, só elas recebem os avisos desta coordenação."
+              helperText="Os coordenadores já vêm marcados e sempre recebem. Escolha outras pessoas para incluir nos avisos: quando alguém além dos coordenadores é escolhido, só essas pessoas recebem e os responsáveis do processo deixam de receber automaticamente."
               selectedIds={destinatarios}
               onChange={setDestinatarios}
+              fixedIds={coordenadores}
+              fixedLabel="Coordenador"
               height={200}
             />
           </div>
