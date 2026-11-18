@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.coordenadores_que_recebem_avisos(uuid);
