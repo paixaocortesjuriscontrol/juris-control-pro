@@ -11,6 +11,8 @@ import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { formatDataPublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -24,6 +26,8 @@ interface KanbanItensAgendaProps {
   itens: ItemAgendaUnificado[];
   onItemClick: (item: ItemAgendaUnificado) => void;
   emptyLabel?: string;
+  /** IDs de processo em Acompanhamento Especial: mostra a bolinha vermelha "A". */
+  processosAcompanhados?: ReadonlySet<string>;
 }
 
 type ColunaKey = "vencidos" | "hoje" | "proximos" | "futuro" | "concluidos";
@@ -107,7 +111,7 @@ function usePartesDosProcessos(itens: ItemAgendaUnificado[]) {
   });
 }
 
-export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum item" }: KanbanItensAgendaProps) {
+export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum item", processosAcompanhados }: KanbanItensAgendaProps) {
   const { data: itensComAtividades = new Set<string>() } = useItensComAtividades(itens);
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itens);
   const { data: itensComComentarios = new Set<string>() } = useItensComComentarios(itens);
@@ -182,6 +186,7 @@ export function KanbanItensAgenda({ itens, onItemClick, emptyLabel = "Nenhum ite
                        {veioDePublicacao && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                       {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
                       {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
+                      {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px]" />}
                     </div>
                     {item.processo?.numero && (
                       <p className="text-[10px] font-mono text-muted-foreground mt-1 truncate">

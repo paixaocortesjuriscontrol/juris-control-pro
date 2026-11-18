@@ -132,6 +132,9 @@ import { useComentariosVistos } from "@/hooks/useComentariosVistos";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { useProcessosAcompanhamento } from "@/hooks/useProcessosAcompanhamento";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import { GitBranch } from "lucide-react";
@@ -1162,6 +1165,10 @@ export default function PainelControle() {
     () => itensAgenda.filter((item) => passaFiltrosPainel(item)),
     [itensAgenda, passaFiltrosPainel],
   );
+
+  // Processos em Acompanhamento Especial entre os itens carregados: define onde
+  // mostrar a bolinha vermelha "A" nas visões do Painel.
+  const { data: processosAcompanhados = new Set<string>() } = useProcessosAcompanhamento(itensAgenda);
 
   // ===== Busca global (modo Lista, sem filtro de data) =====
   // A lista normal carrega só a janela do calendário. Quando o usuário pesquisa
@@ -3465,6 +3472,7 @@ export default function PainelControle() {
               etiquetasValue={listaEtiquetas}
               onEtiquetasChange={setListaEtiquetas}
               ocultarFiltroEtiquetas={!modoProtocoladosBaixados}
+              processosAcompanhados={processosAcompanhados}
             />
             </div>
           </div>
@@ -3477,6 +3485,7 @@ export default function PainelControle() {
             <KanbanItensAgenda
               itens={comDataPublicacao(itensPainelFiltrados)}
               onItemClick={handleItemClick}
+              processosAcompanhados={processosAcompanhados}
             />
           </div>
         ) : viewMode === "atividades" ? (
@@ -3484,6 +3493,7 @@ export default function PainelControle() {
             <ListaAtividadesProjuris
               itens={comDataPublicacao(itensPainelFiltrados)}
               onItemClick={handleItemClick}
+              processosAcompanhados={processosAcompanhados}
             />
           </div>
         ) : viewMode === "equipe" ? (
@@ -3499,6 +3509,7 @@ export default function PainelControle() {
                 onPaginaChange={setEquipePagina}
                 statusFilter={equipeStatus}
                 onStatusFilterChange={setEquipeStatus}
+                processosAcompanhados={processosAcompanhados}
               />
             </div>
         ) : viewMode === "audiencias" ? (
@@ -3714,6 +3725,9 @@ export default function PainelControle() {
                                   {veioDePublicacao && (
                                     <PublicacaoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
                                   )}
+                                  {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && (
+                                    <AcompanhamentoEspecialBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                  )}
                                   {temComentario && (
                                     <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(itensComComentarios, item)} />
                                   )}
@@ -3812,6 +3826,7 @@ export default function PainelControle() {
                 }}
                 onBaixarItem={(it) => setItemBaixaRapida(it)}
                 modeloPorTarefa={modeloPorTarefa}
+                processosAcompanhados={processosAcompanhados}
                 onCriarNesteDia={(tipo) => {
                   setSelectedItem(null);
                   setNovoItemData(diaLateralKey);

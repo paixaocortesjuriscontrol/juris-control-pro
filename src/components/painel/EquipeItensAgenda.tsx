@@ -17,6 +17,8 @@ import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { AnexoBadge } from "@/components/comum/AnexoBadge";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensComAtividades, getItemRawId } from "@/hooks/useItensComAtividades";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -57,6 +59,8 @@ interface EquipeItensAgendaProps {
   /** Filtro por situação (todos|pendentes|atrasadas|cumpridas|cancelados), controlado pelo pai */
   statusFilter?: StatusFiltro;
   onStatusFilterChange?: (v: StatusFiltro) => void;
+  /** IDs de processo em Acompanhamento Especial: mostra a bolinha vermelha "A". */
+  processosAcompanhados?: ReadonlySet<string>;
 }
 
 export type { StatusFiltro } from "@/lib/statusItemEquipe";
@@ -199,6 +203,7 @@ export function EquipeItensAgenda({
   onPaginaChange,
   statusFilter: statusFilterProp,
   onStatusFilterChange,
+  processosAcompanhados,
 }: EquipeItensAgendaProps) {
   const [selectedMembroLocal, setSelectedMembroLocal] = useSessionState<string | null>("equipe-membro", null);
   const [searchLocal, setSearchLocal] = useSessionState("equipe-busca", "");
@@ -652,6 +657,7 @@ export function EquipeItensAgenda({
                         {(item as any).data_publicacao_origem && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {temComentarioItem(itensComComentarios, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />}
                         {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
+                        {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px]" />}
                         {(() => {
                           const info = infoCobrancaItem(mapaCobrancas, item);
                           return info ? (

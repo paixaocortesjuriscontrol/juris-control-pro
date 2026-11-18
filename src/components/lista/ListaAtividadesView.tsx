@@ -53,6 +53,8 @@ import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { AtividadeBadge } from "@/components/comum/AtividadeBadge";
 import { ComentarioBadge } from "@/components/comum/ComentarioBadge";
 import { AnexoBadge } from "@/components/comum/AnexoBadge";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
 import { useCobrancasItens, infoCobrancaItem, getEscopoCobrancaPreferido } from "@/hooks/useCobrancasItens";
@@ -204,6 +206,11 @@ interface ListaAtividadesViewProps {
   onEtiquetasChange?: (ids: string[]) => void;
   /** Esconde a linha própria de etiquetas quando a tela que embute já mostra o filtro. */
   ocultarFiltroEtiquetas?: boolean;
+  /**
+   * IDs de processo em Acompanhamento Especial (da tela hospedeira). Quando
+   * informado, as atividades desses processos ganham a bolinha vermelha "A".
+   */
+  processosAcompanhados?: ReadonlySet<string>;
 }
 
 export default function ListaAtividadesView({
@@ -217,6 +224,7 @@ export default function ListaAtividadesView({
   etiquetasValue,
   onEtiquetasChange,
   ocultarFiltroEtiquetas = false,
+  processosAcompanhados,
 }: ListaAtividadesViewProps = {}) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -1216,6 +1224,7 @@ export default function ListaAtividadesView({
                                 {itensComAtividades.has(getItemRawId(r.id)) && <AtividadeBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 {temComentarioItem(itensComComentarios, r as any) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, r as any)} />}
                                 {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
+                                {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px]" />}
                                 <span data-stop className="inline-flex">
                                   <CobrancaBotao
                                     itemId={getItemRawId(r.id)}

@@ -38,6 +38,8 @@ import { AnexoBadge } from "@/components/comum/AnexoBadge";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { WorkflowBadge } from "@/components/comum/WorkflowBadge";
 import { PublicacaoBadge } from "@/components/comum/PublicacaoBadge";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 import { useItensComComentarios, temComentarioItem, autoriaComentarioItem } from "@/hooks/useItensComComentarios";
@@ -175,6 +177,7 @@ export function AgendaItemRow({
   infoCobranca,
   corFaixa,
   partes,
+  emAcompanhamento,
 }: {
   item: ItemAgendaUnificado;
   userId?: string;
@@ -190,6 +193,8 @@ export function AgendaItemRow({
   /** Cor da etapa do workflow (ou do modelo), igual à faixa do calendário. */
   corFaixa?: string | null;
   partes?: PartesProcesso | null;
+  /** Processo em Acompanhamento Especial: mostra a bolinha vermelha "A". */
+  emAcompanhamento?: boolean;
 
 }) {
 
@@ -237,6 +242,7 @@ export function AgendaItemRow({
           {veioDePublicacao && <PublicacaoBadge />}
           {temComentario && <ComentarioBadge autoria={autoriaComentario} />}
           {(item.anexos_count ?? 0) > 0 && <AnexoBadge />}
+          {emAcompanhamento && <AcompanhamentoEspecialBadge />}
         </p>
         {(item.local || item.descricao) && (
           <p className="text-[11px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">
@@ -316,6 +322,8 @@ interface DiaAgendaLateralProps {
   /** Baixa rápida direto da lista do dia (pop-up). */
   onBaixarItem?: (item: ItemAgendaUnificado) => void;
   modeloPorTarefa?: ReadonlyMap<string, { cor?: string | null }>;
+  /** IDs de processo em Acompanhamento Especial: mostra a bolinha vermelha "A". */
+  processosAcompanhados?: ReadonlySet<string>;
   onClose: () => void;
 }
 
@@ -329,6 +337,7 @@ export function DiaAgendaLateral({
   onCriarNesteDia,
   onBaixarItem,
   modeloPorTarefa,
+  processosAcompanhados,
   onClose,
 }: DiaAgendaLateralProps) {
   const total = itens.length + atividades.length;
@@ -424,6 +433,7 @@ export function DiaAgendaLateral({
               infoCobranca={infoCobrancaItem(mapaCobrancas, item)}
               corFaixa={modeloPorTarefa?.get(getItemRawId(item.id))?.cor}
               partes={partesDoItem(item, partesPorProcesso)}
+              emAcompanhamento={itemEmAcompanhamentoEspecial(item, processosAcompanhados)}
             />
           ))}
           {atividades.map((a: any) => {

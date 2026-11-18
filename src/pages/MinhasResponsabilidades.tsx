@@ -94,6 +94,9 @@ import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
 import { ItemCalendarioResponsabilidade } from "@/components/minhas-responsabilidades/ItemCalendarioResponsabilidade";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { useProcessosAcompanhamento } from "@/hooks/useProcessosAcompanhamento";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 
 type Periodo = "mes" | "trimestre" | "ano";
 const PERIODOS: { v: Periodo; l: string }[] = [
@@ -362,6 +365,9 @@ export default function MinhasResponsabilidades() {
   const { data: itensDePub, isPending: pubCarregando } = useItensDePublicacao(itensAgendaFmt as any, true);
   const { data: mapaCobrancas } = useCobrancasItens(itensAgendaFmt as any, "minhas");
   const { data: itensDeWorkflow = new Set<string>() } = useItensDeWorkflow(itensAgendaFmt as any);
+  // Processos em Acompanhamento Especial entre os itens carregados: define onde
+  // mostrar a bolinha vermelha "A".
+  const { data: processosAcompanhados = new Set<string>() } = useProcessosAcompanhamento(itensAgendaFmt as any);
   const itens = useMemo(() => brutos.filter((raw, idx) => {
     const item: any = itensAgendaFmt[idx];
     if (pf.classificacoes.length > 0) {
@@ -507,6 +513,7 @@ export default function MinhasResponsabilidades() {
       >
         <Badge variant="outline">{ROT_TIPO[i._tipo]}</Badge>
         <span className={cn("font-medium flex-1 min-w-[200px]", riscado && "line-through", st === "cumprida" && !riscado && "text-primary")}>{i.titulo || "(sem título)"}</span>
+        {itemEmAcompanhamentoEspecial(i, processosAcompanhados) && <AcompanhamentoEspecialBadge />}
         {i.processo?.numero && <span className="text-xs text-muted-foreground">{i.processo.numero}</span>}
         <span className="text-xs">{fmt(i.data_fatal ?? i.data_vencimento ?? i.data_inicio)}</span>
         <Badge variant={st === "atrasada" ? "destructive" : "secondary"}>{st === "pendente" ? "Pendente" : st === "atrasada" ? "Atrasada" : st === "cumprida" ? "Cumprida" : "Cancelada"}</Badge>
@@ -613,9 +620,10 @@ export default function MinhasResponsabilidades() {
                 externalItems={filtrados.map(paraItemAgenda) as any}
                 externalLoading={atividades.isLoading}
                 onItemClick={setItemSel}
+                processosAcompanhados={processosAcompanhados}
               />
             ) : modoVista === "kanban" ? (
-              <KanbanItensAgenda itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
+              <KanbanItensAgenda itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} processosAcompanhados={processosAcompanhados} />
             ) : modoVista === "calendario" ? (
               <Card><CardContent className="p-2">
                 <div className="flex items-center justify-between mb-2">
@@ -651,6 +659,7 @@ export default function MinhasResponsabilidades() {
                                 {itensDeWorkflow.has(rid) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
                                 {!!itensDePub?.has(rid) && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
                                 {temComentarioItem(mapaComentarios as any, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(mapaComentarios as any, item)} />}
+                                {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
                                 {cob && <CobrancaBadge simbolo={cob.simbolo} hoje={cob.hoje} title={tituloCobranca(cob)} className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
                               </button>
                             );
@@ -663,7 +672,7 @@ export default function MinhasResponsabilidades() {
                 </div>
               </CardContent></Card>
             ) : modoVista === "projuris" ? (
-              <ListaAtividadesProjuris itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
+              <ListaAtividadesProjuris itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} processosAcompanhados={processosAcompanhados} />
             ) : (
               <Card><CardContent className="p-0 divide-y">
                 {!atividades.isLoading && filtrados.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma atividade.</div>}

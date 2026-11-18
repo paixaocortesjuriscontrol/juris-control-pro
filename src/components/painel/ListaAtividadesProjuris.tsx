@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,15 @@ import { AlertTriangle, Search } from "lucide-react";
 import { parseISO, isValid, format, startOfDay } from "date-fns";
 import type { ItemAgendaUnificado } from "@/hooks/useAgendaUnificada";
 import { isItemConcluidoComSucesso, isItemRiscado } from "@/components/shared/TratadoCheck";
+import { AcompanhamentoEspecialBadge } from "@/components/comum/AcompanhamentoEspecialBadge";
+import { itemEmAcompanhamentoEspecial } from "@/lib/acompanhamentoEspecialItem";
 import { cn } from "@/lib/utils";
 
 interface Props {
   itens: ItemAgendaUnificado[];
   onItemClick: (item: ItemAgendaUnificado) => void;
+  /** IDs de processo em Acompanhamento Especial: mostra a bolinha vermelha "A". */
+  processosAcompanhados?: ReadonlySet<string>;
 }
 
 const fmt = (raw?: string | null) => {
@@ -35,19 +39,20 @@ const STATUS_LABEL: Record<string, string> = {
 const iniciais = (nome?: string | null) =>
   (nome || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
 
-function Campo({ rotulo, valor, alerta }: { rotulo: string; valor?: string | null; alerta?: boolean }) {
+function Campo({ rotulo, valor, alerta, marca }: { rotulo: string; valor?: string | null; alerta?: boolean; marca?: ReactNode }) {
   return (
     <div className="min-w-0">
       <div className="text-[11px] text-muted-foreground">{rotulo}</div>
       <div className="text-sm font-medium truncate flex items-center gap-1" title={valor || "Não informado"}>
         <span className="truncate">{valor || "Não informado"}</span>
         {alerta && <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-destructive" />}
+        {marca}
       </div>
     </div>
   );
 }
 
-export function ListaAtividadesProjuris({ itens, onItemClick }: Props) {
+export function ListaAtividadesProjuris({ itens, onItemClick, processosAcompanhados }: Props) {
   const [busca, setBusca] = useState("");
   const hoje = startOfDay(new Date());
 
@@ -118,7 +123,7 @@ export function ListaAtividadesProjuris({ itens, onItemClick }: Props) {
                 <Campo rotulo="Fatal" valor={fatal ? format(fatal, "dd/MM/yyyy") : null} alerta={!!atrasoF} />
               </div>
               <div className="space-y-1">
-                <Campo rotulo="Vínculo" valor={item.processo?.numero} />
+                <Campo rotulo="Vínculo" valor={item.processo?.numero} marca={itemEmAcompanhamentoEspecial(item, processosAcompanhados) ? <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px]" /> : undefined} />
                 <Campo rotulo="Cliente" valor={cliente} />
               </div>
               <div className="space-y-1">
