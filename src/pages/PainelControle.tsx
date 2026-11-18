@@ -2567,7 +2567,7 @@ export default function PainelControle() {
         created_at: a.created_at,
         updated_at: a.updated_at,
         processo_id: a.processo_id ?? null,
-        processo: a.processo_numero ? { id: a.processo_id ?? a.id, numero: a.processo_numero } : null,
+        processo: a.processo_numero ? { id: a.processo_id ?? null, numero: a.processo_numero } : null,
         criado_por: a.criado_por,
         coordenacao_id: a.coordenacao_id ?? null,
       } as unknown as ItemAgendaUnificado);
