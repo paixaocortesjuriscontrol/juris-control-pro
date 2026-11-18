@@ -95,6 +95,7 @@ import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
 import { corHeaderItem } from "@/lib/tipoItemAgenda";
+import { ItemCalendarioResponsabilidade } from "@/components/minhas-responsabilidades/ItemCalendarioResponsabilidade";
 
 type Periodo = "mes" | "trimestre" | "ano";
 const PERIODOS: { v: Periodo; l: string }[] = [
@@ -241,6 +242,7 @@ export default function MinhasResponsabilidades() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [itemSel, setItemSel] = useState<any | null>(null);
+  const [itemCalendarioSel, setItemCalendarioSel] = useState<any | null>(null);
   const [procSel, setProcSel] = useState<any | null>(null);
   const [etapaSel, setEtapaSel] = useState<any | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>("mes");
@@ -636,7 +638,7 @@ export default function MinhasResponsabilidades() {
                             const cob = infoCobrancaItem(mapaCobrancas as any, item);
                             const corKey = String(item.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item.tipo;
                             return (
-                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemSel(item)}
+                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemCalendarioSel(item)}
                                 className={cn("w-full text-[10px] leading-tight px-1 py-0.5 rounded truncate font-medium flex items-center gap-0.5 text-left",
                                   cancelado ? "bg-muted border border-foreground/60 text-foreground"
                                     : sucesso ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
@@ -731,6 +733,14 @@ export default function MinhasResponsabilidades() {
           </div>
         )}
       </ItemDrawer>
+
+      <ItemCalendarioResponsabilidade
+        item={itemCalendarioSel}
+        onClose={() => setItemCalendarioSel(null)}
+        onUpdate={() => {
+          void queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] });
+        }}
+      />
 
       <ItemDrawer
         open={!!procSel}

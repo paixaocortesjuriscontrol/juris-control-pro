@@ -22,3 +22,8 @@
 ## Acompanhamento Especial — avisos (pedido de 18/11/2026)
 - [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas
 - [x] Coordenador pode ser desmarcado para deixar de receber (campo `coordenadores_excluidos_ids`)
+
+## Minhas Responsabilidades — ficha ampliada do calendário (18/11/2026)
+- [x] Painel largo exclusivo do clique no calendário, sem alterar o Painel de Controle
+- [x] Abas Atividade, Processo, Publicações, Workflow e Documentos com dados sob demanda
+- [x] Testes de datas/mesclagem e verificação da compilação
