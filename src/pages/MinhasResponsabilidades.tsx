@@ -82,7 +82,6 @@ import { ListaAtividadesProjuris } from "@/components/painel/ListaAtividadesProj
 import { useQueryClient } from "@tanstack/react-query";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
 import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLateral";
-import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ProcessoVisaoGeralForm } from "@/components/processos/ProcessoVisaoGeralForm";
 import { cn } from "@/lib/utils";
 import { agruparAtividadesDaAgenda, chaveAtividade } from "@/lib/atividadesDaAgenda";
@@ -94,7 +93,6 @@ import { useCobrancasItens, infoCobrancaItem } from "@/hooks/useCobrancasItens";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
 import { isItemTratado } from "@/components/shared/TratadoCheck";
 import { itemSemProcessoEPublicacao, itemVeioDePublicacao } from "@/lib/vinculoItem";
-import { corHeaderItem } from "@/lib/tipoItemAgenda";
 import { ItemCalendarioResponsabilidade } from "@/components/minhas-responsabilidades/ItemCalendarioResponsabilidade";
 
 type Periodo = "mes" | "trimestre" | "ano";
@@ -242,7 +240,6 @@ export default function MinhasResponsabilidades() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [itemSel, setItemSel] = useState<any | null>(null);
-  const [itemCalendarioSel, setItemCalendarioSel] = useState<any | null>(null);
   const [procSel, setProcSel] = useState<any | null>(null);
   const [etapaSel, setEtapaSel] = useState<any | null>(null);
   const [periodo, setPeriodo] = useState<Periodo>("mes");
@@ -611,7 +608,12 @@ export default function MinhasResponsabilidades() {
             {carregando(atividades)}
             {atividades.error && <div className="text-destructive text-sm">Não foi possível carregar: {(atividades.error as Error).message}</div>}
             {modoVista === "lista" ? (
-              <ListaAtividadesView embedded externalItems={filtrados.map(paraItemAgenda) as any} externalLoading={atividades.isLoading} />
+              <ListaAtividadesView
+                embedded
+                externalItems={filtrados.map(paraItemAgenda) as any}
+                externalLoading={atividades.isLoading}
+                onItemClick={setItemSel}
+              />
             ) : modoVista === "kanban" ? (
               <KanbanItensAgenda itens={filtrados.map(paraItemAgenda) as any} onItemClick={(i: any) => setItemSel(i)} />
             ) : modoVista === "calendario" ? (
@@ -638,7 +640,7 @@ export default function MinhasResponsabilidades() {
                             const cob = infoCobrancaItem(mapaCobrancas as any, item);
                             const corKey = String(item.tipo_tarefa ?? "").toUpperCase().trim() === "ATA" ? "ata" : item.tipo;
                             return (
-                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemCalendarioSel(item)}
+                              <button key={`${raw._fonte}:${raw.id}`} type="button" title={item.titulo} onClick={() => setItemSel(item)}
                                 className={cn("w-full text-[10px] leading-tight px-1 py-0.5 rounded truncate font-medium flex items-center gap-0.5 text-left",
                                   cancelado ? "bg-muted border border-foreground/60 text-foreground"
                                     : sucesso ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
@@ -711,32 +713,9 @@ export default function MinhasResponsabilidades() {
         </Tabs>
       </div>
 
-      <ItemDrawer
-        open={!!itemSel}
-        onOpenChange={(o) => !o && setItemSel(null)}
-        titulo={itemSel?.titulo || "Detalhe do item"}
-        processoId={itemSel?.processo?.id ?? itemSel?.processo_id ?? null}
-        processoNumero={itemSel?.processo?.numero ?? null}
-        corHeader={itemSel ? corHeaderItem(itemSel) : undefined}
-      >
-        {itemSel && (
-          <div className="flex flex-col h-full">
-            <div className="flex-1 min-h-0 overflow-auto">
-              <EdicaoItemPanel
-                key={itemSel.id}
-                item={itemSel}
-                hideHeader
-                onClose={() => setItemSel(null)}
-                onUpdate={() => { queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] }); }}
-              />
-            </div>
-          </div>
-        )}
-      </ItemDrawer>
-
       <ItemCalendarioResponsabilidade
-        item={itemCalendarioSel}
-        onClose={() => setItemCalendarioSel(null)}
+        item={itemSel}
+        onClose={() => setItemSel(null)}
         onUpdate={() => {
           void queryClient.invalidateQueries({ queryKey: ["minhas-responsabilidades"] });
         }}

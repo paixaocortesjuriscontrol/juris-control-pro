@@ -29,3 +29,5 @@
 - [x] Barra superior com Dados, Atividades, Checklist, Comentários, Anexos e Histórico de alterações
 - [x] Somente a seção escolhida visível e uma única rolagem na ficha
 - [x] Testes de datas/mesclagem e verificação da compilação
+- [x] Aviso de que o seletor Tarefa/Prazo/Ata altera o tipo da atividade
+- [x] Ficha completa em Agenda, Lista, Compacta, Kanban, Calendário e Atividades, sem alterar o Painel de Controle

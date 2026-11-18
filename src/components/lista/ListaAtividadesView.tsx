@@ -180,6 +180,8 @@ const defaultFilters: Filters = {
 interface ListaAtividadesViewProps {
   embedded?: boolean;
   onRequestNovo?: () => void;
+  /** Quando informado, a tela hospedeira controla a ficha aberta pelo clique. */
+  onItemClick?: (item: ItemAgendaUnificado) => void;
   /**
    * Quando informado, a lista usa exatamente os itens já carregados/filtrados pela Agenda.
    */
@@ -207,6 +209,7 @@ interface ListaAtividadesViewProps {
 export default function ListaAtividadesView({
   embedded = false,
   onRequestNovo,
+  onItemClick,
   externalItems,
   externalLoading = false,
   forcedCoordenacaoId,
@@ -1174,7 +1177,8 @@ export default function ListaAtividadesView({
                       const abrir = (e: ReactMouseEvent) => {
                         const tgt = e.target as HTMLElement;
                         if (tgt.closest("[data-stop]")) return;
-                        setDetalhesPrazo(item);
+                        if (onItemClick) onItemClick(item);
+                        else setDetalhesPrazo(item);
                       };
                       const rowCls = cn("cursor-pointer align-top border-0", isSel && "bg-muted/50");
                       const partesAtivo = (r as any).processo_id ? ((r as any).partes_ativas || partesPorProcesso[(r as any).processo_id]?.ativo) : null;
