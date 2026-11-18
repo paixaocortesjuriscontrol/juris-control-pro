@@ -1,0 +1,1 @@
+ALTER TABLE public.config_acompanhamento_especial ADD COLUMN IF NOT EXISTS destinatarios_ids uuid[] NOT NULL DEFAULT '{}';

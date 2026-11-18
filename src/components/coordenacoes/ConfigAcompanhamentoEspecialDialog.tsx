@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Loader2, Save, Radar } from "lucide-react";
+import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
 
 interface Props {
   open: boolean;
@@ -32,6 +33,7 @@ export function ConfigAcompanhamentoEspecialDialog({
   const queryClient = useQueryClient();
   const [dias, setDias] = useState(7);
   const [notificarRetro, setNotificarRetro] = useState(false);
+  const [destinatarios, setDestinatarios] = useState<string[]>([]);
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["config-acompanhamento-especial", coordenacaoId],
@@ -51,6 +53,7 @@ export function ConfigAcompanhamentoEspecialDialog({
     if (!open) return;
     setDias((config as any)?.dias_janela_aviso ?? 7);
     setNotificarRetro(!!(config as any)?.notificar_retroativos);
+    setDestinatarios(((config as any)?.destinatarios_ids as string[]) ?? []);
   }, [open, config]);
 
   const salvar = useMutation({
@@ -62,6 +65,7 @@ export function ConfigAcompanhamentoEspecialDialog({
             coordenacao_id: coordenacaoId,
             dias_janela_aviso: Math.max(1, Math.min(365, Number(dias) || 7)),
             notificar_retroativos: notificarRetro,
+            destinatarios_ids: destinatarios,
           },
           { onConflict: "coordenacao_id" }
         );
@@ -80,7 +84,7 @@ export function ConfigAcompanhamentoEspecialDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Radar className="w-4 h-4" />
@@ -124,6 +128,14 @@ export function ConfigAcompanhamentoEspecialDialog({
               </div>
               <Switch checked={notificarRetro} onCheckedChange={setNotificarRetro} />
             </div>
+
+            <MultiUserSelect
+              label="Quem recebe os avisos"
+              helperText="Se ninguém for escolhido, recebem os responsáveis do processo e os coordenadores, como antes. Com pessoas escolhidas, só elas recebem os avisos desta coordenação."
+              selectedIds={destinatarios}
+              onChange={setDestinatarios}
+              height={200}
+            />
           </div>
         )}
 

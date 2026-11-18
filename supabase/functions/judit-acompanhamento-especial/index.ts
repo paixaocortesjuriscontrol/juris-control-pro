@@ -335,6 +335,24 @@ async function destinatariosDoProcesso(supabase: any, processoId: string) {
   (extras ?? []).forEach((c: any) => c.coordenacao_id && coordIds.add(c.coordenacao_id));
 
   if (coordIds.size > 0) {
+    // Coordenações que escolheram destinatários próprios: só essas pessoas recebem.
+    const { data: cfgs } = await supabase
+      .from("config_acompanhamento_especial")
+      .select("coordenacao_id, destinatarios_ids")
+      .in("coordenacao_id", Array.from(coordIds));
+    const escolhidos = (cfgs ?? []).filter((c: any) => Array.isArray(c.destinatarios_ids) && c.destinatarios_ids.length > 0);
+    if (escolhidos.length > 0) {
+      const escolhidosIds = new Set<string>();
+      escolhidos.forEach((c: any) => {
+        coordIds.delete(c.coordenacao_id);
+        c.destinatarios_ids.forEach((u: string) => escolhidosIds.add(u));
+      });
+      // Coordenação com lista definida: substitui responsáveis/coordenadores padrão.
+      if (coordIds.size === 0) return Array.from(escolhidosIds);
+      escolhidosIds.forEach((u) => ids.add(u));
+    }
+  }
+  if (coordIds.size > 0) {
     const lista = Array.from(coordIds);
     const { data: coords } = await supabase
       .from("coordenacoes")

@@ -2193,6 +2193,7 @@ export type Database = {
         Row: {
           coordenacao_id: string
           created_at: string
+          destinatarios_ids: string[]
           dias_janela_aviso: number
           id: string
           notificar_retroativos: boolean
@@ -2201,6 +2202,7 @@ export type Database = {
         Insert: {
           coordenacao_id: string
           created_at?: string
+          destinatarios_ids?: string[]
           dias_janela_aviso?: number
           id?: string
           notificar_retroativos?: boolean
@@ -2209,6 +2211,7 @@ export type Database = {
         Update: {
           coordenacao_id?: string
           created_at?: string
+          destinatarios_ids?: string[]
           dias_janela_aviso?: number
           id?: string
           notificar_retroativos?: boolean
