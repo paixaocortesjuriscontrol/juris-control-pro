@@ -1,3 +1,4 @@
+import { normalizarCargo as normalizarCargoCanonico } from "@/lib/permissoesMenuCoordenacao";
 import { useSessionState } from "@/hooks/useSessionState";
 import { tipoComModalidade, ordenarLinhasAudiencia } from "@/lib/planilhaAudiencias";
 import { proximaPaginaAgenda } from "@/lib/agendaPaginacao";
@@ -577,7 +578,7 @@ export default function PainelControle() {
         .in("coordenacao_id", off.map((c: any) => c.id));
       const gestor = new Set(
         (cargos || [])
-          .filter((m: any) => ["coordenador", "assistente_coordenador"].includes(String(m.cargo || "").toLowerCase()))
+          .filter((m: any) => ["coordenador", "assistente_coordenador"].includes(normalizarCargoCanonico(m.cargo)))
           .map((m: any) => m.coordenacao_id),
       );
       return off.filter((c: any) => c.coordenador_id !== user.id && !gestor.has(c.id)).map((c: any) => c.id as string);

@@ -1,3 +1,4 @@
+import { normalizarCargo as normalizarCargoCanonico } from "@/lib/permissoesMenuCoordenacao";
 import { BookOpen, CalendarDays } from "lucide-react";
 import { VisaoEscritorioCard } from "@/components/coordenacoes/VisaoEscritorioCard";
 import { RemoverMembroDialog } from "@/components/coordenacoes/RemoverMembroDialog";
@@ -167,12 +168,7 @@ const Coordenacoes = () => {
   ];
 
   const normalizeCargo = (cargo?: string | null) => {
-    const normalized = String(cargo || "advogado")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, "_");
+    const normalized = normalizarCargoCanonico(cargo || "advogado");
     return cargoOptions.some((option) => option.value === normalized) ? normalized : "advogado";
   };
 
@@ -849,8 +845,8 @@ const Coordenacoes = () => {
         onOpenChange={(open) => !open && setNivelAcessoMembro(null)}
         usuarioId={nivelAcessoMembro?.usuario?.id ?? null}
         usuarioNome={nivelAcessoMembro?.usuario?.nome ?? null}
-        membroEhAdmin={String(nivelAcessoMembro?.cargo || "").toLowerCase().includes("admin")}
-        membroEhCoordenador={String(nivelAcessoMembro?.cargo || "").toLowerCase().includes("coordenador")}
+        membroEhAdmin={normalizarCargoCanonico(nivelAcessoMembro?.cargo) === "admin"}
+        membroEhCoordenador={normalizarCargoCanonico(nivelAcessoMembro?.cargo) === "coordenador"}
       />
 
       {/* Confirm Remove Member Sheet */}
