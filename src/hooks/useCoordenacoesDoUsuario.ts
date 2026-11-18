@@ -84,7 +84,8 @@ export function useCoordenacoesDoUsuario() {
   const isAdmin = data?.isAdmin ?? false;
   const coordenacoes = data?.coordenacoes ?? [];
   const podeDelegar = (data as any)?.podeDelegar ?? false;
-  const unicaCoordenacaoId = !isAdmin && !podeDelegar && coordenacoes.length === 1 ? coordenacoes[0].id : null;
+  // Coordenador de uma só coordenação também recebe a pré-seleção (o seletor segue visível).
+  const unicaCoordenacaoId = !isAdmin && coordenacoes.length === 1 ? coordenacoes[0].id : null;
   const precisaSelecionar = isAdmin || podeDelegar || coordenacoes.length > 1;
 
   return {
