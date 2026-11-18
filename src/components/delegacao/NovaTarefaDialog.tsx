@@ -307,11 +307,13 @@ export function NovaTarefaDialog({
   });
   // Item novo: se a coordenação ficou vazia (listas carregaram depois), preenche com a do usuário.
   useEffect(() => {
-    if (open && !tarefaParaEditar && !coordenacaoId && unicaCoordenacaoId) {
-      form.setValue("coordenacao_id", unicaCoordenacaoId);
+    const coordPub = ((publicacao as any)?.coordenacao_id as string | undefined) || "";
+    const escolhida = coordPub || unicaCoordenacaoId;
+    if (open && !tarefaParaEditar && !coordenacaoId && escolhida) {
+      form.setValue("coordenacao_id", escolhida);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, tarefaParaEditar, coordenacaoId, unicaCoordenacaoId]);
+  }, [open, tarefaParaEditar, coordenacaoId, unicaCoordenacaoId, (publicacao as any)?.coordenacao_id]);
   useEffect(() => {
     coordFeriadosAtual = coordenacaoId || null;
     if (coordenacaoId) void precarregarFeriados(coordenacaoId).catch(() => {});

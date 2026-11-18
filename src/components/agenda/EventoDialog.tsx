@@ -141,8 +141,10 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
   // Item novo: já vem com a coordenação padrão do usuário, sem esperar a lista.
   const { data: coordPadraoNovo } = useCoordenacaoPadrao();
   useEffect(() => {
-    if (open !== false && !isEditing && !coordenacaoId && coordPadraoNovo) setCoordenacaoId(coordPadraoNovo);
-  }, [open, isEditing, coordenacaoId, coordPadraoNovo]);
+    if (open === false || isEditing || coordenacaoId) return;
+    const escolhida = ((publicacao as any)?.coordenacao_id as string | undefined) || coordPadraoNovo;
+    if (escolhida) setCoordenacaoId(escolhida);
+  }, [open, isEditing, coordenacaoId, coordPadraoNovo, (publicacao as any)?.coordenacao_id]);
   const { datasBloqueadas, motivoBloqueio } = usePodeAlterarDatas(((evento as any)?.coordenacao_id as string) || coordenacaoId || null, "EVENTO");
   const travarDatas = datasBloqueadas && isEditing;
 
@@ -222,7 +224,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     setRecorrenciaIntervalo(1);
     setRecorrenciaFim("");
     setRecorrenciaOcorrencias("");
-    setCoordenacaoId(unicaCoordenacaoId || "");
+    setCoordenacaoId((prev) => prev || (publicacao as any)?.coordenacao_id || unicaCoordenacaoId || "");
   };
 
   const { data: processos } = useQuery({
