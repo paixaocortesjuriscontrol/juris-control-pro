@@ -1324,7 +1324,7 @@ export async function fetchAgendaPage(
               updated_at: aud.updated_at,
               processo_id: aud.processo_id ?? null,
               processo: aud.processo_numero
-                ? { id: aud.processo_id ?? aud.id, numero: aud.processo_numero }
+                ? { id: aud.processo_id ?? null, numero: aud.processo_numero }
                 : null,
               criado_por: aud.criado_por,
               anexos_count: (aud as any).documentos?.[0]?.count ?? 0,

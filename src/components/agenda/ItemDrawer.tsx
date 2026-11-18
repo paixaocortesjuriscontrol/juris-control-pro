@@ -1,3 +1,4 @@
+import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Check, Copy, ExternalLink, X } from "lucide-react";
@@ -41,6 +42,17 @@ export function ItemDrawer({
   className,
 }: ItemDrawerProps) {
   const colorido = Boolean(corHeader);
+  const [idResolvido, setIdResolvido] = useState<string | null>(null);
+  useEffect(() => {
+    setIdResolvido(null);
+    if (processoId || !processoNumero || !open) return;
+    const digitos = processoNumero.replace(/\D/g, "");
+    let vivo = true;
+    supabase.from("processos").select("id").in("numero", Array.from(new Set([processoNumero, digitos]))).limit(1)
+      .then(({ data }) => { if (vivo && data?.[0]?.id) setIdResolvido(data[0].id); });
+    return () => { vivo = false; };
+  }, [processoId, processoNumero, open]);
+  processoId = processoId || idResolvido;
   const temProcesso = Boolean(processoId || processoNumero);
   const [copiado, setCopiado] = useState(false);
 
@@ -118,7 +130,16 @@ export function ItemDrawer({
                     {copiado ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
                 )}
-                {processoId && <span className="text-xs font-normal opacity-80">Abrir processo</span>}
+                {processoId && (
+                  <a
+                    href={`/processos/${encodeURIComponent(processoId)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-normal underline-offset-4 hover:underline"
+                  >
+                    Abrir processo
+                  </a>
+                )}
               </div>
             )}
             {(partes?.ativo || partes?.passivo) && (
