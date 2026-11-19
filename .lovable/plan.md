@@ -1,25 +1,50 @@
-# Santander Cível: dois responsáveis nos prazos e mudança de situação
+# Santander Cível: responsáveis duplicados, histórico invisível e situação
 
-## O que os dados mostram
-- **Dois responsáveis:** em 50 atividades em aberto da Santander Cível, uma segunda pessoa ainda aparece como responsável. Essas pessoas foram colocadas de volta pelo sistema em 18/11 às 15h19 (horário de Brasília). Nas outras coordenações elas já foram retiradas. A Santander Cível ficou de fora porque ainda estava decidindo, e por isso a confusão aparece nos prazos dela. A coordenação não tem responsáveis fixos configurados, então os nomes não vêm daí.
-- **Mudança de situação:** desde 18/11 às 18h33 (horário de Brasília) não houve nenhum erro de mudança de situação gravado para pessoas da Santander Cível. Os últimos foram da Lays Santos, com o aviso "Sua coordenação só permite mudar a situação deste agendamento". Esse aviso vem da regra de situação configurada pela coordenação, que bloqueia a troca para aquele tipo de atividade.
+## O que aconteceu nos dois processos
+A reclamação procede, mas quem retirou as pessoas não foi o sistema.
+
+**0149812-93.2026.8.05.0001 — CRAZ RI**
+- 17/11 às 17h56: a Isabela trocou o responsável de Renata para Guilherme.
+- 18/11 às 15h19: o sistema devolveu a Renata. Foi a devolução automática que deu errado.
+- 19/11 às 10h14: a Geovana tirou a Renata.
+
+O resultado é o que a Isabela tinha escolhido: só o Guilherme.
+
+**1013534-64.2026.8.13.0480 — DEFESA**
+- 17/11 às 15h20: a Geovana trocou o responsável de Ívina para Renata.
+- 18/11 às 15h19: o sistema devolveu a Ívina.
+- 18/11 às 17h31: a Geovana tirou a Ívina.
+
+O resultado é o que a Geovana tinha escolhido: só a Renata. Esse prazo já está cumprido.
+
+O "estava com as duas pessoas" veio da devolução automática de 18/11. Ainda há outras 47 atividades em aberto da Santander Cível nessa situação.
+
+## Por que não conseguem ver o histórico
+O histórico de alterações aparece para três tipos de pessoa:
+- admins;
+- quem tem o perfil geral de Coordenador ou de Assistente de coordenação;
+- quem fez a própria alteração.
+
+Quem é coordenadora só dentro da Santander Cível e tem outro perfil geral, como Advogada, não vê o histórico. Quem não fez a alteração também não vê.
 
 ## O que será feito
-1. **Retirar os responsáveis extras da Santander Cível**, como já foi feito nas outras coordenações:
-   - Saem só as pessoas que o sistema colocou em 18/11 às 15h19 e que não são o responsável principal (47 pessoas).
-   - Só atividades em aberto. Cumpridas, canceladas, baixadas e protocoladas não mudam.
-   - Antes de retirar, guardo uma cópia de tudo, para devolver se alguém pedir.
-2. **Mudança de situação:**
-   - Conferir a regra de situação da Santander Cível que bloqueou a Lays.
-   - Conferir também se, depois da retirada, quem ficou como responsável principal consegue mudar a situação.
-   - Não vou mudar regras sem a sua confirmação. Se houver outro bloqueio sem registro de erro, peço o nome da pessoa e o título da atividade.
-3. Conferir depois: nenhuma atividade em aberto da Santander Cível deve continuar com o segundo responsável vindo de 18/11.
+1. **Histórico:** liberar a leitura do histórico de uma atividade para:
+   - os membros da coordenação daquela atividade;
+   - os responsáveis e envolvidos nela.
+   Só a leitura. Ninguém passa a poder alterar o histórico.
+2. **Responsáveis duplicados na Santander Cível:** retirar as 47 pessoas colocadas pelo sistema em 18/11 às 15h19 que não são o responsável principal.
+   - Só nas atividades em aberto.
+   - Antes, guardo uma cópia, como foi feito nas outras coordenações.
+3. **Mudança de situação:** desde 18/11 às 18h33 não houve nenhum erro gravado de alguém da Santander Cível. Os últimos foram da Lays, barrados pela regra de situação da própria coordenação. Vou mostrar qual regra barrou a Lays, sem alterá-la.
 
 ## Detalhes técnicos
-- Backup: inserir em `backup_responsaveis_devolvidos_20261118` (`papel = 'responsavel'`) as linhas de `tarefa_responsaveis` que atendem a todas estas condições:
+- Migração: nova política SELECT em `auditoria_tarefas` para `authenticated`, com a condição:
+  - `coordenacao_id` em `membros_coordenacao` do `auth.uid()`; **ou**
+  - `sou_participante_tarefa(tarefa_id)`.
+  As políticas existentes continuam como estão.
+- Dados: inserir em `backup_responsaveis_devolvidos_20261118` e depois apagar de `tarefa_responsaveis` as linhas que atendem a todas estas condições:
   - `created_at` entre 18:18 e 18:21 UTC de 18/11;
   - coordenação Santander Cível;
   - `usuario_id <> tarefas.responsavel_id`;
   - status em aberto.
-- Em seguida, apagar essas linhas. O trigger de troca de responsável não é acionado, porque o responsável principal continua o mesmo.
-- Ler `permissoes_situacao_tipo_tarefa` da Santander Cível para explicar o bloqueio.
+- Ler `permissoes_situacao_tipo_tarefa` da Santander Cível.
