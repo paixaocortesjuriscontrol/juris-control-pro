@@ -557,6 +557,7 @@ export function useIniciarWorkflow() {
         const responsavel = resolverResponsavelEtapa(etapaEfetiva, {
           iniciadorId: user.id,
           responsavelInicial: responsavel_inicial,
+          inicioDoFluxo: true,
         });
         const item = await criarItemWorkflow(
           execucaoCast as WorkflowExecucao,

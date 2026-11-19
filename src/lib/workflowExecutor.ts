@@ -155,8 +155,11 @@ export function resolverResponsavelEtapa(
     responsavelAnterior?: string | null;
     iniciadorId?: string | null;
     responsavelInicial?: string | null;
+    /** true quando a etapa é criada ao iniciar o fluxo: a escolha feita na tela vale sempre. */
+    inicioDoFluxo?: boolean;
   }
 ): string | null | undefined {
+  if (contexto.inicioDoFluxo && contexto.responsavelInicial) return contexto.responsavelInicial;
   switch (etapa.regra_responsavel) {
     case "predefinido":
       return (etapa as any).responsavel_id || contexto.responsavelInicial || undefined;
