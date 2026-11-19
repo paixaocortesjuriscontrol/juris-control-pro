@@ -157,9 +157,18 @@ export function resolverResponsavelEtapa(
     responsavelInicial?: string | null;
     /** true quando a etapa é criada ao iniciar o fluxo: a escolha feita na tela vale sempre. */
     inicioDoFluxo?: boolean;
+    /** Quem concluiu a etapa anterior: fica com as etapas seguintes sem pessoa fixa no modelo. */
+    concluidoPor?: string | null;
   }
 ): string | null | undefined {
   if (contexto.inicioDoFluxo && contexto.responsavelInicial) return contexto.responsavelInicial;
+  if (!contexto.inicioDoFluxo) {
+    if (etapa.regra_responsavel === "predefinido" && (etapa as any).responsavel_id) {
+      return (etapa as any).responsavel_id;
+    }
+    const seguinte = contexto.concluidoPor || contexto.responsavelAnterior || contexto.iniciadorId;
+    if (seguinte) return seguinte;
+  }
   switch (etapa.regra_responsavel) {
     case "predefinido":
       return (etapa as any).responsavel_id || contexto.responsavelInicial || undefined;
@@ -869,6 +878,8 @@ async function materializarEtapas(
   const responsavelAnterior = etapaReferencia?.item_id
     ? await buscarResponsavelItem(etapaReferencia.item_tipo, etapaReferencia.item_id)
     : null;
+  const { data: sessaoConclusao } = await supabase.auth.getUser();
+  const concluidoPor = etapaReferencia ? sessaoConclusao?.user?.id ?? null : null;
 
   let criadas = 0;
   for (const proxima of elegiveis) {
@@ -888,6 +899,7 @@ async function materializarEtapas(
       const responsavel = resolverResponsavelEtapa(etapaEfetiva, {
         responsavelAnterior,
         iniciadorId: execucaoCast.iniciado_por,
+        concluidoPor,
       });
 
       const item = await criarItemWorkflow(

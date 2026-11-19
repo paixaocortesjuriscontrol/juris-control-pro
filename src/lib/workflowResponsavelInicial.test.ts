@@ -8,3 +8,14 @@ test("ao iniciar, a pessoa escolhida vence a regra 'quem iniciou'", () => {
 test("sem escolha, fica com quem iniciou", () => {
   assert.equal(resolverResponsavelEtapa(etapa, { iniciadorId: "lis", inicioDoFluxo: true }), "lis");
 });
+
+const b = { id: "e" } as any;
+test("etapa seguinte: pessoa fixa do modelo continua valendo", () => {
+  assert.equal(resolverResponsavelEtapa({ ...b, regra_responsavel: "predefinido", responsavel_id: "fixo" }, { concluidoPor: "ana" }), "fixo");
+});
+test("etapa seguinte com regra 'Etapa anterior' fica com quem concluiu", () => {
+  assert.equal(resolverResponsavelEtapa({ ...b, regra_responsavel: "etapa_anterior" }, { concluidoPor: "ana", responsavelAnterior: "bia" }), "ana");
+});
+test("etapa seguinte com regra 'Quem iniciou' fica com quem concluiu", () => {
+  assert.equal(resolverResponsavelEtapa({ ...b, regra_responsavel: "iniciador" }, { concluidoPor: "ana", iniciadorId: "lis" }), "ana");
+});
