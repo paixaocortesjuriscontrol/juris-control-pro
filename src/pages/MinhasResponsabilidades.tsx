@@ -28,6 +28,12 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { tituloCobranca } from "@/hooks/useCobrancasItens";
 import { autoriaComentarioItem } from "@/hooks/useItensComComentarios";
 import { FileText } from "lucide-react";
+import { toast } from "sonner";
+import { exportarWorkflowsExcel } from "@/lib/exportWorkflowsExcel";
+import { selecionarExecucoesExcel, REGRA_RESPONSAVEL } from "@/lib/workflowsResponsabilidade";
+
+const fmtDataBRT = (iso?: string | null) => iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(iso)) : "—";
+const TIPO_ROTULO: Record<string, string> = { PRAZO: "Prazo", TAREFA: "Tarefa", EVENTO: "Evento", AUDIENCIA: "Audiência", ATA: "Ata" };
 
 const CAL_CORES: Record<string, string> = {
   evento: "bg-green-50 dark:bg-green-950/40 border border-green-300 dark:border-green-800 text-green-700 dark:text-green-300",
@@ -341,7 +347,7 @@ export default function MinhasResponsabilidades() {
     queryKey: ["minhas-responsabilidades", "workflows", uid],
     enabled: !!uid,
     queryFn: async () => {
-      const sel = "etapa_id, workflow_etapas:etapa_id(id, titulo, ordem, workflows:workflow_id(id, nome, ativo, arquivado_em, coordenacoes:coordenacao_id(nome)))";
+      const sel = "etapa_id, workflow_etapas:etapa_id(id, titulo, ordem, tipo_item, dias_previsto, dias_fatal, regra_responsavel, workflows:workflow_id(id, nome, ativo, arquivado_em, coordenacao_id, coordenacoes:coordenacao_id(nome), workflow_etapas(count)))";
       const [r, e] = await Promise.all([
         supabase.from("workflow_etapa_responsaveis").select(sel).eq("usuario_id", uid),
         supabase.from("workflow_etapa_envolvidos").select(sel).eq("usuario_id", uid),
@@ -360,6 +366,64 @@ export default function MinhasResponsabilidades() {
       return [...m.values()].sort((a, b) => a.workflows.nome.localeCompare(b.workflows.nome) || a.ordem - b.ordem);
     },
   });
+
+  const [wfBusca, setWfBusca] = useState("");
+  const [wfPapel, setWfPapel] = useState<"todos" | PapelItem>("todos");
+  const [gerandoWf, setGerandoWf] = useState(false);
+  const wfIds = useMemo(() => [...new Set((workflows.data ?? []).map((e: any) => e.workflows.id))].sort(), [workflows.data]);
+  const wfExecucoes = useQuery({
+    queryKey: ["minhas-responsabilidades", "workflow-execucoes", uid, JSON.stringify(wfIds)],
+    enabled: !!uid && !workflows.isLoading,
+    queryFn: async () => {
+      const sel = "*, workflow:workflows(id, nome, coordenacao:coordenacoes(id, nome))";
+      const out: any[] = [];
+      for (let i = 0; i < wfIds.length; i += 100) {
+        const { data, error } = await supabase.from("workflow_execucoes").select(sel).in("workflow_id", wfIds.slice(i, i + 100)).order("created_at", { ascending: false }).limit(5000);
+        if (error) throw error;
+        out.push(...(data ?? []));
+      }
+      const { data: ini, error: e2 } = await supabase.from("workflow_execucoes").select(sel).eq("iniciado_por", uid).limit(5000);
+      if (e2) throw e2;
+      out.push(...(ini ?? []));
+      const emAndamento = [...new Set(out.filter((x) => x.status === "em_andamento").map((x) => x.id))];
+      const paradas: any[] = [];
+      for (let i = 0; i < emAndamento.length; i += 100) {
+        const { data, error } = await supabase.from("workflow_execucao_etapas").select("etapa_id, execucao_id").in("execucao_id", emAndamento.slice(i, i + 100)).eq("status", "materializada");
+        if (error) throw error;
+        paradas.push(...(data ?? []));
+      }
+      return { execucoes: out, paradas };
+    },
+  });
+  const wfStats = useMemo(() => {
+    const porWf = new Map<string, { andamento: number; ultima: string | null }>();
+    const vistos = new Set<string>();
+    (wfExecucoes.data?.execucoes ?? []).forEach((x: any) => {
+      if (vistos.has(x.id)) return; vistos.add(x.id);
+      const s = porWf.get(x.workflow_id) ?? { andamento: 0, ultima: null };
+      if (x.status === "em_andamento") s.andamento++;
+      if (!s.ultima || x.created_at > s.ultima) s.ultima = x.created_at;
+      porWf.set(x.workflow_id, s);
+    });
+    const porEtapa = new Map<string, number>();
+    (wfExecucoes.data?.paradas ?? []).forEach((p: any) => porEtapa.set(p.etapa_id, (porEtapa.get(p.etapa_id) ?? 0) + 1));
+    return { porWf, porEtapa };
+  }, [wfExecucoes.data]);
+  const wfFiltrados = useMemo(() => {
+    const t = wfBusca.trim().toLowerCase();
+    return (workflows.data ?? []).filter((e: any) => (wfPapel === "todos" || e._papel === wfPapel) && (!t || `${e.workflows.nome} ${e.titulo}`.toLowerCase().includes(t)));
+  }, [workflows.data, wfBusca, wfPapel]);
+  const wfExcel = useMemo(() => selecionarExecucoesExcel(wfExecucoes.data?.execucoes ?? [], wfFiltrados.map((e: any) => e.workflows.id), uid, !wfBusca.trim() && wfPapel === "todos"), [wfExecucoes.data, wfFiltrados, uid, wfBusca, wfPapel]);
+  const gerarExcelWf = async () => {
+    setGerandoWf(true);
+    try {
+      const nomes: Record<string, string> = {};
+      wfExcel.forEach((x: any) => { if (x.workflow?.coordenacao) nomes[x.workflow.coordenacao.id] = x.workflow.coordenacao.nome; });
+      await exportarWorkflowsExcel(wfExcel, nomes, {});
+    } catch (e: any) {
+      toast.error("Erro ao gerar Excel: " + (e?.message || e));
+    } finally { setGerandoWf(false); }
+  };
 
   const brutos = atividades.data ?? [];
   const itensAgendaFmt = useMemo(() => brutos.map(paraItemAgenda), [brutos]);
@@ -708,17 +772,48 @@ export default function MinhasResponsabilidades() {
 
           <TabsContent value="workflows">
             {carregando(workflows)}
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input value={wfBusca} onChange={(ev) => setWfBusca(ev.target.value)} placeholder="Buscar workflow ou etapa" className="h-8 w-[240px] pl-7 text-sm" />
+              </div>
+              <FiltroInline rotulo="Papel" valor={wfPapel} onChange={setWfPapel}
+                opcoes={[{ v: "todos", l: "Todos" }, { v: "responsavel", l: "Responsável" }, { v: "envolvido", l: "Envolvido" }]} />
+              <div className="flex-1" />
+              <Button size="sm" variant="outline" onClick={gerarExcelWf} disabled={gerandoWf || wfExecucoes.isLoading || wfExcel.length === 0}>
+                {gerandoWf || wfExecucoes.isLoading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <FileSpreadsheet className="w-4 h-4 mr-1" />}
+                {gerandoWf ? "Gerando..." : `Gerar Excel (${wfExcel.length})`}
+              </Button>
+            </div>
             <Card><CardContent className="p-0 divide-y">
-              {!workflows.isLoading && (workflows.data ?? []).length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma etapa de workflow.</div>}
-              {(workflows.data ?? []).map((e) => (
-                <button key={e.id} className="w-full text-left p-3 hover:bg-muted/50 flex flex-wrap gap-2 items-center" onClick={() => setEtapaSel(e)}>
-                  <span className="font-medium">{e.workflows.nome}</span>
-                  <span className="text-sm flex-1">Etapa {e.ordem}: {e.titulo}</span>
-                  <span className="text-xs text-muted-foreground">{e.workflows.coordenacoes?.nome ?? ""}</span>
-                  {!e.workflows.ativo && <Badge variant="outline">Desabilitado</Badge>}
-                  <Badge variant={e._papel === "responsavel" ? "default" : "outline"}>{e._papel === "responsavel" ? "Responsável" : "Envolvido"}</Badge>
-                </button>
-              ))}
+              {!workflows.isLoading && wfFiltrados.length === 0 && <div className="p-6 text-sm text-muted-foreground">Nenhuma etapa de workflow.</div>}
+              {wfFiltrados.map((e: any) => {
+                const tipo = String(e.tipo_item ?? "").toUpperCase();
+                const corTipo = CAL_CORES[tipo === "ATA" ? "ata" : tipo.toLowerCase()] ?? "bg-muted text-muted-foreground border";
+                const total = e.workflows.workflow_etapas?.[0]?.count;
+                const st = wfStats.porWf.get(e.workflows.id);
+                const parados = wfStats.porEtapa.get(e.id) ?? 0;
+                return (
+                  <button key={e.id} className="w-full text-left px-3 py-2 hover:bg-muted/50 flex flex-col gap-1" onClick={() => setEtapaSel(e)}>
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="font-medium">{e.workflows.nome}</span>
+                      <span className="text-sm flex-1">Etapa {e.ordem}{total ? ` de ${total}` : ""}: {e.titulo}</span>
+                      <span className="text-xs text-muted-foreground">{e.workflows.coordenacoes?.nome ?? ""}</span>
+                      {!e.workflows.ativo && <Badge variant="outline">Desabilitado</Badge>}
+                      <Badge variant={e._papel === "responsavel" ? "default" : "outline"}>{e._papel === "responsavel" ? "Responsável" : "Envolvido"}</Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 items-center text-xs text-muted-foreground">
+                      {tipo && <span className={`px-1.5 py-0.5 rounded ${corTipo}`}>{TIPO_ROTULO[tipo] ?? tipo}</span>}
+                      <span>Previsto: {e.dias_previsto ?? "—"} dia(s)</span>
+                      <span>Fatal: {e.dias_fatal ?? "—"} dia(s)</span>
+                      <span>Responsável: {REGRA_RESPONSAVEL[e.regra_responsavel] ?? "—"}</span>
+                      <span>Em andamento: <b className="text-foreground">{st?.andamento ?? 0}</b></span>
+                      <span>Nesta etapa agora: <b className="text-foreground">{parados}</b></span>
+                      <span>Último início: {fmtDataBRT(st?.ultima)}</span>
+                    </div>
+                  </button>
+                );
+              })}
             </CardContent></Card>
           </TabsContent>
         </Tabs>
