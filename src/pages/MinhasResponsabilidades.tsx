@@ -245,7 +245,8 @@ function WorkflowPainel({ etapa }: { etapa: any }) {
             {e.descricao && <div className="text-xs whitespace-pre-wrap border-t pt-2"><span className="text-muted-foreground">Descrição: </span>{e.descricao}</div>}
             {e._fluxos.length > 0 && (
               <div className="border-t pt-2 space-y-1">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Fluxos parados nesta etapa ({e._fluxos.length})</div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground" title="Fluxos em andamento cuja atividade desta etapa ainda não foi cumprida">Processos aguardando esta etapa ({e._fluxos.length})</div>
+                <div className="text-[10px] text-muted-foreground">Fluxos em andamento cuja atividade desta etapa ainda não foi cumprida.</div>
                 {e._fluxos.map((f: any) => (
                   <div key={f.execucao_id} className="text-xs flex flex-wrap gap-x-3">
                     <b>{f.processo || "(sem processo)"}</b>
@@ -927,7 +928,7 @@ export default function MinhasResponsabilidades() {
                       <span>Fatal: {e.dias_fatal ?? "—"} dia(s)</span>
                       <span>Responsável: {REGRA_RESPONSAVEL[e.regra_responsavel] ?? "—"}</span>
                       <span>Em andamento: <b className="text-foreground">{st?.andamento ?? 0}</b></span>
-                      <span>Nesta etapa agora: <b className="text-foreground">{parados}</b></span>
+                      <span>Aguardando esta etapa: <b className="text-foreground">{parados}</b></span>
                       <span>Último início: {fmtDataBRT(st?.ultima)}</span>
                     </div>
                     {(() => {
