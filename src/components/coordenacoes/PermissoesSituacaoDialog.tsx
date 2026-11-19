@@ -119,8 +119,10 @@ export function PermissoesSituacaoDialog({
     },
   });
 
+  // Recarrega do banco a cada abertura: alterações canceladas não podem
+  // reaparecer como se tivessem sido salvas.
   useEffect(() => {
-    if (!configs) return;
+    if (!open || !configs) return;
     const next: Record<string, Regra> = {};
     (configs as any[]).forEach((c) => {
       next[`${c.tipo_tarefa}|${c.situacao}`] = {
@@ -132,7 +134,7 @@ export function PermissoesSituacaoDialog({
       };
     });
     setRegras(next);
-  }, [configs]);
+  }, [configs, open]);
 
   const situacoes = useMemo(
     () => situacoesBase(tipoItemDe(tipoSelecionado)),
