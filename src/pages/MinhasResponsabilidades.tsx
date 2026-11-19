@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lerFonteAgendaPorTipo } from "@/lib/agendaRpc";
 import type { FonteAgenda } from "@/lib/agendaModoBusca";
 import { classificarStatus, STATUS_PARA_FILTRO, type StatusFiltro } from "@/lib/statusItemEquipe";
-import { grupoAgendaResponsabilidade, papelDoUsuario, type GrupoAgendaResponsabilidade, type PapelItem } from "@/lib/minhasResponsabilidades";
+import { estadoListaAoAbrirResumo, grupoAgendaResponsabilidade, papelDoUsuario, type GrupoAgendaResponsabilidade, type PapelItem } from "@/lib/minhasResponsabilidades";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -591,6 +591,15 @@ export default function MinhasResponsabilidades() {
     });
     return c;
   }, [itens, tipo]);
+  // Os cartões resumem todos os tipos; os filtros da lista são limpos ao abrir um cartão.
+  const contagemResumo = useMemo(() => {
+    const c: Record<StatusFiltro, number> = { todos: 0, pendentes: 0, atrasadas: 0, cumpridas: 0, cancelados: 0 };
+    itens.forEach((i) => {
+      c.todos++;
+      c[STATUS_PARA_FILTRO[classificarStatus(i)]]++;
+    });
+    return c;
+  }, [itens]);
 
   const atividadesOpcoes = useMemo(
     () => agruparAtividadesDaAgenda(itens.filter((i) => tipo === "todos" || i._tipo === tipo).map((i: any) => ({ ...i, tipo: i._tipo }))),
@@ -631,11 +640,20 @@ export default function MinhasResponsabilidades() {
   const [aba, setAba] = useState("atividades");
   const hojeStr = format(new Date(), "yyyy-MM-dd");
   const qtdHoje = itens.filter((i) => grupoAgendaResponsabilidade(i, hojeStr) === "hoje").length;
+  const abrirResumo = (destino: "agenda" | "atividades", situacao: StatusFiltro = "todos") => {
+    const proximo = estadoListaAoAbrirResumo(situacao);
+    setFiltro(proximo.filtro);
+    setTipo(proximo.tipo);
+    setBusca(proximo.busca);
+    setPf((atual) => ({ ...atual, atividadesSelecionadas: proximo.atividadesSelecionadas }));
+    setAba(destino);
+    if (destino === "agenda") setGrupoAgenda("hoje");
+  };
   const resumo: { l: string; v: number; destaque?: boolean; ativo?: boolean; onClick: () => void }[] = [
-    { l: "Hoje", v: qtdHoje, ativo: aba === "agenda" && grupoAgenda === "hoje", onClick: () => { setAba("agenda"); setGrupoAgenda("hoje"); } },
-    { l: "Atrasadas", v: contagem.atrasadas, destaque: true, ativo: aba === "atividades" && filtro === "atrasadas", onClick: () => { setAba("atividades"); setFiltro("atrasadas"); } },
-    { l: "Pendentes", v: contagem.pendentes, ativo: aba === "atividades" && filtro === "pendentes", onClick: () => { setAba("atividades"); setFiltro("pendentes"); } },
-    { l: "Cumpridas", v: contagem.cumpridas, ativo: aba === "atividades" && filtro === "cumpridas", onClick: () => { setAba("atividades"); setFiltro("cumpridas"); } },
+    { l: "Hoje", v: qtdHoje, ativo: aba === "agenda" && grupoAgenda === "hoje", onClick: () => abrirResumo("agenda") },
+    { l: "Atrasadas", v: contagemResumo.atrasadas, destaque: true, ativo: aba === "atividades" && filtro === "atrasadas", onClick: () => abrirResumo("atividades", "atrasadas") },
+    { l: "Pendentes", v: contagemResumo.pendentes, ativo: aba === "atividades" && filtro === "pendentes", onClick: () => abrirResumo("atividades", "pendentes") },
+    { l: "Cumpridas", v: contagemResumo.cumpridas, ativo: aba === "atividades" && filtro === "cumpridas", onClick: () => abrirResumo("atividades", "cumpridas") },
     { l: "Processos", v: (processos.data ?? []).filter((p) => p.status === "ativo").length, ativo: aba === "processos", onClick: () => setAba("processos") },
     { l: "Workflows", v: workflows.data?.length ?? 0, ativo: aba === "workflows", onClick: () => setAba("workflows") },
   ];

@@ -1,8 +1,13 @@
-import { classificarStatus, type StatusItem } from "@/lib/statusItemEquipe";
+import { classificarStatus, type StatusFiltro, type StatusItem } from "@/lib/statusItemEquipe";
 
 /** Papel da pessoa num item da agenda: responsável vence envolvido; só criador não conta. */
 export type PapelItem = "responsavel" | "envolvido" | null;
 export type GrupoAgendaResponsabilidade = "atrasadas" | "hoje" | "futuras" | null;
+
+/** Os cartões de resumo abrem uma visão completa, sem filtros antigos da lista. */
+export function estadoListaAoAbrirResumo(filtro: StatusFiltro = "todos") {
+  return { filtro, tipo: "todos", busca: "", atividadesSelecionadas: [] as string[] };
+}
 
 interface ItemAgendaResponsabilidade {
   data_fatal?: string | null;
