@@ -12783,6 +12783,10 @@ export type Database = {
         Args: { _dias_atras?: number }
         Returns: number
       }
+      pode_alterar_participantes: {
+        Args: { _item: string; _tabela: string }
+        Returns: boolean
+      }
       pode_alterar_situacao_item:
         | { Args: { _tarefa: string; _user: string }; Returns: boolean }
         | {
