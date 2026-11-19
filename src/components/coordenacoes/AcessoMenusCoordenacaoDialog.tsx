@@ -57,7 +57,8 @@ export function AcessoMenusCoordenacaoDialog({ open, onOpenChange, coordenacaoId
   });
 
   useEffect(() => {
-    if (!data) return;
+    // Recarrega a cada abertura para Cancelar descartar alterações.
+    if (!open || !data) return;
     const c: Record<string, boolean> = {};
     const m: Record<string, boolean> = {};
     data.regras.forEach((r) => {
@@ -66,7 +67,7 @@ export function AcessoMenusCoordenacaoDialog({ open, onOpenChange, coordenacaoId
     });
     setCargoBloq(c);
     setMembroRegra(m);
-  }, [data]);
+  }, [data, open]);
 
   const salvar = async () => {
     setSalvando(true);

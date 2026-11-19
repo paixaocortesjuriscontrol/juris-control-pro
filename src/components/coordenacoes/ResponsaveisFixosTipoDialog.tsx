@@ -153,7 +153,8 @@ export function ResponsaveisFixosTipoDialog({
   });
 
   useEffect(() => {
-    if (!configs) return;
+    // Recarrega a cada abertura para Cancelar descartar alterações.
+    if (!open || !configs) return;
     const next: Record<string, string[]> = {};
     const nextEnv: Record<string, string[]> = {};
     configs.forEach((c: any) => {
@@ -162,7 +163,7 @@ export function ResponsaveisFixosTipoDialog({
     });
     setMapa(next);
     setMapaEnvolvidos(nextEnv);
-  }, [configs]);
+  }, [configs, open]);
 
   const selecionados = mapa[tipoSelecionado] || [];
   const selecionadosEnv = mapaEnvolvidos[tipoSelecionado] || [];
