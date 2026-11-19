@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.pode_alterar_participantes(text, uuid) FROM PUBLIC, anon;

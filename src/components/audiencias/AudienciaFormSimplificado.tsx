@@ -522,12 +522,7 @@ export function AudienciaFormSimplificado({
       }
 
 
-      await supabase.from("audiencias_advogados").delete().eq("audiencia_id", audienciaParaEditar.id);
-      if (advogados_ids && advogados_ids.length > 0) {
-        await supabase.from("audiencias_advogados").insert(
-          advogados_ids.map((advogadoId) => ({ audiencia_id: audienciaParaEditar.id, advogado_id: advogadoId }))
-        );
-      }
+      await sincronizarParticipantesTarefa(audienciaParaEditar.id, "audiencias_advogados", advogados_ids || []);
 
       await sincronizarParticipantesTarefa(audienciaParaEditar.id, "audiencia_envolvidos", envolvidos_ids || []);
 
