@@ -499,12 +499,9 @@ export function EquipeItensAgenda({
             <Card
               key={m.id}
               onClick={() => {
-                if (selectedMembro === m.id) {
-                  setSelectedMembro(null);
-                  setStatusFilter("todos");
-                } else {
-                  setSelectedMembro(m.id);
-                }
+                setSearch("");
+                setStatusFilter("todos");
+                setSelectedMembro(selectedMembro === m.id ? null : m.id);
               }}
               title="Clique para ver os itens desta pessoa. Clique em p, a, c ou x para filtrar por aquela situação."
               className={cn(
@@ -535,7 +532,7 @@ export function EquipeItensAgenda({
                       total={m.pendentes}
                       cor="text-amber-600"
                       ativa={statusFilter === "pendentes"}
-                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("pendentes"); }}
+                      onClick={() => { setSelectedMembro(m.id); setSearch(""); setStatusFilter("pendentes"); }}
                     />
                     <ContagemMembro
                       sufixo="a"
@@ -543,7 +540,7 @@ export function EquipeItensAgenda({
                       total={m.atrasadas}
                       cor="text-destructive"
                       ativa={statusFilter === "atrasadas"}
-                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("atrasadas"); }}
+                      onClick={() => { setSelectedMembro(m.id); setSearch(""); setStatusFilter("atrasadas"); }}
                     />
                     <ContagemMembro
                       sufixo="c"
@@ -551,7 +548,7 @@ export function EquipeItensAgenda({
                       total={m.cumpridas}
                       cor="text-emerald-600"
                       ativa={statusFilter === "cumpridas"}
-                      onClick={() => { setSelectedMembro(m.id); setStatusFilter("cumpridas"); }}
+                      onClick={() => { setSelectedMembro(m.id); setSearch(""); setStatusFilter("cumpridas"); }}
                     />
                     {m.canceladas > 0 && (
                       <ContagemMembro
@@ -560,7 +557,7 @@ export function EquipeItensAgenda({
                         total={m.canceladas}
                         cor="text-muted-foreground"
                         ativa={statusFilter === "cancelados"}
-                        onClick={() => { setSelectedMembro(m.id); setStatusFilter("cancelados"); }}
+                        onClick={() => { setSelectedMembro(m.id); setSearch(""); setStatusFilter("cancelados"); }}
                       />
                     )}
                     <span className="text-muted-foreground font-medium">{taxa}%</span>
@@ -592,7 +589,7 @@ export function EquipeItensAgenda({
                 variant={ativo ? "default" : "outline"}
                 className="h-8 px-2.5 text-xs"
                 title={`Mostrar somente ${f.rotulo.toLowerCase()}`}
-                onClick={() => setStatusFilter(ativo ? "todos" : f.valor)}
+                onClick={() => { setSearch(""); setStatusFilter(ativo ? "todos" : f.valor); }}
               >
                 {f.rotulo}
                 <span className={cn("ml-1 tabular-nums", ativo ? "opacity-80" : f.classe)}>{total}</span>

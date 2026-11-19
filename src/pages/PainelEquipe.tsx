@@ -239,7 +239,7 @@ export default function PainelEquipe() {
         </Card>
         <Card
           className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "all" && activeTab === "tarefas" && "ring-2 ring-blue-500")}
-          onClick={() => { setStatusFilter("all"); setActiveTab("tarefas"); }}
+          onClick={() => { setSelectedMembro("all"); setStatusFilter("all"); setPrioridadeFilter("all"); setSearchQuery(""); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -253,7 +253,7 @@ export default function PainelEquipe() {
         </Card>
         <Card
           className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "pendente" && "ring-2 ring-amber-500")}
-          onClick={() => { setStatusFilter("pendente"); setActiveTab("tarefas"); }}
+          onClick={() => { setSelectedMembro("all"); setStatusFilter("pendente"); setPrioridadeFilter("all"); setSearchQuery(""); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -267,7 +267,7 @@ export default function PainelEquipe() {
         </Card>
         <Card
           className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "atrasado" && "ring-2 ring-destructive")}
-          onClick={() => { setStatusFilter("atrasado"); setActiveTab("tarefas"); }}
+          onClick={() => { setSelectedMembro("all"); setStatusFilter("atrasado"); setPrioridadeFilter("all"); setSearchQuery(""); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -281,7 +281,7 @@ export default function PainelEquipe() {
         </Card>
         <Card
           className={cn("bg-card border-border/50 cursor-pointer transition-all hover:shadow-md select-none", statusFilter === "cumprido" && "ring-2 ring-emerald-500")}
-          onClick={() => { setStatusFilter("cumprido"); setActiveTab("tarefas"); }}
+          onClick={() => { setSelectedMembro("all"); setStatusFilter("cumprido"); setPrioridadeFilter("all"); setSearchQuery(""); setActiveTab("tarefas"); }}
         >
           <CardContent className="pt-4">
             <div className="flex items-center justify-between">
@@ -328,7 +328,7 @@ export default function PainelEquipe() {
                       "bg-card border-border/50 hover:shadow-md transition-shadow cursor-pointer",
                       membro.atrasadas > 0 && "border-l-4 border-l-destructive"
                     )}
-                    onClick={() => { setSelectedMembro(membro.usuario_id); setActiveTab("tarefas"); }}
+                    onClick={() => { setSelectedMembro(membro.usuario_id); setStatusFilter("all"); setPrioridadeFilter("all"); setSearchQuery(""); setActiveTab("tarefas"); }}
                   >
                     <CardContent className="pt-4">
                       <div className="flex items-start gap-3 mb-3">

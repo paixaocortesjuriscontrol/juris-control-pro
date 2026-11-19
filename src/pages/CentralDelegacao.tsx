@@ -304,7 +304,8 @@ export default function CentralDelegacao() {
 
       // Status
       if (statusFiltro === "pendente") {
-        tarefasQuery = tarefasQuery.eq("status", "pendente");
+        // O cartão Pendentes desconta as atrasadas; a lista precisa fazer o mesmo.
+        tarefasQuery = tarefasQuery.eq("status", "pendente").or(`data_vencimento.is.null,data_vencimento.gte.${hojeBrtStr}`);
       } else if (statusFiltro === "cumprido") {
         tarefasQuery = tarefasQuery.eq("status", "cumprido");
       } else if (statusFiltro === "atrasado") {
@@ -615,7 +616,7 @@ export default function CentralDelegacao() {
               "cursor-pointer hover:border-primary/50 transition-colors",
               statusFiltro === "todos" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => { setStatusFiltro("todos"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); }}
+            onClick={() => { setStatusFiltro("todos"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); setMembroId("todos"); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -635,7 +636,7 @@ export default function CentralDelegacao() {
               "cursor-pointer hover:border-blue-500/50 transition-colors",
               statusFiltro === "pendente" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => { setStatusFiltro("pendente"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); }}
+            onClick={() => { setStatusFiltro("pendente"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); setMembroId("todos"); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -655,7 +656,7 @@ export default function CentralDelegacao() {
               "cursor-pointer hover:border-red-500/50 transition-colors",
               statusFiltro === "atrasado" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => { setStatusFiltro("atrasado"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); }}
+            onClick={() => { setStatusFiltro("atrasado"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); setMembroId("todos"); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
@@ -675,7 +676,7 @@ export default function CentralDelegacao() {
               "cursor-pointer hover:border-green-500/50 transition-colors",
               statusFiltro === "cumprido" && "border-primary ring-1 ring-primary"
             )}
-            onClick={() => { setStatusFiltro("cumprido"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); }}
+            onClick={() => { setStatusFiltro("cumprido"); setPrioridadeFiltro("todas"); setPeriodoFiltro("todas"); setSearch(""); setMembroId("todos"); }}
           >
             <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between gap-2">
