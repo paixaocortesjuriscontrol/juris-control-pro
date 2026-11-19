@@ -22,3 +22,13 @@ test("converter para ata preserva ATA como tarefa na agenda", () => {
     tipo_registro: "tarefa",
   });
 });
+
+import { camposTipoSeAlterado } from "./conversaoTipoItem";
+
+test("mudar só a situação de um prazo não envia tipo_registro", () => {
+  assert.deepEqual(camposTipoSeAlterado("PRAZO", "PRAZO"), {});
+});
+
+test("converter tarefa em prazo envia os dois campos", () => {
+  assert.deepEqual(camposTipoSeAlterado("PRAZO", "TAREFA"), { tipo_tarefa: "PRAZO", tipo_registro: "prazo" });
+});

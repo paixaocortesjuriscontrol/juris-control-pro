@@ -62,7 +62,7 @@ import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
-import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
+import { camposTipoTarefa, camposTipoSeAlterado } from "@/lib/conversaoTipoItem";
 import { somarDiasUteis } from "@/lib/feriados";
 import { calcularDataFatal } from "@/lib/datasBase";
 
@@ -656,7 +656,9 @@ export function PrazoDialog({
           }),
       // Preserva o tipo em uma edição comum; uma conversão explícita atualiza
       // os dois campos para o item continuar nas listagens e contagens corretas.
-      ...camposTipoTarefa(tipoTarefa || prazo?.tipo_tarefa || "PRAZO"),
+      ...(prazo?.id
+        ? camposTipoSeAlterado(tipoTarefa || prazo?.tipo_tarefa || "PRAZO", prazo?.tipo_tarefa)
+        : camposTipoTarefa(tipoTarefa || "PRAZO")),
       data_base: format(dataBase, "yyyy-MM-dd"),
       prazo_dias: prazoDias > 0 ? prazoDias : null,
       prazo_unidade: prazoDias > 0 ? prazoUnidade : null,

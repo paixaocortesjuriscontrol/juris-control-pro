@@ -67,7 +67,7 @@ import { aplicarMascaraCnj } from "@/utils/cnjMask";
 import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { calcularDataFatalISO, calcularDataPrevistaISO, fatalAcompanhando } from "@/lib/datasBase";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
-import { camposTipoTarefa } from "@/lib/conversaoTipoItem";
+import { camposTipoTarefa, camposTipoSeAlterado } from "@/lib/conversaoTipoItem";
 
 type AnexoComAnalise = {
   file?: File;
@@ -764,7 +764,7 @@ export function NovaTarefaDialog({
         const updatePayload: Record<string, any> = {
           responsavel_id: responsavelPrincipal,
           titulo: values.titulo,
-          ...(tipoTarefa ? camposTipoTarefa(tipoTarefa) : {}),
+          ...camposTipoSeAlterado(tipoTarefa, (tarefaParaEditar as any)?.tipo_tarefa),
           descricao: values.descricao || null,
           data_base: values.data_base || null,
           data_vencimento: values.data_vencimento,
