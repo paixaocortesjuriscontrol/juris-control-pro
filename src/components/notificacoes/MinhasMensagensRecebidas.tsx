@@ -18,6 +18,17 @@ import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useUserRole } from "@/hooks/useUserRole";
+import { CobrancaBotao } from "@/components/comum/CobrancaBotao";
+import { useCobrancasItens } from "@/hooks/useCobrancasItens";
+
+/** Tipo do item para a cobrança, a partir do tipo do alerta. */
+function tipoItemDoAlerta(tipo?: string | null): string {
+  const t = String(tipo || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (t.includes("audiencia")) return "audiencia";
+  if (t.includes("prazo")) return "prazo";
+  if (t.includes("evento")) return "evento";
+  return "tarefa";
+}
 
 interface Mensagem {
   id: string;
@@ -358,6 +369,17 @@ export default function MinhasMensagensRecebidas({
     setUltimaMarcacao(null);
   };
 
+  // Itens ligados aos alertas, para mostrar e registrar cobranças da equipe.
+  const itensCobranca = useMemo(() => {
+    const ids = new Set<string>();
+    lista.forEach((m: any) => {
+      if (m.referencia_id) ids.add(m.referencia_id);
+      (m.itens_referencias || []).forEach((r: any) => r?.id && ids.add(r.id));
+    });
+    return Array.from(ids).map((id) => ({ id }));
+  }, [lista]);
+  const { data: cobrancas } = useCobrancasItens(itensCobranca, "equipe");
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -470,6 +492,21 @@ export default function MinhasMensagensRecebidas({
                     {limparConteudo(m.conteudo) || "(sem conteúdo)"}
                   </p>
                   {temLista && (
+                    <div className="mt-2 space-y-1" onClick={(e) => e.stopPropagation()}>
+                      {refs.map((r) => (
+                        <div key={`cob-${r.id}`} className="flex items-center gap-2 text-xs">
+                          <CobrancaBotao
+                            compacto
+                            itemId={r.id}
+                            tipoItem={tipoItemDoAlerta(r.origem || m.tipo_alerta)}
+                            info={cobrancas?.get(r.id) ?? null}
+                          />
+                          <span className="truncate">{r.titulo || r.id}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {temLista && (
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button
@@ -499,6 +536,15 @@ export default function MinhasMensagensRecebidas({
                     </DropdownMenu>
                   )}
                 </div>
+                {refUnico && (
+                  <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                    <CobrancaBotao
+                      itemId={refUnico}
+                      tipoItem={tipoItemDoAlerta(m.tipo_alerta)}
+                      info={cobrancas?.get(refUnico) ?? null}
+                    />
+                  </div>
+                )}
                 {!lida ? (
                   <Button
                     size="sm"

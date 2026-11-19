@@ -2739,6 +2739,17 @@ export default function PainelControle() {
           >
             <SlidersHorizontal className={`w-4 h-4 ${mostrarFiltros ? "" : "opacity-50"}`} />
           </Button>
+          {/* Alertas fica sempre visível, mesmo com os filtros ocultos */}
+          <Button
+            size="sm"
+            variant={viewMode === "notificacoes" ? "default" : "destructive"}
+            className="gap-1 whitespace-nowrap"
+            onClick={() => setViewMode("notificacoes")}
+            title="Central de notificações (mantém menu e filtros)"
+          >
+            <Bell className="w-4 h-4" />
+            Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>
@@ -2861,16 +2872,6 @@ export default function PainelControle() {
               >
                 <Download className="w-3.5 h-3.5" />
                 Exportar Atividade
-              </Button>
-              <Button
-                size="sm"
-                variant={viewMode === "notificacoes" ? "default" : "destructive"}
-                className="h-7 px-2 text-xs gap-1"
-                onClick={() => setViewMode("notificacoes")}
-                title="Central de notificações (mantém menu e filtros)"
-              >
-                <Bell className="w-3.5 h-3.5" />
-                Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
               </Button>
 
               <BaixaRapidaDialog
