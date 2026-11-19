@@ -169,26 +169,96 @@ function ProcessoPainel({ id }: { id: string }) {
 
 function WorkflowPainel({ etapa }: { etapa: any }) {
   const q = useQuery({
-    queryKey: ["minhas-responsabilidades", "workflow-etapas", etapa.workflows.id],
+    queryKey: ["minhas-responsabilidades", "workflow-etapas-detalhe", etapa.workflows.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("workflow_etapas").select("id, titulo, ordem, tipo_item, dias_previsto").eq("workflow_id", etapa.workflows.id).order("ordem");
+      const { data, error } = await supabase.from("workflow_etapas")
+        .select("id, titulo, ordem, tipo_item, dias_previsto, dias_fatal, tipo_prazo, prioridade, regra_responsavel, responsavel_id, descricao, etapa_anterior_id, condicao")
+        .eq("workflow_id", etapa.workflows.id).order("ordem");
       if (error) throw error;
-      return data ?? [];
+      const etapas = data ?? [];
+      const ids = etapas.map((e: any) => e.id);
+      const [r, en] = ids.length ? await Promise.all([
+        supabase.from("workflow_etapa_responsaveis").select("etapa_id, usuario_id").in("etapa_id", ids),
+        supabase.from("workflow_etapa_envolvidos").select("etapa_id, usuario_id").in("etapa_id", ids),
+      ]) : [{ data: [] }, { data: [] }] as any;
+      const { data: exs } = await supabase.from("workflow_execucoes").select("id, processo_id, created_at, iniciado_por").eq("workflow_id", etapa.workflows.id).eq("status", "em_andamento").limit(500);
+      const exIds = (exs ?? []).map((x: any) => x.id);
+      const paradas: any[] = [];
+      for (let k = 0; k < exIds.length; k += 100) {
+        const { data: d } = await supabase.from("workflow_execucao_etapas").select("etapa_id, execucao_id, data_prevista_calculada, data_fatal_calculada").in("execucao_id", exIds.slice(k, k + 100)).eq("status", "materializada");
+        paradas.push(...(d ?? []));
+      }
+      const procIds = [...new Set((exs ?? []).map((x: any) => x.processo_id).filter(Boolean))];
+      const procs = new Map<string, string>();
+      for (let k = 0; k < procIds.length; k += 100) {
+        const { data: d } = await supabase.from("processos").select("id, numero").in("id", procIds.slice(k, k + 100));
+        (d ?? []).forEach((p: any) => procs.set(p.id, p.numero));
+      }
+      const pessoas = [...new Set([...(r.data ?? []), ...(en.data ?? [])].map((x: any) => x.usuario_id).concat(etapas.map((e: any) => e.responsavel_id), (exs ?? []).map((x: any) => x.iniciado_por)).filter(Boolean))];
+      const nomes = new Map<string, string>();
+      for (let k = 0; k < pessoas.length; k += 100) {
+        const { data: d } = await (supabase as any).from("profiles_basic").select("id, nome").in("id", pessoas.slice(k, k + 100));
+        (d ?? []).forEach((p: any) => nomes.set(p.id, p.nome));
+      }
+      const listar = (rows: any[], id: string) => rows.filter((x) => x.etapa_id === id).map((x) => nomes.get(x.usuario_id)).filter(Boolean) as string[];
+      const exMap = new Map((exs ?? []).map((x: any) => [x.id, x]));
+      return etapas.map((e: any) => ({
+        ...e,
+        _resp: [...new Set([...(e.responsavel_id && nomes.get(e.responsavel_id) ? [nomes.get(e.responsavel_id)!] : []), ...listar(r.data ?? [], e.id)])],
+        _env: listar(en.data ?? [], e.id),
+        _anterior: etapas.find((x: any) => x.id === e.etapa_anterior_id)?.titulo ?? null,
+        _fluxos: paradas.filter((p) => p.etapa_id === e.id).map((p) => {
+          const ex: any = exMap.get(p.execucao_id);
+          return { ...p, processo: ex?.processo_id ? procs.get(ex.processo_id) : null, inicio: ex?.created_at, iniciador: nomes.get(ex?.iniciado_por) };
+        }),
+      }));
     },
   });
+  const Campo = ({ l, v }: { l: string; v: any }) => (
+    <div><div className="text-[10px] uppercase tracking-wide text-muted-foreground">{l}</div><div className="text-xs">{v || "—"}</div></div>
+  );
   return (
     <div className="p-4 space-y-3">
       <div className="text-sm text-muted-foreground">{etapa.workflows.coordenacoes?.nome ?? ""}{!etapa.workflows.ativo && " · Desabilitado"}</div>
       <div className="text-sm">Você está na etapa <b>{etapa.ordem}: {etapa.titulo}</b> como <b>{etapa._papel === "responsavel" ? "responsável" : "envolvido"}</b>.</div>
-      <div className="divide-y rounded-md border">
-        {(q.data ?? []).map((e) => (
-          <div key={e.id} className={cn("p-2 text-sm flex gap-2", e.id === etapa.id && "bg-muted font-medium")}>
-            <span className="w-8 text-muted-foreground">{e.ordem}</span>
-            <span className="flex-1">{e.titulo}</span>
-            <span className="text-xs text-muted-foreground">{e.tipo_item} · {e.dias_previsto}d</span>
+      {q.isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+      {(q.data ?? []).map((e: any) => {
+        const tipo = String(e.tipo_item ?? "").toUpperCase();
+        return (
+          <div key={e.id} className={cn("rounded-md border p-3 space-y-2", e.id === etapa.id && "border-primary bg-muted/40")}>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">Etapa {e.ordem}</span>
+              <span className="font-medium text-sm flex-1">{e.titulo}</span>
+              {tipo && <span className={cn("px-1.5 py-0.5 rounded text-xs", CAL_CORES[tipo === "ATA" ? "ata" : tipo.toLowerCase()] ?? "bg-muted")}>{TIPO_ROTULO[tipo] ?? tipo}</span>}
+              {e.id === etapa.id && <Badge>Sua etapa</Badge>}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <Campo l="Dias previstos" v={e.dias_previsto != null ? `${e.dias_previsto} dia(s)` : null} />
+              <Campo l="Dias fatais" v={e.dias_fatal != null ? `${e.dias_fatal} dia(s)` : null} />
+              <Campo l="Contagem" v={String(e.tipo_prazo).includes("uteis") ? "Dias úteis" : String(e.tipo_prazo).includes("corridos") ? "Dias corridos" : e.tipo_prazo} />
+              <Campo l="Prioridade" v={e.prioridade ? String(e.prioridade).replace(/^./, (c: string) => c.toUpperCase()) : null} />
+              <Campo l="Regra de responsável" v={REGRA_RESPONSAVEL[e.regra_responsavel]} />
+              <Campo l="Depois de" v={e._anterior} />
+              <Campo l="Responsáveis" v={e._resp.join(", ")} />
+              <Campo l="Envolvidos" v={e._env.join(", ")} />
+            </div>
+            {e.descricao && <div className="text-xs whitespace-pre-wrap border-t pt-2"><span className="text-muted-foreground">Descrição: </span>{e.descricao}</div>}
+            {e._fluxos.length > 0 && (
+              <div className="border-t pt-2 space-y-1">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Fluxos parados nesta etapa ({e._fluxos.length})</div>
+                {e._fluxos.map((f: any) => (
+                  <div key={f.execucao_id} className="text-xs flex flex-wrap gap-x-3">
+                    <b>{f.processo || "(sem processo)"}</b>
+                    <span>Início: {fmtDataBRT(f.inicio)}{f.iniciador ? ` por ${f.iniciador}` : ""}</span>
+                    <span>Limite: {f.data_prevista_calculada ? fmt(f.data_prevista_calculada) : "—"}</span>
+                    <span>Fatal: {f.data_fatal_calculada ? fmt(f.data_fatal_calculada) : "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
