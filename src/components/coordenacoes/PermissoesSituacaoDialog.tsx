@@ -278,6 +278,14 @@ export function PermissoesSituacaoDialog({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          <div className="mb-4 rounded-md border bg-muted p-3 text-xs text-muted-foreground space-y-1">
+            <p className="font-semibold text-foreground">Como funciona</p>
+            <p><strong>Sem "Restringir":</strong> todos da coordenação podem usar a situação.</p>
+            <p><strong>Com "Restringir":</strong> só podem usar os cargos marcados e as pessoas marcadas. Quem não estiver marcado perde o acesso, inclusive coordenadores.</p>
+            <p><strong>Exemplo:</strong> marcando só pessoas e nenhum cargo, apenas essas pessoas podem usar a situação.</p>
+            <p><strong>Chave "Ativa" desligada:</strong> a situação some do seletor para todos.</p>
+            <p>O administrador sempre pode. As mudanças só valem depois de <strong>Salvar</strong>; Cancelar descarta tudo.</p>
+          </div>
 
         {isLoading ? (
           <div className="flex items-center justify-center py-10">
