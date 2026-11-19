@@ -347,7 +347,7 @@ export default function MinhasResponsabilidades() {
     queryKey: ["minhas-responsabilidades", "workflows", uid],
     enabled: !!uid,
     queryFn: async () => {
-      const sel = "etapa_id, workflow_etapas:etapa_id(id, titulo, ordem, tipo_item, dias_previsto, dias_fatal, regra_responsavel, workflows:workflow_id(id, nome, ativo, arquivado_em, coordenacao_id, coordenacoes:coordenacao_id(nome), workflow_etapas(count)))";
+      const sel = "etapa_id, workflow_etapas:etapa_id(id, titulo, ordem, responsavel_id, tipo_item, dias_previsto, dias_fatal, regra_responsavel, workflows:workflow_id(id, nome, ativo, arquivado_em, coordenacao_id, coordenacoes:coordenacao_id(nome), workflow_etapas(count)))";
       const [r, e] = await Promise.all([
         supabase.from("workflow_etapa_responsaveis").select(sel).eq("usuario_id", uid),
         supabase.from("workflow_etapa_envolvidos").select(sel).eq("usuario_id", uid),
@@ -393,6 +393,37 @@ export default function MinhasResponsabilidades() {
         paradas.push(...(data ?? []));
       }
       return { execucoes: out, paradas };
+    },
+  });
+  const wfEtapaIds = useMemo(() => (workflows.data ?? []).map((e: any) => e.id).sort(), [workflows.data]);
+  const wfPessoas = useQuery({
+    queryKey: ["minhas-responsabilidades", "workflow-etapa-pessoas", JSON.stringify(wfEtapaIds)],
+    enabled: wfEtapaIds.length > 0,
+    queryFn: async () => {
+      const resp: any[] = [], env: any[] = [];
+      for (let i = 0; i < wfEtapaIds.length; i += 100) {
+        const lote = wfEtapaIds.slice(i, i + 100);
+        const [r, e] = await Promise.all([
+          supabase.from("workflow_etapa_responsaveis").select("etapa_id, usuario_id").in("etapa_id", lote),
+          supabase.from("workflow_etapa_envolvidos").select("etapa_id, usuario_id").in("etapa_id", lote),
+        ]);
+        if (r.error) throw r.error;
+        if (e.error) throw e.error;
+        resp.push(...(r.data ?? [])); env.push(...(e.data ?? []));
+      }
+      const fixos = (workflows.data ?? []).map((x: any) => x.responsavel_id).filter(Boolean);
+      const ids = [...new Set([...resp, ...env].map((x) => x.usuario_id).concat(fixos))];
+      const nomes = new Map<string, string>();
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data } = await (supabase as any).from("profiles_basic").select("id, nome").in("id", ids.slice(i, i + 100));
+        (data ?? []).forEach((p: any) => nomes.set(p.id, p.nome));
+      }
+      const porEtapa = (rows: any[]) => {
+        const m = new Map<string, string[]>();
+        rows.forEach((x) => { const n = nomes.get(x.usuario_id); if (n) m.set(x.etapa_id, [...(m.get(x.etapa_id) ?? []), n]); });
+        return m;
+      };
+      return { resp: porEtapa(resp), env: porEtapa(env), nomes };
     },
   });
   const wfStats = useMemo(() => {
@@ -811,6 +842,17 @@ export default function MinhasResponsabilidades() {
                       <span>Nesta etapa agora: <b className="text-foreground">{parados}</b></span>
                       <span>Último início: {fmtDataBRT(st?.ultima)}</span>
                     </div>
+                    {(() => {
+                      const fixo = e.responsavel_id ? wfPessoas.data?.nomes.get(e.responsavel_id) : null;
+                      const resp = [...new Set([...(fixo ? [fixo] : []), ...(wfPessoas.data?.resp.get(e.id) ?? [])])];
+                      const env = wfPessoas.data?.env.get(e.id) ?? [];
+                      return (
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                          <span><span className="text-muted-foreground">Responsáveis:</span> <b>{resp.length ? resp.join(", ") : wfPessoas.isLoading ? "carregando..." : "—"}</b></span>
+                          {env.length > 0 && <span><span className="text-muted-foreground">Envolvidos:</span> {env.join(", ")}</span>}
+                        </div>
+                      );
+                    })()}
                   </button>
                 );
               })}
