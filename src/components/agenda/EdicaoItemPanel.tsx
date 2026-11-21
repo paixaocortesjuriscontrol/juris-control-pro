@@ -268,6 +268,16 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
   const temBaixaOcorrencia =
     isOcorrenciaRecorrente(item) && !isPrazoFatalTst && !isAudiencia && !isParcelamento;
 
+  const seletorTipo = (
+    <SeletorTipoItem
+      tipo={tipoEdicao}
+      onChange={setTipoEdicao}
+      tipos={["tarefa", "prazo", "ata"]}
+      compacto={processoNaAba}
+      descricao={embedded ? "Selecione para alterar o tipo dessa atividade." : undefined}
+    />
+  );
+
   return (
     <div className={embedded ? "flex flex-col bg-background" : "h-full flex flex-col bg-background"}>
       {!hideHeader && (
@@ -277,25 +287,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
           </Button>
         </div>
       )}
-      {!isPrazoFatalTst && !isAudiencia && !isEvento && tarefa && (
-        <>
-          <SeletorTipoItem
-            tipo={tipoEdicao}
-            onChange={setTipoEdicao}
-            tipos={["tarefa", "prazo", "ata"]}
-            descricao={
-              embedded ? (
-                <>
-                  Selecione <strong className="font-medium text-foreground">Tarefa</strong>,{" "}
-                  <strong className="font-medium text-foreground">Prazo</strong> ou{" "}
-                  <strong className="font-medium text-foreground">Ata</strong> para alterar o tipo
-                  desta atividade.
-                </>
-              ) : undefined
-            }
-          />
-        </>
-      )}
+      {!processoNaAba && !isPrazoFatalTst && !isAudiencia && !isEvento && tarefa && seletorTipo}
       <div key={tipoEdicao} className={embedded ? undefined : "flex-1 min-h-0 overflow-hidden"}>
         {isPrazoFatalTst ? (
           evento && (
@@ -356,6 +348,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
               prazo={tarefa}
               tipoTarefa={tipoMudou ? "PRAZO" : undefined}
               processoNaAba={processoNaAba}
+              seletorTipo={processoNaAba ? seletorTipo : undefined}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />
           )
@@ -372,6 +365,7 @@ export function EdicaoItemPanel({ item, onClose, onUpdate, hideHeader, embedded 
               tarefaParaEditar={tarefa}
               tipoTarefa={tipoMudou ? (tipoEdicao === "ata" ? "ATA" : "TAREFA") : undefined}
               processoNaAba={processoNaAba}
+              seletorTipo={processoNaAba ? seletorTipo : undefined}
               onSuccess={onUpdate}
               ocultarSituacao={isOcorrenciaRecorrente(item)}
             />

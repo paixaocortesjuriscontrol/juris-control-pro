@@ -134,6 +134,8 @@ type PrazoDialogProps = {
   tipoTarefa?: string;
   /** Oculta o vínculo no formulário quando ele é gerenciado na aba Processo. */
   processoNaAba?: boolean;
+  /** Seletor de tipo integrado ao cabeçalho na ficha de Minhas Responsabilidades. */
+  seletorTipo?: React.ReactNode;
 };
 
 export function PrazoDialog({
@@ -153,6 +155,7 @@ export function PrazoDialog({
   onAfterCreate,
   tipoTarefa,
   processoNaAba = false,
+  seletorTipo,
 }: PrazoDialogProps) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -846,11 +849,12 @@ export function PrazoDialog({
   const FormContent = (
     <form id="prazo-form-content" onSubmit={handleSubmit} className={embedded ? "flex flex-col" : "flex flex-col h-full"}>
       <div className={embedded ? "p-5 space-y-4" : "flex-1 overflow-y-auto p-5 space-y-4"}>
-        <div className="flex items-center justify-between gap-3">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="shrink-0 text-sm font-bold uppercase tracking-wide text-foreground">
             Prazo
           </h3>
-          <div className="flex items-center gap-2">
+          {seletorTipo}
+          <div className="ml-auto flex items-center gap-2">
             {!ocultarSituacao && (
             <>
             <Label className="text-xs text-muted-foreground">Situação</Label>
@@ -1109,7 +1113,8 @@ export function PrazoDialog({
         )}
 
 
-        <div className="space-y-1.5">
+        <div className={processoNaAba ? "grid grid-cols-1 gap-4 md:grid-cols-3" : "space-y-4"}>
+        <div className={cn("space-y-1.5", processoNaAba && "md:order-1")}>
           <Label className="text-sm">Data base</Label>
           <Input
             type="date"
@@ -1140,8 +1145,8 @@ export function PrazoDialog({
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+        <div className={processoNaAba ? "contents" : "grid grid-cols-2 gap-4"}>
+          <div className={cn("space-y-1.5", processoNaAba && "md:order-4")}>
             <Label className="text-sm">Prazo</Label>
             <div className="flex gap-2">
               <Input
@@ -1179,7 +1184,7 @@ export function PrazoDialog({
             </div>
           </div>
 
-          <div className="space-y-1.5">
+          <div className={cn("space-y-1.5", processoNaAba && "md:order-2")}>
             <Label className="text-sm">
               Data limite<span className="text-destructive">*</span>
             </Label>
@@ -1215,8 +1220,8 @@ export function PrazoDialog({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
+        <div className={processoNaAba ? "contents" : "grid grid-cols-2 gap-4"}>
+          <div className={cn("space-y-1.5", processoNaAba && "md:order-3")}>
             <Label className="text-sm flex items-center gap-1">
               <AlertTriangle className="h-3.5 w-3.5 text-destructive" />
               Prazo Fatal
@@ -1254,9 +1259,10 @@ export function PrazoDialog({
               autoSelect={!prazo}
               value={coordenacaoId}
               onChange={setCoordenacaoId}
-              className="space-y-1.5"
+              className={cn("space-y-1.5", processoNaAba && "md:order-5")}
             />
           )}
+        </div>
         </div>
 
         <div className="space-y-1.5">

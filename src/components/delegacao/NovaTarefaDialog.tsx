@@ -175,6 +175,8 @@ interface NovaTarefaDialogProps {
   tipoTarefa?: string;
   /** Oculta o vínculo no formulário quando ele é gerenciado na aba Processo. */
   processoNaAba?: boolean;
+  /** Seletor de tipo integrado ao cabeçalho na ficha de Minhas Responsabilidades. */
+  seletorTipo?: React.ReactNode;
 }
 
 export function NovaTarefaDialog({
@@ -195,6 +197,7 @@ export function NovaTarefaDialog({
   onAfterCreate,
   tipoTarefa,
   processoNaAba = false,
+  seletorTipo,
 }: NovaTarefaDialogProps) {
   const ehAta = (tipoTarefa ?? tarefaParaEditar?.tipo_tarefa ?? "").toUpperCase().trim() === "ATA";
   const [loading, setLoading] = useState(false);
@@ -1098,11 +1101,12 @@ export function NovaTarefaDialog({
 
   const Header = (
     inline ? (
-      <div className="px-6 pt-5 pb-3 shrink-0 border-b flex items-center justify-between gap-3">
-        <h3 className="text-base font-semibold flex items-center gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b px-6 pb-3 pt-5">
+        <h3 className="flex shrink-0 items-center gap-2 text-base font-semibold">
           {ehAta ? "Ata" : "Tarefa"}
         </h3>
-        <div className="flex items-center gap-2">
+        {seletorTipo}
+        <div className="ml-auto flex items-center gap-2">
           {publicacao && (
             <BotaoPreencherIA
               conteudo={publicacao.conteudo}
