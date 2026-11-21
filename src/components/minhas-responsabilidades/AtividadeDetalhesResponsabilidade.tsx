@@ -8,6 +8,8 @@ import { ItemHistorico } from "@/components/comum/ItemHistorico";
 import { TabErrorBoundary } from "@/components/comum/TabErrorBoundary";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useContagemComentarios } from "@/hooks/useItensComComentarios";
+import { useContagemAnexosItem, useContagemHistoricoItem } from "@/hooks/useContagensFichaResponsabilidade";
+import { ContagemAba, ContagemParcialAba } from "@/components/comum/ContagemAba";
 import { FileText, History, ListChecks, ListTodo, MessageSquare, Paperclip } from "lucide-react";
 
 interface Props {
@@ -41,19 +43,29 @@ function tiposDoItem(item: any): { atividade: TipoItemAtividade; comentario: Ite
 export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, onClose, onUpdate }: Props) {
   const [secao, setSecao] = useState("dados");
   const [contagemAnexos, setContagemAnexos] = useState(0);
+  const [anexosVistos, setAnexosVistos] = useState(false);
   const { atividade: tipoAtividade, comentario: tipoComentario } = tiposDoItem(item);
   const { data: atividades = [] } = useSubatividades(tipoAtividade, itemId);
   const { data: checklist = [] } = useChecklistItem(tipoAtividade, itemId);
   const { data: totalComentarios = 0 } = useContagemComentarios(tipoComentario, itemId);
-  const aoMudarAnexos = useCallback((total: number) => setContagemAnexos(total), []);
+  const { data: contagemAnexosSalvos = 0 } = useContagemAnexosItem(tipoComentario, itemId);
+  const { data: contagemAuditoria = 0 } = useContagemHistoricoItem(itemId);
+  const aoMudarAnexos = useCallback((total: number) => {
+    setContagemAnexos(total);
+    setAnexosVistos(true);
+  }, []);
 
   useEffect(() => {
     setSecao("dados");
     setContagemAnexos(0);
+    setAnexosVistos(false);
   }, [itemId]);
 
   const concluidas = atividades.filter((atividade) => atividade.situacao === "concluida").length;
   const checklistMarcados = checklist.filter((check) => check.marcado).length;
+  // Antes de abrir a aba vale a contagem do banco; depois vale o que está na tela.
+  const totalAnexos = anexosVistos ? contagemAnexos : contagemAnexosSalvos;
+  const totalHistorico = contagemAuditoria + totalComentarios;
   const semAbas = String(item?.id ?? "").startsWith("prazo-tst-");
 
   if (semAbas) {
@@ -70,18 +82,18 @@ export function AtividadeDetalhesResponsabilidade({ item, itemId, processoId, on
         <TabsList className="grid h-auto w-full grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-6">
           <TabsTrigger value="dados" className="gap-2 py-1.5"><FileText className="h-4 w-4" /> Dados da atividade</TabsTrigger>
           <TabsTrigger value="atividades" className="gap-2 py-1.5">
-            <ListTodo className="h-4 w-4" /> Atividades{atividades.length > 0 ? ` ${concluidas}/${atividades.length}` : ""}
+            <ListTodo className="h-4 w-4" /> Atividades <ContagemParcialAba feitos={concluidas} total={atividades.length} />
           </TabsTrigger>
           <TabsTrigger value="checklist" className="gap-2 py-1.5">
-            <ListChecks className="h-4 w-4" /> Checklist{checklist.length > 0 ? ` ${checklistMarcados}/${checklist.length}` : ""}
+            <ListChecks className="h-4 w-4" /> Checklist <ContagemParcialAba feitos={checklistMarcados} total={checklist.length} />
           </TabsTrigger>
           <TabsTrigger value="comentarios" className="gap-2 py-1.5">
-            <MessageSquare className="h-4 w-4" /> Comentários{totalComentarios > 0 ? ` ${totalComentarios}` : ""}
+            <MessageSquare className="h-4 w-4" /> Comentários <ContagemAba valor={totalComentarios} />
           </TabsTrigger>
           <TabsTrigger value="anexos" className="gap-2 py-1.5">
-            <Paperclip className="h-4 w-4" /> Anexos{contagemAnexos > 0 ? ` ${contagemAnexos}` : ""}
+            <Paperclip className="h-4 w-4" /> Anexos <ContagemAba valor={totalAnexos} />
           </TabsTrigger>
-          <TabsTrigger value="historico" className="gap-2 py-1.5"><History className="h-4 w-4" /> Histórico de alterações</TabsTrigger>
+          <TabsTrigger value="historico" className="gap-2 py-1.5"><History className="h-4 w-4" /> Histórico de alterações <ContagemAba valor={totalHistorico} /></TabsTrigger>
         </TabsList>
       </div>
 

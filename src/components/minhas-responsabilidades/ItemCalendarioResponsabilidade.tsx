@@ -8,6 +8,8 @@ import { ProcessoItensLateral } from "@/components/processos/ProcessoItensLatera
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { corHeaderItem } from "@/lib/tipoItemAgenda";
 import { getItemRawId } from "@/hooks/useItensComAtividades";
+import { useContagensFichaResponsabilidade } from "@/hooks/useContagensFichaResponsabilidade";
+import { ContagemAba } from "@/components/comum/ContagemAba";
 import { formatarDataDetalhe, processoTemAcompanhamentoEspecial } from "@/lib/detalheItemResponsabilidade";
 import { PublicacoesItemResponsabilidade } from "./PublicacoesItemResponsabilidade";
 import { WorkflowItemResponsabilidade } from "./WorkflowItemResponsabilidade";
@@ -41,6 +43,10 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItem
 
   const itemId = item?.id ? getItemRawId(String(item.id)) : "";
   const processoId = item?.processo?.id ?? item?.processo_id ?? null;
+  const { totalPublicacoes, totalEtapasWorkflow, totalDocumentos } = useContagensFichaResponsabilidade({
+    itemId,
+    processoId,
+  });
   const { data: processoDetalhe } = useQuery({
     queryKey: ["minhas-responsabilidades", "acompanhamento-especial-processo", processoId],
     enabled: !!processoId,
@@ -105,13 +111,13 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItem
             <div className="flex-shrink-0 border-b px-4 py-2">
               <TabsList className={cn("grid h-auto w-full grid-cols-2 gap-1", acompanhamentoAtivo ? "sm:grid-cols-3 lg:grid-cols-6" : "sm:grid-cols-5")}>
                 <TabsTrigger value="atividade" className="gap-2 py-1.5"><ListChecks className="h-4 w-4" /> Atividade</TabsTrigger>
-                <TabsTrigger value="processo" className="gap-2 py-1.5"><Briefcase className="h-4 w-4" /> Processo vinculado</TabsTrigger>
+                <TabsTrigger value="processo" className="gap-2 py-1.5"><Briefcase className="h-4 w-4" /> Processo vinculado <ContagemAba valor={processoId ? 1 : 0} /></TabsTrigger>
                 {acompanhamentoAtivo && (
-                  <TabsTrigger value="acompanhamento" className="gap-2 py-1.5" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
+                   <TabsTrigger value="acompanhamento" className="gap-2 py-1.5" title="Acompanhamento Especial"><Sparkles className="h-4 w-4" /> Acomp. Especial</TabsTrigger>
                 )}
-                <TabsTrigger value="publicacoes" className="gap-2 py-1.5"><Newspaper className="h-4 w-4" /> Publicações</TabsTrigger>
-                <TabsTrigger value="workflow" className="gap-2 py-1.5"><GitBranch className="h-4 w-4" /> Workflow</TabsTrigger>
-                <TabsTrigger value="documentos" className="gap-2 py-1.5"><FileText className="h-4 w-4" /> Documentos</TabsTrigger>
+                <TabsTrigger value="publicacoes" className="gap-2 py-1.5"><Newspaper className="h-4 w-4" /> Publicações <ContagemAba valor={totalPublicacoes} /></TabsTrigger>
+                <TabsTrigger value="workflow" className="gap-2 py-1.5"><GitBranch className="h-4 w-4" /> Workflow <ContagemAba valor={totalEtapasWorkflow} /></TabsTrigger>
+                <TabsTrigger value="documentos" className="gap-2 py-1.5"><FileText className="h-4 w-4" /> Documentos <ContagemAba valor={totalDocumentos} /></TabsTrigger>
               </TabsList>
             </div>
 
