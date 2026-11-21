@@ -24,6 +24,7 @@ import { useResponsaveisCounts } from "@/hooks/useResponsaveisCounts";
 import { useProntoSemPendenciaPorResponsavel } from "@/hooks/useProntoSemPendenciaPorResponsavel";
 import type { StatsCardKey } from "@/components/distribuicao-tst/DistribuicaoTstStatsCards";
 import { RankingCriadosSistema } from "@/components/ranking/RankingCriadosSistema";
+import { toast } from "sonner";
 
 
 const NAVY = "hsl(222 47% 18%)";
@@ -411,9 +412,10 @@ export default function RankingAtendimento() {
   const exportarPdf = async (escopo: "sistema" | "todos") => {
     setExportandoPdf(true);
     try {
-    const { data: sisRaw } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
+    const { data: sisRaw, error: sisError } = await (supabase.rpc as any)("get_ranking_criados_sistema", {
       p_inicio: inicio, p_fim: fim, p_coordenacao_id: filtroParams.p_coordenacao_id ?? null,
     });
+    if (sisError) throw sisError;
     const sisMap = new Map<string, any>();
     ((sisRaw || []) as any[]).forEach((r) => {
       const l = sisMap.get(r.uid) || { uid: r.uid, nome: r.nome || "Sem nome", criados: 0, atribuidos: 0, baixou: 0, concluidos: 0, pendentes: 0, atrasados: 0, bn: 0, ba: 0 };
@@ -670,6 +672,9 @@ export default function RankingAtendimento() {
       nomeArquivo: escopo === "sistema" ? "ranking_criados_no_sistema" : "ranking_atendimento_completo",
       secoes: escopo === "sistema" ? secoesSistema : [...secoesSistema, ...secoesRestantes],
     });
+    } catch (error) {
+      console.error("Erro ao exportar o Ranking de Atendimento:", error);
+      toast.error("Não foi possível gerar o PDF do ranking. Tente novamente.");
     } finally {
       setExportandoPdf(false);
     }
