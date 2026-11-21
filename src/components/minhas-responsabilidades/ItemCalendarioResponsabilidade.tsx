@@ -19,10 +19,10 @@ import { ProcessoVinculadoItemResponsabilidade, type ProcessoVinculoResumo } fro
 function ResumoCampo({ icon: Icon, rotulo, valor }: { icon?: typeof CalendarDays; rotulo: string; valor: string }) {
   return (
     <div className="min-w-0">
-      <dt className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {Icon && <Icon className="h-3 w-3" />} {rotulo}
+      <dt className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-current opacity-60">
+        {Icon && <Icon className="h-3 w-3 shrink-0" />} <span className="truncate">{rotulo}</span>
       </dt>
-      <dd className="mt-1 truncate text-xs font-medium text-foreground" title={valor}>{valor}</dd>
+      <dd className="mt-0.5 truncate text-xs font-medium text-current" title={valor}>{valor}</dd>
     </div>
   );
 }
@@ -73,6 +73,17 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItem
     });
   };
 
+  const renderResumo = (classe: string) => (
+    <dl className={cn("grid", classe)}>
+      <ResumoCampo icon={ListChecks} rotulo="Tipo" valor={tipo} />
+      <ResumoCampo icon={Flag} rotulo="Situação" valor={String(item.status ?? "Pendente").replace(/_/g, " ")} />
+      <ResumoCampo icon={CalendarDays} rotulo="Data prevista" valor={formatarDataDetalhe(item.data_vencimento ?? item.data_inicio, true)} />
+      <ResumoCampo icon={CalendarDays} rotulo="Data fatal" valor={formatarDataDetalhe(item.data_fatal, true)} />
+      <ResumoCampo icon={UserRound} rotulo="Meu papel" valor={item._papel === "responsavel" ? "Responsável" : item._papel === "envolvido" ? "Envolvido" : "Participante"} />
+      <ResumoCampo icon={MapPin} rotulo="Local / origem" valor={String(item.local ?? item.link_local ?? item.origem_registro ?? item.origem ?? "—").replace(/_/g, " ")} />
+    </dl>
+  );
+
   return (
     <ItemDrawer
       open={!!item}
@@ -83,18 +94,12 @@ export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItem
       partes={partes}
       rotulosPartes={{ ativo: "Polo ativo", passivo: "Polo passivo" }}
       corHeader={item ? corHeaderItem(item) : undefined}
+      resumoHeader={item ? renderResumo("ml-auto hidden w-[510px] max-w-[52%] shrink-0 grid-cols-3 gap-x-5 gap-y-2 lg:grid") : undefined}
       className="max-w-none sm:w-[min(1180px,96vw)] lg:w-[min(1180px,96vw)]"
     >
       {item && (
         <div className="flex h-full min-h-0 flex-col">
-          <dl className="grid flex-shrink-0 grid-cols-2 gap-x-4 gap-y-3 border-b bg-muted/20 px-5 py-3 sm:grid-cols-3 lg:grid-cols-6">
-            <ResumoCampo icon={ListChecks} rotulo="Tipo" valor={tipo} />
-            <ResumoCampo icon={Flag} rotulo="Situação" valor={String(item.status ?? "Pendente").replace(/_/g, " ")} />
-            <ResumoCampo icon={CalendarDays} rotulo="Data prevista" valor={formatarDataDetalhe(item.data_vencimento ?? item.data_inicio, true)} />
-            <ResumoCampo icon={CalendarDays} rotulo="Data fatal" valor={formatarDataDetalhe(item.data_fatal, true)} />
-            <ResumoCampo icon={UserRound} rotulo="Meu papel" valor={item._papel === "responsavel" ? "Responsável" : item._papel === "envolvido" ? "Envolvido" : "Participante"} />
-            <ResumoCampo icon={MapPin} rotulo="Local / origem" valor={String(item.local ?? item.link_local ?? item.origem_registro ?? item.origem ?? "—").replace(/_/g, " ")} />
-          </dl>
+          {renderResumo("flex-shrink-0 grid-cols-2 gap-x-4 gap-y-3 border-b bg-muted/20 px-5 py-3 text-foreground sm:grid-cols-3 lg:hidden")}
 
           <Tabs value={aba} onValueChange={setAba} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-shrink-0 border-b px-4 py-2">

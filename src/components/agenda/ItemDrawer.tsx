@@ -16,6 +16,8 @@ interface ItemDrawerProps {
   rotulosPartes?: { ativo: string; passivo: string };
   /** Fundo do cabeçalho na cor do tipo (prazo vermelho, audiência amarelo...). */
   corHeader?: string;
+  /** Resumo opcional exibido à direita do cabeçalho em telas largas. */
+  resumoHeader?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }
@@ -40,6 +42,7 @@ export function ItemDrawer({
   partes,
   rotulosPartes = { ativo: "Reclamante", passivo: "Reclamada" },
   corHeader,
+  resumoHeader,
   children,
   className,
 }: ItemDrawerProps) {
@@ -88,6 +91,8 @@ export function ItemDrawer({
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className={cn("relative flex-shrink-0 px-4 py-3 pr-14", colorido ? corHeader : "bg-primary text-primary-foreground")}>
+            <div className="flex items-center gap-6">
+              <div className="min-w-0 flex-1">
             <SheetPrimitive.Title className="truncate text-base font-bold leading-tight">
               {titulo}
             </SheetPrimitive.Title>
@@ -154,6 +159,9 @@ export function ItemDrawer({
                 )}
               </div>
             )}
+              </div>
+              {resumoHeader}
+            </div>
             <SheetPrimitive.Close
               className={cn("absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-md transition-colors", colorido ? "bg-foreground/10 hover:bg-foreground/20" : "bg-primary-foreground/15 hover:bg-primary-foreground/25")}
               title="Fechar"
