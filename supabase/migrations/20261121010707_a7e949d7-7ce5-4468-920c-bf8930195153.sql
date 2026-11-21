@@ -1,0 +1,1 @@
+ALTER FUNCTION public.get_ranking_criados_sistema(date, date, uuid) SECURITY INVOKER;
