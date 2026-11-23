@@ -190,6 +190,11 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
         return;
       }
 
+      if (rawId.startsWith("parcela-")) {
+        toast.error("Parcelas são baixadas pela ficha do parcelamento.");
+        return;
+      }
+
       if (rawId.startsWith("audiencia-det-")) {
         const audId = rawId.replace(/^audiencia-det-/, "");
         const { error } = await supabase
