@@ -1347,6 +1347,27 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_estephany_audiencias_20261123: {
+        Row: {
+          created_at: string
+          id: string
+          linha: Json
+          origem: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          linha: Json
+          origem: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          linha?: Json
+          origem?: string
+        }
+        Relationships: []
+      }
       backup_merge_coord_renata: {
         Row: {
           acao: string
