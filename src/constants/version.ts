@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.3.5";
+export const APP_VERSION = "10.3.6";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.3.6", date: "2026-11-23", notes: "Permissão \"só mudar a situação\": o sistema passa a ignorar diferenças sem importância e campos preenchidos sozinhos pelas telas em prazos, tarefas, atas, eventos e audiências; edição real continua bloqueada e o aviso diz qual campo foi barrado" },
   { version: "10.3.5", date: "2026-11-23", notes: "Audiências: mudar só a situação mantém a data e a hora gravadas, sem esbarrar na regra da coordenação que permite apenas mudar a situação (erro da Larissa na Santander Cível)" },
   { version: "10.3.4", date: "2026-11-23", notes: "Atividades sem pessoas: todo prazo, tarefa, ata, evento, audiência e parcelamento novo ou editado exige pelo menos um responsável ou envolvido, inclusive nos workflows e nas importações (Projuris, planilhas, pré-agendamento por IA e detecção de audiência) — o sistema não preenche ninguém automaticamente, apenas avisa o que falta; em Painel de Controle → Pessoas em lote, o botão 'Excel das antigas sem pessoas' lista as 2.683 atividades já cadastradas sem ninguém, com resumo por tipo, coordenação e situação; o Excel de atividades do Painel volta a gerar a planilha quando há parcelamento no período (erro da Bruna Sousa) e a baixa rápida avisa que parcelas são baixadas pela ficha do parcelamento" },
   { version: "10.3.3", date: "2026-11-23", notes: "Prazos: quem só pode mudar a situação (ex.: assistentes da Santander Cível) volta a conseguir salvar a situação de prazos sem data base, como os importados do Projuris" },

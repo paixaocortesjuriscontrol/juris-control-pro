@@ -11567,6 +11567,8 @@ export type Database = {
       }
     }
     Functions: {
+      _agend_rotulo_campo: { Args: { k: string }; Returns: string }
+      _agend_valor_norm: { Args: { v: Json }; Returns: string }
       _pode_gerir_coordenacao: { Args: { _coord: string }; Returns: boolean }
       acquire_kurier_execution_lease: {
         Args: {
