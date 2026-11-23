@@ -1,3 +1,4 @@
+import { limparCamposAutomaticosPrazo } from "@/lib/camposEdicaoPrazo";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { coordenacaoDoUsuarioNoProcesso } from "@/lib/coordenacaoDoUsuarioNoProcesso";
@@ -813,7 +814,7 @@ export function NovaTarefaDialog({
         if (values.coordenacao_id) {
           updatePayload.coordenacao_id = values.coordenacao_id;
         }
-        const payloadAlterado = somenteCamposAlterados(updatePayload, original as any);
+        const payloadAlterado = limparCamposAutomaticosPrazo((original as any) || {}, somenteCamposAlterados(updatePayload, original as any));
         if (Object.keys(payloadAlterado).length === 0) payloadAlterado.updated_at = new Date().toISOString();
 
         const { error: upErr } = await supabase
