@@ -201,11 +201,19 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
           .from("audiencias_detectadas")
           .update({
             status: situacao as any,
-            observacoes: comentario.trim() || null,
             updated_at: new Date().toISOString(),
           } as any)
           .eq("id", audId);
         if (error) throw error;
+        // Comentário vai para o histórico da audiência (não sobrescreve as observações)
+        if (comentario.trim() && user?.id) {
+          const { error: comErr } = await supabase.from("comentarios_audiencias").insert({
+            audiencia_id: audId,
+            autor_id: user.id,
+            conteudo: `[Situação: ${situacaoInicial} → ${situacao}] ${comentario.trim()}`,
+          } as any);
+          if (comErr) console.error("Falha ao gravar comentário da situação:", comErr);
+        }
       } else if ((info?.origem ?? item.origem) === "tarefa") {
         const { error } = await supabase
           .from("tarefas")
