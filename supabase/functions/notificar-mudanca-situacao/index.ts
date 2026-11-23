@@ -266,7 +266,7 @@ serve(async (req) => {
     for (const item of pendentes ?? []) {
       try {
         let responsaveis: string[] = item.responsaveis ?? [];
-        const isMencao = item.tipo_evento === "mencao";
+        let isMencao = item.tipo_evento === "mencao";
         const isCobranca = item.tipo_evento === "cobranca";
         const isInclusao = item.tipo_evento === "participante_incluido";
         const isAlteracao = item.tipo_evento === "alteracao";
@@ -281,6 +281,14 @@ serve(async (req) => {
           const tipos: string[] = (cfgC?.tipos_alerta ?? []) as string[];
           // "Comentários" é padrão: só ignora se existir config e o tipo tiver sido desmarcado
           if (cfgC && Array.isArray(tipos) && !tipos.includes("comentario")) {
+            // Comentários desligados na coordenação: quem foi @mencionado ainda recebe.
+            const mencionados = await buscarMencionados(supabase, item.entidade, (item.contexto as any)?.comentario_id);
+            if (mencionados.length > 0) {
+              responsaveis = mencionados;
+              isMencao = true;
+            }
+          }
+          if (cfgC && Array.isArray(tipos) && !tipos.includes("comentario") && !isMencao) {
             await supabase.from("notificacoes_fila")
               .update({ processado: true, processado_em: new Date().toISOString() })
               .eq("id", item.id);
@@ -560,3 +568,13 @@ serve(async (req) => {
     });
   }
 });
+
+const TABELA_COMENTARIOS: Record<string, string> = {
+  tarefa: "comentarios_tarefas", evento: "comentarios_eventos", audiencia: "comentarios_audiencias",
+};
+async function buscarMencionados(supabase: any, entidade: string, comentarioId: string | undefined): Promise<string[]> {
+  const tabela = TABELA_COMENTARIOS[entidade];
+  if (!tabela || !comentarioId) return [];
+  const { data } = await supabase.from(tabela).select("mencionados").eq("id", comentarioId).maybeSingle();
+  return ((data?.mencionados ?? []) as string[]).filter(Boolean);
+}
