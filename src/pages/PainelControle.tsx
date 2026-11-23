@@ -3709,38 +3709,41 @@ export default function PainelControle() {
                                     <FileText className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0 opacity-90" />
                                   )}
                                   <span className={cn(
-                                    "truncate",
+                                    "truncate flex-1 min-w-0",
                                     (isItemRiscado(item) || isCancelado) && "line-through",
                                     isItemConcluidoComSucesso(item) && "!text-emerald-800 dark:!text-emerald-300"
                                   )}>
                                     {item.titulo || TIPO_LABELS[corKeyItem(item)]}
                                   </span>
+                                  {/* Selos sempre encostados à direita da célula */}
+                                  <span className="ml-auto flex items-center gap-0.5 shrink-0">
                                   {(item.anexos_count ?? 0) > 0 && (
-                                    <AnexoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 ml-0.5" />
+                                    <AnexoBadge className="w-3 h-3 md:w-3.5 md:h-3.5" />
                                   )}
                                   {temAtividade && (
-                                    <AtividadeBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                    <AtividadeBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]" />
                                   )}
                                   {veioDeWorkflow && (
-                                    <WorkflowBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                    <WorkflowBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]" />
                                   )}
                                   {veioDePublicacao && (
-                                    <PublicacaoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                    <PublicacaoBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]" />
                                   )}
                                   {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && (
-                                    <AcompanhamentoEspecialBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" />
+                                    <AcompanhamentoEspecialBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]" />
                                   )}
                                   {temComentario && (
-                                    <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(itensComComentarios, item)} />
+                                    <ComentarioBadge className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]" autoria={autoriaComentarioItem(itensComComentarios, item)} />
                                   )}
                                   {infoCobranca && (
                                     <CobrancaBadge
                                       simbolo={infoCobranca.simbolo}
                                       hoje={infoCobranca.hoje}
                                       title={tituloCobranca(infoCobranca)}
-                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5"
+                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]"
                                     />
                                   )}
+                                  </span>
 
                                 </div>
                               )})}
@@ -3778,15 +3781,17 @@ export default function PainelControle() {
                                   ) : (
                                     <ListChecks className="w-2 h-2 md:w-2.5 md:h-2.5 flex-shrink-0" />
                                   )}
-                                  <span className="truncate">{a.titulo}</span>
+                                  <span className="truncate flex-1 min-w-0">{a.titulo}</span>
+                                  <span className="ml-auto flex items-center gap-0.5 shrink-0">
                                   {infoCobrancaAtiv && (
                                     <CobrancaBadge
                                       simbolo={infoCobrancaAtiv.simbolo}
                                       hoje={infoCobrancaAtiv.hoje}
                                       title={tituloCobranca(infoCobrancaAtiv)}
-                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px] ml-0.5"
+                                      className="w-3 h-3 md:w-3.5 md:h-3.5 text-[8px]"
                                     />
                                   )}
+                                  </span>
                                 </div>
                               );})}
                               {extras > 0 && (

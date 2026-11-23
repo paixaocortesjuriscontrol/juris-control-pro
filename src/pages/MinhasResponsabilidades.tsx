@@ -840,13 +840,16 @@ export default function MinhasResponsabilidades() {
                                     : sucesso ? "bg-emerald-700/20 border border-emerald-700 text-emerald-800 dark:text-emerald-300"
                                     : CAL_CORES[corKey] || "bg-muted border border-border text-muted-foreground")}>
                                 {isItemTratado(item) ? <TratadoCheck tratado size={10} className="text-green-600 dark:text-green-400" /> : <FileText className="w-2.5 h-2.5 flex-shrink-0 opacity-90" />}
-                                <span className={cn("truncate", (isItemRiscado(item) || cancelado) && "line-through")}>{item.titulo || "(sem título)"}</span>
-                                {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5 ml-0.5" />}
-                                {itensDeWorkflow.has(rid) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
-                                {!!itensDePub?.has(rid) && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
-                                {temComentarioItem(mapaComentarios as any, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" autoria={autoriaComentarioItem(mapaComentarios as any, item)} />}
-                                {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
-                                {cob && <CobrancaBadge simbolo={cob.simbolo} hoje={cob.hoje} title={tituloCobranca(cob)} className="w-3.5 h-3.5 text-[8px] ml-0.5" />}
+                                <span className={cn("truncate flex-1 min-w-0", (isItemRiscado(item) || cancelado) && "line-through")}>{item.titulo || "(sem título)"}</span>
+                                {/* Selos sempre encostados à direita da célula */}
+                                <span className="ml-auto flex items-center gap-0.5 shrink-0">
+                                {(item.anexos_count ?? 0) > 0 && <AnexoBadge className="w-3.5 h-3.5" />}
+                                {itensDeWorkflow.has(rid) && <WorkflowBadge className="w-3.5 h-3.5 text-[8px]" />}
+                                {!!itensDePub?.has(rid) && <PublicacaoBadge className="w-3.5 h-3.5 text-[8px]" />}
+                                {temComentarioItem(mapaComentarios as any, item) && <ComentarioBadge className="w-3.5 h-3.5 text-[8px]" autoria={autoriaComentarioItem(mapaComentarios as any, item)} />}
+                                {itemEmAcompanhamentoEspecial(item, processosAcompanhados) && <AcompanhamentoEspecialBadge className="w-3.5 h-3.5 text-[8px]" />}
+                                {cob && <CobrancaBadge simbolo={cob.simbolo} hoje={cob.hoje} title={tituloCobranca(cob)} className="w-3.5 h-3.5 text-[8px]" />}
+                                </span>
                               </button>
                             );
                           })}
