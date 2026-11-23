@@ -94,6 +94,7 @@ import { EventoDialog } from "@/components/agenda/EventoDialog";
 import { GerarParcelasDialog } from "@/components/agenda/GerarParcelasDialog";
 import { EdicaoItemPanel } from "@/components/agenda/EdicaoItemPanel";
 import { ItemDrawer } from "@/components/agenda/ItemDrawer";
+import { ItemCalendarioResponsabilidade } from "@/components/minhas-responsabilidades/ItemCalendarioResponsabilidade";
 import { useSincronizarWorkflows } from "@/hooks/useWorkflows";
 import { toZonedTime } from "date-fns-tz";
 import { agruparAtividadesDaAgenda, chaveAtividade, dataDoItemNaAgenda } from "@/lib/atividadesDaAgenda";
@@ -304,6 +305,7 @@ export default function PainelControle() {
   // Etiquetas da Lista: filtro exibido ao lado da data, no cabeçalho do modo Lista.
   const [listaEtiquetas, setListaEtiquetas] = useSessionState<string[]>("lista-atv-etiquetas", []);
   const [selectedItem, setSelectedItem] = useState<ItemAgendaUnificado | null>(null);
+  const [selectedItemCalendario, setSelectedItemCalendario] = useState<ItemAgendaUnificado | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [parcelasDialogOpen, setParcelasDialogOpen] = useState(false);
@@ -2470,6 +2472,11 @@ export default function PainelControle() {
     handleEditItem(item);
   };
 
+  const abrirItemCalendario = (item: ItemAgendaUnificado) => {
+    setDiaLateralKey(null);
+    setSelectedItemCalendario(item);
+  };
+
   // Abre a tarefa/prazo/audiência/evento PAI de uma atividade clicada.
   // Se o pai não estiver na lista carregada (filtrado/concluído), busca no banco.
   const abrirPaiDaAtividade = async (a: any) => {
@@ -2477,12 +2484,11 @@ export default function PainelControle() {
     if (!rawId) return;
     const pai = itemPorRawId.get(rawId);
     if (pai) {
-      setDiaLateralKey(null);
-      handleItemClick(pai);
+      abrirItemCalendario(pai);
       return;
     }
     setDiaLateralKey(null);
-    const ok = await abrirItemPorReferencia(rawId, true);
+    const ok = await abrirItemPorReferencia(rawId, true, true);
     if (!ok) toast.error("Não foi possível abrir a tarefa vinculada a esta atividade.");
   };
 
@@ -2491,7 +2497,8 @@ export default function PainelControle() {
   };
 
   // Abre o item (tarefa/prazo/evento/audiência) vinculado a um alerta recebido
-  const abrirItemPorReferencia = async (referenciaId: string, silencioso = false): Promise<boolean> => {
+  const abrirItemPorReferencia = async (referenciaId: string, silencioso = false, fichaAmpla = false): Promise<boolean> => {
+    const selecionarItem = fichaAmpla ? setSelectedItemCalendario : setSelectedItem;
     const local = itensPainelFiltrados.find(
       (i) =>
         i.id === referenciaId ||
@@ -2499,7 +2506,7 @@ export default function PainelControle() {
         String(i.id).endsWith(`-${referenciaId}`)
     );
     if (local) {
-      setSelectedItem(local);
+      selecionarItem(local);
       return true;
     }
 
@@ -2513,7 +2520,7 @@ export default function PainelControle() {
 
     if (tarefa) {
       const t = tarefa as any;
-      setSelectedItem({
+      selecionarItem({
         ...t,
         origem: "tarefa",
         tipo: t.tipo_tarefa || "tarefa",
@@ -2535,7 +2542,7 @@ export default function PainelControle() {
 
     if (evento) {
       const e = evento as any;
-      setSelectedItem({
+      selecionarItem({
         ...e,
         origem: "evento",
         tipo: e.tipo || "evento",
@@ -2559,7 +2566,7 @@ export default function PainelControle() {
 
     if (audiencia) {
       const a = audiencia as any;
-      setSelectedItem({
+      selecionarItem({
         id: `audiencia-det-${a.id}`,
         titulo: a.titulo || `Audiência ${a.processo_numero ?? ""}`.trim(),
         descricao: a.observacoes ?? null,
@@ -2598,7 +2605,7 @@ export default function PainelControle() {
         .maybeSingle();
       if (eventoPai) {
         const e = eventoPai as any;
-        setSelectedItem({
+        selecionarItem({
           ...e,
           origem: "evento",
           tipo: e.tipo || "parcelamento",
@@ -3697,7 +3704,7 @@ export default function PainelControle() {
                                   })()}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    handleItemClick(item);
+                                    abrirItemCalendario(item);
                                   }}
                                   title={(() => {
                                     const nomeModelo = modeloPorTarefa?.get(getItemRawId(item.id))?.nome;
@@ -3826,10 +3833,7 @@ export default function PainelControle() {
                 itens={itensPorDia.get(diaLateralKey) || []}
                 userId={user?.id}
                 atividades={atividadesPorDia.get(diaLateralKey) || []}
-                onSelectItem={(item) => {
-                  setDiaLateralKey(null);
-                  handleItemClick(item);
-                }}
+                onSelectItem={abrirItemCalendario}
                 onSelectAtividade={(a) => {
                   void abrirPaiDaAtividade(a);
                 }}
@@ -3850,6 +3854,18 @@ export default function PainelControle() {
         </div>
         )}
       </div>
+
+      {/* Ficha ampla dos itens abertos pelo calendário ou pela lista do dia */}
+      <ItemCalendarioResponsabilidade
+        item={selectedItemCalendario}
+        onClose={() => setSelectedItemCalendario(null)}
+        onUpdate={async () => {
+          await queryClient.invalidateQueries({ queryKey: [AGENDA_INFINITE_QUERY_KEY] });
+        }}
+        onItemChange={(itemAtualizado) => {
+          setSelectedItemCalendario((atual) => atual?.id === itemAtualizado.id ? itemAtualizado : atual);
+        }}
+      />
 
       {/* Painel sobreposto: edição do item selecionado */}
       <ItemDrawer

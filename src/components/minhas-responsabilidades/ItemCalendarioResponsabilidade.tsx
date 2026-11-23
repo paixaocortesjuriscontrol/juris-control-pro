@@ -36,7 +36,7 @@ interface Props {
   onItemChange: (item: any) => void;
 }
 
-/** Ficha ampla usada somente pelos modos de Minhas Responsabilidades. */
+/** Ficha ampla compartilhada por Minhas Responsabilidades e pelo calendário do Painel. */
 export function ItemCalendarioResponsabilidade({ item, onClose, onUpdate, onItemChange }: Props) {
   const [aba, setAba] = useState("atividade");
   useEffect(() => setAba("atividade"), [item?.id]);
