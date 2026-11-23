@@ -1478,8 +1478,8 @@ export default function PainelControle() {
       const rawId = String(it.id);
       if (rawId.startsWith("audiencia-det-")) {
         audienciaIds.push(rawId.replace("audiencia-det-", ""));
-      } else if (rawId.startsWith("prazo-tst-")) {
-        // sem N:N — ignorar
+      } else if (rawId.startsWith("prazo-tst-") || rawId.startsWith("parcela-")) {
+        // sem N:N próprio (parcelas usam ID composto) — ignorar
       } else if (it.origem === "tarefa") {
         // Ocorrências de tarefas recorrentes chegam como "<uuid>:<data>".
         const base = rawId.split(":")[0];
