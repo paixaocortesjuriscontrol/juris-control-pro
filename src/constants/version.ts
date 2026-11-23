@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.3.3";
+export const APP_VERSION = "10.3.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.3.4", date: "2026-11-23", notes: "Atividades sem pessoas: todo prazo, tarefa, ata, evento, audiência e parcelamento novo ou editado exige pelo menos um responsável ou envolvido, inclusive nos workflows e nas importações (Projuris, planilhas, pré-agendamento por IA e detecção de audiência) — o sistema não preenche ninguém automaticamente, apenas avisa o que falta; em Painel de Controle → Pessoas em lote, o botão 'Excel das antigas sem pessoas' lista as 2.683 atividades já cadastradas sem ninguém, com resumo por tipo, coordenação e situação; o Excel de atividades do Painel volta a gerar a planilha quando há parcelamento no período (erro da Bruna Sousa) e a baixa rápida avisa que parcelas são baixadas pela ficha do parcelamento" },
   { version: "10.3.3", date: "2026-11-23", notes: "Prazos: quem só pode mudar a situação (ex.: assistentes da Santander Cível) volta a conseguir salvar a situação de prazos sem data base, como os importados do Projuris" },
   { version: "10.3.2", date: "2026-11-19", notes: "Responsáveis e envolvidos: quem tem liberação em Quem pode agendar (ex.: Luiza na Santander Cível) consegue trocar as pessoas de audiências, prazos, tarefas, atas e eventos; quem não tem recebe aviso claro em vez de parecer que salvou" },
   { version: "10.3.1", date: "2026-11-19", notes: "Alertas: botão Alertas sempre visível no Painel de Controle, mesmo com os filtros ocultos; lembretes ligados a atividades ganharam o botão de cobrança (registra que a equipe foi cobrada e avisa os responsáveis); tela de situações explica como funciona Restringir; Cancelar descarta alterações nas configurações da coordenação" },
