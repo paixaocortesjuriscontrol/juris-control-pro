@@ -101,10 +101,10 @@ export function IniciarWorkflowDialog({
 
   // Coordenação única chega de forma assíncrona: vincula automaticamente quando carregar
   useEffect(() => {
-    if (!preSelectedProcesso && unicaCoordenacaoId) {
+    if (!preSelectedProcesso?.coordenacao_id && unicaCoordenacaoId) {
       setCoordenacaoId((atual) => atual || unicaCoordenacaoId);
     }
-  }, [unicaCoordenacaoId, preSelectedProcesso]);
+  }, [unicaCoordenacaoId, preSelectedProcesso?.coordenacao_id]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState(initialWorkflowId || "");
   const [search, setSearch] = useState("");
   const [selectedProcesso, setSelectedProcesso] = useState(preSelectedProcesso || null);
@@ -305,7 +305,7 @@ export function IniciarWorkflowDialog({
               <Label htmlFor="coord">Coordenação *</Label>
               <Select
                 value={coordenacaoId}
-                disabled={!!preSelectedProcesso}
+                disabled={!!preSelectedProcesso?.coordenacao_id}
                 onValueChange={(v) => {
                   setCoordenacaoId(v);
                   setSelectedProcesso(null);
