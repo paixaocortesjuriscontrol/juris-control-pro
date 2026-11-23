@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.3.7";
+export const APP_VERSION = "10.3.8";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.3.8", date: "2026-11-23", notes: "Avisos de atividade nova (e-mail, WhatsApp e sistema) mostram o tipo certo: Novo Prazo, Nova Ata ou Nova Tarefa" },
   { version: "10.3.7", date: "2026-11-23", notes: "Datas passadas: criar tarefa, ata, prazo, evento ou audiência com data anterior a hoje não é mais bloqueado; o sistema avisa que a data já venceu e salva mesmo assim (caso da Jéssica em publicação de 18/11)" },
   { version: "10.3.6", date: "2026-11-23", notes: "Permissão \"só mudar a situação\": o sistema passa a ignorar diferenças sem importância e campos preenchidos sozinhos pelas telas em prazos, tarefas, atas, eventos e audiências; edição real continua bloqueada e o aviso diz qual campo foi barrado" },
   { version: "10.3.5", date: "2026-11-23", notes: "Audiências: mudar só a situação mantém a data e a hora gravadas, sem esbarrar na regra da coordenação que permite apenas mudar a situação (erro da Larissa na Santander Cível)" },

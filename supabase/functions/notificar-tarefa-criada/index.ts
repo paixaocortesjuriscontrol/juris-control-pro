@@ -2,6 +2,7 @@ import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notif
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
+import { rotuloTipo } from "./rotulo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -236,6 +237,7 @@ serve(async (req) => {
     const titulo = tarefa.titulo ?? "Tarefa";
     const prioridade = String(tarefa.prioridade ?? "media");
     const emoji = prioridadeEmoji(prioridade);
+    const rot = rotuloTipo(tarefa);
     const corPrioridade = prioridadeCor(prioridade);
 
     const secGeral: string[] = [];
@@ -313,7 +315,7 @@ serve(async (req) => {
         const emailHtml = `
           <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:680px;margin:0 auto;background:#FFFFFF;">
             <div style="background:linear-gradient(135deg,#16A34A 0%,#15803D 100%);color:#fff;padding:22px 24px;border-radius:8px 8px 0 0;">
-              <div style="font-size:12px;opacity:.85;text-transform:uppercase;letter-spacing:.5px;">${emoji} Nova Tarefa Atribuída</div>
+              <div style="font-size:12px;opacity:.85;text-transform:uppercase;letter-spacing:.5px;">${emoji} ${rot.novo} ${rot.atribuido}</div>
               <h2 style="margin:6px 0 0 0;font-size:22px;line-height:1.3;">${escapeHtml(titulo)}</h2>
               ${processoNumero ? `<div style="margin-top:6px;font-size:13px;opacity:.9;">Processo ${escapeHtml(processoNumero)}${coordenacaoNome ? ` • ${escapeHtml(coordenacaoNome)}` : ""}</div>` : coordenacaoNome ? `<div style="margin-top:6px;font-size:13px;opacity:.9;">${escapeHtml(coordenacaoNome)}</div>` : ""}
             </div>
@@ -340,7 +342,7 @@ serve(async (req) => {
           body: JSON.stringify({
             from: "Juris Control <alerta@juriscontrol.adv.br>",
             to: [responsavel.email],
-            subject: `${emoji} Nova Tarefa: ${titulo}`,
+            subject: `${emoji} ${rot.novo}: ${titulo}`,
             html: emailHtml,
           }),
         });
@@ -377,7 +379,7 @@ serve(async (req) => {
         }
 
         const linhas: string[] = [];
-        linhas.push(`${emoji} *Nova Tarefa Atribuída*`);
+        linhas.push(`${emoji} *${rot.novo} ${rot.atribuido}*`);
         linhas.push("");
         linhas.push(`📋 *${titulo}*`);
         if (has(tarefa.tipo_tarefa)) linhas.push(`🏷️ Tipo: ${tarefa.tipo_tarefa}`);
@@ -441,8 +443,8 @@ serve(async (req) => {
           body: JSON.stringify({
             tipo_alerta: "tarefas",
             coordenacao_id: coordenacaoId,
-            titulo: `✅ Nova Tarefa: ${titulo}`,
-            mensagem: `Tarefa atribuída a ${responsavel.nome}. ${dv ? "Prevista: " + dv : ""}${df ? " | Fatal: " + df : ""}`,
+            titulo: `✅ ${rot.novo}: ${titulo}`,
+            mensagem: `${rot.nome} ${rot.atribuido.toLowerCase()} a ${responsavel.nome}. ${dv ? "Prevista: " + dv : ""}${df ? " | Fatal: " + df : ""}`,
             prioridade: prioridade,
             referencia_id: tarefa_id,
             processo_numero: processoNumero,
