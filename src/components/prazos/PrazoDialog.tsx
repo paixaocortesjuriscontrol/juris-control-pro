@@ -1,3 +1,4 @@
+import { limparCamposAutomaticosPrazo } from "@/lib/camposEdicaoPrazo";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada";
@@ -706,7 +707,7 @@ export function PrazoDialog({
         for (const [k, v] of Object.entries(resto)) {
           if (!(k in original) || norm(v) !== norm(original[k])) mudancas[k] = v;
         }
-        await updatePrazo.mutateAsync({ id: prazo.id, ...mudancas } as any);
+        await updatePrazo.mutateAsync({ id: prazo.id, ...limparCamposAutomaticosPrazo(original, mudancas) } as any);
         tarefaId = prazo.id;
       } else {
         const result = await createPrazo.mutateAsync({ ...payload, criado_por: user?.id });
