@@ -14,6 +14,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
+import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
+import { extrairMencionados } from "@/components/comum/MencaoTextarea";
 import { VincularTarefaDialog } from "@/components/delegacao/VincularTarefaDialog";
 import {
   Dialog,
@@ -80,6 +82,7 @@ export function TarefaDetalhesDialog({
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [comentario, setComentario] = useState("");
+  const { membros: membrosMencao } = useMembrosMencionaveis();
   const [sendingComment, setSendingComment] = useState(false);
   const [tarefasRelacionadasOpen, setTarefasRelacionadasOpen] = useState(false);
   const [documentosOpen, setDocumentosOpen] = useState(false);
@@ -293,6 +296,7 @@ export function TarefaDetalhesDialog({
         tarefa_id: tarefa.id,
         autor_id: user.id,
         conteudo: comentario.trim(),
+        mencionados: extrairMencionados(comentario, membrosMencao),
       });
 
       if (error) throw error;

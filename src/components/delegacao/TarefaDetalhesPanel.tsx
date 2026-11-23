@@ -13,6 +13,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
+import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
+import { extrairMencionados } from "@/components/comum/MencaoTextarea";
 import { PrazoDialog } from "@/components/prazos/PrazoDialog";
 import {
   Collapsible,
@@ -69,6 +71,7 @@ export function TarefaDetalhesPanel({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [comentario, setComentario] = useState("");
+  const { membros: membrosMencao } = useMembrosMencionaveis();
   const [sendingComment, setSendingComment] = useState(false);
   const [tarefasRelacionadasOpen, setTarefasRelacionadasOpen] = useState(false);
   const [auditoriaOpen, setAuditoriaOpen] = useState(false);
@@ -186,6 +189,7 @@ export function TarefaDetalhesPanel({
         tarefa_id: tarefa.id,
         autor_id: user.id,
         conteudo: comentario.trim(),
+        mencionados: extrairMencionados(comentario, membrosMencao),
       });
 
       if (error) throw error;

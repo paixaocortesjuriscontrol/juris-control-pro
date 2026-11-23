@@ -15,6 +15,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { MentionInput } from "@/components/ui/mention-input";
+import { useMembrosMencionaveis } from "@/hooks/useMembrosMencionaveis";
+import { extrairMencionados } from "@/components/comum/MencaoTextarea";
 import { formatConteudoParaExibicao, conteudoDisplayClasses } from "@/utils/formatConteudo";
 import {
   Collapsible,
@@ -190,6 +192,8 @@ export function TarefaAgendaPanel({
   const queryClient = useQueryClient();
   
   const [comentario, setComentario] = useState("");
+  
+  const { membros: membrosMencao } = useMembrosMencionaveis();
   const { podeCancelar } = usePodeCancelarItens();
   const tipoPermissao = (() => {
     const t = (tarefa?.tipo || tarefa?.origem || "").toLowerCase();
@@ -759,6 +763,7 @@ export function TarefaAgendaPanel({
           tarefa_id: tarefa.id,
           autor_id: user.id,
           conteudo: comentario.trim(),
+          mencionados: extrairMencionados(comentario, membrosMencao),
         });
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["comentarios-tarefa-agenda", tarefa.id] });
@@ -767,6 +772,7 @@ export function TarefaAgendaPanel({
           evento_id: tarefa.id,
           autor_id: user.id,
           conteudo: comentario.trim(),
+          mencionados: extrairMencionados(comentario, membrosMencao),
         });
         if (error) throw error;
         queryClient.invalidateQueries({ queryKey: ["comentarios-evento-agenda", tarefa.id] });
