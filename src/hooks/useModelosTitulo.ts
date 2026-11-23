@@ -25,6 +25,7 @@ export function useModelosTitulo(filtros?: { coordenacao_id?: string; tipo?: Tip
   return useQuery({
     queryKey: [...KEY, filtros],
     staleTime: 60 * 1000,
+    retry: 3,
     queryFn: async () => {
       let q = supabase.from("modelos_titulo_coordenacao").select("*").eq("ativo", true).order("nome");
       if (filtros?.coordenacao_id) q = q.eq("coordenacao_id", filtros.coordenacao_id);

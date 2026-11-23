@@ -1,98 +1,54 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { carregarCoordenacoesDoUsuario } from "@/lib/coordenacoesDoUsuario";
+import type { CoordenacaoUsuario } from "@/lib/coordenacoesDoUsuario";
 
-export interface CoordenacaoUsuario {
-  id: string;
-  nome: string;
-  area?: string | null;
-}
+export type { CoordenacaoUsuario } from "@/lib/coordenacoesDoUsuario";
 
 /**
  * Regra única de coordenação para os formulários do botão "+ Adicionar":
  * - Admin ou usuário com mais de uma coordenação: precisa escolher.
  * - Usuário com exatamente uma coordenação: vinculação automática, sem select.
+ * - Coordenador global pode pedir a lista ampliada apenas nos seletores de delegação.
  */
-export function useCoordenacoesDoUsuario() {
+export function useCoordenacoesDoUsuario(options?: { incluirTodasParaCoordenador?: boolean }) {
   const { user } = useAuth();
+  const incluirTodasParaCoordenador = !!options?.incluirTodasParaCoordenador;
 
   const query = useQuery({
-    queryKey: ["coordenacoes-do-usuario", user?.id],
+    queryKey: ["coordenacoes-do-usuario", user?.id, incluirTodasParaCoordenador],
     enabled: !!user?.id,
     staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const userId = user!.id;
-
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      const isAdmin = (roles || []).some((r: any) => r.role === "admin" || r.role === "assistente_juridico_geral");
-
-      if (isAdmin) {
-        const { data: all } = await supabase
-          .from("coordenacoes")
-          .select("id, nome, area")
-          .order("nome");
-        return {
-          isAdmin: true,
-          coordenacoes: (all || []) as CoordenacaoUsuario[],
-        };
-      }
-
-      const { data: membros } = await supabase
-        .from("membros_coordenacao")
-        .select("coordenacao_id")
-        .eq("usuario_id", userId);
-
-      const { data: coordenador } = await supabase
-        .from("coordenacoes")
-        .select("id")
-        .eq("coordenador_id", userId);
-
-      let podeDelegar = (roles || []).some((r: any) => /coordenador/i.test(String(r.role)));
-      if (!podeDelegar) {
-        const { data: cargos } = await (supabase as any)
-          .from("membros_coordenacao").select("cargo").eq("usuario_id", userId);
-        podeDelegar = (cargos || []).some((c: any) => /coordenador/i.test(String(c.cargo || "")));
-      }
-
-      const ids = Array.from(new Set([
-        ...(membros || []).map((m: any) => m.coordenacao_id).filter(Boolean),
-        ...(coordenador || []).map((c: any) => c.id).filter(Boolean),
-      ]));
-
-      if (ids.length === 0) {
-        return { isAdmin: false, podeDelegar, coordenacoes: [] as CoordenacaoUsuario[] };
-      }
-
-      const { data: coords } = await supabase
-        .from("coordenacoes")
-        .select("id, nome, area")
-        .in("id", ids)
-        .order("nome");
-
-      return {
-        isAdmin: false,
-        podeDelegar,
-        coordenacoes: (coords || []) as CoordenacaoUsuario[],
-      };
-    },
+    retry: 3,
+    retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 4000),
+    queryFn: () => carregarCoordenacoesDoUsuario(
+      supabase,
+      user!.id,
+      incluirTodasParaCoordenador,
+    ),
   });
 
   const data = query.data;
   const isAdmin = data?.isAdmin ?? false;
   const coordenacoes = data?.coordenacoes ?? [];
-  const podeDelegar = (data as any)?.podeDelegar ?? false;
+  const podeDelegar = data?.podeDelegar ?? false;
   // Coordenador de uma só coordenação também recebe a pré-seleção (o seletor segue visível).
   const unicaCoordenacaoId = !isAdmin && coordenacoes.length === 1 ? coordenacoes[0].id : null;
+  const coordenacaoSugeridaId = !isAdmin
+    ? (data?.idsProprias?.[0] || coordenacoes[0]?.id || null)
+    : null;
   const precisaSelecionar = isAdmin || podeDelegar || coordenacoes.length > 1;
 
   return {
     isAdmin,
     coordenacoes,
     unicaCoordenacaoId,
+    coordenacaoSugeridaId,
     precisaSelecionar,
     isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: query.refetch,
   };
 }

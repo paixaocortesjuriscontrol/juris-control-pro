@@ -19,8 +19,13 @@ interface Props {
 export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }: Props) {
   const [open, setOpen] = useState(false);
   // Busca somente modelos do tipo da tela; a coordenação continua sendo escolhida no seletor.
-  const { data: modelosDoTipo = [] } = useModelosTitulo({ tipo });
-  const { isAdmin, coordenacoes: minhasCoordenacoes } = useCoordenacoesDoUsuario();
+  const { data: modelosDoTipo = [], isError: erroModelos, refetch: recarregarModelos } = useModelosTitulo({ tipo });
+  const {
+    isAdmin,
+    coordenacoes: minhasCoordenacoes,
+    isError: erroCoordenacoes,
+    refetch: recarregarCoordenacoes,
+  } = useCoordenacoesDoUsuario();
 
   // Só exibe modelos das coordenações às quais o usuário logado pertence (admin vê todas).
   const modelos = useMemo(() => {
@@ -66,6 +71,24 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
   const coordAtiva = mostrarSeletor ? (coordEscolhida || coordPadrao) : (minhasCoordenacoes[0]?.id || "");
   const visiveis = coordAtiva ? modelos.filter((m) => m.coordenacao_id === coordAtiva) : modelos;
 
+  if (erroModelos || erroCoordenacoes) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={"h-7 gap-1.5 text-xs text-destructive " + (className ?? "")}
+        title="As consultas falharam; a lista vazia não foi tratada como ausência de modelos"
+        onClick={() => {
+          if (erroModelos) void recarregarModelos();
+          if (erroCoordenacoes) void recarregarCoordenacoes();
+        }}
+      >
+        <BookMarked className="h-3.5 w-3.5" />
+        Modelos não carregaram · Tentar novamente
+      </Button>
+    );
+  }
   if (modelos.length === 0) return null;
 
   const renderItem = (m: ModeloTitulo) => (

@@ -81,9 +81,10 @@ export function PeoplePicker({
   const [coordFiltroTouched, setCoordFiltroTouched] = useState(false);
 
   // Coordenações: admin vê todas; demais veem apenas as suas (membro ou coordenador)
-  const { data: coordenacoes = [] } = useQuery({
+  const { data: coordenacoes = [], isError: erroCoords, refetch: recarregarCoords } = useQuery({
     queryKey: ["people-picker-coords", user?.id, isAdmin],
     enabled: !!user?.id,
+    retry: 3,
     queryFn: async () => {
       if (isAdmin) {
         const { data, error } = await supabase
@@ -97,6 +98,8 @@ export function PeoplePicker({
         supabase.from("membros_coordenacao").select("coordenacao_id").eq("usuario_id", user!.id),
         supabase.from("coordenacoes").select("id").eq("coordenador_id", user!.id),
       ]);
+      if (membros.error) throw membros.error;
+      if (coordenador.error) throw coordenador.error;
       const ids = Array.from(new Set([
         ...((membros.data || []).map((m: any) => m.coordenacao_id)),
         ...((coordenador.data || []).map((c: any) => c.id)),
@@ -132,8 +135,9 @@ export function PeoplePicker({
     setCoordFiltroTouched(false);
   }, [coordenacaoId]);
 
-  const { data: usuarios = [] } = useQuery({
+  const { data: usuarios = [], isError: erroUsuarios, refetch: recarregarUsuarios } = useQuery({
     queryKey: ["people-picker-usuarios"],
+    retry: 3,
     queryFn: async () => {
       // profiles tem RLS restritiva (usuário só enxerga o próprio registro).
       // profiles_basic é a fonte segura para listar a equipe inteira.
@@ -265,6 +269,21 @@ export function PeoplePicker({
                   </SelectContent>
                 </Select>
               </div>
+              {(erroCoords || erroUsuarios) && (
+                <div className="border-b bg-destructive/5 px-3 py-2 text-xs text-destructive" role="alert">
+                  Não foi possível carregar as pessoas.{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline"
+                    onClick={() => {
+                      if (erroCoords) void recarregarCoords();
+                      if (erroUsuarios) void recarregarUsuarios();
+                    }}
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
               <CommandList
                 className="max-h-[260px] overscroll-contain"
                 onWheel={(e) => {
