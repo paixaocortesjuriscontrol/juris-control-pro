@@ -2,7 +2,7 @@ import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTa
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
-import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
+import { ehDataPassada, avisoSeDataPassada } from "@/lib/dataPassada";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
 import { ModeloTituloPicker } from "@/components/modelos/ModeloTituloPicker";
 import { aplicarPessoasModelo } from "@/lib/pessoasModelo";
@@ -380,9 +380,9 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
       return;
     }
     if (!evento && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" com fim definido":", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
-    if (!isEditing && ehDataPassada(dataInicio)) {
-      toast.error(MSG_DATA_PASSADA);
-      return;
+    if (!isEditing) {
+      const aviso = avisoSeDataPassada([dataInicio]);
+      if (aviso) toast.warning(aviso);
     }
     const erroPessoas = mensagemPessoasObrigatorias(
       [...coordenadoresIds, ...responsaveisIds],

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { ehDataPassada, itensComDataPassada, avisoDataPassada } from "./dataPassada";
+import { ehDataPassada, itensComDataPassada, avisoDataPassada, avisoSeDataPassada } from "./dataPassada";
 test("bloqueia dia anterior", () => assert.equal(ehDataPassada("2026-11-15", "2026-11-16"), true));
 test("permite hoje", () => assert.equal(ehDataPassada("2026-11-16T10:00", "2026-11-16"), false));
 test("permite futuro", () => assert.equal(ehDataPassada("2026-11-17", "2026-11-16"), false));
@@ -18,3 +18,7 @@ test("aviso do fim da importação só aparece quando há atrasados", () => {
   assert.match(avisoDataPassada(1), /^1 item importado ficou com data anterior a hoje/);
   assert.match(avisoDataPassada(7), /^7 itens importados ficaram com data anterior a hoje/);
 });
+test("data anterior a hoje gera aviso, sem bloquear", () => {
+  assert.match(avisoSeDataPassada(["2026-11-21", null], "2026-11-23"), /21\/11\/2026/);
+});
+test("data de hoje não gera aviso", () => assert.equal(avisoSeDataPassada(["2026-11-23"], "2026-11-23"), ""));

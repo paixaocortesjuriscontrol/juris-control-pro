@@ -2,7 +2,7 @@ import { preservarDataAudiencia } from "@/lib/preservarDataAudiencia";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
-import { ehDataPassada, MSG_DATA_PASSADA } from "@/lib/dataPassada";
+import { ehDataPassada, avisoSeDataPassada } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
@@ -340,9 +340,9 @@ export function AudienciaFormSimplificado({
       toast.error("Informe a data");
       return;
     }
-    if (!isEditing && ehDataPassada(form.data_audiencia)) {
-      toast.error(MSG_DATA_PASSADA);
-      return;
+    if (!isEditing) {
+      const aviso = avisoSeDataPassada([form.data_audiencia]);
+      if (aviso) toast.warning(aviso);
     }
     const situacaoMudou = isEditing && situacao !== situacaoInicial;
     if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {

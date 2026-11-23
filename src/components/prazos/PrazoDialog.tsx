@@ -1,7 +1,7 @@
 import { limparCamposAutomaticosPrazo } from "@/lib/camposEdicaoPrazo";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
-import { ehDataPassada, MSG_DATA_PASSADA, resumoDatas } from "@/lib/dataPassada";
+import { ehDataPassada, avisoSeDataPassada, resumoDatas } from "@/lib/dataPassada";
 import { invalidarItensAgenda } from "@/lib/invalidarItensAgenda";
 import { decidirPassoPosSalvacaoPrazo } from "@/lib/prazoFluxoPosSalvacao";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
@@ -574,9 +574,9 @@ export function PrazoDialog({
       toast.error("Informe a data limite");
       return;
     }
-    if (!prazo && (ehDataPassada(dataLimite) || ehDataPassada(dataFatal))) {
-      toast.error(MSG_DATA_PASSADA);
-      return;
+    if (!prazo) {
+      const aviso = avisoSeDataPassada([dataLimite, dataFatal]);
+      if (aviso) toast.warning(aviso);
     }
     const erroPessoas = mensagemPessoasObrigatorias(
       [...coordenadoresIds, ...responsaveisIds],

@@ -14,7 +14,14 @@ export function ehDataPassada(valor: string | Date | null | undefined, hoje = ho
   return dia < hoje;
 }
 
-export const MSG_DATA_PASSADA = "Não é permitido criar atividade com data anterior a hoje. Confira a data escolhida.";
+export const MSG_DATA_PASSADA = "Atenção: a data escolhida já venceu. A atividade foi salva mesmo assim.";
+
+/** Aviso (sem bloquear) quando alguma das datas é anterior a hoje (BRT). Vazio quando nenhuma venceu. */
+export function avisoSeDataPassada(datas: Array<string | Date | null | undefined>, hoje = hojeBRT()): string {
+  const vencidas = datas.filter((d) => ehDataPassada(d, hoje)).map((d) => fmtBr(d));
+  if (!vencidas.length) return "";
+  return `Atenção: data já vencida (${Array.from(new Set(vencidas)).join(", ")}). A atividade será salva mesmo assim.`;
+}
 
 /**
  * Itens cuja data é anterior a hoje (BRT). Usado no fim das importações: a
