@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { carregarConfigsUsuarios, resolverConfig } from "../_shared/config-notificacoes.ts";
 import { botaoPainelAlertasHtml, linhaPainelAlertasTexto } from "../_shared/app-links.ts";
+import { rotuloTipo } from "../_shared/rotulo-tipo-item.ts";
 import { canalPermitido, eventoPermitido, recebeComoAutor } from "./regras.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
@@ -114,9 +115,10 @@ async function buscarDetalhesEntidade(supabase: any, entidade: string, id: strin
   try {
     if (entidade === "tarefa") {
       const { data } = await supabase.from("tarefas")
-        .select("titulo, tipo_tarefa, prioridade, status, data_vencimento, data_fatal, hora_fatal, processo_id, orgao_julgador, descricao, observacoes, partes_ativas, partes_passivas, identificador_projuris, link_local")
+        .select("titulo, tipo_tarefa, tipo_registro, prioridade, status, data_vencimento, data_fatal, hora_fatal, processo_id, orgao_julgador, descricao, observacoes, partes_ativas, partes_passivas, identificador_projuris, link_local")
         .eq("id", id).maybeSingle();
       if (data) {
+        det["__rotulo"] = rotuloTipo(data as any).nome;
         if (data.titulo) det["Título"] = data.titulo;
         if (data.tipo_tarefa && !mesmoTexto(data.tipo_tarefa, data.titulo)) det["Tipo"] = data.tipo_tarefa;
         if (data.prioridade) det["Prioridade"] = data.prioridade;
@@ -411,26 +413,28 @@ serve(async (req) => {
 
         // Detalhes específicos da entidade
         const detalhes = await buscarDetalhesEntidade(supabase, item.entidade, item.entidade_id);
+        const rotEnt = detalhes["__rotulo"] ?? labelEntidade(item.entidade);
+        delete detalhes["__rotulo"];
 
-        const tituloItem = item.titulo ?? labelEntidade(item.entidade);
+        const tituloItem = item.titulo ?? rotEnt;
         const conteudoComentario: string = String(ctx.conteudo ?? "");
         const assuntoBase = isMencao
-          ? `[${labelEntidade(item.entidade)}] Você foi mencionado — ${tituloItem}`
+          ? `[${rotEnt}] Você foi mencionado — ${tituloItem}`
           : isCobranca
-          ? `[${labelEntidade(item.entidade)}] Cobrança — ${tituloItem}`
+          ? `[${rotEnt}] Cobrança — ${tituloItem}`
           : isInclusao
-          ? `[${labelEntidade(item.entidade)}] Inclusão de responsável ou envolvido — ${tituloItem}`
+          ? `[${rotEnt}] Inclusão de responsável ou envolvido — ${tituloItem}`
           : isAlteracao
-          ? `[${labelEntidade(item.entidade)}] Item alterado — ${tituloItem}`
+          ? `[${rotEnt}] Item alterado — ${tituloItem}`
           : isComentario
-          ? `[${labelEntidade(item.entidade)}] Novo comentário — ${tituloItem}`
-          : `[${labelEntidade(item.entidade)}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
+          ? `[${rotEnt}] Novo comentário — ${tituloItem}`
+          : `[${rotEnt}] ${tituloItem} — ${labelSituacao(item.status_anterior)} → ${labelSituacao(item.status_novo)}`;
         // Sempre a coordenação da atividade e o número do processo, para não
         // misturar no Gmail atividades diferentes com o mesmo título.
         const assunto = montarAssunto(assuntoBase, coordNome, detalhes["Processo"] ?? null);
 
         const linhas: string[] = isComentario ? [
-          `${labelEntidade(item.entidade)}: ${tituloItem}`,
+          `${rotEnt}: ${tituloItem}`,
           ``,
           isMencao
             ? `Você foi mencionado por: ${atorNome}${atorEmail ? ` <${atorEmail}>` : ""}`
@@ -439,13 +443,13 @@ serve(async (req) => {
           ``,
           `"${conteudoComentario}"`,
         ] : isInclusao || isAlteracao ? [
-          `${labelEntidade(item.entidade)}: ${tituloItem}`,
+          `${rotEnt}: ${tituloItem}`,
           isInclusao ? "Responsável ou envolvido incluído no item." : "Dados do item alterados.",
           `Alterado por: ${atorNome}`,
           `Data/hora: ${quando} (BRT)`,
           ...(Array.isArray(ctx.campos) ? [`Campos alterados: ${ctx.campos.join(", ")}`] : []),
         ] : [
-          `${labelEntidade(item.entidade)}: ${tituloItem}`,
+          `${rotEnt}: ${tituloItem}`,
           ``,
           `Situação anterior: ${labelSituacao(item.status_anterior)}`,
           `Nova situação: ${labelSituacao(item.status_novo)}`,
@@ -481,7 +485,7 @@ serve(async (req) => {
 
         const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#111;max-width:640px">
   <div style="padding:16px 20px;background:#0f172a;color:#fff;border-radius:8px 8px 0 0">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(labelEntidade(item.entidade))} · ${isMencao ? "você foi mencionado" : isCobranca ? "cobrança" : isInclusao ? "participante incluído" : isAlteracao ? "item alterado" : isComentario ? "novo comentário" : "situação alterada"}</div>
+    <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;opacity:0.8">${esc(rotEnt)} · ${isMencao ? "você foi mencionado" : isCobranca ? "cobrança" : isInclusao ? "participante incluído" : isAlteracao ? "item alterado" : isComentario ? "novo comentário" : "situação alterada"}</div>
     <div style="font-size:18px;font-weight:600;margin-top:4px">${esc(tituloItem)}</div>
   </div>
   <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 8px 8px">

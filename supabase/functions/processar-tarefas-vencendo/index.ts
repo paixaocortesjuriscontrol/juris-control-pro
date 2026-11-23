@@ -1,3 +1,4 @@
+import { rotuloTipo } from "../_shared/rotulo-tipo-item.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { botaoPainelAlertasHtml } from "../_shared/app-links.ts";
@@ -42,6 +43,8 @@ serve(async (req) => {
       .select(`
         id,
         titulo,
+        tipo_registro,
+        tipo_tarefa,
         descricao,
         data_vencimento,
         prioridade,
@@ -114,7 +117,7 @@ serve(async (req) => {
             const emailHtml = `
               <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
                 <div style="background: ${diffDays === 0 ? '#EF4444' : diffDays === 1 ? '#F59E0B' : '#3B82F6'}; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-                  <h2 style="margin: 0;">${urgenciaEmoji} Tarefa ${urgenciaTexto}</h2>
+                  <h2 style="margin: 0;">${urgenciaEmoji} ${rotuloTipo(tarefa as any).nome} ${urgenciaTexto}</h2>
                 </div>
                 <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px;">
                   <h3 style="margin: 0 0 16px 0; color: #1a1a2e;">${tarefa.titulo}</h3>
@@ -136,7 +139,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 from: "Juris Control <alerta@juriscontrol.adv.br>",
                 to: [responsavel.email],
-                subject: `${urgenciaEmoji} Tarefa ${urgenciaTexto}: ${tarefa.titulo}`,
+                subject: `${urgenciaEmoji} ${rotuloTipo(tarefa as any).nome} ${urgenciaTexto}: ${tarefa.titulo}`,
                 html: emailHtml,
               }),
             });
@@ -166,7 +169,7 @@ serve(async (req) => {
               phoneFormatted = `55${ddd}9${numero}`;
             }
 
-            const whatsappMensagem = `${urgenciaEmoji} *Tarefa ${urgenciaTexto}*\n\n📋 *${tarefa.titulo}*\n📅 Vencimento: ${dataFormatada}${processoNumero ? `\n📁 Processo: ${processoNumero}` : ''}\n\n_Juris Control Pro_`;
+            const whatsappMensagem = `${urgenciaEmoji} *${rotuloTipo(tarefa as any).nome} ${urgenciaTexto}*\n\n📋 *${tarefa.titulo}*\n📅 Vencimento: ${dataFormatada}${processoNumero ? `\n📁 Processo: ${processoNumero}` : ''}\n\n_Juris Control Pro_`;
 
             const response = await fetch(
               `https://api.z-api.io/instances/${zapiInstanceId}/token/${zapiToken}/send-text`,
@@ -204,7 +207,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 tipo_alerta: "tarefas",
                 coordenacao_id: processo.coordenacao_id,
-                titulo: `${urgenciaEmoji} Tarefa ${urgenciaTexto}`,
+                titulo: `${urgenciaEmoji} ${rotuloTipo(tarefa as any).nome} ${urgenciaTexto}`,
                 mensagem: `"${tarefa.titulo}" atribuída a ${responsavel.nome}. Vencimento: ${dataFormatada}`,
                 prioridade: diffDays === 0 ? 'urgente' : diffDays === 1 ? 'alta' : 'media',
                 referencia_id: tarefa.id,

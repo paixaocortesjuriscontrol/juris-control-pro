@@ -1,3 +1,4 @@
+import { rotuloTipo } from "../_shared/rotulo-tipo-item.ts";
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { linhaPainelAlertasTexto } from "../_shared/app-links.ts";
@@ -102,7 +103,7 @@ serve(async (req) => {
     // 1) Tarefas: COALESCE(data_fatal, data_vencimento) < hoje
     const { data: tarefas } = await supabase
       .from("tarefas")
-      .select("id, coordenacao_id, titulo, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
+      .select("id, coordenacao_id, titulo, tipo_registro, tipo_tarefa, data_fatal, data_vencimento, status, observacoes, descricao, partes_ativas, partes_passivas, responsavel_id, criado_por, tarefa_responsaveis(usuario_id), tarefa_envolvidos(usuario_id), processo:processos(numero, polo_ativo, polo_passivo, reclamante, reclamados, cliente:clientes!processos_cliente_id_fkey(nome))")
       .or(`and(data_fatal.lt.${hoje}),and(data_fatal.is.null,data_vencimento.lt.${hoje})`)
       .not("status", "in", pgIn(ENCERRADAS_TAREFA))
       .limit(1000);
@@ -119,7 +120,7 @@ serve(async (req) => {
       envIds.forEach((i) => ids.add(i));
       if (t.criado_por) ids.add(t.criado_por);
       push(ids, {
-        tipo: "Tarefa",
+        tipo: rotuloTipo(t).nome,
         titulo: t.titulo ?? "(sem título)",
         data: t.data_fatal ?? t.data_vencimento,
         processo: t.processo?.numero ?? null,
