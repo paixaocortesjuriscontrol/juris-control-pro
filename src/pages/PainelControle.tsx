@@ -12,6 +12,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DiaAgendaLateral } from "@/components/painel/DiaAgendaLateral";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
@@ -3817,9 +3818,10 @@ export default function PainelControle() {
             </div>
           </div>
 
-          {!selectedItem && !novoItemTipo && diaLateralKey && (
-            <aside className="flex flex-none w-full lg:w-[420px] xl:w-[460px] border-l border-border bg-background flex-col min-h-0 overflow-hidden">
-              <DiaAgendaLateral
+          <Sheet open={!selectedItem && !novoItemTipo && !!diaLateralKey} onOpenChange={(o) => { if (!o) setDiaLateralKey(null); }}>
+            <SheetContent side="right" className="w-full sm:max-w-[720px] p-0 flex flex-col gap-0 [&>button.absolute]:hidden">
+              <SheetTitle className="sr-only">Atividades do dia</SheetTitle>
+              {diaLateralKey && <DiaAgendaLateral
                 dia={new Date(`${diaLateralKey}T12:00:00`)}
                 itens={itensPorDia.get(diaLateralKey) || []}
                 userId={user?.id}
@@ -3841,9 +3843,9 @@ export default function PainelControle() {
                   setDiaLateralKey(null);
                 }}
                 onClose={() => setDiaLateralKey(null)}
-              />
-            </aside>
-          )}
+              />}
+            </SheetContent>
+          </Sheet>
 
         </div>
         )}

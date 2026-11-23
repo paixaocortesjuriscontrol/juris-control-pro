@@ -1,4 +1,5 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Input } from "@/components/ui/input";
 import { format, parseISO } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
@@ -269,6 +270,17 @@ export function AgendaItemRow({
           </p>
         )}
         {(() => {
+          const outros = (item.participantes || [])
+            .map((p) => p.usuario?.nome)
+            .filter((n): n is string => !!n && n !== item.responsavel?.nome);
+          return outros.length > 0 ? (
+            <p className="text-[11px] text-muted-foreground mt-0.5">Pessoas: {Array.from(new Set(outros)).join(", ")}</p>
+          ) : null;
+        })()}
+        {item.status && (
+          <p className="text-[11px] text-muted-foreground mt-0.5">Situação: {String(item.status).replace(/_/g, " ")}</p>
+        )}
+        {(() => {
           const datas = datasDoItem(item);
           return datas.length > 0 ? (
             <p className="text-[11px] text-muted-foreground mt-0.5">
@@ -340,7 +352,26 @@ export function DiaAgendaLateral({
   processosAcompanhados,
   onClose,
 }: DiaAgendaLateralProps) {
+  const [busca, setBusca] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState<string>("todos");
+  const termo = busca.trim().toLowerCase();
+  const itensFiltrados = useMemo(() => itens.filter((i) => {
+    if (filtroTipo !== "todos" && filtroTipo !== "atividade") {
+      const k = String(i.tipo_tarefa ?? "").toUpperCase() === "ATA" ? "ata" : i.tipo;
+      if (k !== filtroTipo) return false;
+    }
+    if (filtroTipo === "atividade") return false;
+    if (!termo) return true;
+    return [i.titulo, i.descricao, i.local, i.processo?.numero, i.processo?.assunto, i.responsavel?.nome, ...(i.participantes || []).map((p) => p.usuario?.nome)]
+      .filter(Boolean).join(" ").toLowerCase().includes(termo);
+  }), [itens, filtroTipo, termo]);
+  const atividadesFiltradas = useMemo(() => atividades.filter((a: any) => {
+    if (filtroTipo !== "todos" && filtroTipo !== "atividade") return false;
+    if (!termo) return true;
+    return [a.titulo, a.observacao].filter(Boolean).join(" ").toLowerCase().includes(termo);
+  }), [atividades, filtroTipo, termo]);
   const total = itens.length + atividades.length;
+  const contTipo = (k: string) => k === "atividade" ? atividades.length : itens.filter((i) => (String(i.tipo_tarefa ?? "").toUpperCase() === "ATA" ? "ata" : i.tipo) === k).length;
 
   const itensComAtividades = useMemo(() => {
     const set = new Set<string>();
@@ -413,12 +444,32 @@ export function DiaAgendaLateral({
         </Button>
       </div>
 
+      {total > 0 && (
+        <div className="px-4 py-2 border-b border-border space-y-2 flex-shrink-0">
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por título, processo, pessoa..." className="h-8 text-xs" />
+          <div className="flex flex-wrap gap-1">
+            {[["todos","Todos"],["tarefa","Tarefa"],["prazo","Prazo"],["ata","Ata"],["evento","Evento"],["audiencia","Audiência"],["parcelamento","Parcelamento"],["atividade","Atividade"]].map(([k,l]) => {
+              const n = k === "todos" ? total : contTipo(k);
+              if (k !== "todos" && n === 0) return null;
+              return (
+                <button key={k} type="button" onClick={() => setFiltroTipo(k)}
+                  className={cn("text-[11px] px-2 py-0.5 rounded-full border", filtroTipo === k ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:bg-muted")}>
+                  {l} {n}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       <ScrollArea className="flex-1 min-h-0">
         <div className="divide-y divide-border">
           {total === 0 && (
             <p className="p-4 text-xs text-muted-foreground">Nenhuma atividade neste dia.</p>
           )}
-          {itens.map((item) => (
+          {total > 0 && itensFiltrados.length + atividadesFiltradas.length === 0 && (
+            <p className="p-4 text-xs text-muted-foreground">Nenhuma atividade com esses filtros.</p>
+          )}
+          {itensFiltrados.map((item) => (
             <AgendaItemRow
               key={item.id}
               item={item}
@@ -436,7 +487,7 @@ export function DiaAgendaLateral({
               emAcompanhamento={itemEmAcompanhamentoEspecial(item, processosAcompanhados)}
             />
           ))}
-          {atividades.map((a: any) => {
+          {atividadesFiltradas.map((a: any) => {
             const concluida = atividadeConcluida(a.situacao);
             const situacao = normalize(a.situacao);
             const cancelada = situacao === "cancelada" || situacao === "cancelado";
