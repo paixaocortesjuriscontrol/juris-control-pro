@@ -1,3 +1,4 @@
+import { preservarDataAudiencia } from "@/lib/preservarDataAudiencia";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { situacoesDisponiveis } from "@/constants/situacoesItem";
 import { usePermissoesSituacao } from "@/hooks/usePermissoesSituacao";
@@ -256,9 +257,16 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
         updateData.tratado_em = new Date().toISOString();
       }
 
+      const { data: originalDb } = await supabase
+        .from('audiencias_detectadas')
+        .select('*')
+        .eq('id', audiencia.id)
+        .maybeSingle();
+      const base: any = originalDb ?? audiencia;
+      updateData.data_audiencia = preservarDataAudiencia(updateData.data_audiencia, base);
       const { error } = await supabase
         .from('audiencias_detectadas')
-        .update((() => { const d = somenteCamposAlterados(updateData, audiencia as any); return Object.keys(d).length ? d : { status: formData.status }; })())
+        .update((() => { const d = somenteCamposAlterados(updateData, base); return Object.keys(d).length ? d : { status: formData.status }; })())
         .eq('id', audiencia.id);
 
       if (error) throw error;

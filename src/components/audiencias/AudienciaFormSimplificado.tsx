@@ -1,3 +1,4 @@
+import { preservarDataAudiencia } from "@/lib/preservarDataAudiencia";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { somenteCamposAlterados } from "@/lib/somenteCamposAlterados";
 import { useCoordenacaoPadrao } from "@/hooks/useCoordenacaoPadrao";
@@ -508,7 +509,7 @@ export function AudienciaFormSimplificado({
       const completo: Record<string, any> = {
         ...dadosAudiencia,
         processo_id: dadosAudiencia.processo_id || (original as any)?.processo_id || null,
-        data_audiencia: dataAudienciaISO,
+        data_audiencia: preservarDataAudiencia(dataAudienciaISO, original as any, hora),
         status: situacao,
         tipo_audiencia: form.titulo.trim(),
       };
