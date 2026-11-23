@@ -19,6 +19,13 @@
   - subatividade já existe na aba "Atividades" (data, responsável, situação, observação)
 - [ ] 7 — cores das situações (adiado pelo usuário: não mexer agora)
 
+## Responsável ou envolvido obrigatório (23/11/2026)
+- [ ] Exigir pelo menos um responsável ou envolvido em tarefa, prazo, ata, evento, audiência e parcelamento
+- [ ] Aplicar a validação também em workflows e importações, sem preencher pessoas automaticamente
+- [ ] Impedir que uma edição remova a última pessoa vinculada
+- [ ] Gerar planilha das atividades antigas sem ninguém para correção manual, sem alterar esses registros
+- [ ] Testar a regra e verificar a compilação
+
 ## Acompanhamento Especial — avisos (pedido de 18/11/2026)
 - [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas
 - [x] Coordenador pode ser desmarcado para deixar de receber (campo `coordenadores_excluidos_ids`)

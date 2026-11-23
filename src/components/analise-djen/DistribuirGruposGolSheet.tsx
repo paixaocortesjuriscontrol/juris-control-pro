@@ -116,6 +116,11 @@ export function DistribuirGruposGolSheet({ publicacoes, individual = false, open
         const g = destinos.find((x) => x.key === l.grupo);
         if (!g) continue;
         const resp = respDo(g.coordenacaoId);
+        if (!resp) {
+          replicaFalhas++;
+          toast.error(`Configure um responsável fixo ou coordenador em ${g.nome} antes de distribuir.`);
+          continue;
+        }
         const { data: t, error } = await supabase
           .from("tarefas")
           .insert({

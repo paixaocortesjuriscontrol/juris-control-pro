@@ -198,7 +198,12 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
         l.criadoPor ? `Criada por (Projuris): ${l.criadoPor}` : "", l.concluidoPor ? `Concluída por (Projuris): ${l.concluidoPor}` : "",
         l.dig.length !== 20 ? "Sem processo válido na planilha" : "",
       ].filter(Boolean).join("\n");
-      const lotes = Array.from({ length: Math.ceil(ok.length / LOTE) }, (_, i) => ok.slice(i * LOTE, i * LOTE + LOTE));
+      const atividadesOk = ok.filter((l) => l.responsaveis.map(casar).some(Boolean));
+      ok.filter((l) => !atividadesOk.includes(l)).forEach((l) => {
+        cont.erros++;
+        erros.push({ Atividade: l.tar, Título: l.titulo, Erro: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido." });
+      });
+      const lotes = Array.from({ length: Math.ceil(atividadesOk.length / LOTE) }, (_, i) => atividadesOk.slice(i * LOTE, i * LOTE + LOTE));
       await executarFila(lotes, async (parte) => {
         if (cancelar.current) return;
         const tar = parte.filter((l) => !l.audiencia); const aud = parte.filter((l) => l.audiencia);

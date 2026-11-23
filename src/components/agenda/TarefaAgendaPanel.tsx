@@ -88,6 +88,7 @@ import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { sincronizarWorkflowPorItem } from "@/lib/workflowExecutor";
 import { PeoplePicker } from "@/components/shared/PeoplePicker";
 import { useCoordenadoresDaCoordenacao, useEnvolvidosFixosDaCoordenacao } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 interface TarefaAgendaPanelProps {
   tarefa: {
@@ -869,15 +870,13 @@ export function TarefaAgendaPanel({
   const handleSaveEdit = async () => {
     setSavingEdit(true);
     try {
+      const erroPessoas = mensagemPessoasObrigatorias(editResponsaveisIds, editEnvolvidosIds);
+      if (erroPessoas) {
+        toast({ title: erroPessoas, variant: "destructive" });
+        setSavingEdit(false);
+        return;
+      }
       if (tarefa.origem === "tarefa") {
-        if (editResponsaveisIds.length === 0) {
-          toast({
-            title: "Selecione ao menos um responsável",
-            variant: "destructive",
-          });
-          setSavingEdit(false);
-          return;
-        }
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
           descricao: editForm.descricao || null,

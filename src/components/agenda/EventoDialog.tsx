@@ -58,6 +58,7 @@ import { PublicacaoVinculadaCollapsible } from "@/components/shared/PublicacaoVi
 import { registrarAuditoriaTarefa } from "@/hooks/useAuditoriaTarefas";
 import { ProcessoResumoInline } from "@/components/processos/ProcessoResumoInline";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 function ScrollAreaOrDiv({ embedded, children }: { embedded?: boolean; children: React.ReactNode }) {
   if (embedded) return <div className="px-6">{children}</div>;
@@ -381,6 +382,14 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
     if (!evento && recorrenciaTipo !== "nenhuma" && !window.confirm("Atenção: este item será criado repetidas vezes no calendário ("+({daily:"todo dia",weekdays:"todo dia útil",weekly:"toda semana",monthly:"todo mês",yearly:"todo ano"} as any)[recorrenciaTipo]+")"+(recorrenciaFim?" com fim definido":", SEM data para terminar")+".\n\nSe não quer repetição, clique em Cancelar e escolha \"Não repete\".\n\nDeseja continuar?")) return;
     if (!isEditing && ehDataPassada(dataInicio)) {
       toast.error(MSG_DATA_PASSADA);
+      return;
+    }
+    const erroPessoas = mensagemPessoasObrigatorias(
+      [...coordenadoresIds, ...responsaveisIds],
+      [...envolvidosFixosIds, ...envolvidosIds],
+    );
+    if (erroPessoas) {
+      toast.error(erroPessoas);
       return;
     }
     if (precisaSelecionar && !coordenacaoId) {
@@ -843,7 +852,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
             {/* Responsáveis */}
             <div>
               <Label className="text-sm">
-                Responsável <span className="text-destructive">*</span>
+                Responsáveis ou envolvidos <span className="text-destructive">*</span>
               </Label>
               <div className="mt-1.5">
                 <PeoplePicker

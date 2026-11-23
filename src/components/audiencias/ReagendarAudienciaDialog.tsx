@@ -193,6 +193,14 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
             ? `Nova audiência designada na audiência anterior. Motivo: ${form.motivo}`
             : `Nova audiência designada na audiência anterior`,
         };
+        const [{ data: advs }, { data: envs }] = await Promise.all([
+          supabase.from("audiencias_advogados").select("advogado_id").eq("audiencia_id", audiencia.id),
+          supabase.from("audiencia_envolvidos").select("usuario_id").eq("audiencia_id", audiencia.id),
+        ]);
+        if ((!advs || advs.length === 0) && (!envs || envs.length === 0)) {
+          throw new Error("A audiência anterior não tem responsável nem envolvido. Vincule uma pessoa antes de reagendar.");
+        }
+
         const { data: criada, error: insErr } = await supabase
           .from("audiencias_detectadas")
           .insert(insertPayload)
@@ -203,19 +211,23 @@ export function ReagendarAudienciaDialog({ audiencia, open, onOpenChange, onSucc
 
         // Replica responsáveis (advogados) e envolvidos da audiência anterior,
         // para que a nova apareça para as mesmas pessoas.
-        const [{ data: advs }, { data: envs }] = await Promise.all([
-          supabase.from("audiencias_advogados").select("advogado_id").eq("audiencia_id", audiencia.id),
-          supabase.from("audiencia_envolvidos").select("usuario_id").eq("audiencia_id", audiencia.id),
-        ]);
         if (advs && advs.length > 0) {
-          await supabase.from("audiencias_advogados").insert(
+          const { error } = await supabase.from("audiencias_advogados").insert(
             advs.map((a: any) => ({ audiencia_id: criada.id, advogado_id: a.advogado_id })),
           );
+          if (error) {
+            await supabase.from("audiencias_detectadas").delete().eq("id", criada.id);
+            throw error;
+          }
         }
         if (envs && envs.length > 0) {
-          await supabase.from("audiencia_envolvidos").insert(
+          const { error } = await supabase.from("audiencia_envolvidos").insert(
             envs.map((e: any) => ({ audiencia_id: criada.id, usuario_id: e.usuario_id })),
           );
+          if (error) {
+            await supabase.from("audiencias_detectadas").delete().eq("id", criada.id);
+            throw error;
+          }
         }
 
         // Histórico na audiência anterior: registra a nova data designada

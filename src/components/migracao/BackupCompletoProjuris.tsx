@@ -765,7 +765,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         }
         for (let k = 0; k < ok.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;
-          const parte = ok.slice(k, k + LOTE);
+          const bruto = ok.slice(k, k + LOTE);
+          const parte = bruto.filter((l) => l.responsavelId || ((l.outrosResp as string[]) || []).length > 0);
+          const semPessoas = bruto.filter((l) => !parte.includes(l));
+          if (semPessoas.length) {
+            cont.erros += semPessoas.length;
+            await log(semPessoas.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido.", dados: { titulo: String(l.titulo).slice(0, 200) } })));
+          }
+          if (parte.length === 0) {
+            setProg({ feito: Math.min(k + LOTE, ok.length), total: ok.length });
+            continue;
+          }
           const { data, error: e } = await supabase.from("tarefas").insert(parte.map((l) => ({
             titulo: String(l.titulo).slice(0, 500), descricao: l.descricao || null, tipo_tarefa: l.tipo,
             tipo_registro: l.tipo === "PRAZO" ? "prazo" : "tarefa",
@@ -779,7 +789,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           if (e) { cont.erros += parte.length; await log(parte.map((l) => ({ tipo: tipoItem, chave_externa: String(l.chave), status: "erro", motivo: e.message, dados: { titulo: String(l.titulo).slice(0, 200) } }))); }
           else {
             const rows = ((data as any[]) || []);
-            const respRows = rows.flatMap((r, j) => Array.from(new Set([parte[j].responsavelId || userId, ...((parte[j].outrosResp as string[]) || [])])).map((u) => ({ tarefa_id: r.id, usuario_id: u })));
+            const respRows = rows.flatMap((r, j) => Array.from(new Set([parte[j].responsavelId, ...((parte[j].outrosResp as string[]) || [])].filter(Boolean))).map((u) => ({ tarefa_id: r.id, usuario_id: u })));
             for (let j = 0; j < respRows.length; j += 500) await supabase.from("tarefa_responsaveis").insert(respRows.slice(j, j + 500) as any);
             await log(rows.map((r, j) => ({ tipo: tipoItem, chave_externa: String(parte[j].chave), registro_id: r.id, status: "criado", dados: { titulo: String(parte[j].titulo).slice(0, 200), tipo: parte[j].tipo, data: parte[j].data } })));
             cont.criados += rows.length;

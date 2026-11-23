@@ -65,6 +65,7 @@ import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
 import { camposTipoTarefa, camposTipoSeAlterado } from "@/lib/conversaoTipoItem";
 import { somarDiasUteis } from "@/lib/feriados";
 import { calcularDataFatal } from "@/lib/datasBase";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 type Unidade = "uteis" | "corridos";
 
@@ -576,8 +577,12 @@ export function PrazoDialog({
       toast.error(MSG_DATA_PASSADA);
       return;
     }
-    if (responsaveisIds.length === 0) {
-      toast.error("Selecione ao menos um responsável");
+    const erroPessoas = mensagemPessoasObrigatorias(
+      [...coordenadoresIds, ...responsaveisIds],
+      [...envolvidosFixosIds, ...envolvidosIds],
+    );
+    if (erroPessoas) {
+      toast.error(erroPessoas);
       return;
     }
     setConfirmacaoDatas(null);
@@ -621,7 +626,7 @@ export function PrazoDialog({
     const responsavelPrincipal =
       (prazo?.responsavel_id && responsaveisIds.includes(prazo.responsavel_id))
         ? prazo.responsavel_id
-        : (responsaveisIds.find((id) => !coordenadoresIds.includes(id)) || responsaveisIds[0]);
+        : (responsaveisIds.find((id) => !coordenadoresIds.includes(id)) || responsaveisIds[0] || null);
 
 
     let processoIdParaSalvar = processoIdEfetivo;
@@ -1267,7 +1272,7 @@ export function PrazoDialog({
 
         <div className="space-y-1.5">
           <Label className="text-sm">
-            Responsáveis<span className="text-destructive">*</span>
+            Responsáveis ou envolvidos<span className="text-destructive">*</span>
           </Label>
           <PeoplePicker
             coordenacaoId={coordenacaoId || null}

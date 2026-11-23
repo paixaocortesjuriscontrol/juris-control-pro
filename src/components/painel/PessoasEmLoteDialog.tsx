@@ -31,6 +31,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
+import { exportarAtividadesAntigasSemPessoas } from "@/lib/exportarAtividadesSemPessoas";
 import {
   usePessoasEmLoteItens,
   aplicarPessoasEmLote,
@@ -49,6 +50,7 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
+  Download,
 } from "lucide-react";
 
 interface Props {
@@ -82,6 +84,7 @@ export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
   const [novosResponsaveis, setNovosResponsaveis] = useState<string[]>([]);
   const [novosEnvolvidos, setNovosEnvolvidos] = useState<string[]>([]);
   const [aplicando, setAplicando] = useState(false);
+  const [exportando, setExportando] = useState(false);
   const [progresso, setProgresso] = useState({ feitos: 0, total: 0 });
   const [erros, setErros] = useState<string[]>([]);
 
@@ -214,6 +217,21 @@ export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
     }
   };
 
+  const baixarSemPessoas = async () => {
+    setExportando(true);
+    try {
+      const total = await exportarAtividadesAntigasSemPessoas(filtros.coordenacaoIds);
+      toast({
+        title: "Planilha gerada",
+        description: `${total} atividade(s) antiga(s) sem responsável ou envolvido.`,
+      });
+    } catch (e: any) {
+      toast({ title: "Erro ao gerar planilha", description: e?.message, variant: "destructive" });
+    } finally {
+      setExportando(false);
+    }
+  };
+
   const totalAtividades = useMemo(
     () => itens.reduce((acc, i) => acc + i.atividades.length, 0),
     [itens],
@@ -339,13 +357,19 @@ export function PessoasEmLoteDialog({ open, onOpenChange }: Props) {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => fechar(false)}>
-                Cancelar
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-between">
+              <Button variant="outline" onClick={baixarSemPessoas} disabled={exportando}>
+                {exportando ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+                Excel das antigas sem pessoas
               </Button>
-              <Button onClick={buscar} disabled={!filtros.inicio || !filtros.fim}>
-                Listar itens <ArrowRight className="w-4 h-4 ml-1" />
-              </Button>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => fechar(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={buscar} disabled={!filtros.inicio || !filtros.fim}>
+                  Listar itens <ArrowRight className="w-4 h-4 ml-1" />
+                </Button>
+              </div>
             </div>
           </div>
         )}

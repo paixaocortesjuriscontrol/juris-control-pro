@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import * as XLSX from "xlsx";
 import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
+import { MSG_RESPONSAVEL_OU_ENVOLVIDO_OBRIGATORIO } from "@/lib/pessoasAtividadeObrigatoria";
 
 interface Props {
   open: boolean;
@@ -332,44 +333,98 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       return;
     }
 
-    // Preparar todos os registros para inserção em lote
-    const allRecords = rows.map((row) => {
+    const { data: profissionais, error: erroProfissionais } = await supabase
+      .from("profiles")
+      .select("id, nome")
+      .eq("ativo", true);
+    if (erroProfissionais) {
+      toast.error(`Não foi possível validar os responsáveis: ${erroProfissionais.message}`);
+      setIsImporting(false);
+      return;
+    }
+    const profissionaisPorNome = new Map<string, string>();
+    (profissionais || []).forEach((p) => {
+      if (p.nome) profissionaisPorNome.set(normalizeHeader(p.nome), p.id);
+    });
+
+    const semPessoaIndices = new Set<number>();
+    // Preparar todos os registros para inserção em lote. O nome do advogado
+    // precisa corresponder a uma pessoa cadastrada para virar vínculo real.
+    const allRecords = rows.flatMap((row, rowIndex) => {
+      const advogadoId = row.advogado
+        .split(/[;,]/)
+        .map((nome) => profissionaisPorNome.get(normalizeHeader(nome)))
+        .find(Boolean);
+      if (!advogadoId) {
+        semPessoaIndices.add(rowIndex);
+        return [];
+      }
       const dataAudiencia = row.data
         ? `${row.data}T${row.hora_brasilia || row.hora_local || '12:00'}:00-03:00`
         : null;
 
-      return {
-        processo_numero: row.processo_numero || null,
-        data_audiencia: dataAudiencia,
-        hora: row.hora_local || null,
-        hora_local: row.hora_local || null,
-        hora_brasilia: row.hora_brasilia || null,
-        tipo_audiencia: row.tipo_audiencia || null,
-        vara_camara: row.vara_camara || null,
-        comarca: row.comarca || null,
-        polo_ativo: row.polo_ativo || null,
-        cliente: row.cliente || null,
-        terceirizado: row.terceirizado || null,
-        resumo_objeto: row.resumo_objeto || null,
-        funcao: row.funcao || null,
-        preposto: row.preposto || null,
-        testemunhas: row.testemunhas || null,
-        advogado: row.advogado || null,
-        modalidade: row.modalidade || null,
-        equipe: row.equipe || null,
-        nucleo_origem: row.nucleo_origem || null,
-        dossie: row.dossie || null,
-        coordenacao_id: coordenacaoId,
-        origem: 'manual',
-        criado_por: user.id,
-        status: 'pendente',
-      };
+      return [{
+        rowIndex,
+        advogadoId,
+        registro: {
+          id: crypto.randomUUID(),
+          processo_numero: row.processo_numero || null,
+          data_audiencia: dataAudiencia,
+          hora: row.hora_local || null,
+          hora_local: row.hora_local || null,
+          hora_brasilia: row.hora_brasilia || null,
+          tipo_audiencia: row.tipo_audiencia || null,
+          vara_camara: row.vara_camara || null,
+          comarca: row.comarca || null,
+          polo_ativo: row.polo_ativo || null,
+          cliente: row.cliente || null,
+          terceirizado: row.terceirizado || null,
+          resumo_objeto: row.resumo_objeto || null,
+          funcao: row.funcao || null,
+          preposto: row.preposto || null,
+          testemunhas: row.testemunhas || null,
+          advogado: row.advogado || null,
+          modalidade: row.modalidade || null,
+          equipe: row.equipe || null,
+          nucleo_origem: row.nucleo_origem || null,
+          dossie: row.dossie || null,
+          coordenacao_id: coordenacaoId,
+          origem: 'manual',
+          criado_por: user.id,
+          status: 'pendente',
+        },
+      }];
     });
+
+    if (semPessoaIndices.size > 0) {
+      setRows((prev) => prev.map((r, idx) => semPessoaIndices.has(idx)
+        ? { ...r, status: "erro", erro: `${MSG_RESPONSAVEL_OU_ENVOLVIDO_OBRIGATORIO} Confira o nome em ADV INTERNO.` }
+        : r));
+    }
+    if (allRecords.length === 0) {
+      toast.error("Nenhuma audiência tem um responsável cadastrado e reconhecido.");
+      setIsImporting(false);
+      return;
+    }
+
+    const inserirLote = async (lote: typeof allRecords) => {
+      const { error } = await supabase
+        .from("audiencias_detectadas")
+        .insert(lote.map((item) => item.registro));
+      if (error) throw error;
+      const { error: erroVinculos } = await supabase.from("audiencias_advogados").insert(
+        lote.map((item) => ({ audiencia_id: item.registro.id, advogado_id: item.advogadoId })),
+      );
+      if (erroVinculos) {
+        await supabase.from("audiencias_detectadas").delete().in("id", lote.map((item) => item.registro.id));
+        throw erroVinculos;
+      }
+    };
 
     // Inserir em lotes de 200 para não exceder limites
     const BATCH_SIZE = 200;
     let successCount = 0;
-    let errorCount = 0;
+    let errorCount = semPessoaIndices.size;
 
     for (let batchStart = 0; batchStart < allRecords.length; batchStart += BATCH_SIZE) {
       if (cancelRef.current) {
@@ -380,34 +435,25 @@ export function ImportarAudienciasDialog({ open, onOpenChange }: Props) {
       const batch = allRecords.slice(batchStart, batchStart + BATCH_SIZE);
 
       try {
-        const { error } = await supabase
-          .from('audiencias_detectadas')
-          .insert(batch);
-
-        if (error) throw error;
-
+        await inserirLote(batch);
+        const sucessoIndices = new Set(batch.map((item) => item.rowIndex));
         setRows(prev => prev.map((r, idx) =>
-          idx >= batchStart && idx < batchStart + batch.length
-            ? { ...r, status: 'sucesso' }
-            : r
+          sucessoIndices.has(idx) ? { ...r, status: 'sucesso' } : r
         ));
         successCount += batch.length;
       } catch (error: any) {
         for (let j = 0; j < batch.length; j++) {
           if (cancelRef.current) break;
-          const globalIdx = batchStart + j;
+          const item = batch[j];
           try {
-            const { error: singleError } = await supabase
-              .from('audiencias_detectadas')
-              .insert(batch[j]);
-            if (singleError) throw singleError;
+            await inserirLote([item]);
             setRows(prev => prev.map((r, idx) =>
-              idx === globalIdx ? { ...r, status: 'sucesso' } : r
+              idx === item.rowIndex ? { ...r, status: 'sucesso' } : r
             ));
             successCount++;
           } catch (singleErr: any) {
             setRows(prev => prev.map((r, idx) =>
-              idx === globalIdx ? { ...r, status: 'erro', erro: singleErr.message } : r
+              idx === item.rowIndex ? { ...r, status: 'erro', erro: singleErr.message } : r
             ));
             errorCount++;
           }

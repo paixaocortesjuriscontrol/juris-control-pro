@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Upload, FileSpreadsheet, AlertCircle, CheckCircle2, XCircle, Loader2, Download, ListTodo, Users, UserPlus, FolderPlus, Calendar, Scale } from "lucide-react";
 import * as XLSX from "xlsx";
 import { ImportProgress, type ImportProgressState } from "@/components/tarefas/ImportProgress";
+import { MSG_RESPONSAVEL_OU_ENVOLVIDO_OBRIGATORIO, temResponsavelOuEnvolvido } from "@/lib/pessoasAtividadeObrigatoria";
 
 // ==================== INTERFACES ====================
 
@@ -1052,6 +1053,17 @@ export default function ImportarTarefas() {
         const dataVencimento = parseDate(t.dataPrevista) || parseDate(t.dataFatal);
         const processoId = resolveProcesso(t.numeroProcesso);
         const responsavelId = resolveResponsavel(t.responsaveis);
+        if (!temResponsavelOuEnvolvido(responsavelId ? [responsavelId] : [], [])) {
+          if (idx >= 0) {
+            updatedTarefas[idx] = {
+              ...updatedTarefas[idx],
+              status: "erro",
+              erroImport: MSG_RESPONSAVEL_OU_ENVOLVIDO_OBRIGATORIO,
+            };
+          }
+          counters.erro++;
+          continue;
+        }
 
         toInsert.push({
           processoId,
@@ -1570,11 +1582,29 @@ export default function ImportarTarefas() {
     });
     setTarefasAstrea([...updatedTarefas]);
 
+    const preparedComPessoas = prepared.filter((p) => {
+      const temPessoa = temResponsavelOuEnvolvido(
+        p.responsavelId ? [p.responsavelId] : [],
+        p.envolvidosIds,
+      );
+      if (temPessoa) return true;
+      const idx = updatedTarefas.findIndex(ut => ut.identificador === p.t.identificador);
+      if (idx >= 0) {
+        updatedTarefas[idx] = {
+          ...updatedTarefas[idx],
+          status: "erro",
+          erroImport: MSG_RESPONSAVEL_OU_ENVOLVIDO_OBRIGATORIO,
+        };
+      }
+      errorCount++;
+      return false;
+    });
+
     // Linhas de categoria "Evento" no Astrea entram na agenda de eventos,
     // não na lista de tarefas/prazos.
     const isEventoRow = (t: TarefaAstreaImport) => mapAstreaTipoToTarefa(t.tipo) === "Evento";
-    const preparedEventos = prepared.filter(p => isEventoRow(p.t));
-    const preparedTarefas = prepared.filter(p => !isEventoRow(p.t));
+    const preparedEventos = preparedComPessoas.filter(p => isEventoRow(p.t));
+    const preparedTarefas = preparedComPessoas.filter(p => !isEventoRow(p.t));
 
     // ===== Phase 2: bulk insert tarefas in batches of 200 =====
     const BATCH = 200;

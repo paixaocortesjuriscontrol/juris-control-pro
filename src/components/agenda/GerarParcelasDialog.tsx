@@ -41,6 +41,7 @@ import { EventoAgenda } from "@/hooks/useEventosAgenda";
 import { AGENDA_INFINITE_QUERY_KEY } from "@/hooks/useAgendaUnificada";
 import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 interface GerarParcelasDialogProps {
   open: boolean;
@@ -415,6 +416,12 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
 
     if (!formData.titulo.trim()) {
       toast.error("Informe um título para o parcelamento");
+      return;
+    }
+
+    const erroPessoas = mensagemPessoasObrigatorias([], formData.participantes_ids);
+    if (erroPessoas) {
+      toast.error(erroPessoas);
       return;
     }
 
@@ -829,7 +836,7 @@ export function GerarParcelasDialog({ open, onOpenChange, evento, defaultProcess
             <div className="border rounded-lg p-4 space-y-3">
               <Label className="font-medium flex items-center gap-2">
                 <UserPlus className="w-4 h-4" />
-                Responsáveis
+                Responsáveis ou envolvidos <span className="text-destructive">*</span>
               </Label>
               
               {/* Selected participants as chips */}

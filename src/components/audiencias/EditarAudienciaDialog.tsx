@@ -31,6 +31,7 @@ import {
   useCoordenadoresDaCoordenacao,
   useEnvolvidosFixosDaCoordenacao,
 } from "@/hooks/useCoordenadoresDaCoordenacao";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 interface Props {
   audiencia: AudienciaDetectada | null;
@@ -195,6 +196,15 @@ export function EditarAudienciaDialog({ audiencia, open, onOpenChange, inline = 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!audiencia) return;
+
+    const erroPessoas = mensagemPessoasObrigatorias(
+      [...responsaveisFixosIds, ...selectedAdvogados],
+      [...envolvidosFixosIds, ...envolvidosIds],
+    );
+    if (erroPessoas) {
+      toast.error(erroPessoas);
+      return;
+    }
 
     const situacaoMudou = formData.status !== statusInicial;
     if (situacaoMudou && comentarioObrigatorio && !comentarioSituacao.trim()) {

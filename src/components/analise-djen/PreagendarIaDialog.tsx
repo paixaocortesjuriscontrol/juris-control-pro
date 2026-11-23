@@ -7,6 +7,8 @@ import { Loader2, Sparkles, Check, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { PeoplePicker } from "@/components/shared/PeoplePicker";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 interface Sugestao {
   publicacao_id: string;
@@ -29,6 +31,7 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
   const [analisando, setAnalisando] = useState(false);
   const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
   const [salvando, setSalvando] = useState(false);
+  const [responsaveisIds, setResponsaveisIds] = useState<string[]>([]);
   const qc = useQueryClient();
 
   async function mensagemErroFunction(error: any) {
@@ -64,6 +67,11 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
   async function salvar() {
     const aceitas = sugestoes.filter((s) => s.aceitar);
     if (aceitas.length === 0) return;
+    const erroPessoas = mensagemPessoasObrigatorias(responsaveisIds, []);
+    if (erroPessoas) {
+      toast.error(erroPessoas);
+      return;
+    }
     setSalvando(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -71,7 +79,7 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
 
       for (const s of aceitas) {
         if (s.tipo === "tarefa" || s.tipo === "prazo") {
-          const { error } = await supabase.from("tarefas").insert({
+          const { data: item, error } = await supabase.from("tarefas").insert({
             titulo: s.titulo,
             descricao: s.descricao ?? null,
             data_fatal: s.data_sugerida ?? null,
@@ -81,31 +89,55 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
             tipo_tarefa: s.tipo === "prazo" ? "prazo" : "tarefa",
             tipo_registro: s.tipo === "prazo" ? "prazo" : "tarefa",
             criado_por: user?.id,
-            responsavel_id: user?.id,
+            responsavel_id: responsaveisIds[0],
             coordenacao_id: coordenacaoId,
             origem: "ia_djen",
-          } as any);
-          if (!error) criadas++;
+          } as any).select("id").single();
+          if (error) throw error;
+          const { error: vinculoErro } = await supabase.from("tarefa_responsaveis").insert(
+            responsaveisIds.map((usuario_id) => ({ tarefa_id: item.id, usuario_id })),
+          );
+          if (vinculoErro) {
+            await supabase.from("tarefas").delete().eq("id", item.id);
+            throw vinculoErro;
+          }
+          criadas++;
         } else if (s.tipo === "audiencia") {
-          const { error } = await supabase.from("audiencias_detectadas").insert({
+          const { data: item, error } = await supabase.from("audiencias_detectadas").insert({
             titulo: s.titulo,
             data_audiencia: s.data_sugerida ? new Date(s.data_sugerida).toISOString() : null,
             status: "pendente",
             criado_por: user?.id,
             coordenacao_id: coordenacaoId,
             origem: "ia_djen",
-          } as any);
-          if (!error) criadas++;
+          } as any).select("id").single();
+          if (error) throw error;
+          const { error: vinculoErro } = await supabase.from("audiencias_advogados").insert(
+            responsaveisIds.map((advogado_id) => ({ audiencia_id: item.id, advogado_id })),
+          );
+          if (vinculoErro) {
+            await supabase.from("audiencias_detectadas").delete().eq("id", item.id);
+            throw vinculoErro;
+          }
+          criadas++;
         } else if (s.tipo === "evento") {
-          const { error } = await supabase.from("eventos_agenda").insert({
+          const { data: item, error } = await supabase.from("eventos_agenda").insert({
             titulo: s.titulo,
             descricao: s.descricao ?? null,
             tipo: "evento",
             data_inicio: s.data_sugerida ? new Date(s.data_sugerida + "T09:00:00").toISOString() : new Date().toISOString(),
             criado_por: user?.id,
             coordenacao_id: coordenacaoId,
-          } as any);
-          if (!error) criadas++;
+          } as any).select("id").single();
+          if (error) throw error;
+          const { error: vinculoErro } = await supabase.from("evento_responsaveis").insert(
+            responsaveisIds.map((usuario_id) => ({ evento_id: item.id, usuario_id })),
+          );
+          if (vinculoErro) {
+            await supabase.from("eventos_agenda").delete().eq("id", item.id);
+            throw vinculoErro;
+          }
+          criadas++;
         }
       }
       toast.success(`${criadas} item(ns) criado(s)`);
@@ -128,7 +160,7 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) setSugestoes([]); onOpenChange(v); }}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setSugestoes([]); setResponsaveisIds([]); } onOpenChange(v); }}>
       <DialogContent className="max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -149,6 +181,17 @@ export function PreagendarIaDialog({ open, onOpenChange, publicacaoIds, coordena
           </div>
         ) : (
           <>
+            <div className="space-y-1.5 rounded-md border p-3">
+              <p className="text-sm font-medium">Responsáveis pelas atividades <span className="text-destructive">*</span></p>
+              <p className="text-xs text-muted-foreground">As pessoas escolhidas serão vinculadas a todos os itens criados.</p>
+              <PeoplePicker
+                coordenacaoId={coordenacaoId || null}
+                selectedIds={responsaveisIds}
+                onChange={setResponsaveisIds}
+                placeholder="Adicionar responsável"
+                emptyLabel="Nenhuma pessoa selecionada"
+              />
+            </div>
             <div className="max-h-[60vh] overflow-auto border rounded">
               <table className="w-full text-sm">
                 <thead className="bg-muted sticky top-0">

@@ -5,6 +5,7 @@ import { vincularItemPublicacao } from "@/lib/vincularItemPublicacao";
 import { format, addDays, addBusinessDays, addWeeks, addMonths, addYears } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
 import { lerCamposEtapa, resolverDataEtapa } from "@/lib/camposEtapaWorkflow";
+import { exigirResponsavelOuEnvolvido } from "@/lib/pessoasAtividadeObrigatoria";
 
 
 export type WorkflowItemType =
@@ -278,6 +279,7 @@ export async function criarItemWorkflow(
   const todosResponsaveis = Array.from(
     new Set([...(responsavelPrincipal ? [responsavelPrincipal] : []), ...responsaveisEtapa])
   );
+  exigirResponsavelOuEnvolvido(todosResponsaveis, envolvidosDaEtapa(sobrescrita));
 
   // A etapa é criada NO DIA da referência (início do fluxo ou conclusão da
   // etapa anterior). Os dias previstos/fatais são apenas orientativos.

@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { FileText, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { MultiUserSelect } from "@/components/shared/MultiUserSelect";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 const formSchema = z.object({
   titulo: z.string().min(1, "Título é obrigatório").max(1000, "O título pode ter no máximo 1.000 caracteres"),
@@ -101,6 +102,11 @@ export function CriarTarefaProcessoDialog({
 
   async function onSubmit(values: FormValues) {
     if (!user) return;
+    const erroPessoas = mensagemPessoasObrigatorias(responsaveisIds, envolvidosIds);
+    if (erroPessoas) {
+      toast.error(erroPessoas);
+      return;
+    }
     const responsavelPrincipal = responsaveisIds[0] || null;
     setLoading(true);
     try {

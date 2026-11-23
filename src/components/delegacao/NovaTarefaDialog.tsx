@@ -68,6 +68,7 @@ import { parseDataPublicacaoLocal } from "@/utils/formatConteudo";
 import { calcularDataFatalISO, calcularDataPrevistaISO, fatalAcompanhando } from "@/lib/datasBase";
 import { ensureProcessoFromPublicacao } from "@/lib/ensureProcessoFromPublicacao";
 import { camposTipoTarefa, camposTipoSeAlterado } from "@/lib/conversaoTipoItem";
+import { exigirResponsavelOuEnvolvido } from "@/lib/pessoasAtividadeObrigatoria";
 
 type AnexoComAnalise = {
   file?: File;
@@ -752,11 +753,9 @@ export function NovaTarefaDialog({
       const envolvidosParaSalvar = normalizeUuidList(
         Array.from(new Set([...envolvidosFixosIds, ...envolvidosIds])),
       );
-      const responsavelPrincipal = responsaveisParaSalvar[0];
+      const responsavelPrincipal = responsaveisParaSalvar[0] || null;
 
-      if (!responsavelPrincipal) {
-        throw new Error("Selecione pelo menos um responsável.");
-      }
+      exigirResponsavelOuEnvolvido(responsaveisParaSalvar, envolvidosParaSalvar);
 
       if (precisaSelecionar && !values.coordenacao_id && !tarefaParaEditar?.id) {
         throw new Error("Selecione a coordenação.");
@@ -952,11 +951,13 @@ export function NovaTarefaDialog({
       }
 
       // Buscar telefone do responsável para enviar WhatsApp
-      const { data: responsavel } = await supabase
-        .from("profiles")
-        .select("nome, telefone")
-        .eq("id", responsavelPrincipal)
-        .single();
+      const { data: responsavel } = responsavelPrincipal
+        ? await supabase
+            .from("profiles")
+            .select("nome, telefone")
+            .eq("id", responsavelPrincipal)
+            .single()
+        : { data: null };
 
       if (responsavel?.telefone) {
         // Montar mensagem de delegação
@@ -1610,7 +1611,7 @@ export function NovaTarefaDialog({
                 name="responsavel_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Responsáveis *</FormLabel>
+                    <FormLabel>Responsáveis ou envolvidos *</FormLabel>
                     <FormControl>
                       <PeoplePicker
                         coordenacaoId={coordenacaoId || null}

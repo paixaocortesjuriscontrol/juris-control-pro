@@ -425,7 +425,17 @@ export default function MigracaoProjuris() {
       setProgresso({ fase: "Tarefas", feito: 0, total: validas.length });
       for (let k = 0; k < validas.length; k += LOTE) {
         await esperar(); if (cancelado.current) break;
-        const parte = validas.slice(k, k + LOTE);
+        const bruto = validas.slice(k, k + LOTE);
+        const parte = bruto.filter((l) => l.responsavelId);
+        const semPessoas = bruto.filter((l) => !l.responsavelId);
+        if (semPessoas.length) {
+          cont.erros += semPessoas.length;
+          await logItens(semPessoas.map((l) => ({ tipo: "tarefa", chave_externa: l.id_externo, status: "erro", motivo: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido." })));
+        }
+        if (parte.length === 0) {
+          setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validas.length), total: validas.length });
+          continue;
+        }
         const payload = parte.map((l) => {
           const pid = procMap.get(l.processo_dig) || null;
           return {
@@ -444,7 +454,7 @@ export default function MigracaoProjuris() {
         } else {
           const rows = (data as any[]) || [];
           rows.forEach((r, j) => tarefaMap.set(parte[j].id_externo, r));
-          await supabase.from("tarefa_responsaveis").insert(rows.map((r, j) => ({ tarefa_id: r.id, usuario_id: parte[j].responsavelId || user.id })) as any);
+          await supabase.from("tarefa_responsaveis").insert(rows.map((r, j) => ({ tarefa_id: r.id, usuario_id: parte[j].responsavelId })) as any);
           await logItens(rows.map((r, j) => ({ tipo: "tarefa", chave_externa: parte[j].id_externo, registro_id: r.id, status: "criado", dados: { titulo: parte[j].titulo, tipo: parte[j].tipo, data: parte[j].data } })));
           cont.tarefas_criadas += rows.length;
         }

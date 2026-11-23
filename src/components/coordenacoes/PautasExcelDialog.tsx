@@ -754,6 +754,12 @@ export function PautasExcelDialog({
     r.etiquetasCriadas = etiquetasCriadas;
 
     // 4) Criar audiências
+    const respFinal = Array.from(new Set([...(fixos?.responsaveis ?? []), ...responsaveisIds]));
+    const envFinal = Array.from(new Set([...(fixos?.envolvidos ?? []), ...envolvidosIds]));
+    if (respFinal.length === 0 && envFinal.length === 0) {
+      r.erros.push({ linha: 0, motivo: "Selecione pelo menos um responsável ou envolvido antes de importar." });
+      return r;
+    }
     let processadas = 0;
     const idsCriados: string[] = [];
     const etiquetasPorAudiencia = new Map<string, string[]>();
@@ -813,8 +819,6 @@ export function PautasExcelDialog({
       }
 
       // Vincular responsáveis (seleção da tela SEMPRE complementada pelos fixos)
-      const respFinal = Array.from(new Set([...(fixos?.responsaveis ?? []), ...responsaveisIds]));
-      const envFinal = Array.from(new Set([...(fixos?.envolvidos ?? []), ...envolvidosIds]));
       const advogadosInsert = respFinal.map((advogadoId) => ({
         audiencia_id: audId,
         advogado_id: advogadoId,

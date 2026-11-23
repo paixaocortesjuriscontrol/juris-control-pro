@@ -101,6 +101,13 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
       for (const l of ok) {
         if (cancelar.current) break;
         const resp = Array.from(new Set(l.responsaveis.map(casar).filter(Boolean))) as string[];
+        if (resp.length === 0) {
+          cont.erros++;
+          erros.push({ Identificador: l.tar, Título: l.titulo, Erro: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido." });
+          feito++;
+          setProg({ etapa: "Gravando compromissos", feito, total: ok.length });
+          continue;
+        }
         const pid = l.dig ? proc.get(l.dig) || null : null;
         const obsTxt = [l.obs, `Importado Projuris — ${l.tar}`].filter(Boolean).join("\n");
         const criado = l.inclusao ? { created_at: isoBRT(l.inclusao, null) } : {};

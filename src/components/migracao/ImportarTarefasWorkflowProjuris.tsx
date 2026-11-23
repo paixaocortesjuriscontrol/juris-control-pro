@@ -154,24 +154,35 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
         ok.slice(k, k + LOTE).filter((l) => !proc.has(l.dig)).forEach((l) => { cont.erros++; erros.push({ Processo: formatarCnj(l.dig), Título: l.titulo, Erro: "Processo não pôde ser criado" }); });
         if (lote.length) {
           const resps = lote.map((l) => Array.from(new Set(l.responsaveis.map(casar).filter(Boolean))) as string[]);
-          const { data, error } = await db.from("tarefas").insert(lote.map((l, j) => ({
+          const validos = lote.filter((_, j) => resps[j].length > 0);
+          const respsValidos = resps.filter((ids) => ids.length > 0);
+          lote.filter((_, j) => resps[j].length === 0).forEach((l) => {
+            cont.erros++;
+            erros.push({ Processo: formatarCnj(l.dig), Título: l.titulo, Erro: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido." });
+          });
+          if (validos.length === 0) {
+            feito = Math.min(k + LOTE, ok.length);
+            setProg({ etapa: "Gravando prazos e tarefas", feito, total: ok.length });
+            continue;
+          }
+          const { data, error } = await db.from("tarefas").insert(validos.map((l, j) => ({
             titulo: l.titulo.slice(0, 500), descricao: l.obs || null, tipo_tarefa: l.tipo === "prazo" ? "PRAZO" : "TAREFA", tipo_registro: l.tipo,
             data_vencimento: l.prevista, data_prevista: l.prevista, data_fatal: l.fatal, status: "pendente", prioridade: "media",
-            processo_id: proc.get(l.dig)!.id, coordenacao_id: COORD, responsavel_id: resps[j][0] || null, criado_por: null, origem: "projuris",
+            processo_id: proc.get(l.dig)!.id, coordenacao_id: COORD, responsavel_id: respsValidos[j][0] || null, criado_por: null, origem: "projuris",
             identificador_modulo: l.pro || null, modulo: "Processo", modelo_tarefa_id: modeloPor.get(norm(l.titulo)) || null,
             partes_ativas: l.ativas.join(" | ") || null, partes_passivas: l.passivas.join(" | ") || null, marcadores: l.etiquetas.join(" | ") || null,
             data_criacao_projuris: l.inclusao, observacoes: [l.obs, `Importado Projuris (Tarefas de workflows)${l.pro ? ` — ${l.pro}` : ""}`].filter(Boolean).join("\n"),
             ...(l.inclusao ? { created_at: `${l.inclusao}T12:00:00-03:00` } : {}),
           }))).select("id");
-          if (error) { cont.erros += lote.length; erros.push(...lote.map((l) => ({ Processo: formatarCnj(l.dig), Título: l.titulo, Erro: error.message }))); }
+          if (error) { cont.erros += validos.length; erros.push(...validos.map((l) => ({ Processo: formatarCnj(l.dig), Título: l.titulo, Erro: error.message }))); }
           else {
             const rows = data || [];
-            const respRows = rows.flatMap((r: any, j: number) => resps[j].map((u) => ({ tarefa_id: r.id, usuario_id: u })));
-            const etqRows = rows.flatMap((r: any, j: number) => lote[j].etiquetas.filter((e: string) => etqId.has(norm(e))).map((e: string) => ({ etiqueta_id: etqId.get(norm(e)), entidade: lote[j].tipo, entidade_id: r.id, created_by: userId })));
+            const respRows = rows.flatMap((r: any, j: number) => respsValidos[j].map((u) => ({ tarefa_id: r.id, usuario_id: u })));
+            const etqRows = rows.flatMap((r: any, j: number) => validos[j].etiquetas.filter((e: string) => etqId.has(norm(e))).map((e: string) => ({ etiqueta_id: etqId.get(norm(e)), entidade: validos[j].tipo, entidade_id: r.id, created_by: userId })));
             if (respRows.length) { const { error: e1 } = await db.from("tarefa_responsaveis").insert(respRows); if (e1) erros.push({ Etapa: "Responsáveis", Erro: e1.message }); }
             if (etqRows.length) { const { error: e2 } = await db.from("etiquetas_itens").insert(etqRows); if (e2) erros.push({ Etapa: "Etiquetas", Erro: e2.message }); else cont.etiquetas += etqRows.length; }
-            rows.forEach((_: any, j: number) => (lote[j].tipo === "prazo" ? cont.prazos++ : cont.tarefas++));
-            await log(rows.map((r: any, j: number) => ({ tipo: "tarefa", chave_externa: lote[j].chave, registro_id: r.id, status: "criado", dados: { titulo: lote[j].titulo, fatal: lote[j].fatal, pro: lote[j].pro, tipo: lote[j].tipo } })));
+            rows.forEach((_: any, j: number) => (validos[j].tipo === "prazo" ? cont.prazos++ : cont.tarefas++));
+            await log(rows.map((r: any, j: number) => ({ tipo: "tarefa", chave_externa: validos[j].chave, registro_id: r.id, status: "criado", dados: { titulo: validos[j].titulo, fatal: validos[j].fatal, pro: validos[j].pro, tipo: validos[j].tipo } })));
           }
         }
         feito = Math.min(k + LOTE, ok.length); setProg({ etapa: "Gravando prazos e tarefas", feito, total: ok.length });

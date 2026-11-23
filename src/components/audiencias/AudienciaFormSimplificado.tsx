@@ -38,6 +38,7 @@ import { CoordenacaoSelect } from "@/components/shared/CoordenacaoSelect";
 import { AlertasConfigCard } from "@/components/shared/AlertasConfigCard";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
+import { mensagemPessoasObrigatorias } from "@/lib/pessoasAtividadeObrigatoria";
 
 import { ItemComentarios } from "@/components/comum/ItemComentarios";
 import { ItemAnexos, type ItemAnexosHandle } from "@/components/comum/ItemAnexos";
@@ -355,9 +356,13 @@ export function AudienciaFormSimplificado({
       ? novaDataReagendamento
       : form.data_audiencia;
 
-    if (!isEditing && responsaveisIds.length === 0) {
-      toast.error("Selecione ao menos um responsável", {
-        description: "Campo obrigatório: 'Responsáveis', no final do formulário.",
+    const erroPessoas = mensagemPessoasObrigatorias(
+      [...coordenadoresIds, ...responsaveisIds],
+      [...envolvidosFixosIds, ...envolvidosIds],
+    );
+    if (erroPessoas) {
+      toast.error(erroPessoas, {
+        description: "Escolha ao menos uma pessoa em Responsáveis ou Envolvidos, no final do formulário.",
       });
       return;
     }
@@ -925,7 +930,7 @@ export function AudienciaFormSimplificado({
 
       <div className="space-y-1.5">
         <Label className="text-sm">
-          Responsáveis<span className="text-destructive">*</span>
+          Responsáveis ou envolvidos<span className="text-destructive">*</span>
         </Label>
         <PeoplePicker
           coordenacaoId={coordenacaoId || null}
