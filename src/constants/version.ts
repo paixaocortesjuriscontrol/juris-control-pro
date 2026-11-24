@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.3.9";
+export const APP_VERSION = "10.4.0";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.4.0", date: "2026-11-24", notes: "Visão completa do Escritório: membros da coordenação passam a ver todos os eventos, tarefas, prazos, atas e parcelamentos dela quando a opção está ligada; responsáveis e envolvidos veem os eventos em que estão; Salvar e fechar da Análise DJEN não marca a publicação como lida" },
   { version: "10.3.9", date: "2026-11-24", notes: "Administração: card Planilha de usuários e cargos (Excel com cargos por coordenação e processos como responsável/envolvido); listas com rolagem voltam a mostrar todas as opções (ex.: coordenações do processo); remanejar em painel lateral completo; rascunho automático da nova tarefa; publicações marcam como lida só a aberta" },
   { version: "10.3.8", date: "2026-11-23", notes: "Avisos de atividade nova (e-mail, WhatsApp e sistema) mostram o tipo certo: Novo Prazo, Nova Ata ou Nova Tarefa" },
   { version: "10.3.7", date: "2026-11-23", notes: "Datas passadas: criar tarefa, ata, prazo, evento ou audiência com data anterior a hoje não é mais bloqueado; o sistema avisa que a data já venceu e salva mesmo assim (caso da Jéssica em publicação de 18/11)" },
