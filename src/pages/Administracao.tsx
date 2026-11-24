@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import type { Database } from "@/integrations/supabase/types";
 import { InfoSistemaTab } from "@/components/admin/InfoSistemaTab";
 import { gerarRelatorioUsuariosPdf } from "@/lib/relatorioUsuariosPdf";
+import { gerarPlanilhaUsuariosCoordenacoes } from "@/lib/exportarUsuariosCoordenacoes";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
@@ -93,6 +94,7 @@ const Administracao = () => {
   const [sendingTest, setSendingTest] = useState(false);
   const [filialFilter, setFilialFilter] = useState<string>("todas");
   const [activeTab, setActiveTab] = useState("usuarios");
+  const [gerandoPlanilhaUsuarios, setGerandoPlanilhaUsuarios] = useState(false);
   const [gerandoRelatorio, setGerandoRelatorio] = useState(false);
   const [historyStartDate, setHistoryStartDate] = useState<Date | undefined>(undefined);
   const [historyEndDate, setHistoryEndDate] = useState<Date | undefined>(undefined);
@@ -761,6 +763,31 @@ const Administracao = () => {
                   </Card>
                 </Link>
               ))}
+              <button
+                type="button"
+                disabled={gerandoPlanilhaUsuarios}
+                onClick={async () => {
+                  setGerandoPlanilhaUsuarios(true);
+                  try { await gerarPlanilhaUsuariosCoordenacoes(); toast.success("Planilha gerada!"); }
+                  catch (e: any) { toast.error("Erro ao gerar planilha: " + (e?.message || e)); }
+                  finally { setGerandoPlanilhaUsuarios(false); }
+                }}
+                className="group text-left"
+              >
+                <Card className="h-full transition-all border-border hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5">
+                  <CardContent className="p-4 flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0 group-hover:bg-primary/20 transition-colors">
+                      {gerandoPlanilhaUsuarios ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileSpreadsheet className="w-5 h-5" />}
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">Planilha de usuários e cargos</h3>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                        {gerandoPlanilhaUsuarios ? "Gerando Excel..." : "Excel com usuários, cargos por coordenação e nº de processos como responsável ou envolvido."}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
             </div>
           </CardContent>
         </Card>
