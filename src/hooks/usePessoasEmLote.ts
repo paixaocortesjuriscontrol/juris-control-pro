@@ -30,6 +30,20 @@ export interface LoteItem {
   atividades: LoteAtividade[];
   /** Datas específicas do formulário (remanejamento). */
   datas?: Record<string, string | null>;
+  /** Detalhes extras exibidos no remanejamento. */
+  detalhes?: {
+    descricao?: string | null;
+    observacoes?: string | null;
+    ultimo_andamento?: string | null;
+    hora_fatal?: string | null;
+    hora_prevista?: string | null;
+    prazo_dias?: number | null;
+    prazo_unidade?: string | null;
+    partes_ativas?: string | null;
+    partes_passivas?: string | null;
+    local?: string | null;
+    modalidade?: string | null;
+  };
 }
 
 export interface PessoasEmLoteFiltros {
@@ -132,7 +146,7 @@ export function usePessoasEmLoteItens(
           let q = (supabase as any)
             .from("tarefas")
             .select(
-              "id, titulo, tipo_registro, tipo_tarefa, status, data_vencimento, data_base, data_fatal, processo_id, coordenacao_id, responsavel_id",
+              "id, titulo, tipo_registro, tipo_tarefa, status, data_vencimento, data_base, data_fatal, processo_id, coordenacao_id, responsavel_id, descricao, observacoes, descricao_ultimo_andamento, hora_fatal, hora_prevista, prazo_dias, prazo_unidade, partes_ativas, partes_passivas",
             )
             .gte("data_vencimento", inicio)
             .lte("data_vencimento", fim)
@@ -147,7 +161,7 @@ export function usePessoasEmLoteItens(
           if (!querEventos) return [] as any[];
           let q = (supabase as any)
             .from("eventos_agenda")
-            .select("id, titulo, tipo, status, data_inicio, data_fim, processo_id, coordenacao_id")
+            .select("id, titulo, tipo, status, data_inicio, data_fim, processo_id, coordenacao_id, descricao, local, modalidade")
             .gte("data_inicio", inicioTs)
             .lte("data_inicio", fimTs)
             .order("data_inicio", { ascending: true })
@@ -162,7 +176,7 @@ export function usePessoasEmLoteItens(
           let q = (supabase as any)
             .from("audiencias_detectadas")
             .select(
-              "id, titulo, tipo_audiencia, status, data_audiencia, processo_id, processo_numero, coordenacao_id",
+              "id, titulo, tipo_audiencia, status, data_audiencia, processo_id, processo_numero, coordenacao_id, observacoes, modalidade",
             )
             .gte("data_audiencia", inicio)
             .lte("data_audiencia", fim)
@@ -258,6 +272,11 @@ export function usePessoasEmLoteItens(
             new Set([...(tarefaResp[row.id] || []), ...(row.responsavel_id ? [row.responsavel_id] : [])]),
           ),
           envolvidos: Array.from(new Set(tarefaEnv[row.id] || [])),
+          detalhes: {
+            descricao: row.descricao, observacoes: row.observacoes, ultimo_andamento: row.descricao_ultimo_andamento,
+            hora_fatal: row.hora_fatal, hora_prevista: row.hora_prevista, prazo_dias: row.prazo_dias,
+            prazo_unidade: row.prazo_unidade, partes_ativas: row.partes_ativas, partes_passivas: row.partes_passivas,
+          },
           atividades: atividadesPorItem[row.id] || [],
         });
       });
@@ -280,6 +299,7 @@ export function usePessoasEmLoteItens(
           coordenacao_id: row.coordenacao_id ?? null,
           responsaveis: Array.from(new Set(eventoResp[row.id] || [])),
           envolvidos: Array.from(new Set(eventoEnv[row.id] || [])),
+          detalhes: { descricao: row.descricao, local: row.local, modalidade: row.modalidade },
           atividades: atividadesPorItem[row.id] || [],
         });
       });
@@ -298,6 +318,7 @@ export function usePessoasEmLoteItens(
           coordenacao_id: row.coordenacao_id ?? null,
           responsaveis: Array.from(new Set(audAdv[row.id] || [])),
           envolvidos: Array.from(new Set(audEnv[row.id] || [])),
+          detalhes: { observacoes: row.observacoes, modalidade: row.modalidade },
           atividades: atividadesPorItem[row.id] || [],
         });
       });

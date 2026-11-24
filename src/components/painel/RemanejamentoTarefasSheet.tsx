@@ -1,11 +1,12 @@
 import { useMemo, useState } from "react";
-import { addDays, format, isWeekend, parseISO, startOfMonth, endOfMonth } from "date-fns";
+import { differenceInCalendarDays, addDays, format, isWeekend, parseISO, startOfMonth, endOfMonth } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandItem, CommandList } from "@/components/ui/command";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,7 +22,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 import { usePessoasEmLoteItens, labelTipoLote, type LoteItem, type LoteTipo, type PessoasEmLoteFiltros } from "@/hooks/usePessoasEmLote";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
-import { ArrowRightLeft, AlertTriangle, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
+import { ChevronRight, ArrowRightLeft, AlertTriangle, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -65,6 +66,9 @@ const proximoDiaUtil = (d: Date) => {
 
 const diaBRT = (v: string) => (v.length > 10 ? formatInTimeZone(new Date(v), TZ, "yyyy-MM-dd") : v.slice(0, 10));
 const horaBRT = (v: string) => (v.length > 10 ? formatInTimeZone(new Date(v), TZ, "HH:mm:ss") : "12:00:00");
+
+const hojeBRT = () => formatInTimeZone(new Date(), TZ, "yyyy-MM-dd");
+const dataFatalDe = (i: LoteItem): string | null => i.datas?.data_fatal ?? (i.fonte === "evento" ? i.datas?.data_inicio ?? null : null);
 
 const fmtData = (v: string | null | undefined, comHora = false) => {
   if (!v) return "—";
@@ -142,9 +146,35 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
 
   const coordPermitidas = useMemo(() => coordenacoes.map((c) => c.id), [coordenacoes]);
   const { data: itensBrutos = [], isFetching, refetch } = usePessoasEmLoteItens(filtros, coordPermitidas, isAdmin, open && buscou);
-  const itens = useMemo(() => itensBrutos.filter((i) => i.tipo === tipoAtivo), [itensBrutos, tipoAtivo]);
+  const [ordem, setOrdem] = useState<"fatal" | "prevista" | "processo">("fatal");
+  const [fatalAte, setFatalAte] = useState("");
+  const [buscaTexto, setBuscaTexto] = useState("");
+  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const itens = useMemo(() => {
+    const txt = buscaTexto.trim().toLowerCase();
+    const lista = itensBrutos.filter((i) => {
+      if (i.tipo !== tipoAtivo) return false;
+      if (fatalAte) {
+        const f = dataFatalDe(i);
+        if (!f || diaBRT(f) > fatalAte) return false;
+      }
+      if (txt) {
+        const d = i.detalhes || {};
+        const alvo = [i.titulo, i.processo_numero, d.descricao, d.observacoes, d.ultimo_andamento, d.partes_ativas, d.partes_passivas, d.local]
+          .filter(Boolean).join(" ").toLowerCase();
+        if (!alvo.includes(txt)) return false;
+      }
+      return true;
+    });
+    const chave = (i: LoteItem) =>
+      ordem === "processo" ? i.processo_numero ?? "~"
+        : ordem === "fatal" ? (dataFatalDe(i) ? diaBRT(dataFatalDe(i)!) : "9999")
+          : (i.data ? diaBRT(i.data) : "9999");
+    return [...lista].sort((a, b) => chave(a).localeCompare(chave(b)));
+  }, [itensBrutos, tipoAtivo, fatalAte, buscaTexto, ordem]);
+  const nomeCoord = useMemo(() => Object.fromEntries(coordenacoes.map((c) => [c.id, c.nome])), [coordenacoes]);
 
-  const idsPessoas = useMemo(() => Array.from(new Set(itens.flatMap((i) => i.responsaveis))), [itens]);
+  const idsPessoas = useMemo(() => Array.from(new Set(itens.flatMap((i) => [...i.responsaveis, ...i.envolvidos]))), [itens]);
   const { data: nomes = {} } = useQuery({
     queryKey: ["remanejamento-nomes", JSON.stringify(idsPessoas)],
     enabled: idsPessoas.length > 0,
@@ -193,6 +223,13 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [JSON.stringify({ k: selecionados.map((i) => i.key), regras, fimJunto, tipoAtivo })]);
   const comErro = selecionados.filter((i) => calculos.get(i.key)?.erro);
+  /** Itens cuja nova data prevista/limite passa do prazo fatal. */
+  const passamDoFatal = selecionados.filter((i) => {
+    const c = calculos.get(i.key);
+    const venc = c?.novas.data_vencimento ?? i.datas?.data_vencimento;
+    const fatal = c?.novas.data_fatal ?? i.datas?.data_fatal;
+    return !!(c && (c.novas.data_vencimento || c.novas.data_fatal) && venc && fatal && diaBRT(venc) > diaBRT(fatal));
+  });
   const todosMarcados = itens.length > 0 && selecionados.length === itens.length;
 
   const regrasAtivas = campos.filter(({ campo }) => {
@@ -290,9 +327,9 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!aplicando) onOpenChange(o); }}>
-      <SheetContent side="right" className="w-full sm:max-w-[1150px] p-0 flex flex-col overflow-hidden">
+      <SheetContent side="right" className="w-full sm:max-w-[1280px] p-0 flex flex-col overflow-hidden">
         <SheetHeader className="px-6 pt-5 pb-3 border-b">
-          <SheetTitle className="flex items-center gap-2"><ArrowRightLeft className="h-5 w-5 text-primary" /> Remanejamento de tarefas</SheetTitle>
+          <SheetTitle className="flex items-center gap-2"><ArrowRightLeft className="h-5 w-5 text-primary" /> Remanejamento em lote</SheetTitle>
           <SheetDescription>Escolha o tipo, filtre, selecione os itens e defina o que acontece com cada data.</SheetDescription>
         </SheetHeader>
 
@@ -389,43 +426,109 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
           ) : !itens.length ? (
             <div className="p-10 text-center text-sm text-muted-foreground">Nenhum item encontrado com esses filtros.</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-card border-b z-10">
-                <tr className="text-left text-xs text-muted-foreground">
-                  <th className="px-4 py-2 w-8"><Checkbox checked={todosMarcados} onCheckedChange={(c) => setSel(c ? new Set(itens.map((i) => i.key)) : new Set())} /></th>
-                  <th className="px-2 py-2">Título</th>
-                  <th className="px-2 py-2">Processo</th>
-                  <th className="px-2 py-2">Responsáveis</th>
-                  {campos.map((c) => <th key={c.campo} className="px-2 py-2 whitespace-nowrap">{c.label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
+            <div>
+              <div className="sticky top-0 z-10 bg-card border-b px-4 py-2 flex flex-wrap items-center gap-3 text-xs">
+                <label className="flex items-center gap-2"><Checkbox checked={todosMarcados} onCheckedChange={(c) => setSel(c ? new Set(itens.map((i) => i.key)) : new Set())} /> Selecionar todos ({itens.length})</label>
+                <div className="flex items-center gap-1.5 ml-auto">
+                  <span className="text-muted-foreground">Ordenar por</span>
+                  <Select value={ordem} onValueChange={(v) => setOrdem(v as typeof ordem)}>
+                    <SelectTrigger className="h-7 w-[150px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="fatal">{ehEvento ? "Início" : "Prazo fatal"}</SelectItem>
+                      <SelectItem value="prevista">{ehEvento ? "Início" : "Data prevista/limite"}</SelectItem>
+                      <SelectItem value="processo">Processo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {!ehEvento && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-muted-foreground">Fatal até</span>
+                    <Input type="date" className="h-7 w-[140px] text-xs" value={fatalAte} onChange={(e) => setFatalAte(e.target.value)} />
+                  </div>
+                )}
+                <Input className="h-7 w-[220px] text-xs" placeholder="Buscar em observações, partes…" value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)} />
+              </div>
+              <ul className="divide-y">
                 {itens.map((i) => {
                   const marcado = sel.has(i.key);
                   const calc = marcado ? calculos.get(i.key) : undefined;
+                  const aberto = abertos.has(i.key);
+                  const d = i.detalhes || {};
+                  const fatal = dataFatalDe(i);
+                  const dias = fatal ? differenceInCalendarDays(parseISO(diaBRT(fatal)), parseISO(hojeBRT())) : null;
+                  const obs = d.observacoes || d.descricao;
                   return (
-                    <tr key={i.key} className={`border-b hover:bg-muted/40 cursor-pointer ${marcado ? "bg-primary/5" : ""}`} onClick={() => toggle(i.key)}>
-                      <td className="px-4 py-1.5" onClick={(e) => e.stopPropagation()}><Checkbox checked={marcado} onCheckedChange={() => toggle(i.key)} /></td>
-                      <td className="px-2 py-1.5 max-w-[260px]">
-                        <div className="truncate" title={i.titulo}>{i.titulo}</div>
-                        {calc?.erro && <div className="text-[11px] text-destructive flex items-center gap-1"><AlertTriangle className="h-3 w-3" />{calc.erro}</div>}
-                      </td>
-                      <td className="px-2 py-1.5 font-mono text-xs">{i.processo_numero ?? "—"}</td>
-                      <td className="px-2 py-1.5 text-xs max-w-[180px] truncate">{i.responsaveis.map((id) => nomes[id] ?? "…").join(", ") || "—"}</td>
-                      {campos.map(({ campo }) => {
-                        const nova = calc?.novas[campo];
-                        return (
-                          <td key={campo} className="px-2 py-1.5 text-xs whitespace-nowrap">
-                            <span className={nova ? "line-through text-muted-foreground" : ""}>{fmtData(i.datas?.[campo], ehEvento)}</span>
-                            {nova && <span className="ml-1 font-semibold text-primary">{fmtData(nova, ehEvento)}</span>}
-                          </td>
-                        );
-                      })}
-                    </tr>
+                    <li key={i.key} className={`px-4 py-2.5 hover:bg-muted/40 cursor-pointer ${marcado ? "bg-primary/5" : ""}`} onClick={() => toggle(i.key)}>
+                      <div className="flex items-start gap-3">
+                        <div className="pt-0.5" onClick={(e) => e.stopPropagation()}><Checkbox checked={marcado} onCheckedChange={() => toggle(i.key)} /></div>
+                        <button type="button" aria-label={aberto ? "Ocultar detalhes" : "Ver detalhes"} className="pt-0.5 text-muted-foreground hover:text-foreground"
+                          onClick={(e) => { e.stopPropagation(); setAbertos((s) => { const n = new Set(s); n.has(i.key) ? n.delete(i.key) : n.add(i.key); return n; }); }}>
+                          <ChevronRight className={`h-4 w-4 transition-transform ${aberto ? "rotate-90" : ""}`} />
+                        </button>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge variant="outline" className="text-[10px] uppercase">{labelTipoLote(i.tipo)}</Badge>
+                            <span className="font-medium truncate max-w-[420px]" title={i.titulo}>{i.titulo}</span>
+                            {i.status && <Badge variant="secondary" className="text-[10px]">{i.status.replace(/_/g, " ")}</Badge>}
+                            {i.coordenacao_id && nomeCoord[i.coordenacao_id] && <span className="text-[11px] text-muted-foreground">{nomeCoord[i.coordenacao_id]}</span>}
+                          </div>
+                          <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3">
+                            <span className="font-mono">{i.processo_numero ?? "Sem processo"}</span>
+                            {(d.partes_ativas || d.partes_passivas) && <span className="truncate max-w-[480px]">{d.partes_ativas || "—"} x {d.partes_passivas || "—"}</span>}
+                            {d.local && <span>Local: {d.local}</span>}
+                          </div>
+                          <div className="text-xs flex flex-wrap gap-x-4">
+                            <span><span className="text-muted-foreground">Responsáveis: </span>{i.responsaveis.map((id) => nomes[id] ?? "…").join(", ") || "—"}</span>
+                            {i.envolvidos.length > 0 && <span><span className="text-muted-foreground">Envolvidos: </span>{i.envolvidos.map((id) => nomes[id] ?? "…").join(", ")}</span>}
+                          </div>
+                          {obs && !aberto && <div className="text-xs text-muted-foreground truncate max-w-[720px]" title={obs}>Obs.: {obs}</div>}
+                          {calc?.erro && <div className="text-[11px] text-destructive flex items-center gap-1"><AlertTriangle className="h-3 w-3" />{calc.erro}</div>}
+                          {aberto && (
+                            <div className="mt-2 rounded-md border bg-background p-3 text-xs space-y-2 cursor-default" onClick={(e) => e.stopPropagation()}>
+                              {d.descricao && <div><div className="font-semibold mb-0.5">Descrição</div><div className="whitespace-pre-wrap">{d.descricao}</div></div>}
+                              {d.observacoes && <div><div className="font-semibold mb-0.5">Observações</div><div className="whitespace-pre-wrap">{d.observacoes}</div></div>}
+                              {d.ultimo_andamento && <div><div className="font-semibold mb-0.5">Último andamento</div><div className="whitespace-pre-wrap">{d.ultimo_andamento}</div></div>}
+                              <div className="flex flex-wrap gap-x-4 text-muted-foreground">
+                                {d.prazo_dias != null && <span>Prazo: {d.prazo_dias} {d.prazo_unidade === "corridos" ? "dias corridos" : "dias úteis"}</span>}
+                                {i.datas?.data_base && <span>Data base: {fmtData(i.datas.data_base)}</span>}
+                                {d.modalidade && <span>Modalidade: {d.modalidade}</span>}
+                              </div>
+                              {!d.descricao && !d.observacoes && !d.ultimo_andamento && <div className="text-muted-foreground">Sem descrição ou observações.</div>}
+                            </div>
+                          )}
+                        </div>
+                        <div className="shrink-0 text-right space-y-1 min-w-[190px]">
+                          {!ehEvento && (
+                            <div>
+                              <div className="text-[10px] uppercase text-muted-foreground">Prazo fatal</div>
+                              <div className="font-semibold">
+                                {fmtData(fatal)}{d.hora_fatal ? ` ${String(d.hora_fatal).slice(0, 5)}` : ""}
+                                {calc?.novas.data_fatal && <span className="ml-1 text-primary">→ {fmtData(calc.novas.data_fatal)}</span>}
+                              </div>
+                              {dias != null && (
+                                <Badge variant={dias < 0 ? "destructive" : dias <= 2 ? "default" : "outline"} className="text-[10px]">
+                                  {dias < 0 ? `vencido há ${-dias} dia(s)` : dias === 0 ? "vence hoje" : `vence em ${dias} dia(s)`}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                          {campos.filter(({ campo }) => campo !== "data_fatal").map(({ campo, label }) => {
+                            const nova = calc?.novas[campo];
+                            return (
+                              <div key={campo} className="text-[11px]">
+                                <span className="text-muted-foreground">{label}: </span>
+                                <span className={nova ? "line-through text-muted-foreground" : ""}>{fmtData(i.datas?.[campo], ehEvento)}</span>
+                                {nova && <span className="ml-1 font-semibold text-primary">{fmtData(nova, ehEvento)}</span>}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </li>
                   );
                 })}
-              </tbody>
-            </table>
+              </ul>
+            </div>
           )}
         </div>
 
@@ -452,6 +555,14 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
             <div className="rounded-md border border-primary/40 bg-primary/5 p-3 text-sm flex items-center gap-2">
               <CalendarClock className="h-4 w-4 text-primary shrink-0" />
               <span className="flex-1">{resumo()}</span>
+            </div>
+          )}
+          {passamDoFatal.length > 0 && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-xs space-y-1">
+              <div className="font-semibold text-destructive flex items-center gap-1"><AlertTriangle className="h-3.5 w-3.5" /> {passamDoFatal.length} item(ns) ficariam com a data depois do prazo fatal</div>
+              <ul className="list-disc pl-5 max-h-24 overflow-auto">
+                {passamDoFatal.slice(0, 20).map((i) => <li key={i.key}>{i.titulo} — {i.processo_numero ?? "sem processo"} (fatal {fmtData(i.datas?.data_fatal)})</li>)}
+              </ul>
             </div>
           )}
 
