@@ -99,6 +99,7 @@ import { PublicacaoConteudoDjen, getPartesEAdvogadosParaExibicao } from "@/compo
 import { ComentariosPublicacaoDjen } from "@/components/djen/ComentariosPublicacaoDjen";
 import { PartesResumoLinha } from "@/components/djen/PartesResumoLinha";
 import { useFiltrosDjenIniciais, usePersistirFiltrosDjen } from "@/hooks/useFiltrosPersistidosDjen";
+import { ObservacaoProcessoSheetButton } from "@/components/processos/ObservacaoProcessoSheetButton";
 
 /** Chave de persistência dos filtros da Análise DJEN (Servidor). */
 const FILTROS_DJEN_SERVIDOR_KEY = "analise-djen-servidor:filtros-v1";
@@ -4221,17 +4222,23 @@ const AnaliseDjenServidor = () => {
                                       </Button>
                                       {/* Link para detalhes do processo - qualquer tipo de origem com processo_id */}
                                       {pub.processo_id && (
-                                        <Link 
-                                          to={`/processos/${pub.processo_id}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
-                                          onClick={(e) => e.stopPropagation()}
-                                          title="Abrir processo em nova aba"
-                                        >
-                                          <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
-                                          <span className="hidden sm:inline">Ver processo</span>
-                                        </Link>
+                                        <>
+                                          <Link
+                                            to={`/processos/${pub.processo_id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] md:text-xs text-muted-foreground hover:text-primary flex items-center gap-0.5 md:gap-1 flex-shrink-0"
+                                            onClick={(e) => e.stopPropagation()}
+                                            title="Abrir processo em nova aba"
+                                          >
+                                            <ExternalLink className="w-2.5 h-2.5 md:w-3 md:h-3" />
+                                            <span className="hidden sm:inline">Ver processo</span>
+                                          </Link>
+                                          <ObservacaoProcessoSheetButton
+                                            processoId={pub.processo_id}
+                                            processoNumero={pub.processo_numero}
+                                          />
+                                        </>
                                       )}
                                       
                                        {/* Ações de vínculo/importação */}

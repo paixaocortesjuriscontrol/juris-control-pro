@@ -427,8 +427,9 @@ export function ProcessoEditarCompleto({
                       </Select>
                     </div>
                   </div>
-                  <div className="mt-4">
+                  <div className="mt-4 space-y-3">
                     <EditableField label="Descrição" field="descricao" type="textarea" />
+                    <EditableField label="Observação do advogado" field="observacao_advogado" type="textarea" />
                   </div>
                 </CardContent>
               </Card>

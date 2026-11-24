@@ -161,8 +161,8 @@ const FIELDS = [
   "pasta_fisica", "pasta_cliente",
   // Coordenação
   "coordenacao_id",
-  // Descrição
-  "descricao",
+  // Descrição e observação jurídica
+  "descricao", "observacao_advogado",
   // Encerramento
   "motivo_encerramento",
   "impactante",
@@ -2168,6 +2168,14 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                   </FormField>
                   <FormField label="Descrição" className="md:col-span-2">
                     <Textarea className="text-sm min-h-[80px]" value={form.descricao || ""} onChange={(e) => update("descricao", e.target.value)} />
+                  </FormField>
+                  <FormField label="Observação do advogado" className="md:col-span-2">
+                    <Textarea
+                      className="text-sm min-h-[100px]"
+                      value={form.observacao_advogado || ""}
+                      onChange={(e) => update("observacao_advogado", e.target.value)}
+                      placeholder="Registre uma observação jurídica sobre este processo..."
+                    />
                   </FormField>
                 </div>
               </section>

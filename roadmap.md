@@ -1,10 +1,11 @@
 # Roadmap — pedidos da Isabela (Santander Cível)
 
 ## Observação do advogado no processo e na Análise DJEN (24/11/2026)
-- [ ] Disponibilizar a observação do advogado na visão geral de Processos e Casos
-- [ ] Abrir edição da mesma observação em painel lateral na Análise DJEN para processos cadastrados
-- [ ] Salvar somente o campo da observação, sem alterar publicação ou leitura
-- [ ] Testar a regra e verificar a compilação
+- [x] Disponibilizar a observação do advogado na visão geral de Processos e Casos
+- [x] Exibir e editar a mesma observação no painel lateral direito da lista, antes da ficha completa
+- [x] Abrir edição da mesma observação em painel lateral na Análise DJEN para processos cadastrados
+- [x] Salvar somente o campo da observação, sem alterar publicação ou leitura
+- [x] Testar a regra e verificar a compilação
 
 - [x] 3 — relatório/correção de tipo, subtipo e título (Agenda Futura, código TAR.)
 - [x] 1/4 — datas passadas: criação bloqueia; importações avisam no fim

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { EtiquetaPicker } from "@/components/etiquetas/EtiquetaPicker";
 import { cn } from "@/lib/utils";
+import { ObservacaoProcessoEditor } from "./ObservacaoProcessoEditor";
 
 const CAMPOS = [
   "id",
@@ -251,6 +252,12 @@ export function ProcessoLateralResumo({ processoId }: Props) {
         <Campo label="Pasta física" valor={txt(p.pasta_fisica)} />
         <Campo label="Pasta do cliente" valor={txt(p.pasta_cliente)} />
         <Campo label="Descrição" valor={txt(p.descricao)} full />
+      </Secao>
+
+      <Secao titulo="Observação do advogado" icon={FileText}>
+        <div className="sm:col-span-2">
+          <ObservacaoProcessoEditor processoId={processoId} />
+        </div>
       </Secao>
     </div>
   );
