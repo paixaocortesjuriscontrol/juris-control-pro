@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Users, Plus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -125,7 +124,7 @@ export function CoordenacoesResponsaveisPicker({ processoId, coordenacaoPrincipa
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-72 p-0" align="start">
-          <ScrollArea className="max-h-72">
+          <div className="max-h-72 overflow-y-auto overscroll-contain" onWheel={(e) => e.stopPropagation()}>
             <div className="p-2 space-y-1">
               {(coordenacoes as any[]).map((c) => (
                 <label
@@ -141,7 +140,7 @@ export function CoordenacoesResponsaveisPicker({ processoId, coordenacaoPrincipa
                 </label>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </PopoverContent>
       </Popover>
     </div>
