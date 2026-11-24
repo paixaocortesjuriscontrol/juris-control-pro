@@ -7,6 +7,8 @@ O problema é que, para comparar, o sistema olha só o **começo do texto** (cer
 
 Exemplo real (processo 0001559-44.2026.5.10.0012, 23/11): o Despacho ID 885c66d, que marca a audiência e a perícia, e o Despacho ID ab6c39c, que troca o perito, foram marcados como lidos juntos. Nos últimos 10 dias isso aconteceu pelo menos 15 vezes só com ela, em grupos de 2 a 4 publicações.
 
+**Para a Dra. Janaina, enquanto isso:** as publicações que somem não foram apagadas. Elas foram marcadas como lidas. Para encontrá-las, basta trocar o filtro de "Não lidas" para "Lidas" ou "Todas" e buscar pelo número do processo.
+
 ## O que vou fazer
 1. **Separar atos diferentes:** duas publicações só contam como "a mesma" se tiverem também o mesmo número do ato (o "ID xxxxxxx" do despacho, decisão ou sentença) quando o texto informar esse número. Cópias da mesma intimação continuam sendo agrupadas e lidas juntas, como hoje.
 2. Isso vale para todos os lugares que usam essa comparação: Salvar e fechar, criar tarefa/prazo a partir da publicação, marcar como lida e a contagem e listagem de não lidas.
