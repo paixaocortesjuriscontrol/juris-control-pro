@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { normalizarCargo } from "@/lib/permissoesMenuCoordenacao";
+import { ehCoordenadorPorRoleOuCargo } from "./coordenadorPorCargo";
+export { ehCoordenadorPorRoleOuCargo };
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -11,13 +12,6 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 const roleCache = new Map<string, AppRole | null>();
 const cargosCache = new Map<string, string[]>();
 
-const CARGOS_GESTAO = new Set(["coordenador", "assistente_coordenador"]);
-
-/** Coordenador pelo perfil geral OU pelo cargo em alguma coordenação (membros_coordenacao). */
-export function ehCoordenadorPorRoleOuCargo(role: AppRole | null, cargos: string[] = []): boolean {
-  if (role === "coordenador" || role === "assistente_coordenador") return true;
-  return cargos.some((c) => CARGOS_GESTAO.has(normalizarCargo(c)));
-}
 
 export function useUserRole() {
   const { user } = useAuth();

@@ -1,16 +1,13 @@
-import { describe, it, expect, vi } from "vitest";
-vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
-vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: null }) }));
-import { ehCoordenadorPorRoleOuCargo } from "./useUserRole";
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { ehCoordenadorPorRoleOuCargo } from "./coordenadorPorCargo";
 
-describe("coordenador por perfil ou cargo", () => {
-  it("advogado com cargo Coordenador na coordenação é coordenador", () => {
-    expect(ehCoordenadorPorRoleOuCargo("advogado", ["coordenador"])).toBe(true);
-  });
-  it("advogado sem cargo de gestão não é coordenador", () => {
-    expect(ehCoordenadorPorRoleOuCargo("advogado", ["advogado"])).toBe(false);
-  });
-  it("perfil geral coordenador vale sem cargo", () => {
-    expect(ehCoordenadorPorRoleOuCargo("coordenador", [])).toBe(true);
-  });
+test("advogado com cargo Coordenador na coordenação é coordenador", () => {
+  assert.equal(ehCoordenadorPorRoleOuCargo("advogado", ["coordenador"]), true);
+});
+test("advogado sem cargo de gestão não é coordenador", () => {
+  assert.equal(ehCoordenadorPorRoleOuCargo("advogado", ["advogado"]), false);
+});
+test("perfil geral coordenador vale sem cargo", () => {
+  assert.equal(ehCoordenadorPorRoleOuCargo("coordenador", []), true);
 });
