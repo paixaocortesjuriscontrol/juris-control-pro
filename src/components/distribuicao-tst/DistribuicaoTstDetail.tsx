@@ -39,6 +39,7 @@ import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import { useDuplicadosTst } from "@/hooks/useDuplicadosTst";
 import { DuplicadosCompararSheet } from "./DuplicadosCompararSheet";
+import { PublicacoesProcessoTst, usePublicacoesProcessoTst } from "./PublicacoesProcessoTst";
 
 interface Props {
   /** Registro a editar. Quando ausente, é "novo registro" e a aba Dados Benner fica desabilitada até salvar. */
@@ -73,6 +74,7 @@ const normalizeDado = (value?: DistribuicaoTst | null): DistribuicaoTst | null =
 export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSaveDistribuicao, onSaveBenner, onClose, onSaved, onAfterJuditSync }: Props) {
   const [currentDado, setCurrentDado] = useState<DistribuicaoTst | null>(() => normalizeDado(dado));
   const processoNumero = currentDado?.processo_numero || "";
+  const { data: publicacoesTst = [] } = usePublicacoesProcessoTst(processoNumero);
   const [processoIdUnico, setProcessoIdUnico] = useState<string | null>((currentDado as any)?.processo_id || null);
   const { user } = useAuth();
   const podeVerLogJudit = user?.email?.toLowerCase() === "paixaocortesjuriscontrol@gmail.com";
@@ -974,6 +976,7 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
             {anexos && (
               <TabsTrigger value="anexos">Anexos ({anexos.length})</TabsTrigger>
             )}
+            <TabsTrigger value="publicacoes">Publicações{publicacoesTst.length > 0 ? ` (${publicacoesTst.length})` : ""}</TabsTrigger>
             <TabsTrigger
               value="analisar-ia"
               disabled={bennerDisabled}
@@ -1094,6 +1097,10 @@ export function DistribuicaoTstDetail({ dado, initialTab = "distribuicao", onSav
 
         <TabsContent value="analise-judit" className="mt-4">
           <AnaliseJuditTab processoNumero={processoNumero} />
+        </TabsContent>
+
+        <TabsContent value="publicacoes" className="mt-4">
+          <PublicacoesProcessoTst processoNumero={processoNumero} />
         </TabsContent>
 
         <TabsContent value="auditoria" className="mt-4">

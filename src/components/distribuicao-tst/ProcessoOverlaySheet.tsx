@@ -34,6 +34,7 @@ import {
 import { ensureMateriasOficiais } from "@/utils/materiasOficiaisCache";
 import { ensurePedidosPorDossie } from "@/utils/pedidosPorDossieCache";
 import { cn } from "@/lib/utils";
+import { PublicacoesProcessoTst, usePublicacoesProcessoTst } from "./PublicacoesProcessoTst";
 
 
 /* ─────────────── helpers ─────────────── */
@@ -333,6 +334,7 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
   const [somenteRelevantes, setSomenteRelevantes] = useState(false);
 
   const processoNumero = registro?.processo_numero || registro?.processo || "";
+  const { data: publicacoesTst = [] } = usePublicacoesProcessoTst(processoNumero);
 
   const { data: log, isLoading } = useQuery({
     queryKey: ["dist-tst-overlay-judit", processoNumero],
@@ -448,6 +450,9 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
             </TabsTrigger>
             <TabsTrigger value="judit" className="h-6 px-3 text-xs">Dados da Judit</TabsTrigger>
             <TabsTrigger value="ficha" className="h-6 px-3 text-xs">Distribuição TST</TabsTrigger>
+            <TabsTrigger value="publicacoes" className="h-6 px-3 text-xs">
+              Publicações {publicacoesTst.length > 0 && <span className="ml-1 text-muted-foreground">({publicacoesTst.length})</span>}
+            </TabsTrigger>
           </TabsList>
           <div className="flex items-center gap-1.5">
             {processoNumero && (
@@ -819,6 +824,10 @@ export function ProcessoOverlaySheet({ open, onOpenChange, registro, responsavei
           </TabsContent>
 
           {/* ─── Distribuição TST (mesmos campos do formulário, em leitura) ─── */}
+          <TabsContent value="publicacoes" className="mt-0 space-y-3">
+            <PublicacoesProcessoTst processoNumero={processoNumero} />
+          </TabsContent>
+
           <TabsContent value="ficha" className="mt-0 space-y-3">
             <Bloco titulo="Pendências e avisos" icone={AlertTriangle}>
               {carregandoConferencia ? (
