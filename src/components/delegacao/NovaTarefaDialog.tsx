@@ -16,6 +16,9 @@ import { somarDiasUteis, precarregarFeriados } from "@/lib/feriados";
 import { resolverPadroes, resolverPrazoModelo } from "@/lib/aplicarPadroesModelo";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { useState, useEffect, useRef } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { lerRascunho, gravarRascunho, apagarRascunho, type Rascunho } from "@/lib/rascunhoFormulario";
+import { formatInTimeZone } from "date-fns-tz";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -610,6 +613,55 @@ export function NovaTarefaDialog({
     setRecorrenciaFim("");
   };
 
+  // ===== Rascunho automático (somente tarefa/ata nova) =====
+  const { user: usuarioRascunho } = useAuth();
+  const rascunhoAtivo = open && !tarefaParaEditar?.id && !!usuarioRascunho?.id;
+  const chaveRascunho = `rascunho:${usuarioRascunho?.id ?? "anon"}:${ehAta ? "ata" : "tarefa"}:${processoPreSelecionado?.id || (publicacao as any)?.id || "geral"}`;
+  const [rascunhoPendente, setRascunhoPendente] = useState<Rascunho<any> | null>(null);
+  const [rascunhoSalvoEm, setRascunhoSalvoEm] = useState<number | null>(null);
+  const valoresForm = form.watch();
+  const temConteudo = !!(valoresForm.titulo?.trim() || valoresForm.descricao?.trim() || responsaveisIds.length || envolvidosIds.length);
+  useEffect(() => {
+    if (!rascunhoAtivo) { setRascunhoPendente(null); setRascunhoSalvoEm(null); return; }
+    setRascunhoPendente(lerRascunho(chaveRascunho));
+  }, [rascunhoAtivo, chaveRascunho]);
+  const instantaneoRascunho = JSON.stringify({
+    form: valoresForm, responsaveisIds, envolvidosIds, situacao, prazoDias, prazoUnidade,
+    recorrenciaTipo, recorrenciaIntervalo, recorrenciaOcorrencias, recorrenciaFim, searchProcesso,
+  });
+  useEffect(() => {
+    if (!rascunhoAtivo || rascunhoPendente || !temConteudo) return;
+    const t = setTimeout(() => {
+      const agora = Date.now();
+      gravarRascunho(chaveRascunho, JSON.parse(instantaneoRascunho), agora);
+      setRascunhoSalvoEm(agora);
+    }, 800);
+    return () => clearTimeout(t);
+  }, [rascunhoAtivo, rascunhoPendente, temConteudo, chaveRascunho, instantaneoRascunho]);
+  useEffect(() => {
+    if (!rascunhoAtivo || !temConteudo) return;
+    const aviso = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", aviso);
+    return () => window.removeEventListener("beforeunload", aviso);
+  }, [rascunhoAtivo, temConteudo]);
+  const restaurarRascunho = () => {
+    const v = rascunhoPendente?.valores; if (!v) return;
+    form.reset({ ...form.getValues(), ...(v.form || {}) });
+    setResponsaveisIds(v.responsaveisIds || []);
+    setEnvolvidosIds(v.envolvidosIds || []);
+    setMostrarEnvolvidos((v.envolvidosIds || []).length > 0);
+    if (v.situacao) setSituacao(v.situacao);
+    setPrazoDias(v.prazoDias ?? 0);
+    setPrazoUnidade(v.prazoUnidade || "uteis");
+    setRecorrenciaTipo(v.recorrenciaTipo || "nenhuma");
+    setRecorrenciaIntervalo(v.recorrenciaIntervalo || 1);
+    setRecorrenciaOcorrencias(v.recorrenciaOcorrencias || "");
+    setRecorrenciaFim(v.recorrenciaFim || "");
+    setSearchProcesso(v.searchProcesso || "");
+    setRascunhoPendente(null);
+  };
+  const descartarRascunho = () => { apagarRascunho(chaveRascunho); setRascunhoPendente(null); setRascunhoSalvoEm(null); };
+
   const handleAddAnexo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files) {
@@ -1048,6 +1100,7 @@ export function NovaTarefaDialog({
         catch (err) { console.error("tertiarySave.onAfterSuccess falhou:", err); }
         finally { tertiaryClickedRef.current = false; }
       }
+      if (!tarefaParaEditar?.id) { apagarRascunho(chaveRascunho); setRascunhoSalvoEm(null); }
       const manterAbertoParaNovo = !tarefaParaEditar?.id && !!onAfterCreate && !tertiaryWasClicked;
       if (manterAbertoParaNovo) {
         resetFormForNew();
@@ -1200,6 +1253,19 @@ export function NovaTarefaDialog({
           {tarefaParaEditar?.id && (
             <div className="pb-4">
               <WorkflowEtapasDoItem itemId={tarefaParaEditar.id} />
+            </div>
+          )}
+          {rascunhoPendente && (
+            <div role="status" className="mb-3 rounded-md border border-primary/40 bg-primary/5 p-3 flex flex-col sm:flex-row sm:items-center gap-2 text-sm">
+              <span className="flex-1">
+                Você tem um rascunho desta {ehAta ? "ata" : "tarefa"} de{" "}
+                {formatInTimeZone(new Date(rascunhoPendente.salvoEm), "America/Sao_Paulo", "dd/MM/yyyy 'às' HH:mm")}
+                {rascunhoPendente.valores?.form?.titulo ? ` ("${rascunhoPendente.valores.form.titulo}")` : ""}.
+              </span>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" onClick={descartarRascunho}>Descartar</Button>
+                <Button type="button" size="sm" onClick={restaurarRascunho}>Continuar rascunho</Button>
+              </div>
             </div>
           )}
           <Form {...form}>
@@ -1878,6 +1944,11 @@ export function NovaTarefaDialog({
               <Button type="button" size="sm" onClick={() => { const c = confirmacaoDatas!; datasConfirmadasRef.current = c.chave; setConfirmacaoDatas(null); void onSubmit(c.values); }}>Confirmar e salvar</Button>
             </div>
           </div>
+        )}
+        {rascunhoAtivo && rascunhoSalvoEm && (
+          <p className="px-6 pt-2 text-[11px] text-muted-foreground shrink-0">
+            Rascunho salvo automaticamente às {formatInTimeZone(new Date(rascunhoSalvoEm), "America/Sao_Paulo", "HH:mm")}. Para pesquisar sem fechar, abra outra página numa nova aba (Ctrl + clique).
+          </p>
         )}
         {!ocultarSituacao && (
         <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 sm:gap-3 pt-4 border-t px-6 pb-6 shrink-0">
