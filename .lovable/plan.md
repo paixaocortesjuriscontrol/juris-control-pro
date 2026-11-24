@@ -11,7 +11,7 @@ Na ficha do processo (Processos e Casos), ao lado do **Número do processo**, um
 Depois de salvar, a ficha mostra o número novo na hora. Tarefas, prazos, audiências, documentos, responsáveis e coordenações continuam ligados ao processo, porque o vínculo deles não depende do número. O histórico do processo registra a troca com o número antigo, o novo, o motivo e quem fez.
 
 ## Quem pode corrigir
-Administrador e coordenador ou assistente de coordenador da coordenação do processo, pelo cargo geral ou pelo cargo na coordenação. As demais pessoas não veem o lápis.
+Administrador, coordenador, assistente de coordenador e **advogado** (perfil geral ou cargo na coordenação do processo). As demais pessoas não veem o lápis.
 
 ## Fora do escopo
 Publicações do DJEN, Dados Benner e pautas que guardam o número como texto não são renomeadas, porque refletem o que veio do tribunal. Na próxima captura, o número correto passa a ser reconhecido.
