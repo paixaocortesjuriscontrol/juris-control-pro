@@ -12878,6 +12878,13 @@ export type Database = {
       }
       pos_djen_servidor_gerar_tst: { Args: never; Returns: undefined }
       processar_restauracao_kurier_lote: { Args: never; Returns: undefined }
+      projuris_corte_ativo: {
+        Args: { _uid: string }
+        Returns: {
+          data_corte: string
+          lote_criado_em: string
+        }[]
+      }
       proximo_dia_util: { Args: { data_base: string }; Returns: string }
       reaper_execucoes_servidor_travadas: { Args: never; Returns: number }
       rebuild_publicacoes_djen_unica_flags: { Args: never; Returns: undefined }
