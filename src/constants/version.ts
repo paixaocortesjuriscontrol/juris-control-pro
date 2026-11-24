@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.4.1";
+export const APP_VERSION = "10.4.2";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.4.2", date: "2026-11-24", notes: "Processos e Casos: nova Observação do advogado, editável na ficha, no painel lateral direito da lista (antes de abrir o detalhe) e direto pela Análise DJEN para processos cadastrados; salvar a observação não altera publicações nem marca nada como lido" },
   { version: "10.4.1", date: "2026-11-24", notes: "Distribuição TST: nova aba Publicações no painel lateral e na ficha completa, com as publicações do DJEN encontradas para o processo (sem repetir cópias)" },
   { version: "10.4.0", date: "2026-11-24", notes: "Visão completa do Escritório: membros da coordenação passam a ver todos os eventos, tarefas, prazos, atas e parcelamentos dela quando a opção está ligada; responsáveis e envolvidos veem os eventos em que estão; Salvar e fechar da Análise DJEN não marca a publicação como lida" },
   { version: "10.3.9", date: "2026-11-24", notes: "Administração: card Planilha de usuários e cargos (Excel com cargos por coordenação e processos como responsável/envolvido); listas com rolagem voltam a mostrar todas as opções (ex.: coordenações do processo); remanejar em painel lateral completo; rascunho automático da nova tarefa; publicações marcam como lida só a aberta" },
