@@ -11,6 +11,7 @@ import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris, fonteTituloTarefaProjuris, statusTarefaProjuris, planejarNovosModelosTitulosProjuris } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
+import { passaDoCorte, mapeamentoCorte, getDataCorte } from "./dataCorteProjuris";
 
 // Colunas mantidas de cada tabela do backup (o resto do CSV é ignorado).
 // Tabela sem lista = mantém todas as colunas (arquivo pequeno).
@@ -601,7 +602,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     setRodando(mod); setProg({ feito: 0, total: 0 });
     const { data: mig, error } = await supabase.from("migracoes_projuris" as any).insert({
       coordenacao_id: coordId, nome: `Projuris Backup ${tituloMod} ${nomeCoord} ${new Date().toLocaleString("pt-BR")}`,
-      mapeamento: { modulo: "backup", tabela: tituloMod }, criado_por: userId,
+      mapeamento: { modulo: "backup", tabela: tituloMod, ...(mod === "tarefas" ? mapeamentoCorte() : {}) }, criado_por: userId,
     }).select("id").single();
     if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(null); return; }
     const mid = (mig as any).id;
@@ -611,7 +612,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     } };
     const linhas = conf[mod];
     const puladas = linhas.filter((l) => l.motivo);
-    const ok = linhas.filter((l) => !l.motivo);
+    let ok = linhas.filter((l) => !l.motivo);
     const tipoItem = mod === "processos" ? "processo" : mod === "tarefas" ? "tarefa" : "andamento";
     const cont: Record<string, number> = { criados: 0, pulados: puladas.length, erros: 0 };
     const contadores: Record<string, number> = { ...cont };
@@ -722,7 +723,8 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         const modeloDe = (l: any) => (l.cdTipo && modeloPorCd.get(String(l.cdTipo))) || (l.fonteTitulo === "tipo" ? modeloPorTitulo.get(norm(l.titulo)) : undefined) || null;
         // Tarefas já migradas antes: título = tipo de tarefa, texto antigo na descrição e modelo original — em lote no banco
         {
-          const corrigir = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
+          const semAlterarExistentes = !!getDataCorte();
+          const corrigir = semAlterarExistentes ? [] : (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)");
           setMsg("Corrigindo títulos das tarefas já migradas...");
           let corrigidas = 0;
           for (let k = 0; k < corrigir.length; k += 1000) {
@@ -739,7 +741,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           }
           (cont as any).titulosCorrigidos = corrigidas;
           // Situação: reabre as que entraram como cumpridas mas estão abertas no Projuris
-          const abertas = (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && ["pendente", "em_execucao", "a_confirmar", "revisao"].includes(l.status));
+          const abertas = semAlterarExistentes ? [] : (linhas as any[]).filter((l) => l.motivo === "Já migrada antes" && ["pendente", "em_execucao", "a_confirmar", "revisao"].includes(l.status));
           setMsg("Corrigindo a situação das tarefas já migradas...");
           let reabertas = 0;
           for (let k = 0; k < abertas.length; k += 500) {
@@ -762,6 +764,10 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const { data, error: e } = await supabase.from("processos").select("id, numero").in("numero", [...parte, ...parte.map(formatarCnj)]);
           if (e) throw e;
           ((data as any[]) || []).forEach((p) => procId.set(digitos(p.numero), p.id));
+        }
+        {
+          const fora = (ok as any[]).filter((l) => passaDoCorte({ fatal: l.fatal, data: l.data }));
+          if (fora.length) { (cont as any).foraDoCorte = fora.length; ok = (ok as any[]).filter((l) => !fora.includes(l)) as any; }
         }
         for (let k = 0; k < ok.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;

@@ -11,6 +11,7 @@ import { lerPlanilha, norm, digitos, formatarCnj, paraData } from "@/lib/migraca
 import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado, dividirPipe } from "./agendaFuturaProjuris";
 import { tipoWorkflow, chaveWorkflow } from "./tarefasWorkflowProjuris";
+import { passaDoCorte, mapeamentoCorte } from "./dataCorteProjuris";
 
 const db = supabase as any;
 const COORD = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Santander Cível
@@ -84,10 +85,11 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
   const importar = async () => {
     if (!linhas) return;
     setRodando(true); cancelar.current = false;
-    const ok = linhas.filter((l) => !l.motivo);
-    const cont: Record<string, number> = { prazos: 0, tarefas: 0, processosCriados: 0, processosVinculados: 0, etiquetas: 0, erros: 0, pulados: linhas.length - ok.length };
+    const foraCorte = linhas.filter((l: any) => !l.motivo && passaDoCorte({ fatal: l.fatal, prevista: l.prevista }));
+    const ok = linhas.filter((l) => !l.motivo && !foraCorte.includes(l));
+    const cont: Record<string, number> = { foraDoCorte: foraCorte.length, prazos: 0, tarefas: 0, processosCriados: 0, processosVinculados: 0, etiquetas: 0, erros: 0, pulados: linhas.length - ok.length - foraCorte.length };
     const semUsuario = new Map<string, number>(); const erros: any[] = []; const procCriados: any[] = [];
-    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Tarefas de workflows ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "tarefas_workflow" }, criado_por: userId }).select("id").single();
+    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Tarefas de workflows ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "tarefas_workflow", ...mapeamentoCorte() }, criado_por: userId }).select("id").single();
     if (em || !mig) { toast.error(em?.message || "Falha ao abrir migração"); setRodando(false); return; }
     const mid = mig.id;
     const log = async (rows: any[]) => { for (let k = 0; k < rows.length; k += 200) await db.from("migracoes_projuris_itens").insert(rows.slice(k, k + 200).map((x) => ({ migracao_id: mid, ...x }))); };

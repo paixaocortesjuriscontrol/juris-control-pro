@@ -11,6 +11,7 @@ import { lerPlanilha, norm, digitos, formatarCnj, paraData, paraHora } from "@/l
 import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado, dividirPipe } from "./agendaFuturaProjuris";
 import { tipoCompromisso, cnjDoTexto } from "./compromissosProjuris";
+import { passaDoCorte, mapeamentoCorte } from "./dataCorteProjuris";
 
 const db = supabase as any;
 const COORD = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Santander Cível
@@ -70,10 +71,11 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
   const importar = async () => {
     if (!linhas) return;
     setRodando(true); cancelar.current = false;
-    const ok = linhas.filter((l) => !l.motivo);
-    const cont: Record<string, number> = { eventos: 0, tarefas: 0, audiencias: 0, vinculadas: 0, erros: 0, pulados: linhas.length - ok.length };
+    const foraCorte = linhas.filter((l: any) => !l.motivo && passaDoCorte({ data: l.inicio }));
+    const ok = linhas.filter((l) => !l.motivo && !foraCorte.includes(l));
+    const cont: Record<string, number> = { foraDoCorte: foraCorte.length, eventos: 0, tarefas: 0, audiencias: 0, vinculadas: 0, erros: 0, pulados: linhas.length - ok.length - foraCorte.length };
     const semUsuario = new Map<string, number>(); const semProc: any[] = []; const erros: any[] = []; const criados: any[] = [];
-    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Compromissos ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "compromissos" }, criado_por: userId }).select("id").single();
+    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Compromissos ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "compromissos", ...mapeamentoCorte() }, criado_por: userId }).select("id").single();
     if (em || !mig) { toast.error(em?.message || "Falha ao abrir migração"); setRodando(false); return; }
     const mid = mig.id;
     try {

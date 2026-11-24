@@ -12,6 +12,7 @@ import { lerPlanilha, norm, digitos, formatarCnj, paraData, paraHora } from "@/l
 import { itensComDataPassada, avisoDataPassada } from "@/lib/dataPassada";
 import { casarNomeAproximado } from "./agendaFuturaProjuris";
 import { dividirPipe, statusAudiencia, statusTarefa, tipoItem, semPapel, TITULOS_AUDIENCIA } from "./agendaFuturaProjuris";
+import { passaDoCorte, mapeamentoCorte } from "./dataCorteProjuris";
 
 const db = supabase as any;
 const COORD = "968631d0-6659-46f1-b45d-899892cb0121"; // Coordenação Santander Cível
@@ -100,10 +101,11 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
   const importar = async () => {
     if (!linhas) return;
     setRodando(true); cancelar.current = false;
-    const ok = linhas.filter((l) => !l.motivo);
-    const cont: Record<string, number> = { audiencias: 0, prazos: 0, tarefas: 0, processosCriados: 0, processosVinculados: 0, comentarios: 0, etiquetas: 0, erros: 0, pulados: linhas.length - ok.length };
+    const foraCorte = linhas.filter((l: any) => !l.motivo && passaDoCorte(l.audiencia ? { data: l.prevista || l.fatal } : { fatal: l.fatal || l.prevista }));
+    const ok = linhas.filter((l) => !l.motivo && !foraCorte.includes(l));
+    const cont: Record<string, number> = { foraDoCorte: foraCorte.length, audiencias: 0, prazos: 0, tarefas: 0, processosCriados: 0, processosVinculados: 0, comentarios: 0, etiquetas: 0, erros: 0, pulados: linhas.length - ok.length - foraCorte.length };
     const semUsuario = new Map<string, number>(); const semModelo = new Map<string, number>(); const erros: any[] = [];
-    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Agenda Futura ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "agenda_futura" }, criado_por: userId }).select("id").single();
+    const { data: mig, error: em } = await db.from("migracoes_projuris").insert({ coordenacao_id: COORD, nome: `Projuris Agenda Futura ${new Date().toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}`, mapeamento: { modulo: "agenda_futura", ...mapeamentoCorte() }, criado_por: userId }).select("id").single();
     if (em || !mig) { toast.error(em?.message || "Falha ao abrir migração"); setRodando(false); return; }
     const mid = mig.id;
     const log = async (it: any[]) => { for (let k = 0; k < it.length; k += 500) await db.from("migracoes_projuris_itens").insert(it.slice(k, k + 500).map((x) => ({ migracao_id: mid, ...x }))); };
@@ -294,7 +296,7 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
   const baixar = () => {
     if (!relatorio) return;
     const { cont } = relatorio; const wb = XLSX.utils.book_new();
-    const rot: Record<string, string> = { audiencias: "Audiências criadas", prazos: "Prazos criados", tarefas: "Tarefas criadas", processosCriados: "Processos criados", processosVinculados: "Processos de outras coordenações vinculados", comentarios: "Comentários (Importado Projuris)", etiquetas: "Etiquetas aplicadas", erros: "Atividades com erro", pulados: "Linhas puladas" };
+    const rot: Record<string, string> = { foraDoCorte: "Ignoradas pela data de corte", audiencias: "Audiências criadas", prazos: "Prazos criados", tarefas: "Tarefas criadas", processosCriados: "Processos criados", processosVinculados: "Processos de outras coordenações vinculados", comentarios: "Comentários (Importado Projuris)", etiquetas: "Etiquetas aplicadas", erros: "Atividades com erro", pulados: "Linhas puladas" };
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(Object.keys(rot).map((k) => ({ Item: rot[k], Quantidade: cont[k] || 0 }))), "Resumo");
     const aba = (rows: any[], nome: string) => XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.length ? rows : [{ Aviso: "Nenhum registro" }]), nome);
     aba(relatorio.semUsuario.map(([n, q]: any) => ({ "Responsável no Projuris": n, Ocorrências: q })), "Pessoas não encontradas");

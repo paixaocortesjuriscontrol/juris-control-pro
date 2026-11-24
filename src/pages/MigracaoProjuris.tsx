@@ -38,6 +38,7 @@ import { useProjurisUploadProgress } from "@/hooks/useProjurisUploadProgress";
 import { uploadAnexoProjuris } from "@/lib/uploadAnexoProjuris";
 import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { AnexosBackupProjuris } from "@/components/migracao/AnexosBackupProjuris";
+import { passaDoCorte, mapeamentoCorte, useDataCorte, setDataCorte } from "@/components/migracao/dataCorteProjuris";
 
 type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
 const MODULOS: [Modulo, string][] = [["processos", "Processos"], ["tarefas", "Tarefas"], ["anexos", "Anexos"], ["comentarios", "Comentários"], ["andamentos", "Andamentos"]];
@@ -376,7 +377,7 @@ export default function MigracaoProjuris() {
     const nomeCoord = coords.find((c) => c.id === coordId)?.nome || "";
     const { data: mig, error } = await supabase.from("migracoes_projuris" as any).insert({
       coordenacao_id: coordId, nome: `Projuris ${nomeCoord} ${new Date().toLocaleString("pt-BR")}`,
-      mapeamento: { ...mapa, modulo }, criado_por: user.id,
+      mapeamento: { ...mapa, modulo, ...mapeamentoCorte() }, criado_por: user.id,
     }).select("id").single();
     if (error || !mig) { toast.error(error?.message || "Falha ao abrir migração"); setRodando(false); uploadProgress.finish("Não foi possível iniciar"); return; }
     const mid = (mig as any).id as string;
@@ -421,11 +422,14 @@ export default function MigracaoProjuris() {
       }
 
       // 2) tarefas
+      const foraCorte = validas.filter((l: any) => passaDoCorte({ fatal: l.data_fatal, data: l.data }));
+      if (foraCorte.length) { (cont as any).fora_do_corte = foraCorte.length; }
+      const validasCorte = validas.filter((l) => !foraCorte.includes(l));
       const tarefaMap = new Map<string, { id: string; processo_id: string | null }>();
-      setProgresso({ fase: "Tarefas", feito: 0, total: validas.length });
-      for (let k = 0; k < validas.length; k += LOTE) {
+      setProgresso({ fase: "Tarefas", feito: 0, total: validasCorte.length });
+      for (let k = 0; k < validasCorte.length; k += LOTE) {
         await esperar(); if (cancelado.current) break;
-        const bruto = validas.slice(k, k + LOTE);
+        const bruto = validasCorte.slice(k, k + LOTE);
         const parte = bruto.filter((l) => l.responsavelId);
         const semPessoas = bruto.filter((l) => !l.responsavelId);
         if (semPessoas.length) {
@@ -433,7 +437,7 @@ export default function MigracaoProjuris() {
           await logItens(semPessoas.map((l) => ({ tipo: "tarefa", chave_externa: l.id_externo, status: "erro", motivo: "Selecione pelo menos um responsável ou envolvido; nenhum nome foi reconhecido." })));
         }
         if (parte.length === 0) {
-          setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validas.length), total: validas.length });
+          setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validasCorte.length), total: validasCorte.length });
           continue;
         }
         const payload = parte.map((l) => {
@@ -458,7 +462,7 @@ export default function MigracaoProjuris() {
           await logItens(rows.map((r, j) => ({ tipo: "tarefa", chave_externa: parte[j].id_externo, registro_id: r.id, status: "criado", dados: { titulo: parte[j].titulo, tipo: parte[j].tipo, data: parte[j].data } })));
           cont.tarefas_criadas += rows.length;
         }
-        setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validas.length), total: validas.length });
+        setProgresso({ fase: "Tarefas", feito: Math.min(k + LOTE, validasCorte.length), total: validasCorte.length });
       }
 
       // Tarefas importadas em migrações anteriores desta coordenação (anexos podem subir depois)
@@ -647,6 +651,7 @@ export default function MigracaoProjuris() {
   if (!isAdmin) return <Navigate to="/" replace />;
   const pct = progresso.total ? Math.round((progresso.feito / progresso.total) * 100) : 0;
 
+  const dataCorte = useDataCorte();
   return (
     <MainLayout title="Migração Projuris" subtitle="Restaurar backup de tarefas e anexos do Projuris">
       <div className="space-y-6">
@@ -658,6 +663,18 @@ export default function MigracaoProjuris() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{coords.map((c) => <SelectItem key={c.id} value={c.id}>{c.nome}</SelectItem>)}</SelectContent>
               </Select>
+            </div>
+            <div className="grid max-w-2xl gap-2 rounded-md border border-amber-300 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950/30">
+              <Label htmlFor="data-corte-projuris">Data de corte (opcional)</Label>
+              <div className="flex flex-wrap items-center gap-2">
+                <input id="data-corte-projuris" type="date" value={dataCorte} onChange={(e) => setDataCorte(e.target.value)} className="h-9 rounded-md border bg-background px-2 text-sm" />
+                {dataCorte && <Button variant="ghost" size="sm" onClick={() => setDataCorte("")}>Limpar</Button>}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {dataCorte
+                  ? `Só entram atividades (tarefas, prazos, atas, audiências e eventos) com data até ${dataCorte.split("-").reverse().join("/")}. As que já existem não são alteradas e nenhum e-mail ou aviso é enviado durante a importação.`
+                  : "Sem data de corte, todas as atividades do arquivo são importadas."}
+              </p>
             </div>
             <div>
               <p className="mb-2 text-xs font-medium text-muted-foreground">Já migrado para {coords.find((c) => c.id === coordId)?.nome || "esta coordenação"}</p>
