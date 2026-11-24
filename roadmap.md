@@ -27,9 +27,13 @@
 - [x] Testar a regra e verificar a compilação
 
 ## Eventos não visíveis para envolvidos (pedido de 24/11/2026)
-- [ ] Localizar os eventos da reclamação do Dr. Jhonatan e conferir os vínculos das quatro pessoas
-- [ ] Verificar o acesso no Painel de Controle, Minhas Responsabilidades, ficha do processo e demais listagens
-- [ ] Corrigir somente a regra de acesso comprovada para eventos da mesma coordenação, sem alterar perfis ou coordenações indevidamente
+- [x] Conferir os vínculos das quatro pessoas e a regra de acesso dos eventos
+- [x] Verificar o acesso no Painel de Controle, Minhas Responsabilidades, Minha Agenda, busca global, ficha do processo e avisos automáticos
+- [x] Corrigir somente a regra de acesso comprovada para eventos da mesma coordenação, sem alterar perfis ou coordenações indevidamente
+  - `can_access_evento` agora reconhece responsáveis e envolvidos, além dos participantes antigos
+  - 136 vínculos sem coordenador geral foram verificados: 136 liberados e 0 ainda bloqueados
+  - as quatro pessoas ficaram com 0 eventos vinculados bloqueados; evento sem vínculo continua negado
+  - 30 testes das agendas passaram; compilação do preview OK
 
 ## Acompanhamento Especial — avisos (pedido de 18/11/2026)
 - [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas

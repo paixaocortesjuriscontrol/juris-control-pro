@@ -108,13 +108,11 @@ export function ProcessoAgendaTab({ processoId }: ProcessoAgendaTabProps) {
 
       if (error) throw error;
 
-      // Itens de agenda são privados por coordenação, mesmo em processos
-      // compartilhados entre coordenações.
-      const escopo = (lista: any[]) =>
-        filtrarItensPorCoordenacao(lista, isAdmin, coordenacoesIds, userId);
+      // A permissão do banco já inclui criador, participante, responsável e
+      // envolvido. Um segundo filtro por coordenação escondia vínculos válidos.
+      const visiveis = data || [];
 
       // Buscar participantes
-      const visiveis = escopo(data || []);
       if (visiveis.length > 0) {
         const eventIds = visiveis.map((e) => e.id);
         const { data: participantes } = await supabase

@@ -491,14 +491,10 @@ export default function ProcessoDetalhes() {
         .order("data_inicio", { ascending: true });
 
       if (error) throw error;
-      // Itens de agenda são privados por coordenação, mesmo em processos
-      // compartilhados entre coordenações responsáveis.
-      return filtrarItensPorCoordenacao(
-        data || [],
-        isAdminEscopo,
-        coordenacoesEscopo,
-        userIdEscopo
-      );
+      // O banco já limita o evento a criador, participante, responsável,
+      // envolvido ou coordenador geral. Não filtrar outra vez pela coordenação:
+      // isso escondia vínculos pessoais válidos.
+      return data || [];
     },
     enabled: !!id && !isNovo,
   });
