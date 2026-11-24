@@ -4394,7 +4394,7 @@ const AnaliseDjen = () => {
               let relacionadas: { publicacao_id: string; tabela_origem: string }[] = [];
               if (origem === "termo" || origem === "processo" || origem === "descartada") {
                 const { data: rel, error: relErr } = await (supabase as any).rpc(
-                  "get_publicacoes_relacionadas_por_dedup",
+                  "get_publicacoes_mesma_comunicacao",
                   args,
                 );
                 if (relErr) {

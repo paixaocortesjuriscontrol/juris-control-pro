@@ -1414,7 +1414,7 @@ export function usePublicacoesDjenUnificadas(filtros: FiltrosUnificados = {}) {
       ) => {
         try {
           const { data: relacionadas, error: relErr } = await (supabase as any).rpc(
-            'get_publicacoes_relacionadas_por_dedup',
+            'get_publicacoes_mesma_comunicacao',
             { p_ids_termos: t, p_ids_processos: p, p_ids_descartadas: d }
           );
           if (relErr) {

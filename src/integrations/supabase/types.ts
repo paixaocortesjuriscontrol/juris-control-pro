@@ -12602,6 +12602,17 @@ export type Database = {
           total: number
         }[]
       }
+      get_publicacoes_mesma_comunicacao: {
+        Args: {
+          p_ids_descartadas?: string[]
+          p_ids_processos?: string[]
+          p_ids_termos?: string[]
+        }
+        Returns: {
+          publicacao_id: string
+          tabela_origem: string
+        }[]
+      }
       get_publicacoes_relacionadas_por_dedup: {
         Args: {
           p_ids_descartadas?: string[]

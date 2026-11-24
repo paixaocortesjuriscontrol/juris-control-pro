@@ -190,7 +190,7 @@ export function NovaTarefaPublicacaoDialog({
 
         try {
           const { data: relacionadas, error: relErr } = await (supabase as any).rpc(
-            "get_publicacoes_relacionadas_por_dedup",
+            "get_publicacoes_mesma_comunicacao",
             {
               p_ids_termos: tipoLeitura === "termo" ? [publicacao.id] : null,
               p_ids_processos: tipoLeitura === "processo" ? [publicacao.id] : null,
