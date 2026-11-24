@@ -1392,6 +1392,39 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_responsaveis_admin_pc_20261124: {
+        Row: {
+          ativo: boolean | null
+          coordenacao_id: string | null
+          created_at: string | null
+          id: string | null
+          papel: string | null
+          processo_id: string | null
+          updated_at: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          coordenacao_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          papel?: string | null
+          processo_id?: string | null
+          updated_at?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          coordenacao_id?: string | null
+          created_at?: string | null
+          id?: string | null
+          papel?: string | null
+          processo_id?: string | null
+          updated_at?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
       backup_responsaveis_devolvidos_20261118: {
         Row: {
           created_at: string | null
