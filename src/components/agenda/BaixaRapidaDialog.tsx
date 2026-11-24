@@ -62,7 +62,7 @@ interface Props {
  */
 export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props) {
   const { user } = useAuth();
-  const { isAdmin, role } = useUserRole();
+  const { isAdmin, role, isAdminOrCoordinator } = useUserRole();
   const queryClient = useQueryClient();
 
   const tipoSituacao: TipoSituacaoItem = item ? tipoSituacaoDoItemAgenda(item as any) : "tarefa";
@@ -113,7 +113,7 @@ export function BaixaRapidaDialog({ item, open, onOpenChange, onUpdate }: Props)
 
   if (!item) return null;
 
-  const podeGerenciar = isAdmin || role === "coordenador" || role === "assistente_coordenador";
+  const podeGerenciar = isAdminOrCoordinator;
   const opcoes = situacoesDisponiveis(tipoSituacao, { podeGerenciar, atual: situacao }).filter(
     (s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value)),
   );

@@ -71,8 +71,8 @@ export default function AuditoriaItens() {
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [gerandoPdf, setGerandoPdf] = useState(false);
 
-  const { role } = useUserRole();
-  const podeRelatorio = role === "admin" || role === "coordenador" || role === "assistente_coordenador";
+  const { isAdminOrCoordinator } = useUserRole();
+  const podeRelatorio = isAdminOrCoordinator;
   const { data: coordenacoes } = useCoordenacoesFull();
 
   const { data: rows, isLoading, refetch } = useQuery({

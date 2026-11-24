@@ -46,7 +46,7 @@ interface Props {
 export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
   const info = dadosOcorrencia(item);
   const { user } = useAuth();
-  const { isAdmin, role } = useUserRole();
+  const { isAdmin, role, isAdminOrCoordinator } = useUserRole();
   const queryClient = useQueryClient();
   const tipoSituacao: TipoSituacaoItem = tipoSituacaoDoItemAgenda(item as any);
   const { podeUsarSituacao, situacaoAtiva, comentarioObrigatorio } = usePermissoesSituacao(
@@ -81,8 +81,7 @@ export function BaixaOcorrenciaBar({ item, onUpdate }: Props) {
 
   if (!info) return null;
 
-  const podeGerenciar =
-    isAdmin || role === "coordenador" || role === "assistente_coordenador";
+  const podeGerenciar = isAdminOrCoordinator;
   const opcoes = situacoesDisponiveis(tipoSituacao, { podeGerenciar, atual: situacao }).filter(
     (s) => s.value === situacao || (situacaoAtiva(s.value) && podeUsarSituacao(s.value)),
   );

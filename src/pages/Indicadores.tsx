@@ -76,7 +76,7 @@ function buildBucketsPorAno(): { key: string; label: string }[] {
 }
 
 export default function Indicadores() {
-  const { podeVerTodasCoordenacoes: isAdminOrCoordinator } = useUserRole();
+  const { podeVerTodasCoordenacoes: isAdminOrCoordinator, isCoordinator: ehCoordPorCargo } = useUserRole();
   const { user } = useAuth();
   const { isAdmin, coordenacoes } = useCoordenacoesDoUsuario();
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
@@ -95,7 +95,7 @@ export default function Indicadores() {
   });
 
   const podeVerOutros =
-    isAdmin || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador" || r === "assistente_juridico_geral");
+    isAdmin || ehCoordPorCargo || (roles || []).some((r) => r === "admin" || r === "coordenador" || r === "assistente_coordenador" || r === "assistente_juridico_geral");
 
   // Coordenações disponíveis: admin = todas; coordenador = só as suas
   const coordenacoesDisponiveis = coordenacoes;

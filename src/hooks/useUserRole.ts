@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { normalizarCargo } from "@/lib/permissoesMenuCoordenacao";
 import type { Database } from "@/integrations/supabase/types";
 
 type AppRole = Database["public"]["Enums"]["app_role"];
@@ -8,6 +9,15 @@ type AppRole = Database["public"]["Enums"]["app_role"];
 // Module-level cache to avoid refetching role on every navigation,
 // which was causing AdminRoute to briefly see role=null and redirect.
 const roleCache = new Map<string, AppRole | null>();
+const cargosCache = new Map<string, string[]>();
+
+const CARGOS_GESTAO = new Set(["coordenador", "assistente_coordenador"]);
+
+/** Coordenador pelo perfil geral OU pelo cargo em alguma coordenação (membros_coordenacao). */
+export function ehCoordenadorPorRoleOuCargo(role: AppRole | null, cargos: string[] = []): boolean {
+  if (role === "coordenador" || role === "assistente_coordenador") return true;
+  return cargos.some((c) => CARGOS_GESTAO.has(normalizarCargo(c)));
+}
 
 export function useUserRole() {
   const { user } = useAuth();
@@ -15,6 +25,24 @@ export function useUserRole() {
   const hasCached = user ? roleCache.has(user.id) : false;
   const [role, setRole] = useState<AppRole | null>(cached ?? null);
   const [loading, setLoading] = useState(!hasCached);
+  const [cargos, setCargos] = useState<string[]>(user ? cargosCache.get(user.id) ?? [] : []);
+
+  useEffect(() => {
+    if (!user) { setCargos([]); return; }
+    if (cargosCache.has(user.id)) { setCargos(cargosCache.get(user.id)!); return; }
+    let cancel = false;
+    void supabase
+      .from("membros_coordenacao")
+      .select("cargo")
+      .eq("usuario_id", user.id)
+      .then(({ data, error }) => {
+        if (cancel || error) return;
+        const lista = (data ?? []).map((r: { cargo: string | null }) => r.cargo ?? "").filter(Boolean);
+        cargosCache.set(user.id, lista);
+        setCargos(lista);
+      });
+    return () => { cancel = true; };
+  }, [user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -92,11 +120,12 @@ export function useUserRole() {
   }, [user]);
 
   const isAdmin = role === "admin";
-  const isCoordinator = role === "coordenador" || role === "assistente_coordenador";
+  const isCoordinatorGeral = role === "coordenador" || role === "assistente_coordenador";
+  const isCoordinator = ehCoordenadorPorRoleOuCargo(role, cargos);
   const isAdminOrCoordinator = isAdmin || isCoordinator;
   // Assistente Jurídico Geral: vê todas as coordenações, mas só edita itens delegados (regra garantida no banco).
   const isAssistenteGeral = role === "assistente_juridico_geral";
-  const podeVerTodasCoordenacoes = isAdminOrCoordinator || isAssistenteGeral;
+  const podeVerTodasCoordenacoes = isAdmin || isCoordinatorGeral || isAssistenteGeral;
 
-  return { role, loading, isAdmin, isCoordinator, isAdminOrCoordinator, isAssistenteGeral, podeVerTodasCoordenacoes };
+  return { role, cargos, loading, isAdmin, isCoordinator, isAdminOrCoordinator, isAssistenteGeral, podeVerTodasCoordenacoes };
 }
