@@ -2758,6 +2758,22 @@ export default function PainelControle() {
             <Bell className="w-4 h-4" />
             Alertas{totalNaoLidas > 0 ? ` (${totalNaoLidas})` : ""}
           </Button>
+          {/* Remanejar fica sempre visível, mesmo com os filtros ocultos */}
+          {podeRemanejar && (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 whitespace-nowrap"
+                onClick={() => setRemanejamentoOpen(true)}
+                title="Alterar datas e responsáveis de vários itens"
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                Remanejar
+              </Button>
+              <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
+            </>
+          )}
           <Button variant="outline" size="sm" onClick={() => setRelatorioAudOpen(true)} title="Relatório de audiências por usuário/situação" className="whitespace-nowrap">
             <BarChart3 className="w-4 h-4 mr-1" /> Rel. Audiências
           </Button>
@@ -2897,21 +2913,6 @@ export default function PainelControle() {
                 coordenacoes={coordsFiltroEscritorio}
                 situacoes={situacoesOptions}
               />
-              {podeRemanejar && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 text-xs gap-1"
-                    onClick={() => setRemanejamentoOpen(true)}
-                    title="Alterar datas e responsáveis de vários itens"
-                  >
-                    <ArrowRightLeft className="w-3.5 h-3.5" />
-                    Remanejar
-                  </Button>
-                  <RemanejamentoTarefasSheet open={remanejamentoOpen} onOpenChange={setRemanejamentoOpen} />
-                </>
-              )}
               {isAdminOrCoordinator && (
                 <>
                   <Button
