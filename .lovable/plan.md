@@ -10,9 +10,9 @@
 1. Atualizar somente `can_access_evento` para aceitar também responsável e envolvido, mantendo criador, participante, administrador e coordenador geral.
 2. Não alterar perfis, cargos, coordenações, participantes ou eventos existentes.
 3. Fazer Painel de Controle (Pessoal), Minhas Responsabilidades, Minha Agenda e busca global usarem a permissão corrigida, sem novas consultas de IDs.
-4. Na ficha do processo, confiar no acesso já aplicado pelo banco para eventos, removendo apenas o segundo filtro que esconde vínculos válidos de outra coordenação.
+4. Na ficha do processo, confiar no acesso já aplicado pelo banco para eventos, removendo apenas o segundo filtro que poderia esconder um vínculo válido.
 5. Manter os avisos automáticos como estão: eles já reúnem responsáveis, envolvidos e participantes.
-6. O modo Escritório continua por coordenação até a resposta da pergunta sobre eventos pessoais de outras equipes.
+6. Como os eventos são da mesma coordenação, o modo Escritório também será beneficiado pela permissão corrigida, sem ampliar o escopo para outras equipes.
 
 ## Verificação
 - Conferir no banco que os eventos atualmente bloqueados da Geovana e da Giovanna passam a ser autorizados pela função.

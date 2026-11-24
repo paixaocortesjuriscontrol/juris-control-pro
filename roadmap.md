@@ -29,7 +29,7 @@
 ## Eventos não visíveis para envolvidos (pedido de 24/11/2026)
 - [ ] Localizar os eventos da reclamação do Dr. Jhonatan e conferir os vínculos das quatro pessoas
 - [ ] Verificar o acesso no Painel de Controle, Minhas Responsabilidades, ficha do processo e demais listagens
-- [ ] Corrigir somente a regra de acesso comprovada, sem alterar perfis ou coordenações indevidamente
+- [ ] Corrigir somente a regra de acesso comprovada para eventos da mesma coordenação, sem alterar perfis ou coordenações indevidamente
 
 ## Acompanhamento Especial — avisos (pedido de 18/11/2026)
 - [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas
