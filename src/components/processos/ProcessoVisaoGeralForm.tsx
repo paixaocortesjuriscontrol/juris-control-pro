@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserRole } from "@/hooks/useUserRole";
+import { CorrigirNumeroProcessoSheet } from "./CorrigirNumeroProcessoSheet";
+import { podeCorrigirNumeroProcesso } from "@/lib/podeCorrigirNumeroProcesso";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,7 +29,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel, CheckCircle } from "lucide-react";
+import { Save, Loader2, Sparkles, Copy, Bell, Users, Scale, FileText, Building2, DollarSign, Activity, Paperclip, Plus, Flame, ListTodo, Clock, CalendarDays, Gavel, CheckCircle, Pencil } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -246,7 +248,9 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
   const [novoEventoOpen, setNovoEventoOpen] = useState(false);
   const [novoPrazoOpen, setNovoPrazoOpen] = useState(false);
   const { user } = useAuth();
-  const { isAdmin: isUserAdmin, isAdminOrCoordinator: podeUsarAnexosJudit } = useUserRole();
+  const { isAdmin: isUserAdmin, isAdminOrCoordinator: podeUsarAnexosJudit, role: roleUsuario, cargos: cargosUsuario } = useUserRole();
+  const [corrigirNumeroAberto, setCorrigirNumeroAberto] = useState(false);
+  const [numeroCorrigido, setNumeroCorrigido] = useState<string | null>(null);
   const { data: membrosCoordenacoes = [] } = useQuery({
     queryKey: ["membros-coordenacoes-processo-adicionar", user?.id],
     queryFn: async () => {
@@ -1520,10 +1524,25 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-muted-foreground">Número do processo</p>
                   <div className="flex items-center gap-1">
-                    <span className="text-xs font-mono font-semibold text-foreground">{processo.numero}</span>
-                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(processo.numero)}>
+                    <span className="text-xs font-mono font-semibold text-foreground">{numeroCorrigido ?? processo.numero}</span>
+                    <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => copy(numeroCorrigido ?? processo.numero)}>
                       <Copy className="w-3 h-3" />
                     </Button>
+                    {processo.id && podeCorrigirNumeroProcesso(roleUsuario, cargosUsuario) && (
+                      <>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" title="Corrigir número" aria-label="Corrigir número" onClick={() => setCorrigirNumeroAberto(true)}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                        <CorrigirNumeroProcessoSheet
+                          open={corrigirNumeroAberto}
+                          onOpenChange={setCorrigirNumeroAberto}
+                          processoId={processo.id}
+                          numeroAtual={numeroCorrigido ?? processo.numero}
+                          coordenacaoId={processo.coordenacao_id}
+                          onSalvo={(n) => { setNumeroCorrigido(n); setForm((f: any) => ({ ...f, numero: n })); }}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               )}
