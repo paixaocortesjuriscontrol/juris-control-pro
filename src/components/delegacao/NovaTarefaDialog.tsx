@@ -1982,7 +1982,7 @@ export function NovaTarefaDialog({
               disabled={loading || uploadingAnexos}
               variant="secondary"
               className="w-full sm:w-auto"
-              onClick={() => { secondaryClickedRef.current = true; }}
+              onClick={() => { secondaryClickedRef.current = true; tertiaryClickedRef.current = false; }}
             >
               {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {secondarySave.label}
@@ -1995,7 +1995,7 @@ export function NovaTarefaDialog({
               disabled={loading || uploadingAnexos}
               variant="secondary"
               className="w-full sm:w-auto"
-              onClick={() => { tertiaryClickedRef.current = true; }}
+              onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = true; }}
             >
               {(loading || uploadingAnexos) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               {tertiarySave.label}

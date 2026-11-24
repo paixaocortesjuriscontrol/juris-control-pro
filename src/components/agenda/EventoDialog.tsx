@@ -1146,7 +1146,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   variant="secondary"
                   disabled={isPending}
                   className="w-full sm:w-auto"
-                  onClick={() => { secondaryClickedRef.current = true; }}
+                  onClick={() => { secondaryClickedRef.current = true; tertiaryClickedRef.current = false; }}
                 >
                   {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {secondarySave.label}
@@ -1158,7 +1158,7 @@ export function EventoDialog({ open, onOpenChange, evento, defaultProcessoId, pu
                   variant="secondary"
                   disabled={isPending}
                   className="w-full sm:w-auto"
-                  onClick={() => { tertiaryClickedRef.current = true; }}
+                  onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = true; }}
                 >
                   {isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                   {tertiarySave.label}

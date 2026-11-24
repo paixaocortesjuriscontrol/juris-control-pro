@@ -1484,7 +1484,7 @@ export function PrazoDialog({
              type="submit"
              variant="secondary"
              disabled={isLoading}
-             onClick={() => { secondaryClickedRef.current = true; }}
+             onClick={() => { secondaryClickedRef.current = true; tertiaryClickedRef.current = false; outroPrazoClickedRef.current = false; }}
            >
              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
              {secondarySave.label}
@@ -1495,7 +1495,7 @@ export function PrazoDialog({
              type="submit"
              variant="secondary"
              disabled={isLoading}
-             onClick={() => { tertiaryClickedRef.current = true; }}
+             onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = true; outroPrazoClickedRef.current = false; }}
            >
              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
              {tertiarySave.label}

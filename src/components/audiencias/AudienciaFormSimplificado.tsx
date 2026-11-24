@@ -674,7 +674,7 @@ export function AudienciaFormSimplificado({
                 size="sm"
                 variant="secondary"
                 disabled={criarAudiencia.isPending}
-                onClick={(e) => { secondaryClickedRef.current = true; handleSubmit(e as any); }}
+                onClick={(e) => { secondaryClickedRef.current = true; tertiaryClickedRef.current = false; handleSubmit(e as any); }}
               >
                 {criarAudiencia.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -688,7 +688,7 @@ export function AudienciaFormSimplificado({
                 size="sm"
                 variant="secondary"
                 disabled={criarAudiencia.isPending}
-                onClick={(e) => { tertiaryClickedRef.current = true; handleSubmit(e as any); }}
+                onClick={(e) => { secondaryClickedRef.current = false; tertiaryClickedRef.current = true; handleSubmit(e as any); }}
               >
                 {criarAudiencia.isPending && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1039,7 +1039,7 @@ export function AudienciaFormSimplificado({
             type="submit"
             variant="secondary"
             disabled={criarAudiencia.isPending}
-            onClick={() => { secondaryClickedRef.current = true; }}
+            onClick={() => { secondaryClickedRef.current = true; tertiaryClickedRef.current = false; }}
           >
             {criarAudiencia.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -1052,7 +1052,7 @@ export function AudienciaFormSimplificado({
             type="submit"
             variant="secondary"
             disabled={criarAudiencia.isPending}
-            onClick={() => { tertiaryClickedRef.current = true; }}
+            onClick={() => { secondaryClickedRef.current = false; tertiaryClickedRef.current = true; }}
           >
             {criarAudiencia.isPending && (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

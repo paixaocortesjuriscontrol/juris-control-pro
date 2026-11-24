@@ -39,6 +39,14 @@
 - [x] Lista "Quem recebe os avisos" chega marcada: coordenadores por padrão e as pessoas já escolhidas
 - [x] Coordenador pode ser desmarcado para deixar de receber (campo `coordenadores_excluidos_ids`)
 
+## Análise DJEN — Salvar e fechar sem leitura (24/11/2026)
+- [x] Ler os caminhos dos botões na Análise DJEN: tarefa/ata, prazo, evento e audiência (cabeçalho e rodapé)
+- [x] Corrigir a intenção de leitura que permanecia após validação/erro ao trocar de Salvar e ler para Salvar e fechar
+- [x] Conferir os wrappers, os vínculos à publicação e os triggers das atividades/junções: não registram leitura automaticamente nesse fluxo
+- [x] Conferir a cópia no processo e a resolução de publicações: cópia preserva a leitura da origem; resolução de legado cria cópia já lida, comportamento histórico fora do botão solicitado, não alterado
+- [x] Rodar os 14 testes de salvamento e conferir compilação sem erros
+- [x] Preservar publicações já lidas, configurações e permissões; acesso logado indisponível para verificar a tela com dados reais
+
 ## Minhas Responsabilidades — ficha ampliada do calendário (18/11/2026)
 - [x] Painel largo exclusivo do clique no calendário, sem alterar o Painel de Controle
 - [x] Abas Atividade, Processo, Publicações, Workflow e Documentos com dados sob demanda
