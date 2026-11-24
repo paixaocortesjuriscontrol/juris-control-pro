@@ -282,7 +282,7 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
       etapa(cancelar.current ? "Cancelado" : "Finalizando", gravadas, ok.length, { criados: cont.audiencias + cont.prazos + cont.tarefas, erros: cont.erros }, true);
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
       const comDataPassada = itensComDataPassada(ok, (l: any) => l.prevista || l.fatal);
-      setRelatorio({ cont, cancelado: cancelar.current, semUsuario: Array.from(semUsuario.keys()).map((n) => [n, ok.filter((l) => l.responsaveis.includes(n)).length]), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      setRelatorio({ cont, cancelado: cancelar.current, semUsuario: Array.from(semUsuario.keys()).map((n) => [n, ok.filter((l) => l.responsaveis.includes(n)).length]), semModelo: Array.from(semModelo), erros, pulados: linhas.filter((l) => l.motivo), comDataPassada, foraCorte });
       const aviso = avisoDataPassada(comDataPassada.length);
       toast.success(`Agenda futura: ${cont.audiencias} audiências, ${cont.prazos} prazos e ${cont.tarefas} tarefas importados.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
@@ -303,6 +303,8 @@ export function ImportarAgendaFuturaProjuris({ userId, onConcluido }: { userId: 
     aba(relatorio.semModelo.map(([n, q]: any) => ({ "Título sem modelo": n, Ocorrências: q })), "Títulos sem modelo");
     aba(relatorio.pulados.map((l: any) => ({ Atividade: l.tar, Título: l.titulo, Motivo: l.motivo })), "Linhas puladas");
     aba((relatorio.comDataPassada || []).map((l: any) => ({ Atividade: l.tar, Título: l.titulo, "Data prevista": (l.prevista || l.fatal || "").split("-").reverse().join("/"), Processo: l.dig && l.dig.length === 20 ? formatarCnj(l.dig) : "", Responsável: l.responsaveis.join(", ") })), "Com data passada");
+    const br = (v: any) => (v ? String(v).slice(0, 10).split("-").reverse().join("/") : "");
+    aba((relatorio.foraCorte || []).map((l: any) => ({ Atividade: l.tar, Título: l.titulo, Tipo: l.audiencia ? "Audiência" : "Tarefa/Prazo", "Data fatal": br(l.fatal), "Data prevista": br(l.prevista), Processo: l.dig && l.dig.length === 20 ? formatarCnj(l.dig) : "", Responsável: (l.responsaveis || []).join(", ") })), "Ignoradas data de corte");
     aba(relatorio.erros, "Erros");
     XLSX.writeFile(wb, `Relatorio_Agenda_Futura_Projuris.xlsx`);
   };

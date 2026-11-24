@@ -191,7 +191,7 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
       }
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
       const comDataPassada = itensComDataPassada(ok, (l: any) => l.fatal || l.prevista);
-      setRel({ cont, semUsuario: Array.from(semUsuario), erros, procCriados, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      setRel({ cont, semUsuario: Array.from(semUsuario), erros, procCriados, pulados: linhas.filter((l) => l.motivo), comDataPassada, foraCorte });
       const aviso = avisoDataPassada(comDataPassada.length);
       toast.success(`Tarefas de workflows: ${cont.prazos} prazos e ${cont.tarefas} tarefas.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
@@ -210,6 +210,8 @@ export function ImportarTarefasWorkflowProjuris({ userId, onConcluido }: { userI
     aba(rel.procCriados, "Processos criados");
     aba(rel.pulados.map((l: any) => ({ Processo: l.dig ? formatarCnj(l.dig) : "", Título: l.titulo, "Data fatal": l.fatal ? l.fatal.split("-").reverse().join("/") : "", Motivo: l.motivo })), "Linhas puladas");
     aba((rel.comDataPassada || []).map((l: any) => ({ Processo: l.dig ? formatarCnj(l.dig) : "", Título: l.titulo, "Data fatal": l.fatal ? l.fatal.split("-").reverse().join("/") : "", "Data prevista": l.prevista ? l.prevista.split("-").reverse().join("/") : "" })), "Com data passada");
+    const br = (v: any) => (v ? String(v).slice(0, 10).split("-").reverse().join("/") : "");
+    aba((rel.foraCorte || []).map((l: any) => ({ Processo: l.dig ? formatarCnj(l.dig) : "", Título: l.titulo, "Data fatal": br(l.fatal), "Data prevista": br(l.prevista) })), "Ignoradas data de corte");
     aba(rel.erros, "Erros");
     XLSX.writeFile(wb, "Relatorio_Tarefas_Workflows_Projuris.xlsx");
   };

@@ -140,7 +140,7 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
       if (criados.length) await db.from("migracoes_projuris_itens").insert(criados.map((x) => ({ migracao_id: mid, ...x })));
       await db.from("migracoes_projuris").update({ status: cancelar.current ? "cancelada" : "concluida", contadores: cont }).eq("id", mid);
       const comDataPassada = itensComDataPassada(ok, (l: any) => l.inicio || l.fatal);
-      setRel({ cont, semUsuario: Array.from(semUsuario), semProc, erros, pulados: linhas.filter((l) => l.motivo), comDataPassada });
+      setRel({ cont, semUsuario: Array.from(semUsuario), semProc, erros, pulados: linhas.filter((l) => l.motivo), comDataPassada, foraCorte });
       const aviso = avisoDataPassada(comDataPassada.length);
       toast.success(`Compromissos: ${cont.eventos} eventos, ${cont.tarefas} tarefas e ${cont.audiencias} audiências.${aviso ? ` ${aviso}` : ""}`);
       setLinhas(null); onConcluido?.();
@@ -159,6 +159,8 @@ export function ImportarCompromissosProjuris({ userId, onConcluido }: { userId: 
     aba(rel.semProc, "Audiências sem processo");
     aba(rel.pulados.map((l: any) => ({ Identificador: l.tar, Título: l.titulo, Motivo: l.motivo })), "Linhas puladas");
     aba((rel.comDataPassada || []).map((l: any) => ({ Identificador: l.tar, Título: l.titulo, "Data": (l.inicio || l.fatal || "").split("-").reverse().join("/"), "Agendar como": l.tipo })), "Com data passada");
+    const br = (v: any) => (v ? String(v).slice(0, 10).split("-").reverse().join("/") : "");
+    aba((rel.foraCorte || []).map((l: any) => ({ Identificador: l.tar, Título: l.titulo, Data: br(l.inicio), "Data fatal": br(l.fatal), "Agendar como": l.tipo })), "Ignoradas data de corte");
     aba(rel.erros, "Erros");
     XLSX.writeFile(wb, "Relatorio_Compromissos_Projuris.xlsx");
   };

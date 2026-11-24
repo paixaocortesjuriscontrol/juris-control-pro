@@ -11,7 +11,7 @@ import { BlobReader, BlobWriter, ZipReader } from "@zip.js/zip.js";
 import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, tituloTarefaProjuris, fonteTituloTarefaProjuris, statusTarefaProjuris, planejarNovosModelosTitulosProjuris } from "@/lib/migracaoProjuris";
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
-import { passaDoCorte, mapeamentoCorte, getDataCorte } from "./dataCorteProjuris";
+import { passaDoCorte, mapeamentoCorte, getDataCorte, baixarIgnoradasCorte } from "./dataCorteProjuris";
 
 // Colunas mantidas de cada tabela do backup (o resto do CSV é ignorado).
 // Tabela sem lista = mantém todas as colunas (arquivo pequeno).
@@ -767,7 +767,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         }
         {
           const fora = (ok as any[]).filter((l) => passaDoCorte({ fatal: l.fatal, data: l.data }));
-          if (fora.length) { (cont as any).foraDoCorte = fora.length; ok = (ok as any[]).filter((l) => !fora.includes(l)) as any; }
+          if (fora.length) { (cont as any).foraDoCorte = fora.length; baixarIgnoradasCorte(fora, "Projuris_Backup_Ignoradas_Data_Corte.xlsx"); ok = (ok as any[]).filter((l) => !fora.includes(l)) as any; }
         }
         for (let k = 0; k < ok.length; k += LOTE) {
           await esperar(); if (cancelado.current) break;

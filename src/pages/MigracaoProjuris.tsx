@@ -38,7 +38,7 @@ import { useProjurisUploadProgress } from "@/hooks/useProjurisUploadProgress";
 import { uploadAnexoProjuris } from "@/lib/uploadAnexoProjuris";
 import { criarGravadorLotes, executarFila } from "@/lib/projurisImportQueue";
 import { AnexosBackupProjuris } from "@/components/migracao/AnexosBackupProjuris";
-import { passaDoCorte, mapeamentoCorte, useDataCorte, setDataCorte } from "@/components/migracao/dataCorteProjuris";
+import { passaDoCorte, mapeamentoCorte, useDataCorte, setDataCorte, baixarIgnoradasCorte } from "@/components/migracao/dataCorteProjuris";
 
 type Modulo = "processos" | "tarefas" | "anexos" | "comentarios" | "andamentos";
 const MODULOS: [Modulo, string][] = [["processos", "Processos"], ["tarefas", "Tarefas"], ["anexos", "Anexos"], ["comentarios", "Comentários"], ["andamentos", "Andamentos"]];
@@ -423,7 +423,7 @@ export default function MigracaoProjuris() {
 
       // 2) tarefas
       const foraCorte = validas.filter((l: any) => passaDoCorte({ fatal: l.data_fatal, data: l.data }));
-      if (foraCorte.length) { (cont as any).fora_do_corte = foraCorte.length; }
+      if (foraCorte.length) { (cont as any).fora_do_corte = foraCorte.length; baixarIgnoradasCorte(foraCorte, "Projuris_Tarefas_Ignoradas_Data_Corte.xlsx"); }
       const validasCorte = validas.filter((l) => !foraCorte.includes(l));
       const tarefaMap = new Map<string, { id: string; processo_id: string | null }>();
       setProgresso({ fase: "Tarefas", feito: 0, total: validasCorte.length });

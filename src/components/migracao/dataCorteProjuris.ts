@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import { useSyncExternalStore } from "react";
 
 /** Data de corte (YYYY-MM-DD) escolhida na tela de Migração Projuris. Vazia = sem corte. */
@@ -55,4 +56,23 @@ export function aplicarCorte<T>(linhas: T[], dataDe: (l: T) => Parameters<typeof
 /** Campos para gravar no mapeamento do lote (ativa as proteções do banco). */
 export function mapeamentoCorte(): Record<string, string> {
   return corteAtual ? { data_corte: corteAtual } : {};
+}
+
+const br = (v: unknown) => { const d = diaBRT(v); return d ? d.split("-").reverse().join("/") : ""; };
+
+/** Baixa um Excel com as atividades que ficaram de fora pela data de corte. */
+export function baixarIgnoradasCorte(linhas: any[], nomeArquivo: string, corte: string = corteAtual) {
+  if (!linhas.length) return;
+  const rows = linhas.map((l) => ({
+    Identificador: l.chave ?? l.id_externo ?? l.tar ?? "",
+    Título: String(l.titulo ?? "").slice(0, 500),
+    Tipo: l.tipo ?? "",
+    Processo: l.procDig ?? l.processo_dig ?? l.dig ?? "",
+    "Data fatal": br(l.fatal ?? l.data_fatal),
+    "Data prevista/limite": br(l.data ?? l.prevista),
+    "Data de corte": br(corte),
+  }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Ignoradas data de corte");
+  XLSX.writeFile(wb, nomeArquivo);
 }
