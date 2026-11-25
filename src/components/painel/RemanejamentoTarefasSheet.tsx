@@ -390,14 +390,7 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
               </PopoverTrigger>
               <PopoverContent className="w-64 p-0" align="start">
                 <Command>
-                  <CommandList
-                    className="max-h-[260px] overscroll-contain"
-                    onWheel={(e) => {
-                      // Painéis laterais (Sheet) bloqueiam a rolagem de listas em portal; rola manualmente.
-                      e.stopPropagation();
-                      e.currentTarget.scrollTop += e.deltaY;
-                    }}
-                  >
+                  <CommandList className="max-h-[260px] overscroll-contain">
                     <CommandEmpty>Nenhuma situação</CommandEmpty>
                     <CommandGroup>
                       {situacaoOptions.map((s) => {

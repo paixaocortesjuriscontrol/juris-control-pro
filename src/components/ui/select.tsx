@@ -3,6 +3,7 @@ import * as SelectPrimitive from "@radix-ui/react-select";
 import { Check, ChevronDown, ChevronUp } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { rolarListaComMouse } from "@/lib/rolagemListas";
 
 const Select = SelectPrimitive.Root;
 
@@ -77,10 +78,11 @@ const SelectContent = React.forwardRef<
       <SelectScrollUpButton />
       <SelectPrimitive.Viewport
         className={cn(
-          "p-1",
+          "p-1 overscroll-contain",
           position === "popper" &&
             "max-h-[--radix-select-content-available-height] w-full min-w-[var(--radix-select-trigger-width)]",
         )}
+        onWheel={rolarListaComMouse}
       >
         {children}
       </SelectPrimitive.Viewport>

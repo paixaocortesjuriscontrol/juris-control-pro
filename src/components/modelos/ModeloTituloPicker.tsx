@@ -142,7 +142,7 @@ export function ModeloTituloPicker({ tipo, coordenacaoId, onSelect, className }:
         )}
         <Command>
           <CommandInput placeholder="Buscar modelo..." />
-          <CommandList>
+          <CommandList className="overscroll-contain">
             <CommandEmpty>Nenhum modelo encontrado.</CommandEmpty>
             {visiveis.length > 0 && <CommandGroup>{visiveis.map(renderItem)}</CommandGroup>}
           </CommandList>
