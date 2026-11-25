@@ -10,13 +10,54 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
+// Renova a sessão e repete a chamada quando o token expirou (ex.: aba suspensa
+// por muito tempo, quando o navegador pausa a renovação automática).
+let refreshing: Promise<string | null> | null = null;
+async function renovarToken(): Promise<string | null> {
+  if (!refreshing) {
+    refreshing = client.auth.refreshSession()
+      .then(({ data }) => data.session?.access_token ?? null)
+      .catch(() => null)
+      .finally(() => { setTimeout(() => { refreshing = null; }, 1000); });
+  }
+  return refreshing;
+}
+const fetchComRenovacao: typeof fetch = async (input, init) => {
+  const resp = await fetch(input, init);
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  if ((resp.status === 401 || resp.status === 403) && !url.includes('/auth/v1/')) {
+    const corpo = await resp.clone().text().catch(() => '');
+    if (/jwt expired|invalid jwt|PGRST301|PGRST303/i.test(corpo)) {
+      const token = await renovarToken();
+      if (token) {
+        const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+        headers.set('Authorization', `Bearer ${token}`);
+        return fetch(input, { ...init, headers });
+      }
+    }
+  }
+  return resp;
+};
+
 const client = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  global: { fetch: fetchComRenovacao },
   auth: {
     storage: brokeredPreviewStorage(),
     persistSession: true,
     autoRefreshToken: true,
   }
 });
+
+if (typeof document !== 'undefined') {
+  const aoVoltar = () => {
+    if (document.visibilityState === 'visible') {
+      client.auth.startAutoRefresh().catch(() => {});
+      client.auth.getSession().catch(() => {});
+    }
+  };
+  document.addEventListener('visibilitychange', aoVoltar);
+  window.addEventListener('focus', aoVoltar);
+}
 
 // ========================
 // Safety shim: avoid calling Edge Function `buscar-djen` from the browser
