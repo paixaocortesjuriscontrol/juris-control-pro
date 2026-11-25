@@ -57,4 +57,3 @@
 - Participant lists of tasks, events and hearings (tarefa_/evento_ responsaveis/envolvidos, audiencia_envolvidos) are saved via `sincronizarParticipantesTarefa` (insert new first, then remove only unchecked, surface errors); delete-all-then-insert lost people because the responsible-change trigger blocked re-inserts once the editor was removed.
 - `useUserRole` coordinator flags include `membros_coordenacao` cargo; `podeVerTodasCoordenacoes` stays global-role only.
 - Agenda RPCs pick tasks via `_agenda_tarefas_visiveis` (DEFINER, tarefas-RLS-equivalent, cheap checks first); per-row RLS timed out.
-- Activity participants may SELECT the linked process (`sou_participante_item_do_processo`); edits keep coordination rules.
