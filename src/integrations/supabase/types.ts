@@ -12127,6 +12127,80 @@ export type Database = {
     Functions: {
       _agend_rotulo_campo: { Args: { k: string }; Returns: string }
       _agend_valor_norm: { Args: { v: Json }; Returns: string }
+      _agenda_tarefas_visiveis: {
+        Args: {
+          p_coords: string[]
+          p_fim: string
+          p_ini: string
+          p_recorrentes: boolean
+          p_usuario: string
+        }
+        Returns: {
+          alerta_dias: number | null
+          alerta_unidade: string | null
+          concluido_por_nome: string | null
+          coordenacao_id: string | null
+          created_at: string
+          criado_por: string | null
+          criado_por_nome: string | null
+          data_base: string | null
+          data_criacao_projuris: string | null
+          data_cumprimento: string | null
+          data_fatal: string | null
+          data_prevista: string | null
+          data_vencimento: string | null
+          descricao: string | null
+          descricao_ultimo_andamento: string | null
+          envolvimento_clientes: string | null
+          envolvimento_contrarios: string | null
+          grupos_trabalho: string | null
+          hora_conclusao: string | null
+          hora_criacao: string | null
+          hora_fatal: string | null
+          hora_prevista: string | null
+          id: string
+          identificador_modulo: string | null
+          identificador_projuris: string | null
+          identificador_timesheet: string | null
+          instancia: string | null
+          link_local: string | null
+          marcadores: string | null
+          marcadores_vinculo: string | null
+          modelo_tarefa_id: string | null
+          modulo: string | null
+          observacoes: string | null
+          orgao: string | null
+          orgao_julgador: string | null
+          origem: string | null
+          outras_partes: string | null
+          partes_ativas: string | null
+          partes_passivas: string | null
+          prazo_dias: number | null
+          prazo_unidade: string | null
+          prioridade: Database["public"]["Enums"]["prioridade_tarefa"]
+          processo_id: string | null
+          quadro_kanban: string | null
+          recorrencia_fim: string | null
+          recorrencia_intervalo: number | null
+          recorrencia_rrule: string | null
+          recorrencia_tipo: string | null
+          recorrente: boolean | null
+          responsavel_id: string | null
+          situacao_processo: string | null
+          status: Database["public"]["Enums"]["status_tarefa"]
+          tipo_registro: string
+          tipo_tarefa: string | null
+          titulo: string
+          total_horas_timesheet: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "tarefas"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       _pode_gerir_coordenacao: { Args: { _coord: string }; Returns: boolean }
       acquire_kurier_execution_lease: {
         Args: {
