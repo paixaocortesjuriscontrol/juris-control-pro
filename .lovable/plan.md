@@ -1,20 +1,27 @@
-# Observação do advogado no processo e na Análise DJEN
+# Ajuste de coordenações – planilha da Bruna Sousa (GOL / Janaina)
+
+## O que a planilha traz
+83 processos na aba "Processos":
+- 15 sinalizados em amarelo -> ficam só na **Coordenação Dra. Janaina Catunda**
+- 17 com etiqueta 1968 (sem amarelo) -> ficam só em **Execução GOL - Dra B. Anjos** e **GOL Especiais - Sindicatos e MPT**
+- 51 demais -> ficam só na **Coordenação GOL**
+
+Nenhum caso amarelo tem etiqueta 1968, então não há conflito entre as regras.
 
 ## O que será feito
+1. Localizar cada processo pelo número (só dígitos) e conferir as coordenações atuais; listar os não encontrados.
+2. Fazer backup das coordenações e vínculos atuais desses processos antes de qualquer alteração.
+3. Para cada processo:
+   - Definir a coordenação principal (Janaina, GOL ou Execução GOL - Dra B. Anjos para os 1968).
+   - Manter/criar vínculo apenas nas coordenações de destino e remover os vínculos de coordenações fora da regra.
+   - Pessoas responsáveis do processo ligadas às coordenações removidas deixam de ficar vinculadas por elas; as das coordenações mantidas permanecem.
+4. Não alterar tarefas, prazos, audiências e publicações, nem outros processos (regra de isolamento por coordenação).
+5. Entregar um Excel de conferência: antes x depois por processo, mais os não encontrados.
 
-- Exibir o campo **Observação do advogado** na visão geral de Processos e Casos, junto à descrição do processo, para consulta e edição.
-- Reutilizar o campo já existente `processos.observacao_advogado`; não haverá migração nem mudança de permissões.
-- Na Análise DJEN, para publicações com processo cadastrado, adicionar a ação **Observação**, que abre um painel lateral direito com o texto atual.
-- Permitir inserir, alterar ou limpar a observação nesse painel e mostrar confirmação somente depois que o banco confirmar a gravação.
-- Aplicar a mesma ação nas duas visões da Análise DJEN que exibem processos cadastrados.
+## Pontos de atenção
+- A aba "Tarefas em coord. trocada" (3 processos com tarefas na coordenação da Janaina, mas processo em GOL Especiais) é apenas informativa; as atividades não serão movidas, salvo pedido.
+- Alteração direta nos dados, sem mudança de telas.
 
-## Garantias
-
-- O painel da Análise DJEN atualizará somente a observação do processo, sem alterar publicação, leitura, movimentações, partes ou demais dados.
-- Cancelar ou fechar o painel não salvará alterações.
-- Após salvar, os dados do processo serão atualizados nas telas já abertas.
-
-## Verificação
-
-- Adicionar teste da regra que monta a atualização somente com o campo da observação.
-- Rodar os testes relacionados e conferir a compilação do projeto.
+## Detalhes técnicos
+- Tabelas: `processos.coordenacao_id`, `processos_coordenacoes_responsaveis`, `processos_responsaveis.coordenacao_id`.
+- Backup em tabela `backup_coord_gol_janaina_20261125` antes do UPDATE/DELETE, executado em transação.
