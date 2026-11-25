@@ -159,28 +159,29 @@ export function useItensComComentarios(items: ItemAgendaUnificado[] | undefined)
           if (cobranca) atual.cobranca = true;
         };
         const rows = await consultarIndicadoresEmLotes<any>(
-          queryClient, "itens-com-comentarios", [userId, tabela], ids, 100, 30_000,
+          queryClient, "itens-com-comentarios", [userId, tabela], ids, 500, 30_000,
           async (chunk) => {
-            const { data, error } = await (supabase as any)
-              .from(tabela)
-              .select(`${fk}, created_at, autor_id, is_cobranca`)
-              .in(fk, chunk);
+            // Resumo pronto no banco: confere o acesso uma vez por item e
+            // devolve uma linha por item e dia (Brasília).
+            const { data, error } = await (supabase as any).rpc("resumo_comentarios_itens", { _tipo: tipo, _ids: chunk });
             if (error) throw error;
             return data || [];
           },
         );
         rows.forEach((row: any) => {
-              const ref = row[fk];
-              if (!ref || !row.created_at) return;
-              const d = new Date(row.created_at);
+              const ref = row.ref;
+              if (!ref || !row.ultimo) return;
+              const d = new Date(row.ultimo);
               const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
                 d.getDate()
               ).padStart(2, "0")}`;
               const iso = d.toISOString();
-              const meu = !!userId && row.autor_id === userId;
-              const cobranca = !!row.is_cobranca;
-              acumular(porRef, ref, iso, meu, cobranca);
-              acumular(porRefDia, `${ref}|${dia}`, iso, meu, cobranca);
+              const cobranca = !!row.cobranca;
+              for (const [flag, meu] of [[row.meu, true], [row.outros, false]] as const) {
+                if (!flag) continue;
+                acumular(porRef, ref, iso, meu, cobranca);
+                acumular(porRefDia, `${ref}|${dia}`, iso, meu, cobranca);
+              }
         });
         lookup.forEach((info, chave) => {
           if (info.tipo !== tipo) return;

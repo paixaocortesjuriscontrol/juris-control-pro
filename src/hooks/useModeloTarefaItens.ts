@@ -9,19 +9,21 @@ export interface ModeloDoItem { nome: string; cor?: string | null }
  * Projuris): devolve, por ID da tarefa, o nome do modelo e a cor.
  * Uma única leitura por período (só as tarefas com modelo), sem listas de IDs.
  */
-export function useModeloTarefaItens(inicio: Date, fim: Date) {
+export function useModeloTarefaItens(inicio: Date, fim: Date, coordenacaoIds?: string[] | null) {
+  const coords = coordenacaoIds && coordenacaoIds.length > 0 ? [...coordenacaoIds].sort() : null;
   const de = format(inicio, "yyyy-MM-dd");
   const ate = format(fim, "yyyy-MM-dd");
   return useQuery({
-    queryKey: ["agenda-modelo-tarefa", de, ate],
+    queryKey: ["agenda-modelo-tarefa", de, ate, coords ? coords.join(",") : "todas"],
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const db = supabase as any;
       const tarefas: { id: string; modelo_tarefa_id: string }[] = [];
       for (let off = 0; ; off += 1000) {
-        const { data, error } = await db.from("tarefas").select("id,modelo_tarefa_id")
-          .not("modelo_tarefa_id", "is", null).gte("data_vencimento", de).lte("data_vencimento", ate)
-          .order("id").range(off, off + 999);
+        let q = db.from("tarefas").select("id,modelo_tarefa_id")
+          .not("modelo_tarefa_id", "is", null).gte("data_vencimento", de).lte("data_vencimento", ate);
+        if (coords) q = q.in("coordenacao_id", coords);
+        const { data, error } = await q.order("id").range(off, off + 999);
         if (error) throw error;
         tarefas.push(...(data || []));
         if (!data || data.length < 1000) break;
@@ -38,9 +40,10 @@ export function useModeloTarefaItens(inicio: Date, fim: Date) {
       // Cor escolhida na etapa do workflow tem prioridade sobre a cor do modelo.
       const wf: string[] = [];
       for (let off = 0; ; off += 1000) {
-        const { data, error } = await db.from("tarefas").select("id")
-          .eq("origem", "workflow").gte("data_vencimento", de).lte("data_vencimento", ate)
-          .order("id").range(off, off + 999);
+        let q = db.from("tarefas").select("id")
+          .eq("origem", "workflow").gte("data_vencimento", de).lte("data_vencimento", ate);
+        if (coords) q = q.in("coordenacao_id", coords);
+        const { data, error } = await q.order("id").range(off, off + 999);
         if (error) throw error;
         wf.push(...(data || []).map((t: any) => t.id));
         if (!data || data.length < 1000) break;

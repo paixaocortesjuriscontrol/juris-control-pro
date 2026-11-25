@@ -13180,6 +13180,16 @@ export type Database = {
         Returns: string
       }
       restaurar_workflow: { Args: { _workflow_id: string }; Returns: undefined }
+      resumo_comentarios_itens: {
+        Args: { _ids: string[]; _tipo: string }
+        Returns: {
+          cobranca: boolean
+          meu: boolean
+          outros: boolean
+          ref: string
+          ultimo: string
+        }[]
+      }
       search_users_basic: {
         Args: { _limit?: number; _query?: string }
         Returns: {

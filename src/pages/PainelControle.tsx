@@ -684,7 +684,6 @@ export default function PainelControle() {
     }
     return new Date(mesAtual.getFullYear(), mesAtual.getMonth() + 1, 0, 23, 59, 59);
   }, [mesAtual, drill?.ate, drill?.metrica]);
-  const { data: modeloPorTarefa } = useModeloTarefaItens(dataInicio, dataFim);
 
   // Filtros conforme aba selecionada (apenas para o calendário)
   const filters = useMemo(() => {
@@ -738,6 +737,8 @@ export default function PainelControle() {
       ...dateRange, ...statusScope,
     };
   }, [tabMode, user?.id, isAdmin, isAdminOrCoordinator, adminCoordFilter, membrosCoordFiltrada, membrosFilterLoading, coordLoading, coordRestritasLoading, JSON.stringify(coordRestritas), membrosLoading, membrosDasCoordenacoes, coordenacoesUsuario, dataInicio, dataFim, modoProtocoladosBaixados, painelFiltros.periodoInicio, painelFiltros.periodoFim, painelFiltros.responsavelIds]);
+  // Modelos só das coordenações do escopo (Pessoal/Todas: sem filtro).
+  const { data: modeloPorTarefa } = useModeloTarefaItens(dataInicio, dataFim, (filters as any)?.coordenacaoIds ?? null);
 
   const agendaQuery = useAgendaUnificada(filters);
   const itensAgenda = agendaQuery.data;
