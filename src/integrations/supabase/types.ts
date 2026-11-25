@@ -12808,6 +12808,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      importar_comentarios_projuris: {
+        Args: { _corte: string; _itens: Json; _migracao: string }
+        Returns: Json
+      }
       is_admin_or_coordenador: { Args: { _user_id: string }; Returns: boolean }
       is_assistente_juridico_geral: {
         Args: { _user_id: string }
@@ -13028,6 +13032,7 @@ export type Database = {
         Returns: number
       }
       unaccent: { Args: { "": string }; Returns: string }
+      unaccent_safe: { Args: { t: string }; Returns: string }
       user_can_access_publicacao_djen: {
         Args: { _publicacao_id: string; _user_id: string }
         Returns: boolean
