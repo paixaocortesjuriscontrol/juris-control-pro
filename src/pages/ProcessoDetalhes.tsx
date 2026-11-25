@@ -259,7 +259,7 @@ export default function ProcessoDetalhes() {
   // de `processo.numero` (Análise Judit, Anexos Judit, etc.).
   const [numeroNovo, setNumeroNovo] = useState<string>("");
 
-  const { data: processoDb, isLoading: loadingProcesso } = useQuery({
+  const { data: processoDb, isLoading: loadingProcesso, isError: erroProcesso, refetch: refetchProcesso } = useQuery({
     queryKey: ["processo", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -273,10 +273,14 @@ export default function ProcessoDetalhes() {
         .eq("id", id!)
         .maybeSingle();
 
-      if (error) throw error;
-      return data;
+      if (!error && data) return data;
+      // Sem os dados ligados (cliente/pasta/advogado), abre a ficha só com o processo.
+      const simples = await supabase.from("processos").select("*").eq("id", id!).maybeSingle();
+      if (simples.error) throw simples.error;
+      return simples.data;
     },
     enabled: !!id && !isNovo,
+    retry: 2,
   });
 
   // Em modo "novo", usamos um objeto sintético vazio para renderizar a
@@ -1421,13 +1425,25 @@ export default function ProcessoDetalhes() {
     );
   }
 
+  if (!processo && !isNovo && erroProcesso) {
+    return (
+      <MainLayout title="Processo" subtitle="">
+        <div className="text-center py-12">
+          <Scale className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+          <h3 className="text-lg font-semibold mb-2">Não foi possível carregar o processo</h3>
+          <Button onClick={() => refetchProcesso()}>Tentar novamente</Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (!processo && !isNovo) {
     return (
       <MainLayout title="Processo não encontrado" subtitle="">
         <div className="text-center py-12">
           <Scale className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-semibold mb-2">Processo não encontrado</h3>
-          <p className="text-muted-foreground mb-4">O processo solicitado não existe ou você não tem acesso.</p>
+          <p className="text-muted-foreground mb-4">Este processo não existe mais no sistema.</p>
           <Button onClick={() => navigate("/processos")}>Voltar para Processos</Button>
         </div>
       </MainLayout>

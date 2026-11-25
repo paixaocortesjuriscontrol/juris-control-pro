@@ -161,9 +161,11 @@ function ProcessoPainel({ id }: { id: string }) {
       if (error) throw error;
       return data;
     },
+    retry: 2,
   });
   if (q.isLoading) return <div className="flex items-center gap-2 p-6 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Carregando...</div>;
-  if (!q.data) return <div className="p-6 text-sm text-muted-foreground">Processo não encontrado.</div>;
+  if (q.isError) return <div className="p-6 text-sm text-muted-foreground">Não foi possível carregar o processo. <button className="underline" onClick={() => q.refetch()}>Tentar novamente</button></div>;
+  if (!q.data) return <div className="p-6 text-sm text-muted-foreground">Este processo não existe mais no sistema.</div>;
   return <ProcessoVisaoGeralForm processo={q.data} />;
 }
 
