@@ -1,20 +1,19 @@
-# Devolver a tarefa DEFESA do processo 4032835-05.2026.8.26.0602
+# Devolver as tarefas apagadas que a equipe já tinha mexido
 
-## O que aconteceu (confirmado)
-- A tarefa "DEFESA", com vencimento em 25/11/2026 e situação Pendente, existia na ficha do processo.
-- Ela veio da migração Projuris de 13/11/2026 (criada no Projuris em 28/10/2026).
-- Foi apagada hoje, 25/11/2026 às 13:47 (BRT), na limpeza das 3.301 tarefas com data depois de 13/11.
-- Antes disso, pessoas da equipe já tinham trabalhado nela (alterações em 23/11 e 24/11, troca de participantes). Ou seja, era uma tarefa em uso.
-- A cópia de segurança dela está guardada, com responsáveis, envolvidos, comentários e anexos.
+## O que foi confirmado
+- O caso 4032835-05.2026.8.26.0602 procede: a tarefa "DEFESA" (vencimento 25/11/2026, Pendente) foi apagada hoje às 13:47 (BRT) na limpeza das 3.301 tarefas com data depois de 13/11.
+- Das 3.301 apagadas, **2.144 tinham sido alteradas por pessoas da equipe** (30 usuários diferentes) entre 14/11 e hoje, antes da limpeza. A DEFESA é uma delas.
+- Não conto como "alteração da equipe" a inclusão automática de participantes feita pela própria migração (usuário Admin. Paixão Cortes, 14/11).
+- As outras 1.157 nunca foram tocadas por ninguém e continuam apagadas.
 
 ## O que vou fazer
-1. Devolver essa tarefa exatamente como estava (mesmo código, título, data, situação, responsáveis, envolvidos, comentários e anexos ligados).
-2. Sem gerar avisos para a equipe.
-3. Conferir que ela voltou na ficha do processo e no Painel.
-
-## Ponto importante
-Outras tarefas das 3.301 podem ter o mesmo problema: tarefas que a equipe já estava usando. Depois de devolver esta, levanto quantas das 3.301 tinham sido alteradas por pessoas antes de serem apagadas e trago a lista para você decidir se devolvo também.
+1. Devolver as 2.144 tarefas exatamente como estavam antes de apagar: mesmo código, título, data, situação, responsáveis, envolvidos, comentários e anexos ligados.
+2. Sem enviar avisos para ninguém.
+3. Voltar o registro da migração dessas tarefas para "criado".
+4. Conferir: 2.144 de volta, incluindo a DEFESA do processo acima aparecendo na ficha.
+5. Gerar um Excel com a lista das 2.144 devolvidas (processo, título, data, situação, quem alterou).
 
 ## Detalhes técnicos
-- Reinserir a partir de `bkp_tarefas_pos_corte_20261125` (id 58dfaaa0-...) e das tabelas `_resp`, `_env`, `_com`, `_doc` correspondentes, com `app.sem_notificacao='1'`.
-- Reverter `migracoes_projuris_itens` desse item para `criado`.
+- Fonte: `bkp_tarefas_pos_corte_20261125` + `_resp`, `_env`, `_com`, `_doc`.
+- Critério: tarefas do backup com registro em `auditoria_tarefas` (ação diferente de criar/deletar, usuário diferente de a318c5eb…, antes de 25/11 16:40 UTC).
+- Migration com `app.sem_notificacao='1'` e `session_replication_role = replica` para não disparar travas de agendamento nem avisos; documentos voltam a ter `tarefa_id`.
