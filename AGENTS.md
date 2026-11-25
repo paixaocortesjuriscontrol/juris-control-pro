@@ -57,3 +57,4 @@
 - `pautas_tst` normalization (relator format, clearing office-staff names from advogado_interno, parte_recorrente from the DJEN publication) lives in trigger `trg_pautas_tst_padrao`, so every import/auto-fill path obeys it.
 - Participant lists of tasks, events and hearings (tarefa_/evento_ responsaveis/envolvidos, audiencia_envolvidos) are saved via `sincronizarParticipantesTarefa` (insert new first, then remove only unchecked, surface errors); delete-all-then-insert lost people because the responsible-change trigger blocked re-inserts once the editor was removed.
 - `useUserRole` coordinator flags include `membros_coordenacao` cargo; `podeVerTodasCoordenacoes` stays global-role only.
+- Agenda RPCs pick task candidates through `_agenda_tarefas_visiveis` (SECURITY DEFINER, same visibility as tarefas RLS, cheapest checks first, user/coordination filter before access checks); per-row RLS over the whole month timed out the Painel after tasks were linked to processes.
