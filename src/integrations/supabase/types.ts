@@ -1392,6 +1392,21 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_leitura_djen_santander_civel_20261125: {
+        Row: {
+          id: string | null
+          lida: boolean | null
+        }
+        Insert: {
+          id?: string | null
+          lida?: boolean | null
+        }
+        Update: {
+          id?: string | null
+          lida?: boolean | null
+        }
+        Relationships: []
+      }
       backup_merge_coord_renata: {
         Row: {
           acao: string
