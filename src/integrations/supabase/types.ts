@@ -13543,6 +13543,10 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      sou_participante_item_do_processo: {
+        Args: { _processo_id: string }
+        Returns: boolean
+      }
       sou_participante_tarefa: { Args: { _tarefa: string }; Returns: boolean }
       strip_destinatarios: { Args: { content: string }; Returns: string }
       subtrair_dias_uteis: {
