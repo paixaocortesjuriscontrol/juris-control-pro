@@ -76,3 +76,10 @@ export function baixarIgnoradasCorte(linhas: any[], nomeArquivo: string, corte: 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Ignoradas data de corte");
   XLSX.writeFile(wb, nomeArquivo);
 }
+
+/** Comentários do Projuris entram até o fim do dia de corte (inclusive). */
+export function comentarioDentroDoCorte(dtinclusao: string, corte: string): boolean {
+  if (!corte) return true;
+  const dia = (dtinclusao || "").slice(0, 10);
+  return !!dia && dia <= corte;
+}

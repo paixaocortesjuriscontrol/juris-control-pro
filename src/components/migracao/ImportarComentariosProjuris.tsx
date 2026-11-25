@@ -8,18 +8,12 @@ import { Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lerCsvPontoVirgula } from "@/lib/checklistProjuris";
+import { comentarioDentroDoCorte } from "./dataCorteProjuris";
 
 const db = supabase as any;
 const ARQS = ["comentario", "comentariovinculomodulo", "usuario", "pessoa", "retarefaeventousuario"] as const;
 const OBRIG = ["comentario", "comentariovinculomodulo"];
 const COORD_SANTANDER_CIVEL = "968631d0-6659-46f1-b45d-899892cb0121";
-
-/** Comentários do Projuris ficam até o fim do dia de corte (BRT). */
-export function comentarioDentroDoCorte(dtinclusao: string, corte: string): boolean {
-  if (!corte) return true;
-  const dia = (dtinclusao || "").slice(0, 10);
-  return !!dia && dia <= corte;
-}
 
 export function ImportarComentariosProjuris({ userId }: { userId: string }) {
   const [arquivos, setArquivos] = useState<Record<string, File>>({});
