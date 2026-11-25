@@ -1347,6 +1347,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_coord_gol_janaina_20261125: {
+        Row: {
+          created_at: string
+          dados: Json
+          id: string
+          processo_id: string | null
+          tabela: string
+        }
+        Insert: {
+          created_at?: string
+          dados: Json
+          id?: string
+          processo_id?: string | null
+          tabela: string
+        }
+        Update: {
+          created_at?: string
+          dados?: Json
+          id?: string
+          processo_id?: string | null
+          tabela?: string
+        }
+        Relationships: []
+      }
       backup_estephany_audiencias_20261123: {
         Row: {
           created_at: string
