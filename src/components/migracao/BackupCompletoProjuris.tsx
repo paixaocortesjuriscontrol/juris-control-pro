@@ -607,6 +607,12 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
 
   const importar = async (mod: "processos" | "tarefas" | "andamentos") => {
     if (!conf) return;
+    if (mod === "tarefas") {
+      const validas = conf.tarefas.filter((l) => !l.motivo);
+      const ligadas = validas.filter((l) => l.procDig).length;
+      // Sem tarefavinculomodulo/processonumero no backup, nenhuma tarefa acha o processo: bloquear para não importar tudo solto.
+      if (validas.length > 0 && ligadas / validas.length < 0.5 && !window.confirm(`Atenção: só ${ligadas.toLocaleString("pt-BR")} de ${validas.length.toLocaleString("pt-BR")} tarefas foram ligadas a processo. Provavelmente faltam no backup os arquivos tarefavinculomodulo.csv e processonumero.csv. Importar assim deixa as tarefas sem processo. Deseja continuar mesmo assim?`)) return;
+    }
     const tituloMod = mod === "processos" ? "Processos" : mod === "tarefas" ? "Tarefas" : "Andamentos";
     cancelado.current = false; pausado.current = false;
     setRodando(mod); setProg({ feito: 0, total: 0 });
