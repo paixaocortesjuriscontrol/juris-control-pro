@@ -1416,6 +1416,42 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_migracoes_projuris_itens_orfaos_20261125: {
+        Row: {
+          chave_externa: string | null
+          created_at: string | null
+          dados: Json | null
+          id: string | null
+          migracao_id: string | null
+          motivo: string | null
+          registro_id: string | null
+          status: string | null
+          tipo: string | null
+        }
+        Insert: {
+          chave_externa?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          id?: string | null
+          migracao_id?: string | null
+          motivo?: string | null
+          registro_id?: string | null
+          status?: string | null
+          tipo?: string | null
+        }
+        Update: {
+          chave_externa?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          id?: string | null
+          migracao_id?: string | null
+          motivo?: string | null
+          registro_id?: string | null
+          status?: string | null
+          tipo?: string | null
+        }
+        Relationships: []
+      }
       backup_responsaveis_admin_pc_20261124: {
         Row: {
           ativo: boolean | null
