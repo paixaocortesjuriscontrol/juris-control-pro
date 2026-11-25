@@ -1,3 +1,4 @@
+import { ImportarComentariosProjuris } from "@/components/migracao/ImportarComentariosProjuris";
 import { ImportarChecklistsProjuris } from "@/components/migracao/ImportarChecklistsProjuris";
 import { CorrigirTitulosProjuris } from "@/components/migracao/CorrigirTitulosProjuris";
 import { ImportarTiposTarefaProjuris } from "@/components/migracao/ImportarTiposTarefaProjuris";
@@ -697,6 +698,7 @@ export default function MigracaoProjuris() {
         {user && <ImportarAgendaFuturaProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarCompromissosProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
         {user && <ImportarTarefasWorkflowProjuris userId={user.id} onConcluido={() => carregarHistorico()} />}
+        {user && <ImportarComentariosProjuris userId={user.id} />}
         {user && <ImportarChecklistsProjuris userId={user.id} />}
         {user && <ImportarMarcadoresProjuris userId={user.id} />}
         {user && <ImportarExecucoesWorkflowProjuris userId={user.id} />}
