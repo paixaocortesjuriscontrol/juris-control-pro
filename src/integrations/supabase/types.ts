@@ -11229,6 +11229,30 @@ export type Database = {
         }
         Relationships: []
       }
+      tmp_tarefas_sem_proc_rel_20261125: {
+        Row: {
+          cnj: string | null
+          codigo: string | null
+          data: string | null
+          motivo: string | null
+          titulo: string | null
+        }
+        Insert: {
+          cnj?: string | null
+          codigo?: string | null
+          data?: string | null
+          motivo?: string | null
+          titulo?: string | null
+        }
+        Update: {
+          cnj?: string | null
+          codigo?: string | null
+          data?: string | null
+          motivo?: string | null
+          titulo?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
