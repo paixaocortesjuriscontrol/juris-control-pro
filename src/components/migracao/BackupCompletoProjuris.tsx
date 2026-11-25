@@ -12,6 +12,7 @@ import { norm, digitos, formatarCnj, paraData, classificarTipo, mapearSituacao, 
 import { COLUNAS_COMPLEMENTOS_PROJURIS, fontesComplementosUnicas } from "@/lib/projurisComplementos";
 import { criarEnriquecedorProjuris, TABELAS_PROCESSOS_RELACIONADOS } from "@/lib/projurisProcessosRelacionados";
 import { passaDoCorte, mapeamentoCorte, getDataCorte, baixarIgnoradasCorte } from "./dataCorteProjuris";
+const MOTIVO_CORTE = "Ignorada pela data de corte";
 
 // Colunas mantidas de cada tabela do backup (o resto do CSV é ignorado).
 // Tabela sem lista = mantém todas as colunas (arquivo pequeno).
@@ -453,9 +454,17 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         let feitosL = 0;
         for (let k = 0; k < partes.length; k += 4) {
           await Promise.all(partes.slice(k, k + 4).map(async (parte) => {
-            const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa").eq("tipo", "tarefa").eq("status", "criado").in("chave_externa", parte);
+            const { data, error } = await supabase.from("migracoes_projuris_itens" as any).select("chave_externa, registro_id").eq("tipo", "tarefa").eq("status", "criado").in("chave_externa", parte);
             if (error) throw error;
-            ((data as any[]) || []).forEach((x) => migradas.add(x.chave_externa));
+            // Só conta como migrada se a tarefa ainda existe (tarefas apagadas voltam a ser importáveis)
+            const regs = Array.from(new Set(((data as any[]) || []).map((x) => x.registro_id).filter(Boolean)));
+            const existe = new Set<string>();
+            for (let j = 0; j < regs.length; j += 200) {
+              const { data: ts, error: e2 } = await supabase.from("tarefas").select("id").in("id", regs.slice(j, j + 200));
+              if (e2) throw e2;
+              ((ts as any[]) || []).forEach((t) => existe.add(String(t.id)));
+            }
+            ((data as any[]) || []).forEach((x) => { if (x.registro_id && existe.has(String(x.registro_id))) migradas.add(x.chave_externa); });
           }));
           feitosL += Math.min(4, partes.length - k);
           setMsg(`Verificando tarefas já migradas: ${feitosL} de ${partes.length} lotes`);
@@ -495,6 +504,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const base = paraData(guTe.g(r, "dtbase"));
           const data = prevista || limite || base;
           if (!motivo && !data) motivo = "Sem data de vencimento";
+          if (!motivo && passaDoCorte({ fatal: limite, data })) motivo = MOTIVO_CORTE;
           if (!motivo && migradas.has(chave)) motivo = "Já migrada antes";
           if (!motivo && (existentes.has(`${norm(det)}|${data}`) || existentes.has(`${norm(tt.titulo)}|${data}`))) motivo = "Já cadastrada nesta coordenação (mesmo título e data)";
           if (!motivo && vistosTe.has(chave)) motivo = "Repetida no backup";
@@ -619,7 +629,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
     try {
       // Registro dos pulados (sem os já migrados, que já estão no histórico) com progresso visível
       {
-        const reg = puladas.filter((l) => l.motivo !== "Já migrada antes");
+        const reg = puladas.filter((l) => l.motivo !== "Já migrada antes" && l.motivo !== MOTIVO_CORTE);
         setMsg("Registrando itens pulados no histórico...");
         for (let k = 0; k < reg.length; k += 2000) {
           if (cancelado.current) break;
@@ -766,7 +776,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           ((data as any[]) || []).forEach((p) => procId.set(digitos(p.numero), p.id));
         }
         {
-          const fora = (ok as any[]).filter((l) => passaDoCorte({ fatal: l.fatal, data: l.data }));
+          const fora = (linhas as any[]).filter((l) => l.motivo === MOTIVO_CORTE || (!l.motivo && passaDoCorte({ fatal: l.fatal, data: l.data })));
           if (fora.length) { (cont as any).foraDoCorte = fora.length; baixarIgnoradasCorte(fora, "Projuris_Backup_Ignoradas_Data_Corte.xlsx"); ok = (ok as any[]).filter((l) => !fora.includes(l)) as any; }
         }
         for (let k = 0; k < ok.length; k += LOTE) {
@@ -889,7 +899,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
   };
   const Secao = ({ titulo, desc, ls, mod, tipo }: { titulo: string; desc: string; ls: LinhaConf[]; mod: "processos" | "tarefas" | "andamentos"; tipo: string }) => {
     const ok = ls.filter((l) => !l.motivo).length;
-    const corrigiveis = mod === "tarefas" ? ls.filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)").length : 0;
+    const corrigiveis = mod === "tarefas" && !getDataCorte() ? ls.filter((l) => l.motivo === "Já migrada antes" && l.titulo && l.titulo !== "(sem título)").length : 0;
     return (
       <div className="space-y-2 rounded-md border p-3">
         <div className="flex flex-wrap items-center gap-2">
