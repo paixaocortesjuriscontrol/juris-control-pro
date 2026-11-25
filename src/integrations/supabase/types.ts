@@ -1545,6 +1545,30 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_tarefas_sem_processo_20261125: {
+        Row: {
+          chave_externa: string | null
+          coordenacao_id: string | null
+          id: string | null
+          observacoes: string | null
+          processo_id: string | null
+        }
+        Insert: {
+          chave_externa?: string | null
+          coordenacao_id?: string | null
+          id?: string | null
+          observacoes?: string | null
+          processo_id?: string | null
+        }
+        Update: {
+          chave_externa?: string | null
+          coordenacao_id?: string | null
+          id?: string | null
+          observacoes?: string | null
+          processo_id?: string | null
+        }
+        Relationships: []
+      }
       baixar_autos_jobs: {
         Row: {
           created_at: string
@@ -11184,6 +11208,24 @@ export type Database = {
           cnj?: string | null
           novo?: string | null
           pasta?: string
+        }
+        Relationships: []
+      }
+      tmp_mapa_tarefa_processo_20261125: {
+        Row: {
+          feito: boolean | null
+          id: string | null
+          pid: string | null
+        }
+        Insert: {
+          feito?: boolean | null
+          id?: string | null
+          pid?: string | null
+        }
+        Update: {
+          feito?: boolean | null
+          id?: string | null
+          pid?: string | null
         }
         Relationships: []
       }
