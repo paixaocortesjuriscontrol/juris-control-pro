@@ -131,7 +131,7 @@ export default function AuditoriaItens() {
     enabled: !!selected?.processo_id,
   });
 
-  const nomeCoordenacao = (id: string | null) =>
+  const nomeCoordenacaoRegistro = (id: string | null) =>
     id ? (coordenacoes as any[] | undefined)?.find((c) => c.id === id)?.nome || "—" : "—";
 
   const nomeUsuario = (id: string | null) =>
@@ -459,7 +459,7 @@ export default function AuditoriaItens() {
                       </Link>
                     ) : processoSelecionado === null ? "Processo excluído" : "Carregando..."}
                   </div>
-                  <div><span className="text-muted-foreground">Coordenação:</span> {nomeCoordenacao(selected.coordenacao_id)}</div>
+                  <div><span className="text-muted-foreground">Coordenação:</span> {nomeCoordenacaoRegistro(selected.coordenacao_id)}</div>
                 </div>
                 {getDiff(selected).length > 0 && (
                   <div>
