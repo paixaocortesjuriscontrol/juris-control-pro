@@ -11169,6 +11169,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tmp_mapa_anexos_projuris: {
+        Row: {
+          cnj: string | null
+          novo: string | null
+          pasta: string
+        }
+        Insert: {
+          cnj?: string | null
+          novo?: string | null
+          pasta: string
+        }
+        Update: {
+          cnj?: string | null
+          novo?: string | null
+          pasta?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
