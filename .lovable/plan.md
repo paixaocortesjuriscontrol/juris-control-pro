@@ -1,15 +1,15 @@
-# Tarefas que "sumiram" — o que encontrei
+# Remanejar audiências em lote no Painel de Controle
 
-Conferido em 25/11/2026 (BRT). Procede: hoje três grupos de tarefas saíram da agenda.
+Hoje a janela "Remanejamento em lote" só oferece Tarefas, Prazos e Eventos. Ela vai ganhar a opção **Audiências**, com o mesmo funcionamento.
 
-1. **3.301 tarefas apagadas a seu pedido**: da migração Projuris na Santander Cível, com data depois de 13/11/2026 (de 16/11/2026 a 26/07/2027). 2.463 ainda estavam abertas. A cópia de segurança completa está guardada.
-2. **5.134 tarefas canceladas pela migração de hoje**: 4.692 marcadas como "excluída no Projuris" e 442 como "inativada no Projuris". Elas existem, mas aparecem como Canceladas.
-3. **16 tarefas apagadas por pessoas** no próprio sistema, fora da migração.
-
-## Proposta
-- Gerar um Excel com os três grupos (coordenação, responsáveis, título, data, processo e motivo), para as advogadas acharem as tarefas delas.
-- Não restaurar nada sem a sua decisão. Se quiser, devolvo depois pela cópia de segurança um grupo inteiro, ou só as tarefas de pessoas que você indicar.
+## O que a pessoa poderá fazer
+- Escolher **Audiências**, filtrar por período, coordenação, responsável e situação, e marcar várias de uma vez.
+- **Data da audiência**: manter, escolher uma nova data ou adiar/antecipar X dias (com opção de dia útil). O horário de cada audiência continua o mesmo.
+- **Responsáveis**: manter, trocar ou acrescentar pessoas, como já acontece nos outros tipos.
+- Ver o resumo e confirmar antes de gravar. Audiências sem permissão aparecem como erro no aviso final.
 
 ## Detalhes técnicos
-- Fontes: `bkp_tarefas_pos_corte_20261125` e `auditoria_tarefas` (ações `deletar`, `excluida_no_projuris`, `inativada_no_projuris`) desde 24/11 21h BRT.
-- Só leitura, sem alterar o banco.
+- `usePessoasEmLote.ts`: incluir `datas: { data_audiencia }` nos itens vindos de `audiencias_detectadas`.
+- `RemanejamentoTarefasSheet.tsx`: adicionar "Audiências" em `TIPOS_REMANEJAVEIS` e o campo `data_audiencia` (data e hora) em `CAMPOS`. Gravar em `audiencias_detectadas` e confirmar a linha retornada. Responsáveis vão para `audiencias_advogados (audiencia_id, advogado_id)` pelo `sincronizarParticipantesTarefa` já usado no sistema: primeiro inclui, depois remove. Nunca apagar tudo e reinserir.
+- Sem mudanças no banco. As regras de permissão e de agendamento continuam valendo pelos gatilhos que já existem.
+- Atualizar a versão e testar a regra de data (o horário é mantido ao adiar).
