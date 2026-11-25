@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.4.3";
+export const APP_VERSION = "10.4.4";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.4.4", date: "2026-11-25", notes: "Migração Projuris: importa os comentários do backup respeitando a data de corte, gera Excel das tarefas recusadas e avisa quando as tarefas do backup não se ligam a processo; Corrigir número do processo aceita trocar o formato/tipo com os mesmos dígitos e cadastrar número fora do padrão CNJ; Painel de Controle mais rápido ao carregar comentários e modelos de tarefa; Acompanhamento Especial pode usar um e-mail único da coordenação para os avisos" },
   { version: "10.4.3", date: "2026-11-25", notes: "Painel de Controle: remanejamento em lote agora também para audiências (data da audiência mantendo o horário e responsáveis)" },
   { version: "10.4.2", date: "2026-11-24", notes: "Processos e Casos: nova Observação do advogado, editável na ficha, no painel lateral direito da lista (antes de abrir o detalhe) e direto pela Análise DJEN para processos cadastrados; salvar a observação não altera publicações nem marca nada como lido" },
   { version: "10.4.1", date: "2026-11-24", notes: "Distribuição TST: nova aba Publicações no painel lateral e na ficha completa, com as publicações do DJEN encontradas para o processo (sem repetir cópias)" },
