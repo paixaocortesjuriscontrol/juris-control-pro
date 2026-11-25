@@ -2697,6 +2697,7 @@ export type Database = {
           created_at: string
           destinatarios_ids: string[]
           dias_janela_aviso: number
+          email_unico: string | null
           id: string
           notificar_retroativos: boolean
           updated_at: string
@@ -2707,6 +2708,7 @@ export type Database = {
           created_at?: string
           destinatarios_ids?: string[]
           dias_janela_aviso?: number
+          email_unico?: string | null
           id?: string
           notificar_retroativos?: boolean
           updated_at?: string
@@ -2717,6 +2719,7 @@ export type Database = {
           created_at?: string
           destinatarios_ids?: string[]
           dias_janela_aviso?: number
+          email_unico?: string | null
           id?: string
           notificar_retroativos?: boolean
           updated_at?: string

@@ -38,6 +38,8 @@ export function ConfigAcompanhamentoEspecialDialog({
   const [dias, setDias] = useState(7);
   const [notificarRetro, setNotificarRetro] = useState(false);
   const [destinatarios, setDestinatarios] = useState<string[]>([]);
+  const [usarEmailUnico, setUsarEmailUnico] = useState(false);
+  const [emailUnico, setEmailUnico] = useState("");
 
   const { data: config, isLoading } = useQuery({
     queryKey: ["config-acompanhamento-especial", coordenacaoId],
@@ -69,6 +71,9 @@ export function ConfigAcompanhamentoEspecialDialog({
     if (!open) return;
     setDias((config as any)?.dias_janela_aviso ?? 7);
     setNotificarRetro(!!(config as any)?.notificar_retroativos);
+    const eu = ((config as any)?.email_unico as string) ?? "";
+    setEmailUnico(eu);
+    setUsarEmailUnico(!!eu);
     const salvos = ((config as any)?.destinatarios_ids as string[]) ?? [];
     const excluidos = ((config as any)?.coordenadores_excluidos_ids as string[]) ?? [];
     setDestinatarios(destinatariosMarcadosInicialmente(salvos, coordenadores, excluidos));
@@ -76,7 +81,11 @@ export function ConfigAcompanhamentoEspecialDialog({
 
   const salvar = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
+      const email = usarEmailUnico ? emailUnico.trim().toLowerCase() : "";
+      if (usarEmailUnico && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        throw new Error("Digite um e-mail válido ou volte para o padrão.");
+      }
+      const { data, error } = await supabase
         .from("config_acompanhamento_especial")
         .upsert(
           {
@@ -84,10 +93,13 @@ export function ConfigAcompanhamentoEspecialDialog({
             dias_janela_aviso: Math.max(1, Math.min(365, Number(dias) || 7)),
             notificar_retroativos: notificarRetro,
             ...montarConfigAcompanhamento(destinatarios, coordenadores),
-          },
+            email_unico: email || null,
+          } as any,
           { onConflict: "coordenacao_id" }
-        );
+        )
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Você não tem permissão para alterar esta coordenação.");
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({
@@ -145,6 +157,27 @@ export function ConfigAcompanhamentoEspecialDialog({
                 </p>
               </div>
               <Switch checked={notificarRetro} onCheckedChange={setNotificarRetro} />
+            </div>
+
+            <div className="space-y-3 rounded-md border p-3">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">E-mail único para os avisos</p>
+                  <p className="text-xs text-muted-foreground">
+                    Desligado: os e-mails vão para as pessoas abaixo (padrão). Ligado: os e-mails
+                    de movimentações vão só para o endereço informado. Sino e WhatsApp continuam iguais.
+                  </p>
+                </div>
+                <Switch checked={usarEmailUnico} onCheckedChange={setUsarEmailUnico} />
+              </div>
+              {usarEmailUnico && (
+                <Input
+                  type="email"
+                  placeholder="alertas@escritorio.com.br"
+                  value={emailUnico}
+                  onChange={(e) => setEmailUnico(e.target.value)}
+                />
+              )}
             </div>
 
             <MultiUserSelect

@@ -1,0 +1,1 @@
+- `config_acompanhamento_especial.email_unico`, when set, replaces per-person e-mails for that coordination (bell/WhatsApp unchanged), so teams can route alerts to one shared inbox.

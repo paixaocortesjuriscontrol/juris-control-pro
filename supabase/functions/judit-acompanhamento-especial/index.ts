@@ -307,6 +307,24 @@ async function notificarUsuarios(
   );
 }
 
+/** E-mails únicos configurados nas coordenações do processo (substituem o envio por pessoa). */
+async function emailsUnicosDoProcesso(supabase: any, processoId: string): Promise<{ email: string; coordenacao_id: string }[]> {
+  const coordIds = new Set<string>();
+  const { data: proc } = await supabase.from("processos").select("coordenacao_id").eq("id", processoId).maybeSingle();
+  if ((proc as any)?.coordenacao_id) coordIds.add((proc as any).coordenacao_id);
+  const { data: extras } = await supabase.from("processos_coordenacoes_responsaveis").select("coordenacao_id").eq("processo_id", processoId);
+  (extras ?? []).forEach((c: any) => c.coordenacao_id && coordIds.add(c.coordenacao_id));
+  if (coordIds.size === 0) return [];
+  const { data: cfgs } = await supabase.from("config_acompanhamento_especial").select("coordenacao_id, email_unico").in("coordenacao_id", Array.from(coordIds));
+  const vistos = new Set<string>();
+  const out: { email: string; coordenacao_id: string }[] = [];
+  (cfgs ?? []).forEach((c: any) => {
+    const e = String(c.email_unico ?? "").trim().toLowerCase();
+    if (e && !vistos.has(e)) { vistos.add(e); out.push({ email: e, coordenacao_id: c.coordenacao_id }); }
+  });
+  return out;
+}
+
 /**
  * Destinatários do processo: responsáveis ativos + coordenador titular e
  * coordenadores/assistentes membros da(s) coordenação(ões) responsável(is).
@@ -836,11 +854,12 @@ serve(async (req) => {
       if (novos > 0 && novosResumo.length > 0) {
         try {
           const userIds = await destinatariosDoProcesso(supabase, p.id);
-          if (userIds.length > 0) {
+          const emailsUnicos = await emailsUnicosDoProcesso(supabase, p.id);
+          if (userIds.length > 0 || emailsUnicos.length > 0) {
             const { data: profs } = await supabase
               .from("profiles")
               .select("id, nome, email, telefone")
-              .in("id", userIds);
+              .in("id", userIds.length > 0 ? userIds : ["00000000-0000-0000-0000-000000000000"]);
 
             const linhasTxt = novosResumo
               .map(
@@ -872,7 +891,19 @@ serve(async (req) => {
               <p><a href="${linkProcesso}" style="color:#2563EB">Abrir o processo no JurisControl</a></p>
             </div>`;
 
-            for (const prof of (profs ?? []) as any[]) {
+            for (const eu of emailsUnicos) {
+              const r = await enviarEmailResend(eu.email, assunto, html);
+              await supabase.from("historico_alertas_enviados").insert({
+                tipo_alerta: "acompanhamento_especial",
+                canal: "email",
+                destinatario: eu.email,
+                coordenacao_id: eu.coordenacao_id,
+                conteudo: `${assunto}\n\n${linhasTxt}`,
+                status: r.ok ? "enviado" : "erro",
+                erro: r.erro,
+              });
+            }
+            for (const prof of (emailsUnicos.length > 0 ? [] : (profs ?? [])) as any[]) {
               if (!prof?.email) continue;
               const r = await enviarEmailResend(prof.email, assunto, html);
               const coordenacaoId = await coordenacaoDoUsuario(supabase, prof.id);
