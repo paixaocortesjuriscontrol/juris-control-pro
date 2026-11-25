@@ -1545,6 +1545,27 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_status_tarefas_projuris_20261125: {
+        Row: {
+          chave: string | null
+          data_cumprimento: string | null
+          id: string | null
+          status: Database["public"]["Enums"]["status_tarefa"] | null
+        }
+        Insert: {
+          chave?: string | null
+          data_cumprimento?: string | null
+          id?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"] | null
+        }
+        Update: {
+          chave?: string | null
+          data_cumprimento?: string | null
+          id?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"] | null
+        }
+        Relationships: []
+      }
       backup_tarefas_sem_processo_20261125: {
         Row: {
           chave_externa: string | null
