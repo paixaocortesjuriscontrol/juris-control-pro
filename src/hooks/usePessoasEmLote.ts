@@ -312,6 +312,7 @@ export function usePessoasEmLoteItens(
           tipo: "audiencia",
           titulo: row.titulo || row.tipo_audiencia || "Audiência",
           data: row.data_audiencia ?? null,
+          datas: { data_audiencia: row.data_audiencia ?? null },
           status: row.status ?? null,
           processo_id: row.processo_id ?? null,
           processo_numero: row.processo_numero ?? null,

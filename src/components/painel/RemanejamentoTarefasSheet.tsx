@@ -22,6 +22,7 @@ import { useCoordenacoesDoUsuario } from "@/hooks/useCoordenacoesDoUsuario";
 import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 import { usePessoasEmLoteItens, labelTipoLote, type LoteItem, type LoteTipo, type PessoasEmLoteFiltros } from "@/hooks/usePessoasEmLote";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
+import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
 import { ChevronRight, ArrowRightLeft, AlertTriangle, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
 
 interface Props {
@@ -33,6 +34,7 @@ const TIPOS_REMANEJAVEIS: { value: LoteTipo; label: string }[] = [
   { value: "tarefa", label: "Tarefas" },
   { value: "prazo", label: "Prazos" },
   { value: "evento", label: "Eventos" },
+  { value: "audiencia", label: "Audiências" },
 ];
 
 type ModoData = "manter" | "fixa" | "deslocar";
@@ -51,6 +53,9 @@ const CAMPOS: Record<string, { campo: string; label: string }[]> = {
     { campo: "data_base", label: "Data base" },
     { campo: "data_vencimento", label: "Data limite" },
     { campo: "data_fatal", label: "Data fatal" },
+  ],
+  audiencia: [
+    { campo: "data_audiencia", label: "Data da audiência" },
   ],
   evento: [
     { campo: "data_inicio", label: "Início" },
@@ -79,7 +84,7 @@ const fmtData = (v: string | null | undefined, comHora = false) => {
 };
 
 /** Aplica a regra a um valor (data "yyyy-MM-dd" ou timestamp). Retorna null quando não muda. */
-function aplicarRegra(atual: string | null | undefined, r: Regra, timestamp: boolean): string | null {
+export function aplicarRegra(atual: string | null | undefined, r: Regra, timestamp: boolean): string | null {
   if (r.modo === "manter") return null;
   let dia: string;
   if (r.modo === "fixa") {
@@ -207,6 +212,13 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
       const erro = ini && fim && new Date(fim) < new Date(ini) ? "Fim antes do início" : null;
       return { novas, erro };
     }
+    if (tipoAtivo === "audiencia") {
+      const alvo = item.fonte === "audiencia" ? "data_audiencia" : "data_vencimento";
+      const atual = item.fonte === "audiencia" ? d.data_audiencia : d.data_vencimento;
+      const n = aplicarRegra(atual, regra("data_audiencia"), item.fonte === "audiencia");
+      if (n) novas[alvo] = n;
+      return { novas, erro: null };
+    }
     campos.forEach(({ campo }) => {
       const n = aplicarRegra(d[campo], regra(campo), false);
       if (n) novas[campo] = n;
@@ -262,7 +274,7 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
       try {
         const { novas } = calcular(item);
         const agora = new Date().toISOString();
-        const tabela = item.fonte === "tarefa" ? "tarefas" : "eventos_agenda";
+        const tabela = item.fonte === "tarefa" ? "tarefas" : item.fonte === "audiencia" ? "audiencias_detectadas" : "eventos_agenda";
         const patch: any = { ...novas };
         if (item.fonte === "tarefa" && novosResp.length &&
           (modoResp === "substituir" || (modoResp === "acrescentar" && item.responsaveis.length === 0))) {
@@ -274,7 +286,10 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
           if (error) throw error;
           if (!gravadas?.length) throw new Error("sem permissão para alterar este item");
         }
-        if (modoResp !== "manter" && novosResp.length) {
+        if (modoResp !== "manter" && novosResp.length && item.fonte === "audiencia") {
+          const desejados = modoResp === "substituir" ? novosResp : Array.from(new Set([...item.responsaveis, ...novosResp]));
+          await sincronizarParticipantesTarefa(item.id, "audiencias_advogados", desejados);
+        } else if (modoResp !== "manter" && novosResp.length) {
           const [tab, col] = item.fonte === "tarefa" ? ["tarefa_responsaveis", "tarefa_id"] : ["evento_responsaveis", "evento_id"];
           if (modoResp === "substituir") {
             const { error } = await (supabase as any).from(tab).delete().eq(col, item.id);
