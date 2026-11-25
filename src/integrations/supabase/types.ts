@@ -11229,6 +11229,24 @@ export type Database = {
         }
         Relationships: []
       }
+      tmp_status_projuris_20261125: {
+        Row: {
+          chave: string
+          codigo: string
+          conclusao: string | null
+        }
+        Insert: {
+          chave: string
+          codigo: string
+          conclusao?: string | null
+        }
+        Update: {
+          chave?: string
+          codigo?: string
+          conclusao?: string | null
+        }
+        Relationships: []
+      }
       tmp_tarefas_sem_proc_rel_20261125: {
         Row: {
           cnj: string | null
