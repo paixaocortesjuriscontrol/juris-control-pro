@@ -26,6 +26,7 @@ import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoP
 import { gerarRelatorioAuditoriaExcel } from "@/lib/relatorioAuditoriaCoordenacaoExcel";
 import { labelCampo, labelOrigem, formatValor } from "@/lib/auditoriaCampos";
 import { toast } from "sonner";
+import { Link } from "react-router-dom";
 
 interface AuditoriaRow {
   id: string;
@@ -116,6 +117,22 @@ export default function AuditoriaItens() {
     },
     enabled: userIds.length > 0,
   });
+
+  const { data: processoSelecionado } = useQuery({
+    queryKey: ["auditoria-processo", selected?.processo_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("processos")
+        .select("id, numero")
+        .eq("id", selected!.processo_id!)
+        .maybeSingle();
+      return data as { id: string; numero: string | null } | null;
+    },
+    enabled: !!selected?.processo_id,
+  });
+
+  const nomeCoordenacao = (id: string | null) =>
+    id ? (coordenacoes as any[] | undefined)?.find((c) => c.id === id)?.nome || "—" : "—";
 
   const nomeUsuario = (id: string | null) =>
     id ? profiles?.[id]?.nome || id.slice(0, 8) : "—";
@@ -435,9 +452,14 @@ export default function AuditoriaItens() {
                   <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
                   <div><span className="text-muted-foreground">Origem:</span> {labelOrigem(selected.origem)}</div>
                   <div><span className="text-muted-foreground">Resultado:</span> {selected.sucesso ? "Sucesso" : "Falha"}</div>
-                  <div><span className="text-muted-foreground">Processo:</span> {selected.processo_id || "—"}</div>
-                  <div><span className="text-muted-foreground">Item ID:</span> {selected.tarefa_id || "—"}</div>
-                  <div><span className="text-muted-foreground">Coordenação:</span> {selected.coordenacao_id || "—"}</div>
+                  <div><span className="text-muted-foreground">Processo:</span>{" "}
+                    {!selected.processo_id ? "—" : processoSelecionado ? (
+                      <Link to={`/processos/${processoSelecionado.id}`} className="text-primary underline">
+                        {processoSelecionado.numero || "Abrir processo"}
+                      </Link>
+                    ) : processoSelecionado === null ? "Processo excluído" : "Carregando..."}
+                  </div>
+                  <div><span className="text-muted-foreground">Coordenação:</span> {nomeCoordenacao(selected.coordenacao_id)}</div>
                 </div>
                 {getDiff(selected).length > 0 && (
                   <div>
