@@ -28,12 +28,14 @@ export function CorrigirNumeroProcessoSheet({ open, onOpenChange, processoId, nu
   const [motivo, setMotivo] = useState("");
   const [salvando, setSalvando] = useState(false);
   const [duplicado, setDuplicado] = useState<string | null>(null);
+  const [formatoCnj, setFormatoCnj] = useState(true);
 
-  useEffect(() => { if (open) { setNovo(""); setMotivo(""); setDuplicado(null); } }, [open]);
+  useEffect(() => { if (open) { setNovo(""); setMotivo(""); setDuplicado(null); setFormatoCnj(true); } }, [open]);
 
   const digitos = novo.replace(/\D/g, "");
-  const avisoDv = digitos.length === 20 && !cnjValido(novo);
-  const igual = digitos && digitos === numeroAtual.replace(/\D/g, "");
+  const avisoDv = formatoCnj && digitos.length === 20 && !cnjValido(novo);
+  // Só é "igual" se o texto for idêntico: trocar o formato/tipo do número com os mesmos dígitos é permitido.
+  const igual = !!novo.trim() && novo.trim() === numeroAtual.trim();
   const podeSalvar = digitos.length >= 5 && !igual && motivo.trim().length >= 3 && !salvando;
 
   const salvar = async () => {
@@ -81,8 +83,12 @@ export function CorrigirNumeroProcessoSheet({ open, onOpenChange, processoId, nu
           </div>
           <div>
             <Label>Novo número *</Label>
-            <Input value={novo} onChange={(e) => { setNovo(mascararCnjDigitacao(e.target.value)); setDuplicado(null); }}
-              placeholder="0000000-00.0000.0.00.0000" className="font-mono" autoFocus />
+            <Input value={novo} onChange={(e) => { setNovo(formatoCnj ? mascararCnjDigitacao(e.target.value) : e.target.value); setDuplicado(null); }}
+              placeholder={formatoCnj ? "0000000-00.0000.0.00.0000" : "Digite o número no formato desejado"} className="font-mono" autoFocus />
+            <label className="flex items-center gap-2 text-xs text-muted-foreground mt-2 cursor-pointer">
+              <input type="checkbox" checked={!formatoCnj} onChange={(e) => { setFormatoCnj(!e.target.checked); setNovo(""); }} />
+              Número fora do padrão CNJ (procedimento do MPT, inquérito, administrativo etc.)
+            </label>
             {igual && <p className="text-xs text-muted-foreground mt-1">É o mesmo número atual.</p>}
             {avisoDv && (
               <p className="text-xs text-destructive mt-1 flex items-center gap-1">
