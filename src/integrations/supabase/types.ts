@@ -13413,6 +13413,14 @@ export type Database = {
       mark_djen_duplicadas_global: { Args: never; Returns: number }
       mark_djenp_duplicadas_global: { Args: never; Returns: number }
       merge_processos_duplicados: { Args: never; Returns: Json }
+      modelos_tarefas_periodo: {
+        Args: { _ate: string; _coords?: string[]; _de: string }
+        Returns: {
+          cor: string
+          id: string
+          nome: string
+        }[]
+      }
       normalizar_cargo_perfil: { Args: { p: string }; Returns: string }
       normalizar_equipe_tst: { Args: { _e: string }; Returns: string }
       pauta_advogado_interno: { Args: { _benner: string }; Returns: string }

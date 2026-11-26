@@ -18,45 +18,12 @@ export function useModeloTarefaItens(inicio: Date, fim: Date, coordenacaoIds?: s
     staleTime: 5 * 60_000,
     queryFn: async () => {
       const db = supabase as any;
-      const tarefas: { id: string; modelo_tarefa_id: string }[] = [];
-      for (let off = 0; ; off += 1000) {
-        let q = db.from("tarefas").select("id,modelo_tarefa_id")
-          .not("modelo_tarefa_id", "is", null).gte("data_vencimento", de).lte("data_vencimento", ate);
-        if (coords) q = q.in("coordenacao_id", coords);
-        const { data, error } = await q.order("id").range(off, off + 999);
-        if (error) throw error;
-        tarefas.push(...(data || []));
-        if (!data || data.length < 1000) break;
-      }
-      const ids = Array.from(new Set(tarefas.map((t) => t.modelo_tarefa_id)));
-      const modelos = new Map<string, ModeloDoItem>();
-      for (let k = 0; k < ids.length; k += 100) {
-        const { data, error } = await db.from("modelos_titulo_coordenacao").select("id,nome,padroes").in("id", ids.slice(k, k + 100));
-        if (error) throw error;
-        for (const m of data || []) modelos.set(m.id, { nome: m.nome, cor: m.padroes?.cor || null });
-      }
+      // Busca pronta no banco: mesma regra de visibilidade da agenda,
+      // devolve nome/cor do modelo (cor do workflow tem prioridade).
       const mapa = new Map<string, ModeloDoItem>();
-      for (const t of tarefas) { const m = modelos.get(t.modelo_tarefa_id); if (m) mapa.set(t.id, m); }
-      // Cor escolhida na etapa do workflow tem prioridade sobre a cor do modelo.
-      const wf: string[] = [];
-      for (let off = 0; ; off += 1000) {
-        let q = db.from("tarefas").select("id")
-          .eq("origem", "workflow").gte("data_vencimento", de).lte("data_vencimento", ate);
-        if (coords) q = q.in("coordenacao_id", coords);
-        const { data, error } = await q.order("id").range(off, off + 999);
-        if (error) throw error;
-        wf.push(...(data || []).map((t: any) => t.id));
-        if (!data || data.length < 1000) break;
-      }
-      for (let k = 0; k < wf.length; k += 100) {
-        const { data, error } = await db.from("workflow_execucao_etapas")
-          .select("item_id, workflow_etapas(campos_item)").in("item_id", wf.slice(k, k + 100));
-        if (error) break;
-        for (const r of data || []) {
-          const cor = r.workflow_etapas?.campos_item?.cor;
-          if (cor && r.item_id) mapa.set(r.item_id, { nome: mapa.get(r.item_id)?.nome || "", cor });
-        }
-      }
+      const { data: linhas, error } = await db.rpc("modelos_tarefas_periodo", { _de: de, _ate: ate, _coords: coords });
+      if (error) throw error;
+      for (const r of linhas || []) mapa.set(r.id, { nome: r.nome || "", cor: r.cor || null });
       // Audiências e eventos não guardam o modelo: usa o modelo do mesmo tipo
       // e coordenação cujo nome é igual ao título do item. Branco é ignorado
       // (cor padrão, não aparece na agenda).
