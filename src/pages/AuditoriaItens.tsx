@@ -16,6 +16,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Progress } from "@/components/ui/progress";
 import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText, Download } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -24,7 +25,9 @@ import { useUserRole } from "@/hooks/useUserRole";
 import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoPdf";
 import { gerarRelatorioAuditoriaExcel } from "@/lib/relatorioAuditoriaCoordenacaoExcel";
-import { labelCampo, labelOrigem, formatValor } from "@/lib/auditoriaCampos";
+import { labelCampo, labelOrigem } from "@/lib/auditoriaCampos";
+import { buscarReferenciasAuditoria, formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
@@ -45,6 +48,18 @@ interface AuditoriaRow {
   erro_detalhes: any;
   user_agent: string | null;
   campos_alterados: any;
+  titulo_saida?: string | null;
+  descricao_saida?: string | null;
+  nome_saida?: string | null;
+  nome_arquivo_saida?: string | null;
+  numero_saida?: string | null;
+  titulo_entrada?: string | null;
+  descricao_entrada?: string | null;
+  nome_entrada?: string | null;
+  nome_arquivo_entrada?: string | null;
+  numero_entrada?: string | null;
+  processo_numero_saida?: string | null;
+  processo_numero_entrada?: string | null;
 }
 
 const TIPOS = ["tarefa", "prazo", "evento", "audiencia", "parcelamento"] as const;
@@ -57,8 +72,23 @@ const getDiff = (r: AuditoriaRow): { campo: string; de: any; para: any }[] => {
 
 const getTituloItem = (r: AuditoriaRow): string => {
   const fonte = r.dados_saida || r.dados_entrada || {};
-  return fonte?.titulo || fonte?.descricao || fonte?.nome || "—";
+  return fonte?.titulo || fonte?.descricao || fonte?.nome_arquivo || fonte?.nome || fonte?.numero
+    || r.titulo_saida || r.descricao_saida || r.nome_arquivo_saida || r.nome_saida || r.numero_saida
+    || r.titulo_entrada || r.descricao_entrada || r.nome_arquivo_entrada || r.nome_entrada || r.numero_entrada
+    || "—";
 };
+
+const RELATORIO_SELECT = `
+  id,created_at,usuario_id,acao,origem,tipo_item,processo_id,campos_alterados,
+  titulo_saida:dados_saida->>titulo,descricao_saida:dados_saida->>descricao,
+  nome_saida:dados_saida->>nome,nome_arquivo_saida:dados_saida->>nome_arquivo,numero_saida:dados_saida->>numero,
+  processo_numero_saida:dados_saida->>processo_numero,
+  titulo_entrada:dados_entrada->>titulo,descricao_entrada:dados_entrada->>descricao,
+  nome_entrada:dados_entrada->>nome,nome_arquivo_entrada:dados_entrada->>nome_arquivo,numero_entrada:dados_entrada->>numero,
+  processo_numero_entrada:dados_entrada->>processo_numero
+`;
+
+const aguardarPintura = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
 export default function AuditoriaItens() {
   const [tipoItem, setTipoItem] = useState<string>("todos");
@@ -71,6 +101,7 @@ export default function AuditoriaItens() {
   const [selected, setSelected] = useState<AuditoriaRow | null>(null);
   const [coordenacaoId, setCoordenacaoId] = useState<string>("todas");
   const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [progressoRelatorio, setProgressoRelatorio] = useState({ valor: 0, etapa: "", carregados: 0, total: 0 });
 
   const { isAdminOrCoordinator } = useUserRole();
   const podeRelatorio = isAdminOrCoordinator;
@@ -89,8 +120,8 @@ export default function AuditoriaItens() {
       if (sucesso !== "todos") q = q.eq("sucesso", sucesso === "sim");
       if (origem.trim()) q = q.ilike("origem", `%${origem.trim()}%`);
       if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
-      if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00`);
-      if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59`);
+      if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00-03:00`);
+      if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59.999-03:00`);
       const { data, error } = await q;
       if (error) throw error;
       return (data || []) as AuditoriaRow[];
@@ -131,6 +162,11 @@ export default function AuditoriaItens() {
     enabled: !!selected?.processo_id,
   });
 
+  const camposVisiveis = useMemo(() => (rows || []).flatMap(getDiff), [rows]);
+  const { referencias: referenciasVisiveis } = useReferenciasAuditoria(camposVisiveis, camposVisiveis.length > 0);
+  const camposSelecionado = selected ? getDiff(selected) : [];
+  const { referencias: referenciasSelecionado } = useReferenciasAuditoria(camposSelecionado, !!selected);
+
   const nomeCoordenacaoRegistro = (id: string | null) =>
     id ? (coordenacoes as any[] | undefined)?.find((c) => c.id === id)?.nome || "—" : "—";
 
@@ -151,64 +187,104 @@ export default function AuditoriaItens() {
     (coordenacoes || []).find((c: any) => c.id === id)?.nome || "Todas as coordenações";
 
   const gerarRelatorio = async (formato: "pdf" | "excel" = "pdf") => {
-    if (rowsFiltradas.length === 0) {
-      toast.error("Nenhuma alteração no período/filtros selecionados.");
-      return;
-    }
     setGerandoPdf(true);
+    const marcarProgresso = async (valor: number, etapa: string, carregados = 0, total = 0) => {
+      setProgressoRelatorio({ valor, etapa, carregados, total });
+      await aguardarPintura();
+    };
     try {
-      // Busca completa (paginada) do período, sem o teto de 500 da tabela.
-      const coletados: AuditoriaRow[] = [];
-      for (let page = 0; page < 40; page++) {
-        let q: any = supabase
-          .from("auditoria_tarefas")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(page * 1000, page * 1000 + 999);
+      await marcarProgresso(2, "Preparando os filtros...");
+      let idsFiltroUsuario: string[] | null = null;
+      const termoUsuario = buscaUsuario.trim();
+      if (termoUsuario) {
+        const termoSeguro = termoUsuario.replace(/[%,()]/g, " ").trim();
+        const { data: usuariosEncontrados, error: erroBuscaUsuario } = await supabase
+          .from("profiles")
+          .select("id")
+          .or(`nome.ilike.%${termoSeguro}%,email.ilike.%${termoSeguro}%`)
+          .limit(1000);
+        if (erroBuscaUsuario) throw erroBuscaUsuario;
+        idsFiltroUsuario = (usuariosEncontrados || []).map((u) => u.id);
+        if (idsFiltroUsuario.length === 0) {
+          toast.error("Nenhum usuário encontrado com esse nome ou e-mail.");
+          return;
+        }
+      }
+
+      const aplicarFiltros = (consulta: any) => {
+        let q = consulta;
         if (tipoItem !== "todos") q = q.eq("tipo_item", tipoItem);
         if (acao !== "todos") q = q.eq("acao", acao);
         if (sucesso !== "todos") q = q.eq("sucesso", sucesso === "sim");
         if (origem.trim()) q = q.ilike("origem", `%${origem.trim()}%`);
         if (coordenacaoId !== "todas") q = q.eq("coordenacao_id", coordenacaoId);
-        if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00`);
-        if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59`);
-        const { data, error } = await q;
-        if (error) throw error;
-        const lote = (data || []) as AuditoriaRow[];
-        coletados.push(...lote);
-        if (lote.length < 1000) break;
+        if (idsFiltroUsuario) q = q.in("usuario_id", idsFiltroUsuario);
+        if (dataInicio) q = q.gte("created_at", `${dataInicio}T00:00:00-03:00`);
+        if (dataFim) q = q.lte("created_at", `${dataFim}T23:59:59.999-03:00`);
+        return q;
+      };
+
+      await marcarProgresso(5, "Contando as alterações...");
+      const { count, error: erroContagem } = await aplicarFiltros(
+        supabase.from("auditoria_tarefas").select("id", { count: "exact", head: true }),
+      );
+      if (erroContagem) throw erroContagem;
+      const total = count ?? 0;
+      if (total === 0) {
+        toast.error("Nenhuma alteração no período/filtros selecionados.");
+        return;
       }
 
-      const ids = Array.from(new Set(coletados.map((r) => r.usuario_id).filter(Boolean) as string[]));
-      const mapaUsuarios = new Map<string, { nome: string; email: string }>();
-      for (let i = 0; i < ids.length; i += 200) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, nome, email")
-          .in("id", ids.slice(i, i + 200));
-        (data || []).forEach((p: any) =>
-          mapaUsuarios.set(p.id, { nome: p.nome || p.email || p.id, email: p.email || "" }),
+      // Só os campos usados no arquivo: evita baixar JSONs completos e tokens de anexos.
+      const coletados: AuditoriaRow[] = [];
+      const paginas = Math.ceil(total / 1000);
+      for (let page = 0; page < paginas; page++) {
+        const q = aplicarFiltros((supabase as any).from("auditoria_tarefas").select(RELATORIO_SELECT))
+          .order("created_at", { ascending: false })
+          .range(page * 1000, page * 1000 + 999);
+        const { data, error } = await q;
+        if (error) throw error;
+        coletados.push(...((data || []) as AuditoriaRow[]));
+        await marcarProgresso(
+          5 + Math.round((coletados.length / total) * 60),
+          "Buscando as alterações...",
+          coletados.length,
+          total,
         );
       }
 
-      const termo = buscaUsuario.trim().toLowerCase();
-      const finais = coletados.filter((r) => {
-        if (!termo) return true;
-        const u = r.usuario_id ? mapaUsuarios.get(r.usuario_id) : undefined;
-        return `${u?.nome ?? ""} ${u?.email ?? ""}`.toLowerCase().includes(termo);
+      await marcarProgresso(70, "Identificando usuários e processos...", coletados.length, total);
+      const ids = Array.from(new Set(coletados.map((r) => r.usuario_id).filter(Boolean) as string[]));
+      const mapaUsuarios = new Map<string, { nome: string; email: string }>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, nome, email")
+          .in("id", ids.slice(i, i + 200));
+        if (error) throw error;
+        (data || []).forEach((p: any) =>
+          mapaUsuarios.set(p.id, { nome: p.nome || p.email || "Usuário sem nome", email: p.email || "" }),
+        );
+      }
+
+      const processoIds = Array.from(new Set(coletados.map((r) => r.processo_id).filter(Boolean) as string[]));
+      const referencias = await buscarReferenciasAuditoria(coletados.flatMap(getDiff), {
+        processoIds,
+        usuarioIds: ids,
       });
 
+      await marcarProgresso(85, "Organizando os dados...", coletados.length, total);
       const params = {
         coordenacaoNome: coordenacaoId === "todas" ? "Todas as coordenações" : nomeCoordenacao(coordenacaoId),
         periodo:
           dataInicio || dataFim
             ? `${dataInicio ? dataInicio.split("-").reverse().join("/") : "início"} a ${
-                dataFim ? dataFim.split("-").reverse().join("/") : "hoje"
+                dataFim ? dataFim.split("-").reverse().join("/") : "sem data final"
               }`
             : "Todo o histórico",
         tipoLabel: tipoItem === "todos" ? "Todos" : tipoItem,
-        usuarioLabel: buscaUsuario.trim() || "Todos",
-        rows: finais.map((r) => ({
+        usuarioLabel: termoUsuario || "Todos",
+        rows: coletados.map((r) => ({
           created_at: r.created_at,
           usuarioNome: (r.usuario_id && mapaUsuarios.get(r.usuario_id)?.nome) || "Sistema",
           usuarioEmail: (r.usuario_id && mapaUsuarios.get(r.usuario_id)?.email) || "",
@@ -216,15 +292,20 @@ export default function AuditoriaItens() {
           titulo: getTituloItem(r),
           acao: r.acao,
           origem: labelOrigem(r.origem),
-          processo: (r.dados_saida?.processo_numero || r.dados_entrada?.processo_numero || "") as string,
+          processo: (r.processo_id && referencias.processos[r.processo_id])
+            || r.processo_numero_saida
+            || r.processo_numero_entrada
+            || (r.processo_id ? "Processo excluído ou não identificado" : ""),
           campos: getDiff(r),
         })),
         labelCampo,
-        formatValor,
+        formatValor: (campo: string, valor: any) => formatValorAuditoria(campo, valor, referencias),
       };
+      await marcarProgresso(95, formato === "excel" ? "Gerando a planilha Excel..." : "Gerando o PDF...", coletados.length, total);
       if (formato === "excel") gerarRelatorioAuditoriaExcel(params);
       else gerarRelatorioAuditoriaPdf(params);
-      toast.success(`${finais.length} alteração(ões) no relatório.`);
+      await marcarProgresso(100, "Relatório pronto.", coletados.length, total);
+      toast.success(`${coletados.length} alteração(ões) no relatório.`);
     } catch (e: any) {
       toast.error(e.message || "Falha ao gerar o relatório");
     } finally {
@@ -328,6 +409,20 @@ export default function AuditoriaItens() {
               <Search className="w-4 h-4 mr-2" /> Aplicar
             </Button>
           </div>
+          {gerandoPdf && (
+            <div className="md:col-span-3 lg:col-span-6 space-y-2 rounded-md border bg-muted/30 p-3" aria-live="polite">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <span>{progressoRelatorio.etapa}</span>
+                <span className="font-medium tabular-nums">{progressoRelatorio.valor}%</span>
+              </div>
+              <Progress value={progressoRelatorio.valor} className="h-2" />
+              {progressoRelatorio.total > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {progressoRelatorio.carregados.toLocaleString("pt-BR")} de {progressoRelatorio.total.toLocaleString("pt-BR")} alterações carregadas
+                </p>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -389,7 +484,7 @@ export default function AuditoriaItens() {
                                 key={d.campo}
                                 variant="secondary"
                                 className="text-[10px]"
-                                title={`${labelCampo(d.campo)}: ${formatValor(d.de)} → ${formatValor(d.para)}`}
+                                title={`${labelCampo(d.campo)}: ${formatValorAuditoria(d.campo, d.de, referenciasVisiveis)} → ${formatValorAuditoria(d.campo, d.para, referenciasVisiveis)}`}
                               >
                                 {labelCampo(d.campo)}
                               </Badge>
@@ -477,8 +572,8 @@ export default function AuditoriaItens() {
                           {getDiff(selected).map((d) => (
                             <TableRow key={d.campo}>
                               <TableCell className="text-xs font-medium">{labelCampo(d.campo)}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground line-through">{formatValor(d.de)}</TableCell>
-                              <TableCell className="text-xs font-medium">{formatValor(d.para)}</TableCell>
+                              <TableCell className="text-xs text-muted-foreground line-through">{formatValorAuditoria(d.campo, d.de, referenciasSelecionado)}</TableCell>
+                              <TableCell className="text-xs font-medium">{formatValorAuditoria(d.campo, d.para, referenciasSelecionado)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>

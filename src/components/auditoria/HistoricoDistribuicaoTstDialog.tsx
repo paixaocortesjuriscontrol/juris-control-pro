@@ -10,8 +10,9 @@ import {
   labelAcaoDistTst,
   labelCampoDistTst,
   labelOrigemDistTst,
-  formatValorAuditoria,
 } from "@/utils/auditoriaDistTstLabels";
+import { formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 
 interface Props {
   open: boolean;
@@ -31,6 +32,8 @@ export function HistoricoDistribuicaoTstDialog({
 }: Props) {
   const { data: rows, isLoading } = useHistoricoDistribuicaoTst(open ? dadosBennerId : null);
   const { nome, email } = useUsuariosAuditoria((rows || []).map((r) => r.usuario_id));
+  const camposReferencias = (rows || []).flatMap((r) => r.campos_alterados || []);
+  const { referencias } = useReferenciasAuditoria(camposReferencias, open && camposReferencias.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -75,9 +78,9 @@ export function HistoricoDistribuicaoTstDialog({
                         <div key={d.campo} className="text-xs grid grid-cols-[minmax(0,30%)_1fr_1fr] gap-2">
                           <span className="font-medium">{labelCampoDistTst(d.campo)}</span>
                           <span className="text-muted-foreground line-through break-words">
-                            {formatValorAuditoria(d.de)}
+                            {formatValorAuditoria(d.campo, d.de, referencias)}
                           </span>
-                          <span className="font-medium break-words">{formatValorAuditoria(d.para)}</span>
+                          <span className="font-medium break-words">{formatValorAuditoria(d.campo, d.para, referencias)}</span>
                         </div>
                       ))}
                     </div>

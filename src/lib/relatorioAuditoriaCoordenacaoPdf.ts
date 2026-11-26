@@ -21,7 +21,7 @@ export interface AuditoriaPdfParams {
   usuarioLabel: string;
   rows: AuditoriaPdfRow[];
   labelCampo: (campo: string) => string;
-  formatValor: (v: any) => string;
+  formatValor: (campo: string, v: any) => string;
 }
 
 const CAMPOS_DESTAQUE = [
@@ -113,7 +113,8 @@ export function gerarRelatorioAuditoriaPdf({
           ? r.campos
               .map(
                 (c) =>
-                  `${isDestaque(c.campo) ? "» " : ""}${labelCampo(c.campo)}: ${formatValor(c.de)} -> ${formatValor(
+                  `${isDestaque(c.campo) ? "» " : ""}${labelCampo(c.campo)}: ${formatValor(c.campo, c.de)} -> ${formatValor(
+                    c.campo,
                     c.para,
                   )}`,
               )
@@ -126,7 +127,7 @@ export function gerarRelatorioAuditoriaPdf({
       body.push([
         dataHoraBrt(r.created_at),
         `${r.usuarioNome}${r.usuarioEmail ? `\n${r.usuarioEmail}` : ""}`,
-        `${r.titulo}${r.tipo_item ? `\n(${r.tipo_item})` : ""}${r.processo ? `\n${r.processo}` : ""}`,
+        `${r.titulo}${r.tipo_item ? `\n(${r.tipo_item})` : ""}${r.processo ? `\nProcesso: ${r.processo}` : ""}`,
         r.acao,
         alteracoes,
         r.origem,
@@ -137,15 +138,17 @@ export function gerarRelatorioAuditoriaPdf({
       startY: yInicio + 10,
       head: [["Data/Hora (BRT)", "Autor", "Item", "Ação", "O que mudou", "Origem"]],
       body,
+      margin: { left: 40, right: 40 },
+      tableWidth: 761,
       styles: { fontSize: 7, cellPadding: 3, overflow: "linebreak", valign: "top" },
       headStyles: { fillColor: [30, 64, 124], textColor: 255, fontSize: 7.5 },
       columnStyles: {
-        0: { cellWidth: 78 },
-        1: { cellWidth: 110 },
+        0: { cellWidth: 71 },
+        1: { cellWidth: 100 },
         2: { cellWidth: 150 },
         3: { cellWidth: 55 },
         4: { cellWidth: 300 },
-        5: { cellWidth: 90 },
+        5: { cellWidth: 85 },
       },
       didParseCell: (data) => {
         if (data.section === "body" && data.column.index === 4) {

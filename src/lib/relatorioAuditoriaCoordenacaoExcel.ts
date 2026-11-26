@@ -25,8 +25,8 @@ export function gerarRelatorioAuditoriaExcel({
       "PROCESSO": r.processo || "",
       "AÇÃO": r.acao,
       "CAMPO ALTERADO": campo ? labelCampo(campo) : "",
-      "VALOR ANTERIOR": campo ? formatValor(de) : "",
-      "VALOR NOVO": campo ? formatValor(para) : "",
+      "VALOR ANTERIOR": campo ? formatValor(campo, de) : "",
+      "VALOR NOVO": campo ? formatValor(campo, para) : "",
       "DESTAQUE": campo && CAMPOS_DESTAQUE.includes(campo) ? "SIM" : "",
       "ORIGEM": r.origem,
     });

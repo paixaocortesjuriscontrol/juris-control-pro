@@ -26,8 +26,10 @@ import {
 import { useUsuariosAuditoria } from "@/hooks/useUsuariosAuditoria";
 import { HistoricoDistribuicaoTstDialog } from "@/components/auditoria/HistoricoDistribuicaoTstDialog";
 import {
-  labelAcaoDistTst, labelCampoDistTst, labelOrigemDistTst, formatValorAuditoria,
+  labelAcaoDistTst, labelCampoDistTst, labelOrigemDistTst,
 } from "@/utils/auditoriaDistTstLabels";
+import { formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 
 const TODOS = "__todos__";
 
@@ -63,6 +65,8 @@ export default function AuditoriaDistribuicaoTst() {
   const { data, isLoading, isFetching, refetch } = useAuditoriaDistribuicaoTst(filtros);
   const rows = data?.rows || [];
   const { nome, email } = useUsuariosAuditoria(rows.map((r) => r.usuario_id));
+  const camposReferencias = useMemo(() => rows.flatMap((r) => r.campos_alterados || []), [rows]);
+  const { referencias } = useReferenciasAuditoria(camposReferencias, camposReferencias.length > 0);
 
   const { data: coordenacoes } = useQuery({
     queryKey: ["auditoria-dist-tst-coordenacoes"],
@@ -120,8 +124,8 @@ export default function AuditoriaDistribuicaoTst() {
       return diffs.map((d) => ({
         ...base,
         Campo: labelCampoDistTst(d.campo),
-        De: formatValorAuditoria(d.de),
-        Para: formatValorAuditoria(d.para),
+        De: formatValorAuditoria(d.campo, d.de, referencias),
+        Para: formatValorAuditoria(d.campo, d.para, referencias),
       }));
     });
     const ws = XLSX.utils.json_to_sheet(linhas);
@@ -293,7 +297,7 @@ export default function AuditoriaDistribuicaoTst() {
                                     key={d.campo}
                                     variant="secondary"
                                     className="text-[10px]"
-                                    title={`${labelCampoDistTst(d.campo)}: ${formatValorAuditoria(d.de)} → ${formatValorAuditoria(d.para)}`}
+                                    title={`${labelCampoDistTst(d.campo)}: ${formatValorAuditoria(d.campo, d.de, referencias)} → ${formatValorAuditoria(d.campo, d.para, referencias)}`}
                                   >
                                     {labelCampoDistTst(d.campo)}
                                   </Badge>
@@ -370,10 +374,10 @@ export default function AuditoriaDistribuicaoTst() {
                             <TableRow key={d.campo}>
                               <TableCell className="text-xs font-medium">{labelCampoDistTst(d.campo)}</TableCell>
                               <TableCell className="text-xs text-muted-foreground line-through break-words">
-                                {formatValorAuditoria(d.de)}
+                                {formatValorAuditoria(d.campo, d.de, referencias)}
                               </TableCell>
                               <TableCell className="text-xs font-medium break-words">
-                                {formatValorAuditoria(d.para)}
+                                {formatValorAuditoria(d.campo, d.para, referencias)}
                               </TableCell>
                             </TableRow>
                           ))}

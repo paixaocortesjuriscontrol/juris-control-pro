@@ -1,5 +1,12 @@
 # Roadmap — pedidos da Isabela (Santander Cível)
 
+## Relatórios da Auditoria (25/11/2026)
+- [x] Reduzir a consulta do Excel/PDF e mostrar progresso real por etapa
+- [x] Preencher o número do processo pelo `processo_id` no Excel e no PDF
+- [x] Traduzir IDs em valores anteriores/novos e validar o PDF gerado
+- [x] Testar 13 regras, arquivos gerados e compilação; clique autenticado indisponível no Supabase externo
+
+
 ## Observação do advogado no processo e na Análise DJEN (24/11/2026)
 - [x] Disponibilizar a observação do advogado na visão geral de Processos e Casos
 - [x] Exibir e editar a mesma observação no painel lateral direito da lista, antes da ficha completa

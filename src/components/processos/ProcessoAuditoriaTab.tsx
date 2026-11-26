@@ -21,6 +21,8 @@ import {
 import { useUserRole } from "@/hooks/useUserRole";
 import { cn } from "@/lib/utils";
 import { labelCampo, formatValor } from "@/lib/auditoriaCampos";
+import { formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 
 interface Props {
   processoId?: string | null;
@@ -100,6 +102,14 @@ export function ProcessoAuditoriaTab({ processoId, processoNumero }: Props) {
   const [acao, setAcao] = useState("todos");
   const [busca, setBusca] = useState("");
   const [selected, setSelected] = useState<AuditRow | null>(null);
+  const camposSelecionado = useMemo(() => {
+    if (!selected) return [];
+    const campos = [...getDiff(selected)];
+    Object.entries((selected.dados_saida || selected.dados_entrada || {}) as Record<string, any>)
+      .forEach(([campo, valor]) => campos.push({ campo, de: valor, para: valor }));
+    return campos;
+  }, [selected]);
+  const { referencias: referenciasSelecionado } = useReferenciasAuditoria(camposSelecionado, !!selected);
 
   // IDs de itens vinculados ao processo (tarefas/prazos, eventos, audiências, documentos)
   const { data: vinculados } = useQuery({
@@ -369,8 +379,8 @@ export function ProcessoAuditoriaTab({ processoId, processoNumero }: Props) {
                       {getDiff(selected).map((d, i) => (
                         <div key={i} className="p-2 grid grid-cols-3 gap-2 text-xs">
                           <span className="font-medium">{labelCampo(d.campo)}</span>
-                          <span className="text-muted-foreground line-through break-words">{formatValor(d.de)}</span>
-                          <span className="break-words">{formatValor(d.para)}</span>
+                          <span className="text-muted-foreground line-through break-words">{formatValorAuditoria(d.campo, d.de, referenciasSelecionado)}</span>
+                          <span className="break-words">{formatValorAuditoria(d.campo, d.para, referenciasSelecionado)}</span>
                         </div>
                       ))}
                     </div>
@@ -389,7 +399,7 @@ export function ProcessoAuditoriaTab({ processoId, processoNumero }: Props) {
                         .map(([k, v]) => (
                           <div key={k} className="p-2 grid grid-cols-2 gap-2 text-xs">
                             <span className="font-medium">{labelCampo(k)}</span>
-                            <span className="break-words">{formatValor(v)}</span>
+                            <span className="break-words">{formatValorAuditoria(k, v, referenciasSelecionado)}</span>
                           </div>
                         ))}
                     </div>

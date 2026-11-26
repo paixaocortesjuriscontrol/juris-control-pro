@@ -33,6 +33,13 @@ test("valores vazios, booleanos e textos longos", () => {
   assert.equal(formatValor("x".repeat(200)), `${"x".repeat(120)}…`);
 });
 
+test("anexo aparece pelo nome do arquivo, sem endereço nem token", () => {
+  assert.equal(
+    formatValor("https://exemplo.supabase.co/storage/v1/object/sign/documentos_processos/abc/DEFESA%20-%20MICAEL.pdf?token=segredo"),
+    "DEFESA - MICAEL.pdf",
+  );
+});
+
 test("ação aparece em texto lido na frase do histórico", () => {
   assert.equal(labelAcao("atualizar"), "Alterou");
   assert.equal(labelAcao("criar"), "Criou");

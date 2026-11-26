@@ -38,6 +38,7 @@ export const LABELS: Record<string, string> = {
   pedido: "Pedido",
   data_audiencia: "Data da audiência",
   nome_arquivo: "Arquivo",
+  url: "Arquivo",
   data_inicio: "Data de início",
   data_fim: "Data de término",
   tipo: "Tipo",
@@ -92,6 +93,14 @@ export const formatValor = (v: any): string => {
   if (typeof v === "boolean") return v ? "Sim" : "Não";
   if (typeof v === "object") return JSON.stringify(v);
   const s = String(v);
+  if (/^https?:\/\//i.test(s) && s.includes("/storage/v1/object/")) {
+    try {
+      const nomeArquivo = decodeURIComponent(new URL(s).pathname.split("/").pop() || "");
+      if (nomeArquivo) return nomeArquivo;
+    } catch {
+      // Se o endereço estiver incompleto, mantém a formatação segura abaixo.
+    }
+  }
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?/);
   if (m) {
     // Só data: mostra como está, sem deslocar fuso. Com hora: converte para BRT.

@@ -4,7 +4,8 @@ import { Loader2, History, MessageSquareQuote } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { dataHoraBrt } from "@/utils/date";
-import { labelCampo, labelAcao, labelOrigem, formatValor } from "@/lib/auditoriaCampos";
+import { labelCampo, labelAcao, labelOrigem } from "@/lib/auditoriaCampos";
+import { buscarReferenciasAuditoria, formatValorAuditoria, REFERENCIAS_AUDITORIA_VAZIAS } from "@/lib/auditoriaReferencias";
 import type { TipoItemAtividade } from "./ItemAtividades";
 
 interface Props {
@@ -127,8 +128,9 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
         });
       }
 
+      const referencias = await buscarReferenciasAuditoria(entradas.flatMap((e) => e.campos || []));
       entradas.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
-      return { entradas, autores };
+      return { entradas, autores, referencias };
     },
   });
 
@@ -150,6 +152,7 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
 
   const entradas = data?.entradas ?? [];
   const autores = data?.autores ?? {};
+  const referencias = data?.referencias ?? REFERENCIAS_AUDITORIA_VAZIAS;
 
   if (entradas.length === 0) {
     return (
@@ -218,8 +221,8 @@ export function ItemHistorico({ tipo, tipoComentario, itemId, className }: Props
                     {e.campos.map((c, i) => (
                       <li key={i} className="text-muted-foreground">
                         <span className="font-medium text-foreground">{labelCampo(c.campo || "")}</span>:{" "}
-                        {formatValor(c.de ?? c.anterior)} <span className="mx-0.5">→</span>{" "}
-                        {formatValor(c.para ?? c.novo)}
+                        {formatValorAuditoria(c.campo || "", c.de ?? c.anterior, referencias)} <span className="mx-0.5">→</span>{" "}
+                        {formatValorAuditoria(c.campo || "", c.para ?? c.novo, referencias)}
                       </li>
                     ))}
                   </ul>

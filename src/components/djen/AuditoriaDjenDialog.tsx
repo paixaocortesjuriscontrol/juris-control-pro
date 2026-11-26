@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -5,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 
 interface Props {
   open: boolean;
@@ -19,14 +22,6 @@ const ACAO_LABEL: Record<string, { label: string; variant: "default" | "secondar
   arquivamento: { label: "Arquivado", variant: "destructive" },
   desarquivamento: { label: "Desarquivado", variant: "outline" },
 };
-
-function formatValor(v: any): string {
-  if (v === null || v === undefined) return "—";
-  if (Array.isArray(v)) return v.length === 0 ? "—" : v.join(", ");
-  if (typeof v === "boolean") return v ? "Sim" : "Não";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
 
 const CAMPOS_IGNORAR = new Set(["id", "created_at", "updated_at", "criado_por"]);
 
@@ -45,6 +40,13 @@ export function AuditoriaDjenDialog({ open, onOpenChange, monitoramentoId, termo
     },
     enabled: !!monitoramentoId && open,
   });
+
+  const camposReferencias = useMemo(() => registros.flatMap((r) =>
+    ((r.campos_alterados || []) as string[])
+      .filter((c) => !CAMPOS_IGNORAR.has(c))
+      .map((campo) => ({ campo, de: r.dados_antes?.[campo], para: r.dados_depois?.[campo] }))
+  ), [registros]);
+  const { referencias } = useReferenciasAuditoria(camposReferencias, open && camposReferencias.length > 0);
 
   const userIds = Array.from(new Set(registros.map(r => r.alterado_por).filter(Boolean)));
   const { data: usuariosMap = {} } = useQuery({
@@ -92,7 +94,7 @@ export function AuditoriaDjenDialog({ open, onOpenChange, monitoramentoId, termo
                         </span>
                       </div>
                       <span className="text-xs text-muted-foreground">
-                        {usuario?.nome || usuario?.email || r.alterado_por?.slice(0, 8) || "Sistema"}
+                        {usuario?.nome || usuario?.email || (r.alterado_por ? "Usuário não identificado" : "Sistema")}
                       </span>
                     </div>
                     {r.acao === "edicao" && campos.length > 0 && (
@@ -101,9 +103,9 @@ export function AuditoriaDjenDialog({ open, onOpenChange, monitoramentoId, termo
                           <div key={c} className="grid grid-cols-[120px_1fr] gap-2">
                             <span className="font-medium text-muted-foreground">{c}:</span>
                             <span>
-                              <span className="line-through text-destructive/80">{formatValor(r.dados_antes?.[c])}</span>
+                              <span className="line-through text-destructive/80">{formatValorAuditoria(c, r.dados_antes?.[c], referencias)}</span>
                               {" → "}
-                              <span className="text-foreground">{formatValor(r.dados_depois?.[c])}</span>
+                              <span className="text-foreground">{formatValorAuditoria(c, r.dados_depois?.[c], referencias)}</span>
                             </span>
                           </div>
                         ))}
