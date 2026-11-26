@@ -56,4 +56,4 @@
 - Participant lists of tasks, events and hearings (tarefa_/evento_ responsaveis/envolvidos, audiencia_envolvidos) are saved via `sincronizarParticipantesTarefa` (insert new first, then remove only unchecked, surface errors); delete-all-then-insert lost people because the responsible-change trigger blocked re-inserts once the editor was removed.
 - `useUserRole` coordinator flags include `membros_coordenacao` cargo; `podeVerTodasCoordenacoes` stays global-role only.
 - Agenda RPCs use `_agenda_tarefas_visiveis` (DEFINER, RLS-equivalent); per-row RLS timed out.
-- Painel model colors: RPC `modelos_tarefas_periodo`.
+- Painel model colors via `modelos_tarefas_periodo`.
