@@ -11,7 +11,7 @@
    - **Sim**: a nova pessoa vira responsável e os anteriores saem de Responsáveis.
    - **Não**: mantém os responsáveis atuais e acrescenta a nova pessoa (como hoje).
 3. Manter o registro na auditoria e a notificação para quem passa a ser responsável.
-4. Planilha de fatais e Exportar Atividades continuam lendo os responsáveis atuais, já refletindo a troca.
+4. Planilhas com colunas **Responsáveis** e **Envolvidos** separadas e atualizadas: conferir Exportar Atividades (já tem), planilha de audiências, Minhas Responsabilidades e Prazos Fatais, e acrescentar onde faltar.
 5. Perguntar antes de corrigir tarefas antigas já repassadas desse jeito (não altero dados sem autorização).
 
 ## Detalhes técnicos
