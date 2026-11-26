@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.4.5";
+export const APP_VERSION = "10.4.6";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.4.6", date: "2026-11-25", notes: "Auditoria: os detalhes de cada registro mostram o número do processo (com link para abrir a ficha) e o nome da coordenação no lugar dos códigos internos, e o campo 'Item ID' saiu da tela; relatórios Excel e PDF ganham barra de progresso, filtram a seleção direto no banco em vez de baixar tudo para depois filtrar, trazem o número do processo e o nome das pessoas, dos clientes e das coordenações nos campos Valor anterior e Valor novo, e os anexos aparecem só pelo nome do arquivo" },
   { version: "10.4.5", date: "2026-11-25", notes: "Painel de Controle muito mais rápido em agendas cheias (a busca de tarefas e audiências da Visão Escritório e da Pessoal foi reescrita, sem perder as regras de quem vê o quê); ficha do processo não mostra mais 'Processo não encontrado' quando a busca falha ou o vínculo está ausente — tenta de novo e avisa com botão de tentar novamente; listas de modelos e atividades nos agendamentos voltam a rolar com a roda do mouse; login vencido com a página aberta se renova sozinho, em qualquer tela, sem mostrar erro" },
   { version: "10.4.4", date: "2026-11-25", notes: "Migração Projuris: importa os comentários do backup respeitando a data de corte, gera Excel das tarefas recusadas e avisa quando as tarefas do backup não se ligam a processo; Corrigir número do processo aceita trocar o formato/tipo com os mesmos dígitos e cadastrar número fora do padrão CNJ; Painel de Controle mais rápido ao carregar comentários e modelos de tarefa; Acompanhamento Especial pode usar um e-mail único da coordenação para os avisos" },
   { version: "10.4.3", date: "2026-11-25", notes: "Painel de Controle: remanejamento em lote agora também para audiências (data da audiência mantendo o horário e responsáveis)" },
