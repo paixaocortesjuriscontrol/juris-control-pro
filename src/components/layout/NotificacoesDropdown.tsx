@@ -83,7 +83,7 @@ export function NotificacoesDropdown() {
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-96">
+      <DropdownMenuContent align="end" className="w-96 max-w-[calc(100vw-1rem)]">
         <Tabs defaultValue="notificacoes" className="w-full">
           <div className="px-3 py-2">
             <TabsList className="w-full">
