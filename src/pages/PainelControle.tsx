@@ -481,6 +481,7 @@ export default function PainelControle() {
     setSituacaoFilter("todos");
     setSomenteHoje(false);
     setModoProtocoladosBaixados(false);
+    setBuscaProcesso("");
   }, []);
 
   // Liga/desliga o atalho Protocolados/Baixados
