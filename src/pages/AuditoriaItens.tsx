@@ -12,9 +12,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
 import { Loader2, Search, Eye, CheckCircle2, XCircle, FileText, Download } from "lucide-react";
@@ -527,103 +525,96 @@ export default function AuditoriaItens() {
         </CardContent>
       </Card>
 
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>Detalhes do registro</DialogTitle>
-          </DialogHeader>
-          {selected && (
-            <ScrollArea className="max-h-[70vh]">
-              <div className="space-y-4 text-sm pr-4">
-                <div className="grid grid-cols-2 gap-3">
-                  <div><span className="text-muted-foreground">Data:</span> {format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</div>
-                  <div>
-                    <span className="text-muted-foreground">Alterado por:</span>{" "}
-                    <span className="font-medium">{nomeUsuario(selected.usuario_id)}</span>
-                    {emailUsuario(selected.usuario_id) && (
-                      <span className="text-muted-foreground"> ({emailUsuario(selected.usuario_id)})</span>
-                    )}
-                  </div>
-                  <div><span className="text-muted-foreground">Tipo:</span> {selected.tipo_item || "—"}</div>
-                  <div><span className="text-muted-foreground">Item:</span> {getTituloItem(selected)}</div>
-                  <div><span className="text-muted-foreground">Ação:</span> {selected.acao}</div>
-                  <div><span className="text-muted-foreground">Origem:</span> {labelOrigem(selected.origem)}</div>
-                  <div><span className="text-muted-foreground">Resultado:</span> {selected.sucesso ? "Sucesso" : "Falha"}</div>
-                  <div><span className="text-muted-foreground">Processo:</span>{" "}
-                    {!selected.processo_id ? "—" : processoSelecionado ? (
-                      <Link to={`/processos/${processoSelecionado.id}`} className="text-primary underline">
-                        {processoSelecionado.numero || "Abrir processo"}
-                      </Link>
-                    ) : processoSelecionado === null ? "Processo excluído" : "Carregando..."}
-                  </div>
-                  <div><span className="text-muted-foreground">Coordenação:</span> {nomeCoordenacaoRegistro(selected.coordenacao_id)}</div>
-                </div>
-                {getDiff(selected).length > 0 && (
-                  <div>
-                    <div className="font-medium mb-2">O que foi alterado ({getDiff(selected).length})</div>
-                    <div className="rounded border overflow-hidden">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-[30%]">Campo</TableHead>
-                            <TableHead>De</TableHead>
-                            <TableHead>Para</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getDiff(selected).map((d) => (
-                            <TableRow key={d.campo}>
-                              <TableCell className="text-xs font-medium">{labelCampo(d.campo)}</TableCell>
-                              <TableCell className="text-xs text-muted-foreground line-through">{formatValorAuditoria(d.campo, d.de, referenciasSelecionado)}</TableCell>
-                              <TableCell className="text-xs font-medium">{formatValorAuditoria(d.campo, d.para, referenciasSelecionado)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
-                {selected.erro_mensagem && (
-                  <div>
-                    <div className="font-medium text-red-600 mb-1">Erro</div>
-                    <pre className="bg-red-50 dark:bg-red-950/20 p-3 rounded text-xs whitespace-pre-wrap">{selected.erro_mensagem}</pre>
-                    {selected.erro_detalhes && (
-                      <pre className="bg-muted p-3 rounded text-xs mt-2 whitespace-pre-wrap">{JSON.stringify(selected.erro_detalhes, null, 2)}</pre>
-                    )}
-                  </div>
-                )}
-                <div>
-                  <div className="font-medium mb-1">Dados de entrada</div>
-                  <div className="bg-muted p-3 rounded text-xs space-y-1">
-                    {linhasDadosAuditoria(selected.dados_entrada, referenciasSelecionado).map((l) => (
-                      <div key={l.rotulo}><span className="text-muted-foreground">{l.rotulo}:</span> <span className="font-medium">{l.valor}</span></div>
-                    ))}
-                  </div>
-                  <details className="mt-1"><summary className="text-xs text-muted-foreground cursor-pointer">Ver dados técnicos</summary>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_entrada, null, 2)}</pre></details>
-                </div>
-                {selected.dados_saida && (
-                  <div>
-                    <div className="font-medium mb-1">Dados de saída</div>
-                    <div className="bg-muted p-3 rounded text-xs space-y-1">
-                    {linhasDadosAuditoria(selected.dados_saida, referenciasSelecionado).map((l) => (
-                      <div key={l.rotulo}><span className="text-muted-foreground">{l.rotulo}:</span> <span className="font-medium">{l.valor}</span></div>
-                    ))}
-                  </div>
-                  <details className="mt-1"><summary className="text-xs text-muted-foreground cursor-pointer">Ver dados técnicos</summary>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_saida, null, 2)}</pre></details>
-                  </div>
-                )}
-                {selected.user_agent && (
-                  <div className="text-xs text-muted-foreground">
-                    <span className="font-medium">User agent:</span> {selected.user_agent}
-                  </div>
-                )}
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-0 flex flex-col gap-0">
+          <SheetHeader className="px-6 py-4 border-b bg-muted/40 text-left">
+            <SheetTitle>Detalhes do registro</SheetTitle>
+            {selected && (
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <Badge variant="outline">{selected.tipo_item || "—"}</Badge>
+                <Badge variant="secondary">{selected.acao}</Badge>
+                <Badge variant={selected.sucesso ? "default" : "destructive"}>{selected.sucesso ? "Sucesso" : "Falha"}</Badge>
+                <span>{format(new Date(selected.created_at), "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}</span>
               </div>
-            </ScrollArea>
+            )}
+          </SheetHeader>
+          {selected && (
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-sm">
+              <section className="space-y-2">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Resumo</h3>
+                <dl className="rounded-lg border divide-y">
+                  {([
+                    ["Alterado por", <span key="u"><span className="font-medium">{nomeUsuario(selected.usuario_id)}</span>{emailUsuario(selected.usuario_id) && <span className="block text-xs text-muted-foreground">{emailUsuario(selected.usuario_id)}</span>}</span>],
+                    ["Item", getTituloItem(selected)],
+                    ["Processo", !selected.processo_id ? "—" : processoSelecionado ? (
+                      <Link to={`/processos/${processoSelecionado.id}`} className="text-primary underline">{processoSelecionado.numero || "Abrir processo"}</Link>
+                    ) : processoSelecionado === null ? "Processo excluído" : "Carregando..."],
+                    ["Coordenação", nomeCoordenacaoRegistro(selected.coordenacao_id)],
+                    ["Origem", labelOrigem(selected.origem)],
+                  ] as [string, import("react").ReactNode][]).map(([r, v]) => (
+                    <div key={r} className="grid grid-cols-[140px_1fr] gap-3 px-3 py-2">
+                      <dt className="text-muted-foreground">{r}</dt><dd className="break-words">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+              {getDiff(selected).length > 0 && (
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">O que foi alterado ({getDiff(selected).length})</h3>
+                  <div className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader><TableRow>
+                        <TableHead className="w-[30%]">Campo</TableHead><TableHead>De</TableHead><TableHead>Para</TableHead>
+                      </TableRow></TableHeader>
+                      <TableBody>
+                        {getDiff(selected).map((d) => (
+                          <TableRow key={d.campo}>
+                            <TableCell className="text-xs font-medium">{labelCampo(d.campo)}</TableCell>
+                            <TableCell className="text-xs text-muted-foreground line-through">{formatValorAuditoria(d.campo, d.de, referenciasSelecionado)}</TableCell>
+                            <TableCell className="text-xs font-medium">{formatValorAuditoria(d.campo, d.para, referenciasSelecionado)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </section>
+              )}
+              {selected.erro_mensagem && (
+                <section className="space-y-2">
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-destructive">Erro</h3>
+                  <pre className="bg-destructive/10 p-3 rounded-lg text-xs whitespace-pre-wrap">{selected.erro_mensagem}</pre>
+                  {selected.erro_detalhes && <pre className="bg-muted p-3 rounded-lg text-xs whitespace-pre-wrap">{JSON.stringify(selected.erro_detalhes, null, 2)}</pre>}
+                </section>
+              )}
+              {([["Dados de entrada", selected.dados_entrada], ["Dados de saída", selected.dados_saida]] as [string, any][]).map(([titulo, dados]) => {
+                if (!dados) return null;
+                const linhas = linhasDadosAuditoria(dados, referenciasSelecionado).filter((l) => l.valor && l.valor !== "—" && l.valor !== "Registro não identificado");
+                return (
+                  <section key={titulo} className="space-y-2">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{titulo}</h3>
+                    {linhas.length > 0 ? (
+                      <dl className="rounded-lg border divide-y">
+                        {linhas.map((l) => (
+                          <div key={l.rotulo} className="grid grid-cols-[140px_1fr] gap-3 px-3 py-1.5 text-xs">
+                            <dt className="text-muted-foreground">{l.rotulo}</dt><dd className="font-medium break-words">{l.valor}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : <p className="text-xs text-muted-foreground">Sem informações preenchidas.</p>}
+                    <details>
+                      <summary className="text-xs text-muted-foreground cursor-pointer select-none">Ver dados técnicos</summary>
+                      <pre className="mt-2 bg-muted p-3 rounded-lg text-xs whitespace-pre-wrap">{JSON.stringify(dados, null, 2)}</pre>
+                    </details>
+                  </section>
+                );
+              })}
+              {selected.user_agent && (
+                <p className="text-xs text-muted-foreground border-t pt-3"><span className="font-medium">Navegador:</span> {selected.user_agent}</p>
+              )}
+            </div>
           )}
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
       </div>
     </MainLayout>
   );
