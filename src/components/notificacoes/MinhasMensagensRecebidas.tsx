@@ -459,7 +459,7 @@ export default function MinhasMensagensRecebidas({
               <Card
                 key={m.id}
                 className={cn(
-                  "p-4 flex gap-3 items-start transition-colors",
+                  "p-4 flex flex-col gap-2 transition-colors",
                   !lida && "border-primary/50 bg-primary/5",
                   podeAbrir && "cursor-pointer hover:shadow-md hover:border-primary"
                 )}
@@ -469,11 +469,45 @@ export default function MinhasMensagensRecebidas({
                   if (!lida) marcarLida(m.ids);
                 }}
               >
-                <div className="mt-0.5 flex flex-col gap-1">
-                  {temWhats && <MessageCircle className="h-4 w-4 text-emerald-600" />}
-                  {temEmail && <Mail className="h-4 w-4 text-blue-600" />}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1 mr-auto">
+                    {temWhats && <MessageCircle className="h-4 w-4 text-emerald-600" />}
+                    {temEmail && <Mail className="h-4 w-4 text-blue-600" />}
+                  </div>
+                  {refUnico && (
+                    <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <CobrancaBotao
+                        itemId={refUnico}
+                        tipoItem={tipoItemDoAlerta(m.tipo_alerta)}
+                        info={cobrancas?.get(refUnico) ?? null}
+                      />
+                    </div>
+                  )}
+                  {!lida ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      title="Marcar como lida"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        marcarLida(m.ids);
+                      }}
+                    >
+                      <Check className="h-4 w-4 sm:mr-1" />
+                      <span>Marcar como lida</span>
+                    </Button>
+                  ) : (
+                    <span
+                      className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground"
+                      title="Mensagem já lida"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      <span>Lida</span>
+                    </span>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 w-full">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <Badge variant="outline" className="text-[10px] uppercase">
                       {m.tipo_alerta || "alerta"}
@@ -536,38 +570,6 @@ export default function MinhasMensagensRecebidas({
                     </DropdownMenu>
                   )}
                 </div>
-                {refUnico && (
-                  <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
-                    <CobrancaBotao
-                      itemId={refUnico}
-                      tipoItem={tipoItemDoAlerta(m.tipo_alerta)}
-                      info={cobrancas?.get(refUnico) ?? null}
-                    />
-                  </div>
-                )}
-                {!lida ? (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    title="Marcar como lida"
-                    className="shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      marcarLida(m.ids);
-                    }}
-                  >
-                    <Check className="h-4 w-4 sm:mr-1" />
-                    <span className="hidden sm:inline">Marcar como lida</span>
-                  </Button>
-                ) : (
-                  <span
-                    className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground"
-                    title="Mensagem já lida"
-                  >
-                    <Check className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Lida</span>
-                  </span>
-                )}
               </Card>
             );
           })}
