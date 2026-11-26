@@ -446,7 +446,7 @@ export default function MinhasMensagensRecebidas({
           Nenhuma mensagem recebida no período.
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))] gap-2 items-start">
           {lista.map((m) => {
             const lida = m.ids.every((id) => lidos.has(id));
             const temWhats = m.canais.some((c) => c.includes("whats"));
@@ -459,7 +459,7 @@ export default function MinhasMensagensRecebidas({
               <Card
                 key={m.id}
                 className={cn(
-                  "p-4 flex flex-col gap-2 transition-colors",
+                  "p-4 flex flex-col gap-2 min-w-0 w-full transition-colors",
                   !lida && "border-primary/50 bg-primary/5",
                   podeAbrir && "cursor-pointer hover:shadow-md hover:border-primary"
                 )}
