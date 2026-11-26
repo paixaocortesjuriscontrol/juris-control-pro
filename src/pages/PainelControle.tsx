@@ -144,6 +144,7 @@ import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDial
 import { GitBranch } from "lucide-react";
 import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
 import { buscarDatasPublicacaoDjen, dataPublicacaoDjenExportacao } from "@/lib/publicacaoDjenExportacao";
+import { montarLinhasRelatorioAtividades } from "@/lib/linhasRelatorioAtividades";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -1870,14 +1871,9 @@ export default function PainelControle() {
     const tipoSingular: Record<string, string> = {
       tarefa: "Tarefa", ata: "Ata", evento: "Evento", prazo: "Prazo", audiencia: "Audiência", parcelamento: "Parcelamento",
     };
-    const linhas = rowsFinal.map((r, i) => {
-      const { Classificação, Status, ...resto } = r as any;
-      return {
-        Tipo: (itensOrdenados[i] ? tipoSingular[classificarItem(itensOrdenados[i])] : undefined) ?? Classificação,
-        Subtipo: itensOrdenados[i]?.tipo_tarefa ?? "",
-        Situação: Status ?? "",
-        ...resto,
-      };
+    const linhas = montarLinhasRelatorioAtividades(rowsFinal, (i) => {
+      const it = itensOrdenados[i] as any;
+      return it ? { Tipo: tipoSingular[classificarItem(it)] ?? "", Subtipo: it.tipo_tarefa ?? "" } : undefined;
     });
     const { gerarRelatorioAtividadesExcel } = await import("@/lib/relatorioAtividadesExcel");
     const stamp = format(new Date(), "yyyy-MM-dd_HHmm");
