@@ -31,6 +31,32 @@ export function formatDateSafe(value: string | Date | null | undefined, fallback
 const BRT_TZ = "America/Sao_Paulo";
 
 /**
+ * Retorna o dia-calendário (YYYY-MM-DD) em Brasília.
+ * Datas puras e horários sem fuso já representam o dia local; valores com fuso
+ * explícito são convertidos, evitando que 23:59:59 em BRT vire o dia seguinte.
+ */
+export function diaBrt(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const texto = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+    const temFuso = /(Z|[+-]\d{2}(?::?\d{2})?)$/i.test(texto);
+    if (!temFuso && /^\d{4}-\d{2}-\d{2}[T ]/.test(texto)) return texto.slice(0, 10);
+  }
+  const data = value instanceof Date ? value : new Date(value);
+  if (isNaN(data.getTime())) return "";
+  const partes = new Intl.DateTimeFormat("en-US", {
+    timeZone: BRT_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(data);
+  const parte = (tipo: Intl.DateTimeFormatPartTypes) =>
+    partes.find((p) => p.type === tipo)?.value ?? "";
+  return `${parte("year")}-${parte("month")}-${parte("day")}`;
+}
+
+/**
  * Retorna a hora (HH:mm) sempre no fuso de Brasília.
  *
  * - "14:30" ou "14:30:00" → devolve "14:30" (já é hora local, não converte).

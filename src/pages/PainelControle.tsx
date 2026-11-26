@@ -114,7 +114,8 @@ import { partesDoItem, usePartesDosProcessos } from "@/hooks/usePartesDosProcess
 import MinhasMensagensRecebidas from "@/components/notificacoes/MinhasMensagensRecebidas";
 import { BuscaGlobalPainel } from "@/components/painel/BuscaGlobalPainel";
 import { Sparkles } from "lucide-react";
-import { horaBrt, dataInicioAudiencia } from "@/utils/date";
+import { horaBrt, dataInicioAudiencia, diaBrt } from "@/utils/date";
+import { diasEventoAgenda } from "@/lib/diasEventoAgenda";
 import { useModeloTarefaItens } from "@/hooks/useModeloTarefaItens";
 import { useSituacoesPainel, statusCasaSituacao } from "@/hooks/useSituacoesPainel";
 import { contarItensPorSituacao } from "@/lib/situacoesPainel";
@@ -2242,27 +2243,17 @@ export default function PainelControle() {
           dateKey = item.data_inicio.slice(0, 10);
         }
       } else {
-        dateKey = item.data_inicio.slice(0, 10);
+        dateKey = diaBrt(item.data_inicio);
       }
 
-      // Eventos de vários dias aparecem em todos os dias do período (limite 92 dias)
-      const keys: string[] = [dateKey];
-      // Ocorrências de eventos recorrentes ficam só no próprio dia: o data_fim
-      // gravado costuma ser o fim da série, não da ocorrência.
+      // O início e o fim dos eventos são convertidos para o dia em Brasília.
+      // Sem isso, 23:59:59 em BRT vira o dia seguinte em UTC e um evento de
+      // dia inteiro aparece também no dia seguinte no calendário.
       const ehOcorrenciaRecorrente =
         !!item.recorrencia_pai_id || !!item.recorrente || !!item.recorrencia_tipo || String(item.id).includes("::");
-      if (item.origem === "evento" && item.data_fim && !ehOcorrenciaRecorrente) {
-        const fimKey = item.data_fim.slice(0, 10);
-        if (fimKey > dateKey) {
-          const d = new Date(`${dateKey}T12:00:00Z`);
-          for (let i = 0; i < 92; i++) {
-            d.setUTCDate(d.getUTCDate() + 1);
-            const k = d.toISOString().slice(0, 10);
-            if (k > fimKey) break;
-            keys.push(k);
-          }
-        }
-      }
+      const keys = item.origem === "evento" && !ehOcorrenciaRecorrente
+        ? diasEventoAgenda(item.data_inicio, item.data_fim)
+        : [dateKey];
 
       keys.forEach((k) => {
         if (!map.has(k)) map.set(k, []);
