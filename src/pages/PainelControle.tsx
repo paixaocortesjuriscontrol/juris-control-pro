@@ -143,6 +143,7 @@ import { useItensDeWorkflow } from "@/hooks/useItensDeWorkflow";
 import { IniciarWorkflowDialog } from "@/components/workflow/IniciarWorkflowDialog";
 import { GitBranch } from "lucide-react";
 import { useItensDePublicacao } from "@/hooks/useItensDePublicacao";
+import { buscarDatasPublicacaoDjen, dataPublicacaoDjenExportacao } from "@/lib/publicacaoDjenExportacao";
 
 const TIME_ZONE = "America/Sao_Paulo";
 
@@ -1619,6 +1620,7 @@ export default function PainelControle() {
       if (!db) return -1;
       return da.localeCompare(db);
     });
+    const datasPublicacaoDjen = await buscarDatasPublicacaoDjen(itensOrdenados);
 
     // Buscar partes (reclamante/reclamada) e cliente dos processos vinculados
     const processoIds = Array.from(
@@ -1738,6 +1740,7 @@ export default function PainelControle() {
         Horário: horario,
         "Hora término": (aud?.hora_fim ?? "").slice(0, 5),
         "Data fatal": fmtDate(it.data_fatal),
+        "Data da publicação DJEN": dataPublicacaoDjenExportacao(datasPublicacaoDjen, it),
         "Aviso de datas": it.origem === "tarefa" && limiteDepoisDaFatal(it.data_vencimento, it.data_fatal) ? "Data limite depois da fatal" : "",
         Responsáveis: responsaveisArr.join(", "),
         Envolvidos: envolvidosArr.join(", "),
@@ -1794,6 +1797,10 @@ export default function PainelControle() {
           (ps || []).forEach((p: any) => procInfo.set(String(p.id), { numero: p.numero ?? "", ativo: p.polo_ativo ?? "", passivo: p.polo_passivo ?? "", cliente: cNome.get(String(p.cliente_id)) ?? "" }));
         }
         const nomeR = (ids: string[]) => ids.map((id) => nomeById.get(id) ?? "").filter(Boolean).join(", ");
+        const datasPublicacaoIncluir = await buscarDatasPublicacaoDjen(
+          incluir.map((t) => ({ id: t.chave.replace(/^t:/, ""), origem: "tarefa" })),
+        );
+        datasPublicacaoIncluir.forEach((data, id) => datasPublicacaoDjen.set(id, data));
         incluir.forEach((t) => {
           const pi = t.processo_id ? procInfo.get(t.processo_id) : undefined;
           const base: any = Object.fromEntries(Object.keys(rowsFinal[0] ?? {}).map((k) => [k, ""]));
@@ -1802,6 +1809,7 @@ export default function PainelControle() {
             Classificação: nomesConfAll[t.tipo] ?? "",
             Título: t.titulo ?? "", Status: t.status ?? "",
             "Data prevista": fmtD(t.data_vencimento), "Data fatal": fmtD(t.data_fatal),
+            "Data da publicação DJEN": dataPublicacaoDjenExportacao(datasPublicacaoDjen, { id: t.chave.replace(/^t:/, ""), origem: "tarefa" }),
             "Aviso de datas": limiteDepoisDaFatal(t.data_vencimento, t.data_fatal) ? "Data limite depois da fatal" : "",
             Responsáveis: nomeR(t.responsaveis), Envolvidos: nomeR(t.envolvidos),
             Processo: pi?.numero ?? "", Reclamante: pi?.ativo ?? "", Reclamada: pi?.passivo ?? "", Cliente: pi?.cliente ?? "",
