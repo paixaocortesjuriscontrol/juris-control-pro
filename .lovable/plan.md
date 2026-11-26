@@ -7,11 +7,13 @@
 
 ## O que vou fazer
 1. Conferir no histórico da tarefa RRAP quem incluiu a Fernanda, quando e por qual tela.
-2. Corrigir essa tela para que, ao repassar/reagendar para outra pessoa, ela **substitua** o responsável anterior (o anterior sai de Responsáveis), em vez de só acrescentar a nova pessoa como envolvida.
+2. Nessa tela, ao repassar/reagendar para outra pessoa, perguntar ao usuário: **"Substituir os responsáveis atuais?"**
+   - **Sim**: a nova pessoa vira responsável e os anteriores saem de Responsáveis.
+   - **Não**: mantém os responsáveis atuais e acrescenta a nova pessoa (como hoje).
 3. Manter o registro na auditoria e a notificação para quem passa a ser responsável.
 4. Planilha de fatais e Exportar Atividades continuam lendo os responsáveis atuais, já refletindo a troca.
 5. Perguntar antes de corrigir tarefas antigas já repassadas desse jeito (não altero dados sem autorização).
 
 ## Detalhes técnicos
 - Salvamento via `sincronizarParticipantesTarefa` (inserir novo, remover desmarcado) e atualizar `tarefas.responsavel_id`.
-- Teste: repasse de A para B deixa só B em responsáveis.
+- Testes: com substituir, A para B deixa só B; sem substituir, ficam A e B.
