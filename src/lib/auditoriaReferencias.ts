@@ -120,3 +120,24 @@ export function formatValorAuditoria(campo: string, valor: any, refs: Referencia
   }
   return formatValor(valor);
 }
+
+const ROTULOS_DADOS: Record<string, string> = {
+  papel: "Papel", origem: "Origem", usuario_id: "Usuário", processo_id: "Processo",
+  coordenacao_id: "Coordenação", cliente_id: "Cliente", modelo_tarefa_id: "Modelo",
+  responsavel_id: "Responsável", tarefa_id: "Tarefa", evento_id: "Evento", audiencia_id: "Audiência",
+};
+const VALORES_DADOS: Record<string, string> = {
+  responsavel: "Responsável", envolvido: "Envolvido", manual: "Manual", automatico: "Automático",
+};
+
+/** Converte um objeto de dados da auditoria em linhas "Rótulo: valor" legíveis. */
+export function linhasDadosAuditoria(dados: any, refs: ReferenciasAuditoria): { rotulo: string; valor: string }[] {
+  if (!dados || typeof dados !== "object" || Array.isArray(dados)) {
+    return dados == null ? [] : [{ rotulo: "Valor", valor: formatValorAuditoria("", dados, refs) }];
+  }
+  return Object.entries(dados).map(([k, v]) => {
+    const rotulo = ROTULOS_DADOS[k] || k.replace(/_id$/, "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+    const valor = typeof v === "string" && VALORES_DADOS[v] ? VALORES_DADOS[v] : formatValorAuditoria(k, v, refs);
+    return { rotulo, valor };
+  });
+}

@@ -26,7 +26,7 @@ import { useCoordenacoesFull } from "@/hooks/useCoordenacoes";
 import { gerarRelatorioAuditoriaPdf } from "@/lib/relatorioAuditoriaCoordenacaoPdf";
 import { gerarRelatorioAuditoriaExcel } from "@/lib/relatorioAuditoriaCoordenacaoExcel";
 import { labelCampo, labelOrigem } from "@/lib/auditoriaCampos";
-import { buscarReferenciasAuditoria, formatValorAuditoria } from "@/lib/auditoriaReferencias";
+import { buscarReferenciasAuditoria, formatValorAuditoria, linhasDadosAuditoria } from "@/lib/auditoriaReferencias";
 import { useReferenciasAuditoria } from "@/hooks/useReferenciasAuditoria";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
@@ -164,7 +164,9 @@ export default function AuditoriaItens() {
 
   const camposVisiveis = useMemo(() => (rows || []).flatMap(getDiff), [rows]);
   const { referencias: referenciasVisiveis } = useReferenciasAuditoria(camposVisiveis, camposVisiveis.length > 0);
-  const camposSelecionado = selected ? getDiff(selected) : [];
+  const camposSelecionado = selected
+    ? [...getDiff(selected), { campo: "dados", de: selected.dados_entrada, para: selected.dados_saida }]
+    : [];
   const { referencias: referenciasSelecionado } = useReferenciasAuditoria(camposSelecionado, !!selected);
 
   const nomeCoordenacaoRegistro = (id: string | null) =>
@@ -592,12 +594,24 @@ export default function AuditoriaItens() {
                 )}
                 <div>
                   <div className="font-medium mb-1">Dados de entrada</div>
-                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_entrada, null, 2)}</pre>
+                  <div className="bg-muted p-3 rounded text-xs space-y-1">
+                    {linhasDadosAuditoria(selected.dados_entrada, referenciasSelecionado).map((l) => (
+                      <div key={l.rotulo}><span className="text-muted-foreground">{l.rotulo}:</span> <span className="font-medium">{l.valor}</span></div>
+                    ))}
+                  </div>
+                  <details className="mt-1"><summary className="text-xs text-muted-foreground cursor-pointer">Ver dados técnicos</summary>
+                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_entrada, null, 2)}</pre></details>
                 </div>
                 {selected.dados_saida && (
                   <div>
                     <div className="font-medium mb-1">Dados de saída</div>
-                    <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_saida, null, 2)}</pre>
+                    <div className="bg-muted p-3 rounded text-xs space-y-1">
+                    {linhasDadosAuditoria(selected.dados_saida, referenciasSelecionado).map((l) => (
+                      <div key={l.rotulo}><span className="text-muted-foreground">{l.rotulo}:</span> <span className="font-medium">{l.valor}</span></div>
+                    ))}
+                  </div>
+                  <details className="mt-1"><summary className="text-xs text-muted-foreground cursor-pointer">Ver dados técnicos</summary>
+                  <pre className="bg-muted p-3 rounded text-xs whitespace-pre-wrap">{JSON.stringify(selected.dados_saida, null, 2)}</pre></details>
                   </div>
                 )}
                 {selected.user_agent && (
