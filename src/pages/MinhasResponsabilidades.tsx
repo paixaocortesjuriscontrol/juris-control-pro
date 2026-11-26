@@ -668,18 +668,22 @@ export default function MinhasResponsabilidades() {
     ws.columns = [
       { header: "TIPO", width: 12 }, { header: "TÍTULO", width: 50 }, { header: "PROCESSO", width: 28 },
       { header: "DATA PREVISTA", width: 15 }, { header: "DATA FATAL", width: 15 }, { header: "SITUAÇÃO", width: 16 },
-      { header: "MEU PAPEL", width: 14 }, { header: "OBSERVAÇÃO", width: 60 },
+      { header: "MEU PAPEL", width: 14 }, { header: "RESPONSÁVEIS", width: 35 }, { header: "ENVOLVIDOS", width: 35 },
+      { header: "OBSERVAÇÃO", width: 60 },
     ];
-    filtrados.forEach((i: any) => ws.addRow([
+    const { buscarPessoasItens, idBaseItem } = await import("@/lib/pessoasItensExportacao");
+    const pessoas = await buscarPessoasItens(filtrados as any[]);
+    filtrados.forEach((i: any) => { const p = pessoas.get(`${i._fonte}:${idBaseItem(i.id)}`); ws.addRow([
       ROT_TIPO[i._tipo] ?? i._tipo, i.titulo ?? "", i.processo?.numero ?? i.processo_numero ?? "",
       fmt(i.data_vencimento ?? i.data_inicio), fmt(i.data_fatal), String(i.status ?? "").replace(/_/g, " "),
-      i._papel === "responsavel" ? "Responsável" : "Envolvido", String(i.observacoes ?? i.descricao ?? "").replace(/<[^>]+>/g, ""),
-    ]));
+      i._papel === "responsavel" ? "Responsável" : "Envolvido", (p?.resp ?? []).join(", "), (p?.env ?? []).join(", "),
+      String(i.observacoes ?? i.descricao ?? "").replace(/<[^>]+>/g, ""),
+    ]); });
     ws.eachRow((row, n) => row.eachCell((c) => {
       c.font = { name: "Calibri", size: 11, bold: n === 1 };
       c.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
     }));
-    ws.autoFilter = { from: "A1", to: "H1" };
+    ws.autoFilter = { from: "A1", to: "J1" };
     const buf = await wb.xlsx.writeBuffer();
     const url = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
     const a = document.createElement("a");

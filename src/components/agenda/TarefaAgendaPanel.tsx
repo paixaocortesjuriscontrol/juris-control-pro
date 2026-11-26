@@ -1,4 +1,5 @@
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
+import { analisarRepasse, aplicarSubstituicao } from "@/lib/substituirResponsaveis";
 import { useState, useEffect } from "react";
 import { usePodeCancelarItens } from "@/hooks/usePodeCancelarItens";
 import { usePodeAlterarDatas } from "@/hooks/usePodeAlterarDatas";
@@ -239,6 +240,8 @@ export function TarefaAgendaPanel({
   const [editResponsaveisIds, setEditResponsaveisIds] = useState<string[]>([]);
   const [editEnvolvidosIds, setEditEnvolvidosIds] = useState<string[]>([]);
   const [editMostrarEnvolvidos, setEditMostrarEnvolvidos] = useState(false);
+  const [pessoasOriginais, setPessoasOriginais] = useState<{ resp: string[]; env: string[] }>({ resp: [], env: [] });
+  const [repassePendente, setRepassePendente] = useState<{ novasPessoas: string[]; anteriores: string[] } | null>(null);
 
   // Responsáveis fixos da coordenação e do tipo do item recebem o cadeado
   const { data: itemCoordenacaoId } = useQuery({
@@ -334,6 +337,10 @@ export function TarefaAgendaPanel({
             respIds.length > 0 ? respIds : tarefa.responsavel_id ? [tarefa.responsavel_id] : [],
           );
           setEditEnvolvidosIds(envIds);
+          setPessoasOriginais({
+            resp: respIds.length > 0 ? respIds : tarefa.responsavel_id ? [tarefa.responsavel_id] : [],
+            env: envIds,
+          });
           setEditMostrarEnvolvidos(envIds.length > 0);
         })();
       } else {
@@ -873,10 +880,27 @@ export function TarefaAgendaPanel({
     setIsEditing(false);
   };
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = async (
+    escolha?: { resp: string[]; env: string[] },
+  ) => {
+    if (!escolha && tarefa.origem === "tarefa") {
+      const a = analisarRepasse({
+        originalResp: pessoasOriginais.resp,
+        originalEnv: pessoasOriginais.env,
+        resp: editResponsaveisIds,
+        env: editEnvolvidosIds,
+        fixos: [...coordenadoresIds, ...envolvidosFixosIds],
+      });
+      if (a.perguntar) {
+        setRepassePendente({ novasPessoas: a.novasPessoas, anteriores: a.anteriores });
+        return;
+      }
+    }
+    const editResponsaveisIds_ = escolha?.resp ?? editResponsaveisIds;
+    const editEnvolvidosIds_ = escolha?.env ?? editEnvolvidosIds;
     setSavingEdit(true);
     try {
-      const erroPessoas = mensagemPessoasObrigatorias(editResponsaveisIds, editEnvolvidosIds);
+      const erroPessoas = mensagemPessoasObrigatorias(editResponsaveisIds_, editEnvolvidosIds_);
       if (erroPessoas) {
         toast({ title: erroPessoas, variant: "destructive" });
         setSavingEdit(false);
@@ -891,9 +915,9 @@ export function TarefaAgendaPanel({
           prioridade: editForm.prioridade || "media",
           updated_at: new Date().toISOString(),
           responsavel_id:
-            tarefa.responsavel_id && editResponsaveisIds.includes(tarefa.responsavel_id)
+            tarefa.responsavel_id && editResponsaveisIds_.includes(tarefa.responsavel_id)
               ? tarefa.responsavel_id
-              : (editResponsaveisIds.find((id) => !coordenadoresIds.includes(id)) || editResponsaveisIds[0]),
+              : (editResponsaveisIds_.find((id) => !coordenadoresIds.includes(id)) || editResponsaveisIds_[0]),
         };
         const { error } = await supabase
           .from("tarefas")
@@ -901,8 +925,8 @@ export function TarefaAgendaPanel({
           .eq("id", tarefa.id);
         if (error) throw error;
         // Sincronizar responsáveis e envolvidos
-        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_responsaveis", editResponsaveisIds);
-        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_envolvidos", editEnvolvidosIds);
+        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_responsaveis", editResponsaveisIds_);
+        await sincronizarParticipantesTarefa(tarefa.id, "tarefa_envolvidos", editEnvolvidosIds_);
       } else {
         const updateData: Record<string, any> = {
           titulo: editForm.titulo.trim(),
@@ -1296,7 +1320,7 @@ export function TarefaAgendaPanel({
               <div className="flex gap-2 pt-2 sticky bottom-0 bg-card border-t -mx-6 px-6 pb-2 z-10">
                 <Button
                   className="flex-1"
-                  onClick={handleSaveEdit}
+                  onClick={() => handleSaveEdit()}
                   disabled={savingEdit || !editForm.titulo.trim()}
                 >
                   {savingEdit ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
@@ -1494,6 +1518,45 @@ export function TarefaAgendaPanel({
             >
               {deleting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={!!repassePendente} onOpenChange={(o) => !o && setRepassePendente(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Substituir os responsáveis atuais?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {(() => {
+                const nome = (id: string) => (membrosEdicao as any[]).find((m) => m.id === id)?.nome ?? "pessoa";
+                const novas = repassePendente?.novasPessoas.map(nome).join(", ");
+                const ant = repassePendente?.anteriores.map(nome).join(", ");
+                return `Você incluiu ${novas}. Deseja que passe(m) a ser responsável(is) no lugar de ${ant}? Escolha "Manter" para só acrescentar.`;
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              onClick={() => {
+                setRepassePendente(null);
+                handleSaveEdit({ resp: editResponsaveisIds, env: editEnvolvidosIds });
+              }}
+            >
+              Manter e acrescentar
+            </AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (!repassePendente) return;
+                const r = aplicarSubstituicao(editResponsaveisIds, editEnvolvidosIds, repassePendente.novasPessoas, repassePendente.anteriores);
+                setEditResponsaveisIds(r.resp);
+                setEditEnvolvidosIds(r.env);
+                setRepassePendente(null);
+                handleSaveEdit(r);
+              }}
+            >
+              Substituir
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
