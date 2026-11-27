@@ -557,7 +557,7 @@ export default function ConsumoJudit() {
               {isLoading ? <Skeleton className="h-32" /> : acompPorDia.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma consulta de Acompanhamento Especial no período.</p>
               ) : (
-                <div className="max-h-72 overflow-auto">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -595,7 +595,7 @@ export default function ConsumoJudit() {
               {isLoading || isLoadingCoordenacoes ? <Skeleton className="h-32" /> : porCoordenacao.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Nenhuma consulta no período.</p>
               ) : (
-                <div className="max-h-72 overflow-auto">
+                <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
