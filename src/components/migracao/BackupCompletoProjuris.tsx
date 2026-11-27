@@ -482,6 +482,16 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
         setMsg(`Conferindo tarefas já cadastradas: ${from + ((data as any[]) || []).length}`);
         if (cancelado.current) throw CANCELADO;
       }
+      // Importações por planilha gravam o código TAR.x em identificador_projuris; o backup grava o cdtarefaevento.
+      // Sem esta conferência, a mesma tarefa entrava duas vezes (código em formatos diferentes).
+      const identsTar = new Set<string>();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase.from("tarefas").select("identificador_projuris").eq("coordenacao_id", coordId).ilike("identificador_projuris", "TAR.%").range(from, from + 999);
+        if (error) throw error;
+        ((data as any[]) || []).forEach((t: any) => identsTar.add(String(t.identificador_projuris).trim().toUpperCase()));
+        if (!data || data.length < 1000) break;
+        if (cancelado.current) throw CANCELADO;
+      }
       const tarefasRows: LinhaConf[] = [];
       const respCache = new Map<string, string | null>();
       if (guTe) {
@@ -516,6 +526,7 @@ export function BackupCompletoProjuris({ coordId, nomeCoord, userId, usuarios, o
           const respsProjuris = (respTarefa.get(chave) || []).map(casar).filter(Boolean) as string[];
           const respId = respsProjuris[0] || casar(criador);
           const ident = String(guTe.g(r, "deidentificador") || "").trim().toUpperCase();
+          if (!motivo && ident && identsTar.has(ident)) motivo = "Já migrada antes por planilha (mesmo código TAR)";
           const cpVinc = tarefaVincProc.get(String(guTe.g(r, "cdtarefa") || ""));
           const procDig = (cpVinc ? procNum.get(cpVinc)?.dig || null : null) || vincTarefaRef.current.get(ident) || (() => { const cp = tarefaProc.get(chave); return cp ? procNum.get(cp)?.dig || null : null; })();
           tarefasRows.push({
