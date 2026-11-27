@@ -22,6 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -132,19 +133,26 @@ export default function ConsumoJudit() {
     queryKey: ["judit_logs_consumo", from, to],
     queryFn: async () => {
       // A API devolve no máximo 1.000 linhas por chamada: lê em páginas.
-      const data: any[] = [];
-      for (let ini = 0; ini < 100000; ini += 1000) {
-        const { data: pg, error } = await supabase
+      // A API devolve no máximo 1.000 linhas por chamada: conta o total e lê as páginas em paralelo.
+      const SEL = "id, created_at, created_by, processo_numero, tribunal, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh, status, error_message, origem, user_email, tipo_cobranca";
+      const pagina = (ini: number, contar = false) =>
+        supabase
           .from("judit_logs" as any)
-          .select("id, created_at, created_by, processo_numero, tribunal, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh, status, error_message, origem, user_email, tipo_cobranca")
+          .select(SEL, contar ? { count: "exact" } : undefined)
           .gte("created_at", rangeFrom)
           .lte("created_at", rangeTo)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .range(ini, ini + 999);
-        if (error) throw error;
-        data.push(...((pg as any[]) || []));
-        if (!pg || pg.length < 1000) break;
+      const primeira = await pagina(0, true);
+      if (primeira.error) throw primeira.error;
+      const data: any[] = [...((primeira.data as any[]) || [])];
+      const total = Math.min(primeira.count ?? data.length, 100000);
+      const inicios: number[] = [];
+      for (let ini = 1000; ini < total; ini += 1000) inicios.push(ini);
+      for (let i = 0; i < inicios.length; i += 6) {
+        const res = await Promise.all(inicios.slice(i, i + 6).map((ini) => pagina(ini)));
+        for (const r of res) { if (r.error) throw r.error; data.push(...((r.data as any[]) || [])); }
       }
       return ((data as any[]) || []).map((r) => ({
         ...r,
@@ -468,14 +476,15 @@ export default function ConsumoJudit() {
           </CardContent>
         </Card>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <KpiCard icon={<Activity className="w-4 h-4" />} label="Chamadas cobradas" value={fmtInt(kpis.totalCobrado)} sub={`${fmtInt(kpis.total)} no total`} />
-          <KpiCard icon={<Paperclip className="w-4 h-4" />} label="Com anexos" value={fmtInt(kpis.porTipo["com_anexos"]?.qtd ?? 0)} sub={fmtBrl(kpis.porTipo["com_anexos"]?.custo ?? 0)} />
-          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={`${fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} · ${fmtInt(enriched.filter((r) => r.tipo === "cache_local").length)} reaproveitadas do dia`} />
-          <KpiCard icon={<DollarSign className="w-4 h-4" />} label="Custo total BRL" value={fmtBrl(kpis.custoTotal)} sub="estimado (tabela Judit)" />
-        </div>
-
+        <Tabs defaultValue="geral" className="space-y-4">
+          <TabsList className="h-auto flex-wrap justify-start">
+            <TabsTrigger value="geral">Visão geral</TabsTrigger>
+            <TabsTrigger value="acomp">Acompanhamento Especial</TabsTrigger>
+            <TabsTrigger value="coord">Por coordenação</TabsTrigger>
+            <TabsTrigger value="usuarios">Usuários e telas</TabsTrigger>
+            <TabsTrigger value="detalhe">Consultas detalhadas</TabsTrigger>
+          </TabsList>
+          <TabsContent value="geral" className="space-y-4">
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-4">
             <div>
@@ -505,8 +514,41 @@ export default function ConsumoJudit() {
           </CardContent>
         </Card>
 
-        {/* Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <KpiCard icon={<Activity className="w-4 h-4" />} label="Chamadas cobradas" value={fmtInt(kpis.totalCobrado)} sub={`${fmtInt(kpis.total)} no total`} />
+          <KpiCard icon={<Paperclip className="w-4 h-4" />} label="Com anexos" value={fmtInt(kpis.porTipo["com_anexos"]?.qtd ?? 0)} sub={fmtBrl(kpis.porTipo["com_anexos"]?.custo ?? 0)} />
+          <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={`${fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} · ${fmtInt(enriched.filter((r) => r.tipo === "cache_local").length)} reaproveitadas do dia`} />
+          <KpiCard icon={<DollarSign className="w-4 h-4" />} label="Custo total BRL" value={fmtBrl(kpis.custoTotal)} sub="estimado (tabela Judit)" />
+        </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Consultas por dia</CardTitle>
+            </CardHeader>
+            <CardContent className="h-64">
+              {isLoading ? <Skeleton className="h-full" /> : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={perDay}>
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                    <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip formatter={(v: number) => fmtInt(v)} />
+                    <Legend />
+                    <Bar dataKey="com_anexos" name="Com anexos" stackId="a" fill="#f59e0b" />
+                    <Bar dataKey="on_demand" name="On demand" stackId="a" fill="#8b5cf6" />
+                    <Bar dataKey="datalake" name="Datalake" stackId="a" fill="#60a5fa" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </CardContent>
+          </Card>
+
+          </div>
+          </TabsContent>
+          <TabsContent value="acomp">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-3">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Acompanhamento Especial por dia</CardTitle>
@@ -540,6 +582,10 @@ export default function ConsumoJudit() {
               )}
             </CardContent>
           </Card>
+          </div>
+          </TabsContent>
+          <TabsContent value="coord">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card className="lg:col-span-3">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Consultas por coordenação</CardTitle>
@@ -574,28 +620,10 @@ export default function ConsumoJudit() {
               )}
             </CardContent>
           </Card>
-          <Card className="lg:col-span-3">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Consultas por dia</CardTitle>
-            </CardHeader>
-            <CardContent className="h-64">
-              {isLoading ? <Skeleton className="h-full" /> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={perDay}>
-                    <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={(v: number) => fmtInt(v)} />
-                    <Legend />
-                    <Bar dataKey="com_anexos" name="Com anexos" stackId="a" fill="#f59e0b" />
-                    <Bar dataKey="on_demand" name="On demand" stackId="a" fill="#8b5cf6" />
-                    <Bar dataKey="datalake" name="Datalake" stackId="a" fill="#60a5fa" />
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
+          </div>
+          </TabsContent>
+          <TabsContent value="usuarios">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Top usuários (BRL)</CardTitle>
@@ -627,8 +655,9 @@ export default function ConsumoJudit() {
               </ResponsiveContainer>
             </CardContent>
           </Card>
-        </div>
-
+          </div>
+          </TabsContent>
+          <TabsContent value="detalhe">
         {/* Tabela detalhada */}
         <Card>
           <CardHeader className="pb-3">
@@ -708,6 +737,9 @@ export default function ConsumoJudit() {
             )}
           </CardContent>
         </Card>
+
+          </TabsContent>
+        </Tabs>
 
         <div className="text-[11px] text-muted-foreground leading-relaxed">
           Cobrança estimada com base na tabela Judit vigente: consulta com anexos R$ 3,75; consulta on demand
