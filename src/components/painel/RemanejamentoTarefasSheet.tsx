@@ -23,6 +23,7 @@ import { useSituacoesPainel } from "@/hooks/useSituacoesPainel";
 import { usePessoasEmLoteItens, labelTipoLote, type LoteItem, type LoteTipo, type PessoasEmLoteFiltros } from "@/hooks/usePessoasEmLote";
 import { formatInTimeZone, fromZonedTime } from "date-fns-tz";
 import { sincronizarParticipantesTarefa } from "@/lib/sincronizarParticipantesTarefa";
+import { listarAtividadesLote, passaFiltroAtividade } from "@/lib/tipoAtividadeLote";
 import { ChevronRight, ArrowRightLeft, AlertTriangle, CalendarClock, Loader2, Search, UserCog, CheckCircle2 } from "lucide-react";
 
 interface Props {
@@ -145,6 +146,7 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
     setFiltros((f) => ({ ...f, tipos: [t] }));
     setSel(new Set());
     setRegras({});
+    setAtividade("");
     setBuscou(false);
     setConfirmando(false);
   };
@@ -154,11 +156,14 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
   const [ordem, setOrdem] = useState<"fatal" | "prevista" | "processo">("fatal");
   const [fatalAte, setFatalAte] = useState("");
   const [buscaTexto, setBuscaTexto] = useState("");
+  const [atividade, setAtividade] = useState("");
+  const atividadesDisponiveis = useMemo(() => listarAtividadesLote(itensBrutos.filter((i) => i.tipo === tipoAtivo)), [itensBrutos, tipoAtivo]);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const itens = useMemo(() => {
     const txt = buscaTexto.trim().toLowerCase();
     const lista = itensBrutos.filter((i) => {
       if (i.tipo !== tipoAtivo) return false;
+      if (!passaFiltroAtividade(i.titulo, atividade)) return false;
       if (fatalAte) {
         const f = dataFatalDe(i);
         if (!f || diaBRT(f) > fatalAte) return false;
@@ -176,7 +181,7 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
         : ordem === "fatal" ? (dataFatalDe(i) ? diaBRT(dataFatalDe(i)!) : "9999")
           : (i.data ? diaBRT(i.data) : "9999");
     return [...lista].sort((a, b) => chave(a).localeCompare(chave(b)));
-  }, [itensBrutos, tipoAtivo, fatalAte, buscaTexto, ordem]);
+  }, [itensBrutos, tipoAtivo, fatalAte, buscaTexto, ordem, atividade]);
   const nomeCoord = useMemo(() => Object.fromEntries(coordenacoes.map((c) => [c.id, c.nome])), [coordenacoes]);
 
   const idsPessoas = useMemo(() => Array.from(new Set(itens.flatMap((i) => [...i.responsaveis, ...i.envolvidos]))), [itens]);
@@ -454,6 +459,16 @@ export function RemanejamentoTarefasSheet({ open, onOpenChange }: Props) {
                     <Input type="date" className="h-7 w-[140px] text-xs" value={fatalAte} onChange={(e) => setFatalAte(e.target.value)} />
                   </div>
                 )}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground">Tipo de atividade</span>
+                  <Select value={atividade || "__todas"} onValueChange={(v) => { setAtividade(v === "__todas" ? "" : v); setSel(new Set()); }}>
+                    <SelectTrigger className="h-7 w-[200px] text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__todas">Todas</SelectItem>
+                      {atividadesDisponiveis.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Input className="h-7 w-[220px] text-xs" placeholder="Buscar em observações, partes…" value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)} />
               </div>
               <ul className="divide-y">

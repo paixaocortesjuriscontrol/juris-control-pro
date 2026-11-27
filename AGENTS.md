@@ -32,7 +32,6 @@
 - The "assistente_juridico_geral" role reads all coordinations via dedicated SELECT policies, while edits to tasks, events and hearings are enforced by a DB trigger allowing only items where the user is responsible/involved; the UI uses `podeVerTodasCoordenacoes` only for viewing scope, so security never depends on the screen.
 
 - Control-panel cards show exact open-item counts from the fully loaded unified agenda; while it loads (and only without extra client filters) they show `get_painel_totais` (SECURITY INVOKER) so cards appear immediately. Do not add other parallel legacy summary queries.
-- Unified agenda wrapper memoizes flattened deduped items by query data.
 - Calendar indicator queries cache completed ID batches under the same invalidation prefix and user scope as their aggregate query, so loading subsequent agenda pages reuses previous requests without weakening access or mutation refreshes.
 - Painel Escritório loads the month by coordination scope (`escopoEscritorio`; people filter only for Protocolados/Baixados with people chosen); reads go through `resolverModoBuscaAgenda` → `get_agenda_pessoal`/`get_agenda_escritorio` (STABLE, INVOKER) one source at a time, so the browser never sends item ID lists.
 - Agenda task and hearing reads never put linked item IDs in `or(...)` or in long `in(...)` lists, because those requests exceeded the server URL limit and made the agenda retry forever; the ready-made searches cover Pessoal and Escritório, and the combinations they do not cover (process/client/origin filters, single-coordination filter, admin "all coordinations" `fetchAll`, incomplete period, several people) keep the old browser queries, which still load linked items in ID batches merged by ID on page 0.
@@ -57,3 +56,4 @@
 - `useUserRole` coordinator flags include `membros_coordenacao` cargo; `podeVerTodasCoordenacoes` stays global-role only.
 - Agenda RPCs use `_agenda_tarefas_visiveis` (DEFINER, RLS-equivalent); per-row RLS timed out.
 - Painel model colors via `modelos_tarefas_periodo`.
+- Workflow next steps inherit prior step notes.

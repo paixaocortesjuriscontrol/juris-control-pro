@@ -10,3 +10,10 @@ test("junta observação do início e da etapa", () => {
 test("não duplica", () => {
   assert.equal(juntarObservacoesWorkflow("docs para pericia oulier", "docs para pericia"), "docs para pericia oulier");
 });
+import { observacoesHerdadas } from "./workflowExecutor";
+test("próxima etapa herda a observação da anterior", () => {
+  assert.equal(observacoesHerdadas("DISP 17/11 - PF RO 01/12", null), "DISP 17/11 - PF RO 01/12");
+});
+test("herança não repete a observação do início", () => {
+  assert.equal(observacoesHerdadas("tj 25/11 + PF RO", "tj 25/11"), "tj 25/11 + PF RO");
+});

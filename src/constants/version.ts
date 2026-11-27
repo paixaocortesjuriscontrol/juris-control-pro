@@ -1,8 +1,9 @@
 // Versão do sistema - atualizar a cada release
-export const APP_VERSION = "10.4.8";
+export const APP_VERSION = "10.4.9";
 
 // Changelog resumido (opcional, para referência interna)
 export const VERSION_HISTORY = [
+  { version: "10.4.9", date: "2026-11-27", notes: "Workflows: a próxima etapa passa a trazer as observações da etapa anterior (como o prazo recursal); Remanejar em lote: novo filtro Tipo de atividade" },
   { version: "10.4.8", date: "2026-11-26", notes: "Exportar Atividades: a coluna 'Data da publicação DJEN' passa a ser a primeira coluna da planilha, antes de Tipo, para localizar a publicação logo ao abrir o arquivo" },
   { version: "10.4.7", date: "2026-11-26", notes: "Auditoria: os detalhes de um registro abrem em painel lateral direito, organizado em blocos (Resumo, O que foi alterado, Erro, Dados de entrada e saída), e os dados de entrada e saída aparecem em linhas legíveis — como 'Responsável: nome da pessoa' e 'Origem: Manual' — em vez do texto técnico com códigos, que continua disponível em 'Ver dados técnicos'; Painel de Controle: evento marcado como dia inteiro não aparece mais também no dia seguinte no calendário; Exportar Atividades: a planilha traz a coluna 'Data da publicação DJEN' quando o item tem publicação vinculada" },
   { version: "10.4.6", date: "2026-11-25", notes: "Auditoria: os detalhes de cada registro mostram o número do processo (com link para abrir a ficha) e o nome da coordenação no lugar dos códigos internos, e o campo 'Item ID' saiu da tela; relatórios Excel e PDF ganham barra de progresso, filtram a seleção direto no banco em vez de baixar tudo para depois filtrar, trazem o número do processo e o nome das pessoas, dos clientes e das coordenações nos campos Valor anterior e Valor novo, e os anexos aparecem só pelo nome do arquivo" },

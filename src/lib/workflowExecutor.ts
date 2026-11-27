@@ -238,7 +238,8 @@ export async function criarItemWorkflow(
   dataReferencia: Date,
   responsavelId?: string | null,
   processoId?: string,
-  processoNumero?: string
+  processoNumero?: string,
+  observacoesAnteriores?: string | null
 ): Promise<{ id: string; tipo: WorkflowItemType } | null> {
   const sobrescrita = sobrescritaDaEtapa(execucao as any, etapaParam?.id);
   const etapa = mesclarEtapa(etapaParam, sobrescrita);
@@ -314,9 +315,10 @@ export async function criarItemWorkflow(
   };
   // Observações digitadas ao iniciar o workflow entram em todas as atividades
   // criadas por ele, junto com as da etapa (antes ficavam só na execução).
+  // As observações da etapa anterior (ex.: prazo recursal) seguem para a próxima.
   const observacoesItem = juntarObservacoesWorkflow(
     txt("observacoes") || etapa.descricao || null,
-    (execucao as any)?.observacoes
+    observacoesHerdadas(observacoesAnteriores, (execucao as any)?.observacoes)
   );
   const recorrencia = () => {
     const recorrenciaTipo = txt("recorrencia_tipo") || "nenhuma";
@@ -721,6 +723,34 @@ export const WORKFLOW_STATUS_SUCESSO = [
 /** Situações que indicam conclusão SEM sucesso (interrompe o ramo). */
 export const WORKFLOW_STATUS_INSUCESSO = ["concluido_sem_sucesso", "cancelado"];
 
+/** Junta as observações da etapa anterior às do início do fluxo, sem repetir. */
+export function observacoesHerdadas(
+  daAnterior: string | null | undefined,
+  daExecucao: string | null | undefined
+): string | null {
+  return juntarObservacoesWorkflow(daAnterior, daExecucao);
+}
+
+async function buscarObservacoesItem(tipoRaw: WorkflowItemType | null, itemId: string | null): Promise<string | null> {
+  if (!tipoRaw || !itemId) return null;
+  const tipo = String(tipoRaw).toUpperCase();
+  try {
+    if (tipo === "TAREFA" || tipo === "PRAZO") {
+      const { data } = await supabase.from("tarefas").select("observacoes").eq("id", itemId).maybeSingle();
+      return (data as any)?.observacoes || null;
+    }
+    if (tipo === "AUDIENCIA") {
+      const { data } = await (supabase as any).from("audiencias_detectadas").select("observacoes").eq("id", itemId).maybeSingle();
+      return (data as any)?.observacoes || null;
+    }
+    if (tipo === "EVENTO" || tipo === "PARCELAMENTO") {
+      const { data } = await (supabase as any).from("eventos_agenda").select("descricao").eq("id", itemId).maybeSingle();
+      return (data as any)?.descricao || null;
+    }
+  } catch { /* sem observações */ }
+  return null;
+}
+
 export async function buscarResponsavelItem(
   tipoRaw: WorkflowItemType | null,
   itemId: string | null
@@ -880,6 +910,9 @@ async function materializarEtapas(
   const responsavelAnterior = etapaReferencia?.item_id
     ? await buscarResponsavelItem(etapaReferencia.item_tipo, etapaReferencia.item_id)
     : null;
+  const observacoesAnteriores = etapaReferencia?.item_id
+    ? await buscarObservacoesItem(etapaReferencia.item_tipo, etapaReferencia.item_id)
+    : null;
   const { data: sessaoConclusao } = await supabase.auth.getUser();
   const concluidoPor = etapaReferencia ? sessaoConclusao?.user?.id ?? null : null;
 
@@ -910,7 +943,8 @@ async function materializarEtapas(
         dataReferencia,
         responsavel,
         execucaoCast.processo_id,
-        execucaoCast.processo_numero
+        execucaoCast.processo_numero,
+        observacoesAnteriores
       );
       if (!item?.id) throw new Error("Item da etapa não foi criado");
 
