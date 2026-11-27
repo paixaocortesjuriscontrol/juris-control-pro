@@ -1,5 +1,9 @@
 # Roadmap — pedidos da Isabela (Santander Cível)
 
+## Painel Judit e versão (27/11/2026)
+- [x] Mostrar total, cobradas e custo por coordenação atual do processo, com linha separada para processos não cadastrados
+- [x] Atualizar o menu para v10.5.0; 2 testes e compilação aprovados (conferência autenticada indisponível no Supabase externo)
+
 ## Relatórios da Auditoria (25/11/2026)
 - [x] Reduzir a consulta do Excel/PDF e mostrar progresso real por etapa
 - [x] Preencher o número do processo pelo `processo_id` no Excel e no PDF

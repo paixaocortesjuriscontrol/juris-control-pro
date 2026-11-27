@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { resumirConsultasPorCoordenacao } from "@/lib/consumoJuditCoordenacao";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -158,6 +159,47 @@ export default function ConsumoJudit() {
     placeholderData: keepPreviousData,
   });
 
+  const processoNumeros = useMemo(() => {
+    return Array.from(new Set((rows ?? []).map((r) => r.processo_numero).filter(Boolean))).sort();
+  }, [rows]);
+
+  // Resolve a coordenação atual sem incluir listas longas de IDs na URL.
+  const {
+    data: coordenacaoPorProcesso,
+    isLoading: isLoadingCoordenacoes,
+    error: errorCoordenacoes,
+  } = useQuery({
+    queryKey: ["judit_coordenacao_por_processo", processoNumeros],
+    enabled: processoNumeros.length > 0,
+    queryFn: async () => {
+      const lotes: string[][] = [];
+      for (let i = 0; i < processoNumeros.length; i += 100) {
+        lotes.push(processoNumeros.slice(i, i + 100));
+      }
+
+      const processos: any[] = [];
+      // Até cinco buscas pequenas por vez, para não sobrecarregar o painel.
+      for (let i = 0; i < lotes.length; i += 5) {
+        const grupo = await Promise.all(lotes.slice(i, i + 5).map(async (lote) => {
+          const { data, error } = await supabase
+            .from("processos" as any)
+            .select("numero, coordenacao:coordenacoes(nome)")
+            .in("numero", lote);
+          if (error) throw error;
+          return (data as any[]) || [];
+        }));
+        processos.push(...grupo.flat());
+      }
+
+      const mapa = new Map<string, string>();
+      for (const processo of processos) {
+        const coordenacao = Array.isArray(processo.coordenacao) ? processo.coordenacao[0] : processo.coordenacao;
+        if (coordenacao?.nome) mapa.set(processo.numero, coordenacao.nome);
+      }
+      return mapa;
+    },
+  });
+
   // Perfis para exibir nome/email quando a coluna user_email ainda não foi preenchida.
   const userIds = useMemo(() => {
     const s = new Set<string>();
@@ -185,8 +227,9 @@ export default function ConsumoJudit() {
   }, [profiles]);
 
   useEffect(() => {
-    if (error) toast.error("Erro ao carregar consumo Judit: " + (error as Error).message);
-  }, [error]);
+    const falha = error || errorCoordenacoes;
+    if (falha) toast.error("Erro ao carregar consumo Judit: " + (falha as Error).message);
+  }, [error, errorCoordenacoes]);
 
   const enriched = useMemo(() => {
     return (rows ?? []).map((r) => {
@@ -251,6 +294,11 @@ export default function ConsumoJudit() {
     }
     return Array.from(map.values()).sort((a, b) => b.dia.localeCompare(a.dia));
   }, [enriched]);
+
+  // Total geral do período pela coordenação atual do processo.
+  const porCoordenacao = useMemo(() => {
+    return resumirConsultasPorCoordenacao(enriched, coordenacaoPorProcesso ?? new Map<string, string>());
+  }, [enriched, coordenacaoPorProcesso]);
 
   const topUsuarios = useMemo(() => {
     const map = new Map<string, { name: string; qtd: number; custo: number }>();
@@ -433,6 +481,40 @@ export default function ConsumoJudit() {
                           <TableCell className="text-right">{fmtInt(d.total)}</TableCell>
                           <TableCell className="text-right">{fmtInt(d.cobradas)}</TableCell>
                           <TableCell className="text-right">{fmtBrl(d.custo)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Consultas por coordenação</CardTitle>
+              <p className="text-xs text-muted-foreground">Total do período pela coordenação atual de cada processo.</p>
+            </CardHeader>
+            <CardContent>
+              {isLoading || isLoadingCoordenacoes ? <Skeleton className="h-32" /> : porCoordenacao.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma consulta no período.</p>
+              ) : (
+                <div className="max-h-72 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Coordenação</TableHead>
+                        <TableHead className="text-right">Consultas</TableHead>
+                        <TableHead className="text-right">Cobradas</TableHead>
+                        <TableHead className="text-right">Custo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {porCoordenacao.map((item) => (
+                        <TableRow key={item.coordenacao}>
+                          <TableCell>{item.coordenacao}</TableCell>
+                          <TableCell className="text-right">{fmtInt(item.total)}</TableCell>
+                          <TableCell className="text-right">{fmtInt(item.cobradas)}</TableCell>
+                          <TableCell className="text-right">{fmtBrl(item.custo)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
