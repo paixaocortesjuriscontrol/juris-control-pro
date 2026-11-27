@@ -130,14 +130,21 @@ export default function ConsumoJudit() {
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["judit_logs_consumo", from, to],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("judit_logs" as any)
-        .select("id, created_at, created_by, processo_numero, tribunal, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh, status, error_message, origem, user_email, tipo_cobranca")
-        .gte("created_at", rangeFrom)
-        .lte("created_at", rangeTo)
-        .order("created_at", { ascending: false })
-        .limit(10000);
-      if (error) throw error;
+      // A API devolve no máximo 1.000 linhas por chamada: lê em páginas.
+      const data: any[] = [];
+      for (let ini = 0; ini < 100000; ini += 1000) {
+        const { data: pg, error } = await supabase
+          .from("judit_logs" as any)
+          .select("id, created_at, created_by, processo_numero, tribunal, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh, status, error_message, origem, user_email, tipo_cobranca")
+          .gte("created_at", rangeFrom)
+          .lte("created_at", rangeTo)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(ini, ini + 999);
+        if (error) throw error;
+        data.push(...((pg as any[]) || []));
+        if (!pg || pg.length < 1000) break;
+      }
       return ((data as any[]) || []).map((r) => ({
         ...r,
         request_payload: {
@@ -221,7 +228,7 @@ export default function ConsumoJudit() {
   const perDay = useMemo(() => {
     const map = new Map<string, { dia: string; com_anexos: number; on_demand: number; datalake: number; cache_local: number; custo: number }>();
     for (const r of filtered) {
-      const d = r.created_at.slice(0, 10);
+      const d = brtISO(new Date(r.created_at));
       const e = map.get(d) ?? { dia: d, com_anexos: 0, on_demand: 0, datalake: 0, cache_local: 0, custo: 0 };
       if (r.cobrado) (e as any)[r.tipo] += 1;
       e.custo += r.custo;
@@ -229,6 +236,21 @@ export default function ConsumoJudit() {
     }
     return Array.from(map.values()).sort((a, b) => a.dia.localeCompare(b.dia));
   }, [filtered]);
+
+  // Acompanhamento Especial por dia (independe dos outros filtros).
+  const acompPorDia = useMemo(() => {
+    const map = new Map<string, { dia: string; total: number; cobradas: number; custo: number }>();
+    for (const r of enriched) {
+      if (r.origem !== "acompanhamento-especial") continue;
+      const d = brtISO(new Date(r.created_at));
+      const e = map.get(d) ?? { dia: d, total: 0, cobradas: 0, custo: 0 };
+      e.total += 1;
+      if (r.cobrado) e.cobradas += 1;
+      e.custo += r.custo;
+      map.set(d, e);
+    }
+    return Array.from(map.values()).sort((a, b) => b.dia.localeCompare(a.dia));
+  }, [enriched]);
 
   const topUsuarios = useMemo(() => {
     const map = new Map<string, { name: string; qtd: number; custo: number }>();
@@ -386,6 +408,39 @@ export default function ConsumoJudit() {
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card className="lg:col-span-3">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Acompanhamento Especial por dia</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? <Skeleton className="h-32" /> : acompPorDia.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma consulta de Acompanhamento Especial no período.</p>
+              ) : (
+                <div className="max-h-72 overflow-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Dia</TableHead>
+                        <TableHead className="text-right">Consultas</TableHead>
+                        <TableHead className="text-right">Cobradas</TableHead>
+                        <TableHead className="text-right">Custo</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {acompPorDia.map((d) => (
+                        <TableRow key={d.dia}>
+                          <TableCell>{d.dia.split("-").reverse().join("/")}</TableCell>
+                          <TableCell className="text-right">{fmtInt(d.total)}</TableCell>
+                          <TableCell className="text-right">{fmtInt(d.cobradas)}</TableCell>
+                          <TableCell className="text-right">{fmtBrl(d.custo)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
           <Card className="lg:col-span-3">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Consultas por dia</CardTitle>
