@@ -731,10 +731,8 @@ serve(async (req) => {
       }
 
       if (erro || !payload) {
-        await supabase
-          .from("processos")
-          .update({ acompanhamento_ultima_checagem_em: new Date().toISOString() })
-          .eq("id", p.id);
+        // Não marca como checado: a repescagem tenta de novo no mesmo dia
+        // (ex.: franquia Judit esgotada e liberada depois).
         return { processo_id: p.id, erro };
       }
 

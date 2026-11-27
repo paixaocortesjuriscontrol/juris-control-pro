@@ -265,8 +265,8 @@ export default function ConsumoJudit() {
   const { data: franquia, refetch: refetchFranquia } = useQuery({
     queryKey: ["config_judit_franquia"],
     queryFn: async () => {
-      const { data } = await (supabase as any).from("config_judit_franquia").select("limite_consultas").maybeSingle();
-      return (data?.limite_consultas as number) ?? 4000;
+      const { data } = await (supabase as any).from("config_judit_franquia").select("limite_valor_brl").maybeSingle();
+      return Number(data?.limite_valor_brl ?? 3000);
     },
   });
   const [limiteDraft, setLimiteDraft] = useState<string>("");
@@ -276,13 +276,42 @@ export default function ConsumoJudit() {
     if (!Number.isFinite(n) || n < 0) { toast.error("Informe um número válido"); return; }
     const { data: u } = await supabase.auth.getUser();
     const { data, error: e } = await (supabase as any).from("config_judit_franquia")
-      .upsert({ id: true, limite_consultas: n, updated_at: new Date().toISOString(), updated_by: u.user?.id })
-      .select("limite_consultas");
+      .upsert({ id: true, limite_valor_brl: n, updated_at: new Date().toISOString(), updated_by: u.user?.id })
+      .select("limite_valor_brl");
     if (e || !data?.length) { toast.error("Só administradores podem alterar a franquia"); return; }
     await refetchFranquia();
     toast.success("Franquia atualizada");
   };
-  const cobradasPeriodo = useMemo(() => enriched.filter((r: any) => r.cobrado).length, [enriched]);
+  // Ciclo da franquia: sempre do dia 1 do mês atual (BRT) até agora, independente dos filtros.
+  const inicioCiclo = `${brtISO(new Date()).slice(0, 8)}01`;
+  const { data: ciclo } = useQuery({
+    queryKey: ["judit_ciclo_franquia", inicioCiclo],
+    queryFn: async () => {
+      const SEL = "id, status, tipo_cobranca, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh";
+      const pagina = (ini: number, contar = false) =>
+        supabase.from("judit_logs" as any).select(SEL, contar ? { count: "exact" } : undefined)
+          .gte("created_at", `${inicioCiclo}T00:00:00-03:00`).eq("status", "sucesso")
+          .order("id", { ascending: true }).range(ini, ini + 999);
+      const primeira = await pagina(0, true);
+      if (primeira.error) throw primeira.error;
+      const data: any[] = [...((primeira.data as any[]) || [])];
+      const total = primeira.count ?? data.length;
+      const inicios: number[] = [];
+      for (let ini = 1000; ini < total; ini += 1000) inicios.push(ini);
+      for (let i = 0; i < inicios.length; i += 6) {
+        const res = await Promise.all(inicios.slice(i, i + 6).map((ini) => pagina(ini)));
+        for (const r of res) { if (r.error) throw r.error; data.push(...((r.data as any[]) || [])); }
+      }
+      let qtd = 0, valor = 0;
+      for (const r of data) {
+        const tipo = detectarTipo({ com_anexos: r.com_anexos, with_attachments: r.with_attachments, on_demand: r.on_demand, force_refresh: r.force_refresh }, r.tipo_cobranca);
+        if (tipo === "cache_local") continue;
+        qtd += 1; valor += PRECOS_BRL[tipo];
+      }
+      return { qtd, valor };
+    },
+    refetchInterval: 5 * 60 * 1000,
+  });
 
   const kpis = useMemo(() => {
     const total = filtered.length;
@@ -488,21 +517,23 @@ export default function ConsumoJudit() {
         <Card>
           <CardContent className="pt-4 flex flex-wrap items-end gap-4">
             <div>
-              <Label className="text-xs">Franquia contratada (consultas)</Label>
+              <Label className="text-xs">Franquia mensal contratada (R$)</Label>
               <div className="flex gap-2">
                 <Input type="number" min={0} className="w-32" value={limiteDraft} onChange={(e) => setLimiteDraft(e.target.value)} />
                 <Button variant="outline" onClick={salvarLimite} disabled={String(franquia ?? "") === limiteDraft}>Salvar</Button>
               </div>
             </div>
-            {franquia != null && (() => {
-              const pct = franquia > 0 ? Math.min(100, (cobradasPeriodo / franquia) * 100) : 0;
-              const restante = franquia - cobradasPeriodo;
+            {franquia != null && ciclo && (() => {
+              const usado = ciclo.valor;
+              const pct = franquia > 0 ? Math.min(100, (usado / franquia) * 100) : 0;
+              const restante = franquia - usado;
+              const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
               return (
                 <div className="flex-1 min-w-[240px]">
                   <div className="text-sm mb-1">
-                    {fmtInt(cobradasPeriodo)} cobradas no período de {fmtInt(franquia)} ·{" "}
+                    Ciclo desde {inicioCiclo.split("-").reverse().join("/")}: {brl(usado)} de {brl(franquia)} ({fmtInt(ciclo.qtd)} consultas cobradas) ·{" "}
                     <span className={restante <= 0 ? "text-destructive font-semibold" : ""}>
-                      {restante <= 0 ? "franquia esgotada" : `${fmtInt(restante)} restantes`}
+                      {restante <= 0 ? "franquia esgotada" : `${brl(restante)} restantes`}
                     </span>
                   </div>
                   <div className="h-2 rounded bg-muted overflow-hidden">

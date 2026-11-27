@@ -3395,18 +3395,21 @@ export type Database = {
         Row: {
           id: boolean
           limite_consultas: number
+          limite_valor_brl: number
           updated_at: string
           updated_by: string | null
         }
         Insert: {
           id?: boolean
           limite_consultas?: number
+          limite_valor_brl?: number
           updated_at?: string
           updated_by?: string | null
         }
         Update: {
           id?: boolean
           limite_consultas?: number
+          limite_valor_brl?: number
           updated_at?: string
           updated_by?: string | null
         }
