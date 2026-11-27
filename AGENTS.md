@@ -57,3 +57,4 @@
 - Agenda RPCs use `_agenda_tarefas_visiveis` (DEFINER, RLS-equivalent); per-row RLS timed out.
 - Painel model colors via `modelos_tarefas_periodo`.
 - Workflow next steps inherit prior step notes.
+- Projuris duplicate checks always pair the TAR code with the same coordination (and process), because each coordination's Projuris base restarts TAR numbering; cross-coordination matches wrongly removed Santander Trabalhista tasks.
