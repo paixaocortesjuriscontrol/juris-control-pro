@@ -1371,6 +1371,300 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_copias_antigas_dup_com_20261127: {
+        Row: {
+          autor_id: string | null
+          conteudo: string | null
+          created_at: string | null
+          id: string | null
+          is_cobranca: boolean | null
+          mencionados: string[] | null
+          tarefa_id: string | null
+        }
+        Insert: {
+          autor_id?: string | null
+          conteudo?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_cobranca?: boolean | null
+          mencionados?: string[] | null
+          tarefa_id?: string | null
+        }
+        Update: {
+          autor_id?: string | null
+          conteudo?: string | null
+          created_at?: string | null
+          id?: string | null
+          is_cobranca?: boolean | null
+          mencionados?: string[] | null
+          tarefa_id?: string | null
+        }
+        Relationships: []
+      }
+      backup_copias_antigas_dup_env_20261127: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          tarefa_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
+      backup_copias_antigas_dup_mig_20261127: {
+        Row: {
+          chave_externa: string | null
+          created_at: string | null
+          dados: Json | null
+          id: string | null
+          migracao_id: string | null
+          motivo: string | null
+          registro_id: string | null
+          status: string | null
+          tipo: string | null
+        }
+        Insert: {
+          chave_externa?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          id?: string | null
+          migracao_id?: string | null
+          motivo?: string | null
+          registro_id?: string | null
+          status?: string | null
+          tipo?: string | null
+        }
+        Update: {
+          chave_externa?: string | null
+          created_at?: string | null
+          dados?: Json | null
+          id?: string | null
+          migracao_id?: string | null
+          motivo?: string | null
+          registro_id?: string | null
+          status?: string | null
+          tipo?: string | null
+        }
+        Relationships: []
+      }
+      backup_copias_antigas_dup_resp_20261127: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          tarefa_id: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          tarefa_id?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: []
+      }
+      backup_copias_antigas_duplicadas_20261127: {
+        Row: {
+          alerta_dias: number | null
+          alerta_unidade: string | null
+          carga_origem: string | null
+          concluido_por_nome: string | null
+          coordenacao_id: string | null
+          copia_25_11_id: string | null
+          created_at: string | null
+          criado_por: string | null
+          criado_por_nome: string | null
+          data_base: string | null
+          data_criacao_projuris: string | null
+          data_cumprimento: string | null
+          data_fatal: string | null
+          data_prevista: string | null
+          data_vencimento: string | null
+          descricao: string | null
+          descricao_ultimo_andamento: string | null
+          envolvimento_clientes: string | null
+          envolvimento_contrarios: string | null
+          grupos_trabalho: string | null
+          hora_conclusao: string | null
+          hora_criacao: string | null
+          hora_fatal: string | null
+          hora_prevista: string | null
+          id: string | null
+          identificador_modulo: string | null
+          identificador_projuris: string | null
+          identificador_timesheet: string | null
+          instancia: string | null
+          link_local: string | null
+          marcadores: string | null
+          marcadores_vinculo: string | null
+          modelo_tarefa_id: string | null
+          modulo: string | null
+          observacoes: string | null
+          orgao: string | null
+          orgao_julgador: string | null
+          origem: string | null
+          outras_partes: string | null
+          partes_ativas: string | null
+          partes_passivas: string | null
+          prazo_dias: number | null
+          prazo_unidade: string | null
+          prioridade: Database["public"]["Enums"]["prioridade_tarefa"] | null
+          processo_id: string | null
+          quadro_kanban: string | null
+          recorrencia_fim: string | null
+          recorrencia_intervalo: number | null
+          recorrencia_rrule: string | null
+          recorrencia_tipo: string | null
+          recorrente: boolean | null
+          responsavel_id: string | null
+          situacao_processo: string | null
+          status: Database["public"]["Enums"]["status_tarefa"] | null
+          tipo_registro: string | null
+          tipo_tarefa: string | null
+          titulo: string | null
+          total_horas_timesheet: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          alerta_dias?: number | null
+          alerta_unidade?: string | null
+          carga_origem?: string | null
+          concluido_por_nome?: string | null
+          coordenacao_id?: string | null
+          copia_25_11_id?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          criado_por_nome?: string | null
+          data_base?: string | null
+          data_criacao_projuris?: string | null
+          data_cumprimento?: string | null
+          data_fatal?: string | null
+          data_prevista?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          descricao_ultimo_andamento?: string | null
+          envolvimento_clientes?: string | null
+          envolvimento_contrarios?: string | null
+          grupos_trabalho?: string | null
+          hora_conclusao?: string | null
+          hora_criacao?: string | null
+          hora_fatal?: string | null
+          hora_prevista?: string | null
+          id?: string | null
+          identificador_modulo?: string | null
+          identificador_projuris?: string | null
+          identificador_timesheet?: string | null
+          instancia?: string | null
+          link_local?: string | null
+          marcadores?: string | null
+          marcadores_vinculo?: string | null
+          modelo_tarefa_id?: string | null
+          modulo?: string | null
+          observacoes?: string | null
+          orgao?: string | null
+          orgao_julgador?: string | null
+          origem?: string | null
+          outras_partes?: string | null
+          partes_ativas?: string | null
+          partes_passivas?: string | null
+          prazo_dias?: number | null
+          prazo_unidade?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"] | null
+          processo_id?: string | null
+          quadro_kanban?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          responsavel_id?: string | null
+          situacao_processo?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"] | null
+          tipo_registro?: string | null
+          tipo_tarefa?: string | null
+          titulo?: string | null
+          total_horas_timesheet?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          alerta_dias?: number | null
+          alerta_unidade?: string | null
+          carga_origem?: string | null
+          concluido_por_nome?: string | null
+          coordenacao_id?: string | null
+          copia_25_11_id?: string | null
+          created_at?: string | null
+          criado_por?: string | null
+          criado_por_nome?: string | null
+          data_base?: string | null
+          data_criacao_projuris?: string | null
+          data_cumprimento?: string | null
+          data_fatal?: string | null
+          data_prevista?: string | null
+          data_vencimento?: string | null
+          descricao?: string | null
+          descricao_ultimo_andamento?: string | null
+          envolvimento_clientes?: string | null
+          envolvimento_contrarios?: string | null
+          grupos_trabalho?: string | null
+          hora_conclusao?: string | null
+          hora_criacao?: string | null
+          hora_fatal?: string | null
+          hora_prevista?: string | null
+          id?: string | null
+          identificador_modulo?: string | null
+          identificador_projuris?: string | null
+          identificador_timesheet?: string | null
+          instancia?: string | null
+          link_local?: string | null
+          marcadores?: string | null
+          marcadores_vinculo?: string | null
+          modelo_tarefa_id?: string | null
+          modulo?: string | null
+          observacoes?: string | null
+          orgao?: string | null
+          orgao_julgador?: string | null
+          origem?: string | null
+          outras_partes?: string | null
+          partes_ativas?: string | null
+          partes_passivas?: string | null
+          prazo_dias?: number | null
+          prazo_unidade?: string | null
+          prioridade?: Database["public"]["Enums"]["prioridade_tarefa"] | null
+          processo_id?: string | null
+          quadro_kanban?: string | null
+          recorrencia_fim?: string | null
+          recorrencia_intervalo?: number | null
+          recorrencia_rrule?: string | null
+          recorrencia_tipo?: string | null
+          recorrente?: boolean | null
+          responsavel_id?: string | null
+          situacao_processo?: string | null
+          status?: Database["public"]["Enums"]["status_tarefa"] | null
+          tipo_registro?: string | null
+          tipo_tarefa?: string | null
+          titulo?: string | null
+          total_horas_timesheet?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       backup_estephany_audiencias_20261123: {
         Row: {
           created_at: string
