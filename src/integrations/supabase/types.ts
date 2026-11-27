@@ -1797,6 +1797,33 @@ export type Database = {
         }
         Relationships: []
       }
+      backup_obs_copias_mantidas_20261127: {
+        Row: {
+          coordenacao_id: string | null
+          copia_nova_id: string | null
+          id: string | null
+          observacoes: string | null
+          titulo_novo: string | null
+          vencimento_novo: string | null
+        }
+        Insert: {
+          coordenacao_id?: string | null
+          copia_nova_id?: string | null
+          id?: string | null
+          observacoes?: string | null
+          titulo_novo?: string | null
+          vencimento_novo?: string | null
+        }
+        Update: {
+          coordenacao_id?: string | null
+          copia_nova_id?: string | null
+          id?: string | null
+          observacoes?: string | null
+          titulo_novo?: string | null
+          vencimento_novo?: string | null
+        }
+        Relationships: []
+      }
       backup_responsaveis_admin_pc_20261124: {
         Row: {
           ativo: boolean | null
