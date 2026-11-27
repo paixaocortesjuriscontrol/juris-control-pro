@@ -527,13 +527,13 @@ export default function ConsumoJudit() {
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Consultas por dia</CardTitle>
             </CardHeader>
-            <CardContent className="h-64">
+            <CardContent className="h-80">
               {isLoading ? <Skeleton className="h-full" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={perDay}>
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                    <XAxis dataKey="dia" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
+                    <XAxis dataKey="dia" tick={{ fontSize: 12 }} />
+                    <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip formatter={(v: number) => fmtInt(v)} />
                     <Legend />
                     <Bar dataKey="com_anexos" name="Com anexos" stackId="a" fill="#f59e0b" />
@@ -622,40 +622,47 @@ export default function ConsumoJudit() {
           </Card>
           </div>
           </TabsContent>
-          <TabsContent value="usuarios">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Top usuários (BRL)</CardTitle>
-            </CardHeader>
-            <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topUsuarios} layout="vertical" margin={{ left: 40 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={160} />
-                  <Tooltip formatter={(v: number) => fmtBrl(v)} />
-                  <Bar dataKey="custo" fill="#10b981" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <Card className="lg:col-span-2">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Top telas (BRL)</CardTitle>
-            </CardHeader>
-            <CardContent className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={topTelas} layout="vertical" margin={{ left: 40 }}>
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10 }} width={220} />
-                  <Tooltip formatter={(v: number) => fmtBrl(v)} />
-                  <Bar dataKey="custo" fill="#8b5cf6" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          </div>
+          <TabsContent value="usuarios" className="space-y-4">
+            <Tabs defaultValue="top-usuarios" className="space-y-4">
+              <TabsList className="h-auto flex-wrap justify-start">
+                <TabsTrigger value="top-usuarios">Top usuários</TabsTrigger>
+                <TabsTrigger value="top-telas">Top telas</TabsTrigger>
+              </TabsList>
+              <TabsContent value="top-usuarios">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Top usuários (BRL)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[460px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topUsuarios} layout="vertical" margin={{ left: 40, right: 24 }}>
+                        <XAxis type="number" tick={{ fontSize: 12 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={220} />
+                        <Tooltip formatter={(v: number, _name: string, item: any) => [`${fmtBrl(v)} · ${fmtInt(item?.payload?.qtd ?? 0)} consultas cobradas`, "Custo"]} />
+                        <Bar dataKey="custo" fill="#10b981" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              <TabsContent value="top-telas">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">Top telas (BRL)</CardTitle>
+                  </CardHeader>
+                  <CardContent className="h-[460px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={topTelas} layout="vertical" margin={{ left: 40, right: 24 }}>
+                        <XAxis type="number" tick={{ fontSize: 12 }} />
+                        <YAxis type="category" dataKey="name" tick={{ fontSize: 12 }} width={260} />
+                        <Tooltip formatter={(v: number, _name: string, item: any) => [`${fmtBrl(v)} · ${fmtInt(item?.payload?.qtd ?? 0)} consultas cobradas`, "Custo"]} />
+                        <Bar dataKey="custo" fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
           </TabsContent>
           <TabsContent value="detalhe">
         {/* Tabela detalhada */}
