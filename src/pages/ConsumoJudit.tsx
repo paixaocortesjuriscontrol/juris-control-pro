@@ -254,6 +254,28 @@ export default function ConsumoJudit() {
     });
   }, [enriched, tipoFilter, userFilter, statusFilter, somenteCobrado]);
 
+  const { data: franquia, refetch: refetchFranquia } = useQuery({
+    queryKey: ["config_judit_franquia"],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from("config_judit_franquia").select("limite_consultas").maybeSingle();
+      return (data?.limite_consultas as number) ?? 4000;
+    },
+  });
+  const [limiteDraft, setLimiteDraft] = useState<string>("");
+  useEffect(() => { if (franquia != null) setLimiteDraft(String(franquia)); }, [franquia]);
+  const salvarLimite = async () => {
+    const n = parseInt(limiteDraft, 10);
+    if (!Number.isFinite(n) || n < 0) { toast.error("Informe um número válido"); return; }
+    const { data: u } = await supabase.auth.getUser();
+    const { data, error: e } = await (supabase as any).from("config_judit_franquia")
+      .upsert({ id: true, limite_consultas: n, updated_at: new Date().toISOString(), updated_by: u.user?.id })
+      .select("limite_consultas");
+    if (e || !data?.length) { toast.error("Só administradores podem alterar a franquia"); return; }
+    await refetchFranquia();
+    toast.success("Franquia atualizada");
+  };
+  const cobradasPeriodo = useMemo(() => enriched.filter((r: any) => r.cobrado).length, [enriched]);
+
   const kpis = useMemo(() => {
     const total = filtered.length;
     const totalCobrado = filtered.filter((r) => r.cobrado).length;
@@ -453,6 +475,35 @@ export default function ConsumoJudit() {
           <KpiCard icon={<Hash className="w-4 h-4" />} label="Sem anexos (datalake/on demand)" value={fmtInt((kpis.porTipo["datalake"]?.qtd ?? 0) + (kpis.porTipo["on_demand"]?.qtd ?? 0))} sub={`${fmtBrl((kpis.porTipo["datalake"]?.custo ?? 0) + (kpis.porTipo["on_demand"]?.custo ?? 0))} · ${fmtInt(enriched.filter((r) => r.tipo === "cache_local").length)} reaproveitadas do dia`} />
           <KpiCard icon={<DollarSign className="w-4 h-4" />} label="Custo total BRL" value={fmtBrl(kpis.custoTotal)} sub="estimado (tabela Judit)" />
         </div>
+
+        <Card>
+          <CardContent className="pt-4 flex flex-wrap items-end gap-4">
+            <div>
+              <Label className="text-xs">Franquia contratada (consultas)</Label>
+              <div className="flex gap-2">
+                <Input type="number" min={0} className="w-32" value={limiteDraft} onChange={(e) => setLimiteDraft(e.target.value)} />
+                <Button variant="outline" onClick={salvarLimite} disabled={String(franquia ?? "") === limiteDraft}>Salvar</Button>
+              </div>
+            </div>
+            {franquia != null && (() => {
+              const pct = franquia > 0 ? Math.min(100, (cobradasPeriodo / franquia) * 100) : 0;
+              const restante = franquia - cobradasPeriodo;
+              return (
+                <div className="flex-1 min-w-[240px]">
+                  <div className="text-sm mb-1">
+                    {fmtInt(cobradasPeriodo)} cobradas no período de {fmtInt(franquia)} ·{" "}
+                    <span className={restante <= 0 ? "text-destructive font-semibold" : ""}>
+                      {restante <= 0 ? "franquia esgotada" : `${fmtInt(restante)} restantes`}
+                    </span>
+                  </div>
+                  <div className="h-2 rounded bg-muted overflow-hidden">
+                    <div className={`h-full ${pct >= 100 ? "bg-destructive" : pct >= 80 ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
+          </CardContent>
+        </Card>
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

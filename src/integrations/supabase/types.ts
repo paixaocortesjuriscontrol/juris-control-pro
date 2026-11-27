@@ -3391,6 +3391,27 @@ export type Database = {
           },
         ]
       }
+      config_judit_franquia: {
+        Row: {
+          id: boolean
+          limite_consultas: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          limite_consultas?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          limite_consultas?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       config_notificacoes_usuario: {
         Row: {
           ativo: boolean
