@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,13 +63,18 @@ const ROTULO_TIPO: Record<string, string> = {
 
 const PAGE_SIZE = 50;
 
+// Datas no fuso de Brasília (BRT).
+function brtISO(d: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+}
 function todayISO() {
-  return new Date().toISOString().slice(0, 10);
+  return brtISO(new Date());
 }
 function daysAgoISO(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return brtISO(new Date(Date.now() - n * 86400000));
+}
+function dataValida(v: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(v) && Number(v.slice(0, 4)) >= 2000 && !Number.isNaN(Date.parse(v));
 }
 function fmtBrl(n: number) {
   return `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -103,30 +108,47 @@ function detectarTipo(payload: any, salvo: string | null): keyof typeof PRECOS_B
 }
 
 export default function ConsumoJudit() {
-  const [from, setFrom] = useState(daysAgoISO(30));
-  const [to, setTo] = useState(todayISO());
+  const [fromDraft, setFrom] = useState(daysAgoISO(30));
+  const [toDraft, setTo] = useState(todayISO());
+  const [periodo, setPeriodo] = useState({ from: fromDraft, to: toDraft });
+  // Só aplica datas completas e válidas, após uma pausa na digitação.
+  useEffect(() => {
+    if (!dataValida(fromDraft) || !dataValida(toDraft) || fromDraft > toDraft) return;
+    const t = setTimeout(() => setPeriodo({ from: fromDraft, to: toDraft }), 500);
+    return () => clearTimeout(t);
+  }, [fromDraft, toDraft]);
+  const { from, to } = periodo;
   const [tipoFilter, setTipoFilter] = useState<string>("all");
   const [userFilter, setUserFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [somenteCobrado, setSomenteCobrado] = useState<boolean>(true);
   const [page, setPage] = useState(0);
 
-  const rangeFrom = `${from}T00:00:00Z`;
-  const rangeTo = `${to}T23:59:59Z`;
+  const rangeFrom = `${from}T00:00:00-03:00`;
+  const rangeTo = `${to}T23:59:59.999-03:00`;
 
   const { data: rows, isLoading, error } = useQuery({
     queryKey: ["judit_logs_consumo", from, to],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("judit_logs" as any)
-        .select("id, created_at, created_by, processo_numero, tribunal, request_payload, status, error_message, origem, user_email, tipo_cobranca")
+        .select("id, created_at, created_by, processo_numero, tribunal, com_anexos:request_payload->com_anexos, with_attachments:request_payload->with_attachments, on_demand:request_payload->on_demand, force_refresh:request_payload->force_refresh, status, error_message, origem, user_email, tipo_cobranca")
         .gte("created_at", rangeFrom)
         .lte("created_at", rangeTo)
         .order("created_at", { ascending: false })
         .limit(10000);
       if (error) throw error;
-      return (data as unknown as Row[]) || [];
+      return ((data as any[]) || []).map((r) => ({
+        ...r,
+        request_payload: {
+          com_anexos: r.com_anexos,
+          with_attachments: r.with_attachments,
+          on_demand: r.on_demand,
+          force_refresh: r.force_refresh,
+        },
+      })) as Row[];
     },
+    placeholderData: keepPreviousData,
   });
 
   // Perfis para exibir nome/email quando a coluna user_email ainda não foi preenchida.
@@ -155,9 +177,9 @@ export default function ConsumoJudit() {
     return m;
   }, [profiles]);
 
-  if (error) {
-    toast.error("Erro ao carregar consumo Judit: " + (error as Error).message);
-  }
+  useEffect(() => {
+    if (error) toast.error("Erro ao carregar consumo Judit: " + (error as Error).message);
+  }, [error]);
 
   const enriched = useMemo(() => {
     return (rows ?? []).map((r) => {
@@ -295,11 +317,11 @@ export default function ConsumoJudit() {
             <div className="grid grid-cols-2 md:grid-cols-6 gap-3 items-end">
               <div>
                 <Label className="text-xs">De</Label>
-                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+                <Input type="date" value={fromDraft} onChange={(e) => setFrom(e.target.value)} />
               </div>
               <div>
                 <Label className="text-xs">Até</Label>
-                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+                <Input type="date" value={toDraft} onChange={(e) => setTo(e.target.value)} />
               </div>
               <div>
                 <Label className="text-xs">Tipo de consulta</Label>
