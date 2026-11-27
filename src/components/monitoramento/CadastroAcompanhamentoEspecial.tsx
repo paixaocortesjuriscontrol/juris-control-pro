@@ -88,6 +88,7 @@ async function criarProcessoComJudit(numero: string, coordenacaoId: string, uid:
     } as any);
     try {
       await supabase.from("judit_logs" as any).insert({
+        origem: "cadastro-acompanhamento-especial",
         processo_numero: numeroFmt, tribunal: raw?.tribunal || null,
         request_payload: { numero_processo: numeroFmt, fonte: "busca-judit-processos-e-casos", origem: "monitoramento" },
         raw_response: raw, status: "sucesso", error_message: null, created_by: uid,

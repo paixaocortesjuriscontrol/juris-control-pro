@@ -681,6 +681,7 @@ export function ProcessoFormDialog({ open, onOpenChange, processo }: ProcessoFor
       try {
         const { data: userData } = await supabase.auth.getUser();
         await supabase.from("judit_logs" as any).insert({
+          origem: "cadastro-processo",
           processo_numero: numero,
           tribunal: tribunalHint,
           request_payload: { ...requestPayload, numero_processo_original: numeroRaw },

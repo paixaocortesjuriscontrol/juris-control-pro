@@ -732,6 +732,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       });
       try {
         await supabase.from("judit_logs" as any).insert({
+          origem: "processos-e-casos",
           processo_numero: numeroLimpo,
           tribunal: "TST",
           request_payload: { numero_processo: numeroLimpo, tribunal: "TST", com_anexos: comAnexos, force_refresh: true },
@@ -949,6 +950,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       }
       try {
         await supabase.from("judit_logs" as any).insert({
+          origem: "processos-e-casos",
           processo_numero: numeroLimpo,
           tribunal: (data as any)?.tribunal || null,
           request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos, force_refresh: true },
@@ -1199,6 +1201,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
           try {
             const { data: userData } = await supabase.auth.getUser();
             await supabase.from("judit_logs" as any).insert({
+              origem: "processos-e-casos",
               processo_numero: numeroLimpo,
               tribunal: data?.tribunal || null,
               request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },
@@ -1231,6 +1234,7 @@ export const ProcessoVisaoGeralForm = forwardRef<ProcessoVisaoGeralFormHandle, P
       if (!fromCache) {
         try {
           await supabase.from("judit_logs" as any).insert({
+            origem: "processos-e-casos",
             processo_numero: numeroLimpo,
             tribunal: data?.tribunal || null,
             request_payload: { numero_processo: numeroLimpo, fonte: "busca-judit-processos-e-casos", with_attachments: comAnexos },

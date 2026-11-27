@@ -401,6 +401,7 @@ export const DadosBennerForm = forwardRef<DadosBennerFormHandle, Props>(function
       try {
         const { data: userData } = await supabase.auth.getUser();
         await supabase.from("judit_logs" as any).insert({
+          origem: "dados-benner",
           // Usa o valor ORIGINAL (como salvo em distribuicoes_tst.processo_numero
           // / dados_benner.processo) para que as abas Log Judit e Análise Judit
           // consigam localizar o registro mesmo quando o processo foi cadastrado

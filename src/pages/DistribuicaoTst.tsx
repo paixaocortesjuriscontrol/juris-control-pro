@@ -1800,6 +1800,7 @@ export default function DistribuicaoTst() {
           // exatamente como o botão Judit individual faz.
           try {
             await supabase.from("judit_logs" as any).insert({
+              origem: "distribuicao-tst",
               processo_numero: proc.processo_numero,
               tribunal: "TST",
               request_payload: requestPayload,

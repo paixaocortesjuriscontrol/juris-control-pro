@@ -428,6 +428,7 @@ export async function gravarJuditLog(params: {
 }) {
   try {
     await supabase.from("judit_logs" as any).insert({
+      origem: "distribuicao-tst",
       processo_numero: params.processoNumero,
       tribunal: params.tribunal,
       request_payload: params.requestPayload,
